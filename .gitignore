@@ -1,0 +1,5 @@
+﻿# .gitignore
+
+*.tmp
+*.suo
+*.cache
