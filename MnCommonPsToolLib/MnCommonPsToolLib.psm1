@@ -1815,8 +1815,10 @@ function MnLibCommonSelfTest{
 #   - Empty array in pipeline is converted to $null: $r = [String[]]@() | Where-Object { $_ -ne "bla" }; $r -eq $null 
 #     Workaround:  $r = @()+([String[]]@() | Where-Object { $_ -ne "bla" }); $r -eq $null 
 # - Standard module paths:
-#   - %windir%\system32\WindowsPowerShell\v1.0\Modules       this is the location for system wide modules available to any user in the system.
-#   - %USERPROFILE%\Documents\WindowsPowerShell\Modules      per user
+#   - %windir%\system32\WindowsPowerShell\v1.0\Modules       location for windows modules for all users
+#   - %ProgramW6432%\WindowsPowerShell\Modules\              location for any modules     for all users
+#   - %ProgramFiles%\WindowsPowerShell\Modules\              location for any modules     for all users but on PowerShell-32bit only, PowerShell-64bit does not have this path
+#   - %USERPROFILE%\Documents\WindowsPowerShell\Modules      location for any modules     for current users
 # - Scopes for variables, aliases, functions and psdrives:
 #   - Local           : Current scope, is one of the other scopes: global, script, private, numbered scopes.
 #   - Global          : Active after first script start, includes automatic variables (http://ss64.com/ps/syntax-automatic-variables.html), 
