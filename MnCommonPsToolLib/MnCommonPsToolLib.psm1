@@ -1619,7 +1619,7 @@ function GitCloneOrFetchOrPull                ( [String] $tarRootDir, [String] $
                                                 # ex: GitCloneOrFetchOrPull "C:\WorkGit" "https://github.com/mniederw/mn-hibernate"
                                                 [String] $tarDir = (GitBuildLocalDirFromUrl $tarRootDir $url);
                                                 if( (DirExists $tarDir) ){
-                                                  if( usePullNotFetch ){
+                                                  if( $usePullNotFetch ){
 												    GitPull $tarDir $url;
                                                   }else{
 												    GitFetch $tarDir $url;
