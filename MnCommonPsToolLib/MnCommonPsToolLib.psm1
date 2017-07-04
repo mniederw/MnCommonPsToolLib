@@ -2,6 +2,7 @@
 #
 # 2013-2017 produced by Marc Niederwieser, Switzerland. This is freeware.
 #
+# 2017-07-04  V1.1  git pull
 # 2017-06-25  V1.0  published as open source to github
 #
 # This library encapsulates many common commands for the purpose of:
@@ -1613,16 +1614,22 @@ function GitLogList                           ( [String] $tarLogDir, [String] $l
                                                 }
                                                 LogMode ""          "$tarLogDir\Log.$repoName.Commits.log";
                                                 LogMode "--summary" "$tarLogDir\Log.$repoName.CommitsAndFiles.log"; }
-function GitCloneOrFetch                      ( [String] $tarRootDir, [String] $url, [Boolean] $errorAsWarning = $false ){
+function GitCloneOrFetchOrPull                ( [String] $tarRootDir, [String] $url, [Boolean] $usePullNotFetch = $false, [Boolean] $errorAsWarning = $false ){
                                                 # extracts path of url below host as relative dir, uses this path below target root dir to create or update git; 
-                                                # ex: GitCloneOrFetch "C:\WorkGit" "https://github.com/mniederw/mn-hibernate"
+                                                # ex: GitCloneOrFetchOrPull "C:\WorkGit" "https://github.com/mniederw/mn-hibernate"
                                                 [String] $tarDir = (GitBuildLocalDirFromUrl $tarRootDir $url);
                                                 if( (DirExists $tarDir) ){
-                                                  GitFetch $tarDir $url;
+                                                  if( usePullNotFetch ){
+												    GitPull $tarDir $url;
+                                                  }else{
+												    GitFetch $tarDir $url;
+											      }
                                                 }else{
                                                   GitClone $tarDir $url $errorAsWarning;
                                                 } }
-function GitCloneOrFetchIgnoreError           ( [String] $tarRootDir, [String] $url ){ GitCloneOrFetch $tarRootDir $url $true; }
+function GitCloneOrFetchIgnoreError           ( [String] $tarRootDir, [String] $url ){ GitCloneOrFetchOrPull $tarRootDir $url $false $true; }
+function GitCloneOrPullIgnoreError            ( [String] $tarRootDir, [String] $url ){ GitCloneOrFetchOrPull $tarRootDir $url $true  $true; }
+
 function GitBuildLocalDirFromUrl              ( [String] $tarRootDir, [String] $url ){ return [String] (Join-Path $tarRootDir ([System.Uri]$url).AbsolutePath.Replace("/","\")); } # AbsolutePath ex: "/mydir1/dir2";
 function PrivShowTokenPrivileges              (){ 
                                                 whoami /priv; }
