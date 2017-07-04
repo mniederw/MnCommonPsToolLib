@@ -1618,15 +1618,18 @@ function GitCloneOrFetchOrPull                ( [String] $tarRootDir, [String] $
                                                 # extracts path of url below host as relative dir, uses this path below target root dir to create or update git; 
                                                 # ex: GitCloneOrFetchOrPull "C:\WorkGit" "https://github.com/mniederw/mn-hibernate"
                                                 [String] $tarDir = (GitBuildLocalDirFromUrl $tarRootDir $url);
+                                                Push-Location -Path $dir;
                                                 if( (DirExists $tarDir) ){
                                                   if( $usePullNotFetch ){
-												    GitPull $tarDir $url;
+                                                    GitPull $tarDir $url;
                                                   }else{
-												    GitFetch $tarDir $url;
-											      }
+                                                    GitFetch $tarDir $url;
+                                                  }
                                                 }else{
                                                   GitClone $tarDir $url $errorAsWarning;
-                                                } }
+                                                }
+                                                Pop-Location;
+                                                }
 function GitCloneOrFetchIgnoreError           ( [String] $tarRootDir, [String] $url ){ GitCloneOrFetchOrPull $tarRootDir $url $false $true; }
 function GitCloneOrPullIgnoreError            ( [String] $tarRootDir, [String] $url ){ GitCloneOrFetchOrPull $tarRootDir $url $true  $true; }
 
