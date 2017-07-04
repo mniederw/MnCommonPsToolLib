@@ -454,6 +454,7 @@ function TaskDisable                          ( [String] $taskPathAndName ){
 function FsEntryEsc                           ( [String] $fsentry ){ 
                                                 if( $fsentry -eq "" ){ throw [Exception] "Empty file name not allowed"; } # escaping is not nessessary if a command supports -LiteralPath.
                                                 return [String] [Management.Automation.WildcardPattern]::Escape($fsentry); } # important for chars as [,], etc.
+function FsEntryMakeValidFileName             ( [string] $str ){ [System.IO.Path]::GetInvalidFileNameChars() | ForEach-Object { $str = $str.Replace($_,'_') }; return [String] $str; }
 function FsEntryGetAbsolutePath               ( [String] $fsEntry ){ 
                                                 return [String] ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($fsEntry)); }
                                                 # note: we cannot use (Resolve-Path -LiteralPath $fsEntry) because it will throw if path not exists, see http://stackoverflow.com/questions/3038337/powershell-resolve-path-that-might-not-exist
@@ -1555,6 +1556,7 @@ function SvnCommitAndGet                      ( [String] $svnWorkDir, [String] $
 function GitClone                             ( [String] $tarDir, [String] $url, [Boolean] $errorAsWarning = $false ){ # ex: GitFetch "C:\WorkGit\mniederw\mn-hibernate" "https://github.com/mniederw/mn-hibernate"
                                                 [String] $dir = FsEntryGetAbsolutePath $tarDir;
                                                 try{
+                                                  Push-Location -Path $dir;
                                                   # ex: remote: Counting objects: 123, done. \n Receiving objects: 56% (33/123)  0 (delta 0), pack-reused ... \n Receiving objects: 100% (123/123), 205.12 KiB | 0 bytes/s, done. \n Resolving deltas: 100% (123/123), done.
                                                   # ex: Logon failed, use ctrl+c to cancel basic credential prompt.
                                                   OutProgressText "git clone --quiet '$url' '$dir'     ";
@@ -1564,10 +1566,13 @@ function GitClone                             ( [String] $tarDir, [String] $url,
                                                   if( -not $errorAsWarning ){ throw [Exception] "GitClone($url,$tarDir) failed because $($_.Exception.Message)"; }
                                                   OutWarning "GitClone($url,$tarDir) failed because $($_.Exception.Message)";
                                                   ScriptResetRc;
+                                                }finally{
+                                                  Pop-Location;
                                                 } }
 function GitFetch                             ( [String] $tarDir, [String] $url, [Boolean] $errorAsWarning = $false ){ # ex: GitFetch "C:\WorkGit\mniederw\mn-hibernate" "https://github.com/mniederw/mn-hibernate"
                                                 [String] $dir = FsEntryGetAbsolutePath $tarDir;
                                                 try{
+                                                  Push-Location -Path $dir;
                                                   # ex: Logon failed, use ctrl+c to cancel basic credential prompt.
                                                   OutProgressText "git --git-dir='$dir\.git' fetch --quiet '$url'     ";
                                                   [String[]] $out = & "git" "--git-dir=$dir\.git" "fetch" "--quiet" $url; AssertRcIsOk $out;
@@ -1576,18 +1581,22 @@ function GitFetch                             ( [String] $tarDir, [String] $url,
                                                   if( -not $errorAsWarning ){ throw [Exception] "GitFetch($url,$tarDir) failed because $($_.Exception.Message)"; }
                                                   OutWarning "GitFetch($url,$tarDir) failed because $($_.Exception.Message)";
                                                   ScriptResetRc;
+                                                }finally{
+                                                  Pop-Location;
                                                 } }
 function GitPull                              ( [String] $tarDir, [String] $url ){ # ex: GitPull "C:\WorkGit\mniederw\mn-hibernate" "https://github.com/mniederw/mn-hibernate"
                                                 [String] $dir = FsEntryGetAbsolutePath $tarDir;
                                                 try{
+                                                  Push-Location -Path $dir;
                                                   OutProgressText "git --git-dir='$dir\.git' pull --quiet '$url'     ";
                                                   [String[]] $out = & "git" "--git-dir=$dir\.git" "pull" "--quiet" $url; AssertRcIsOk $out;
                                                   OutProgress "Ok, done.";
                                                 }catch{
                                                   OutWarning "GitPull($url,$tarDir) failed because $($_.Exception.Message)";
                                                   ScriptResetRc;
+                                                }finally{
+                                                  Pop-Location;
                                                 } }
-function FsEntryMakeValidFileName             ( [string] $str ){ [System.IO.Path]::GetInvalidFileNameChars() | ForEach-Object {$str = $str.Replace($_,'_')}; return [String] $str; }
 function GitLogList                           ( [String] $tarLogDir, [String] $localRepoDir ){
                                                 # overwrite git log info to files below specified dir, it writes files as Log.NameOfRepoRoot.NameOfRepo.Commits.log and Log.NameOfRepoRoot.NameOfRepo.CommitsAndFiles.log, 
                                                 # ex: GitListLog "C:\WorkGit\Log" "C:\WorkGit\mniederw\mn-hibernate"
@@ -1618,7 +1627,6 @@ function GitCloneOrFetchOrPull                ( [String] $tarRootDir, [String] $
                                                 # extracts path of url below host as relative dir, uses this path below target root dir to create or update git; 
                                                 # ex: GitCloneOrFetchOrPull "C:\WorkGit" "https://github.com/mniederw/mn-hibernate"
                                                 [String] $tarDir = (GitBuildLocalDirFromUrl $tarRootDir $url);
-                                                Push-Location -Path $dir;
                                                 if( (DirExists $tarDir) ){
                                                   if( $usePullNotFetch ){
                                                     GitPull $tarDir $url;
@@ -1627,12 +1635,9 @@ function GitCloneOrFetchOrPull                ( [String] $tarRootDir, [String] $
                                                   }
                                                 }else{
                                                   GitClone $tarDir $url $errorAsWarning;
-                                                }
-                                                Pop-Location;
-                                                }
+                                                } }
 function GitCloneOrFetchIgnoreError           ( [String] $tarRootDir, [String] $url ){ GitCloneOrFetchOrPull $tarRootDir $url $false $true; }
 function GitCloneOrPullIgnoreError            ( [String] $tarRootDir, [String] $url ){ GitCloneOrFetchOrPull $tarRootDir $url $true  $true; }
-
 function GitBuildLocalDirFromUrl              ( [String] $tarRootDir, [String] $url ){ return [String] (Join-Path $tarRootDir ([System.Uri]$url).AbsolutePath.Replace("/","\")); } # AbsolutePath ex: "/mydir1/dir2";
 function PrivShowTokenPrivileges              (){ 
                                                 whoami /priv; }
@@ -1825,10 +1830,10 @@ function MnLibCommonSelfTest{
 #   - Empty array in pipeline is converted to $null: $r = [String[]]@() | Where-Object { $_ -ne "bla" }; $r -eq $null 
 #     Workaround:  $r = @()+([String[]]@() | Where-Object { $_ -ne "bla" }); $r -eq $null 
 # - Standard module paths:
-#   - %windir%\system32\WindowsPowerShell\v1.0\Modules       location for windows modules for all users
-#   - %ProgramW6432%\WindowsPowerShell\Modules\              location for any modules     for all users
-#   - %ProgramFiles%\WindowsPowerShell\Modules\              location for any modules     for all users but on PowerShell-32bit only, PowerShell-64bit does not have this path
-#   - %USERPROFILE%\Documents\WindowsPowerShell\Modules      location for any modules     for current users
+#   - %windir%\system32\WindowsPowerShell\v1.0\Modules    location for windows modules for all users
+#   - %ProgramW6432%\WindowsPowerShell\Modules\           location for any modules     for all users
+#   - %ProgramFiles%\WindowsPowerShell\Modules\           location for any modules     for all users but on PowerShell-32bit only, PowerShell-64bit does not have this path
+#   - %USERPROFILE%\Documents\WindowsPowerShell\Modules   location for any modules     for current users
 # - Scopes for variables, aliases, functions and psdrives:
 #   - Local           : Current scope, is one of the other scopes: global, script, private, numbered scopes.
 #   - Global          : Active after first script start, includes automatic variables (http://ss64.com/ps/syntax-automatic-variables.html), 
