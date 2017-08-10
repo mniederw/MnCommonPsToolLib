@@ -500,22 +500,23 @@ function FsEntryFindFlatSingleByPattern       ( [String] $fsEntryPattern ){
                                                 return [String] $r[0].FullName; }
 function FsEntryListAsFileSystemInfo          ( [String] $fsEntryPattern, [Boolean] $recursive = $true, [Boolean] $includeDirs = $true, [Boolean] $includeFiles = $true ){
                                                 # List entries specified by a pattern, which applies to files and directories and which can contain wildards (*,?). 
+                                                # Examples for fsEntryPattern: "C:\*.tmp", ".\dir\*.tmp", "dir\te?*.tmp", "*\dir\*.tmp", "dir\*", "bin\".
                                                 # Output is unsorted. Ignores case and access denied conditions. If not found an entry then an empty array is returned.
                                                 # It works with absolute or relative paths. A leading ".\" for relative paths is optional.
-                                                # If recursive is specified then it tries to match pattern in each sub dir.
+                                                # If recursive is specified then it applies pattern matching of last specified part (.\*.tmp;.\Bin\) in each sub dir.
                                                 # Wildcards on parent dir parts are also allowed ("dir*\*.tmp","*\*.tmp").
-                                                # If no wildcards are used and then behaviour is the following: 
-                                                #   In non-recursive mode and if pattern matches a file (".\f.txt") then it is listed, and if pattern matches a dir (".\dir") its content is listed flat.
-                                                #   In recursive mode the last backslash separated part of the pattern ("f.txt" or "dir") is searched in two steps,
-                                                #   first if it matches a file (".\f.txt") then it is listed, and if matches a dir (".\dir") then its content is listed deeply,
-                                                #   second if pattern was not yet found then searches it recursively but if it is a dir then its content is not listed.
-                                                # Trailing backslashes would be handled in powershell quite curious: 
-                                                #   In non-recursive mode they are handled as they are not present, so files are also matched ("*\myfile\").
-                                                #   In recursive mode they wrongly match only files and not directories ("*\myfile\").
-                                                # So we interpret a trailing backslash as it would not be present but it overwrites the arguments (includeDirs=$true,$includeFiles=$false)
-                                                #   and then in recursive mode you should not use parent dir parts ("*\dir\" or "d1\dir\") because it would not find find them for unknown reasons.
-                                                #   But we improve the case when pattern contains "\*\" by also try to find it at top position by using replaced pattern ("\.\").
-                                                # Examples for fsEntryPattern: "C:\*.tmp", ".\dir\*.tmp", "dir\te?*.tmp", "*\dir\*.tmp", "dir\*", "bin\".
+	                                            # It work as intuitive as possible, but here are more detail specifications:
+                                                #   If no wildcards are used then behaviour is the following: 
+                                                #     In non-recursive mode and if pattern matches a file (".\f.txt") then it is listed, and if pattern matches a dir (".\dir") its content is listed flat.
+                                                #     In recursive mode the last backslash separated part of the pattern ("f.txt" or "dir") is searched in two steps,
+                                                #     first if it matches a file (".\f.txt") then it is listed, and if matches a dir (".\dir") then its content is listed deeply,
+                                                #     second if pattern was not yet found then searches it recursively but if it is a dir then its content is not listed.
+                                                #   Trailing backslashes would be handled in powershell quite curious: 
+                                                #     In non-recursive mode they are handled as they are not present, so files are also matched ("*\myfile\").
+                                                #     In recursive mode they wrongly match only files and not directories ("*\myfile\").
+                                                #   So we interpret a trailing backslash as it would not be present but it overwrites the arguments (includeDirs=$true,$includeFiles=$false)
+                                                #     and then in recursive mode you should not use parent dir parts ("*\dir\" or "d1\dir\") because it would not find find them for unknown reasons.
+                                                #     But we improve the case when pattern contains "\*\" by also try to find it at top position by using replaced pattern ("\.\").
                                                 Assert ($fsEntryPattern -ne "") "pattern is empty";
                                                 [String] $pa = $fsEntryPattern;
                                                 [Boolean] $trailingBackslashMode = (FsEntryHasTrailingBackslash $pa);
@@ -527,7 +528,8 @@ function FsEntryListAsFileSystemInfo          ( [String] $fsEntryPattern, [Boole
                                                 [System.IO.FileSystemInfo[]] $result = @();
                                                 if( $trailingBackslashMode -and $pa.Contains("\*\") ){
                                                   # handle that ".\*\dir\" would also find top dir
-                                                  $result += (Get-Item -Force -ErrorAction SilentlyContinue -Path $pa.Replace("\*\","\.\"));
+												  $pa = $pa.Replace("\*\","\.\"); # otherwise Get-ChildItem would find dirs.
+                                                  $result += (Get-Item -Force -ErrorAction SilentlyContinue -Path $pa);
                                                 }
                                                 $result += (Get-ChildItem -Force -ErrorAction SilentlyContinue -Recurse:$recursive -Path $pa | 
                                                   Where-Object{ ($includeDirs -and $includeFiles) -or ($includeDirs -and $_.PSIsContainer) -or ($includeFiles -and -not $_.PSIsContainer) });
@@ -1504,7 +1506,7 @@ function SvnPreCommitCleanupRevertAndDelFiles ( [String] $svnWorkDir, [String[]]
                                                   SvnCleanup $svnWorkDir;
                                                   FileDelete $svnRequiresCleanup;
                                                 }
-                                                OutProgress "Remove known unused temp, cache and log directories and files with pattern: $relativeDelFsEntryPatterns";
+                                                OutProgress "Remove known unused temp, cache and log directories and files";
                                                 FsEntryJoinRelativePatterns $svnWorkDir $relativeDelFsEntryPatterns | 
                                                   ForEach-Object{ FsEntryListAsStringArray $_ } | Where-Object{ $_ -ne "" } |
                                                   ForEach-Object{ FileAppendLines $svnLogFile "  Delete: $_"; FsEntryDelete $_; };
