@@ -9,15 +9,15 @@ $Global:ErrorActionPreference = "Stop";
 [String] $envVar = "PSModulePath";
 
 function FsEntryMakeTrailingBackslash( [String] $fsEntry ){ [String] $result = $fsEntry; if( -not $result.EndsWith("\") ){ $result += "\"; } return [String] $result; }
-function PsModulePathList    (){ return [String[]] ([Environment]::GetEnvironmentVariable($envVar, "Machine").Split(";") | ForEach-Object { FsEntryMakeTrailingBackslash $_; }); }
-function PsModulePathContains( [String] $d ){ return [Boolean] ((PsModulePathList) -contains (FsEntryMakeTrailingBackslash $d)); }
-function PsModulePathAdd     ( [String] $d ){ PsModulePathSet ((PsModulePathList)+@( (FsEntryMakeTrailingBackslash $d) )); }
-function PsModulePathDel     ( [String] $d ){ PsModulePathSet ((PsModulePathList) | Where-Object { $_ -ne (FsEntryMakeTrailingBackslash $d) }); }
-function PsModulePathSet     ( [String[]] $a ){ [Environment]::SetEnvironmentVariable($envVar, ($a -join ";"), "Machine"); }
-function DirExists           ( [String] $d ){ return [Boolean] (Test-Path -PathType Container -LiteralPath $d); }
-function DirListDirs         ( [String] $d ){ return [String[]] (@()+(Get-ChildItem -Force -Directory -Path $d | ForEach-Object {$_.FullName})); }
-function DirHasFiles         ( [String] $d, [String] $filePattern ){ return [Boolean] ((Get-ChildItem -Force -Recurse -File -ErrorAction SilentlyContinue -Path "$d\$filePattern") -ne $null); }
-function ScriptGetTopCaller  (){ [String] $f = $global:MyInvocation.MyCommand.Definition.Trim(); # return empty if called interactive.
+function PsModulePathList            (){ return [String[]] ([Environment]::GetEnvironmentVariable($envVar, "Machine").Split(";",[System.StringSplitOptions]::RemoveEmptyEntries) | ForEach-Object{ FsEntryMakeTrailingBackslash $_; }); }
+function PsModulePathContains        ( [String] $d ){ return [Boolean] ((PsModulePathList) -contains (FsEntryMakeTrailingBackslash $d)); }
+function PsModulePathAdd             ( [String] $d ){ PsModulePathSet ((PsModulePathList)+@( (FsEntryMakeTrailingBackslash $d) )); }
+function PsModulePathDel             ( [String] $d ){ PsModulePathSet ((PsModulePathList) | Where-Object{ $_ -ne (FsEntryMakeTrailingBackslash $d) }); }
+function PsModulePathSet             ( [String[]] $a ){ [Environment]::SetEnvironmentVariable($envVar, ($a -join ";"), "Machine"); }
+function DirExists                   ( [String] $d ){ return [Boolean] (Test-Path -PathType Container -LiteralPath $d); }
+function DirListDirs                 ( [String] $d ){ return [String[]] (@()+(Get-ChildItem -Force -Directory -Path $d | ForEach-Object{ $_.FullName })); }
+function DirHasFiles                 ( [String] $d, [String] $filePattern ){ return [Boolean] ((Get-ChildItem -Force -Recurse -File -ErrorAction SilentlyContinue -Path "$d\$filePattern") -ne $null); }
+function ScriptGetTopCaller          (){ [String] $f = $global:MyInvocation.MyCommand.Definition.Trim(); # return empty if called interactive.
   if( $f -eq "" -or $f -eq "ScriptGetTopCaller" ){ return ""; }
   if( $f.StartsWith("&") ){ $f = $f.Substring(1,$f.Length-1).Trim(); }
   if( ($f -match "^\'.+\'$") -or ($f -match "^\`".+\`"$") ){ $f = $f.Substring(1,$f.Length-2); }
@@ -68,7 +68,7 @@ function InstallSrcPathToPsModulePathIfNotInstalled( [String] $srcDir ){
 
 [String] $tarRootDir = "$Env:ProgramW6432\WindowsPowerShell\Modules"; # more see: https://msdn.microsoft.com/en-us/library/dd878350(v=vs.85).aspx
 [String] $srcRootDir = $PSScriptRoot; # ex: "D:\WorkGit\mniederw\MnCommonPsToolLib_master"
-[String[]] $dirsWithPsm1Files = @()+(DirListDirs $srcRootDir | Where-Object { DirHasFiles $_ "*.psm1" });
+[String[]] $dirsWithPsm1Files = @()+(DirListDirs $srcRootDir | Where-Object{ DirHasFiles $_ "*.psm1" });
 if( $dirsWithPsm1Files.Count -ne 1 ){ throw [Exception] "Tool is designed for working below '$srcRootDir' with exactly one directory which contains psm1 files but found $($dirsWithPsm1Files.Count) dirs ($dirsWithPsm1Files)"; }
 [String] $moduleSrcDir = $dirsWithPsm1Files[0]; # ex: "D:\WorkGit\mniederw\MnCommonPsToolLib_master\MnCommonPsToolLib"
 [String] $moduleName = [System.IO.Path]::GetFileName($moduleSrcDir); # ex: "MnCommonPsToolLib"
@@ -76,13 +76,16 @@ if( $dirsWithPsm1Files.Count -ne 1 ){ throw [Exception] "Tool is designed for wo
 Write-Host "Install Menu";
 Write-Host "------------`n";
 Write-Host "ModuleName    = '$moduleName'";
-Write-Host "DirInstalled  = $(DirExists $moduleTarDir);  (TargetDir='$moduleTarDir'). ";
-Write-Host "PathInstalled = $(PsModulePathContains $srcRootDir);  (SrcPath='$srcRootDir') `n";
-Write-Host "  I = Install ps module by copying it to the common folder for ps modules for all users: ";
+Write-Host "DirInstalled          = $(DirExists $moduleTarDir);  (TargetDir='$moduleTarDir'). ";
+Write-Host "PathInstalled         = $(PsModulePathContains $srcRootDir);  (SrcPath='$srcRootDir')";
+Write-Host "IsInElevatedAdminMode = $(ProcessIsRunningInElevatedAdminMode); `n";
+Write-Host "  I = Standard installation of ps module by uninstalling first and then ";
+Write-Host "      by copying it to the common folder for ps modules for all users: ";
 Write-Host "      '$tarRootDir'.";
-Write-Host "  A = Alternative installation of ps module by adding the path of this script ";
-Write-Host "      to the ps module path ($envVar), used by developers to change module. ";
-Write-Host "  U = Uninstall both. ";
+Write-Host "  A = Alternative installation of ps module for developers while changing ";
+Write-Host "      and testing the module by uninstalling first and then by adding the path ";
+Write-Host "      of this script as entry to the ps module path ($envVar). ";
+Write-Host "  U = Uninstall (both: copied folder and path entry). ";
 Write-Host "  Q = Quit. `n";
 if( $sel -ne "" ){ Write-Host "Selection: $sel "; }
 while( @("I","A","U","Q") -notcontains $sel ){

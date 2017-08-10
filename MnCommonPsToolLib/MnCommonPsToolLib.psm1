@@ -112,6 +112,7 @@ function StringSplitIntoLines                 ( [String] $s ){ return [String[]]
 function StringArrayAddIndent                 ( [String[]] $lines, [Int32] $nrOfBlanks ){ if( $lines -eq $null ){ return [String[]] $null; } return [String[]] ($lines | %{ ((" "*$nrOfBlanks)+$_); }); }
 function StringArrayDistinct                  ( [String[]] $lines ){ return [String[]] ($lines | Select-Object -Unique); }
 function StringPadRight                       ( [String] $s, [Int32] $len, [Boolean] $doQuote = $false  ){ [String] $r = $s; if( $doQuote ){ $r = '"'+$r+'"'; } return [String] $r.PadRight($len); }
+function StringSplitToArray                   ( [String] $sep, [String] $s, [Boolean] $removeEmptyEntries = $true ){ return [String[]] (@()+$s.Split($sep,$(switch($removeEmptyEntries){$true{[System.StringSplitOptions]::RemoveEmptyEntries}default{[System.StringSplitOptions]::None}}))); }
 function StringReplaceEmptyByTwoQuotes        ( [String] $str ){ return [String] $(switch((StringIsNullOrEmpty $str)){$true{"`"`""}default{$str}}); }
 function StringFromException                  ( [Exception] $ex ){ return [String] "$($ex.GetType().Name): $($ex.Message -replace `"`r`n`",`" `") $($ex.Data|ForEach-Object{`"`r`n Data: $($_.Values)]`"})`r`n StackTrace:`r`n$($ex.StackTrace)"; } # note: .Data is never null.
 function DateTimeAsStringForFileName          (){ return [String] (Get-Date -format yyyy-MM-dd_HH_mm); }
@@ -133,7 +134,7 @@ function StdOutRedLineAndPerformExit          ( [String] $line, [Int32] $delayIn
 function StdErrHandleExc                      ( [System.Management.Automation.ErrorRecord] $er, [Int32] $delayInSec = 1 ){
                                                 [String] $msg = "$(StringFromException $er.Exception)"; # ex: "ArgumentOutOfRangeException: Specified argument was out of the range of valid values. Parameter name: times  at ..."
                                                 $msg += "`r`n ScriptStackTrace: `r`n   $($er.ScriptStackTrace -replace `"`r`n`",`"`r`n`   `")"; # ex: at <ScriptBlock>, C:\myfile.psm1: line 800 at MyFunc
-                                                $msg += "`r`n InvocationInfo:`r`n   $($er.InvocationInfo.PositionMessage-replace `"`r`n`",`"`r`n`   `" )"; # At D:\myfile.psm1:800 char:83 \n   + ...         } | ForEach-Object {"    ,`@(0,`"-`",`"T`",`"$($_.Name        ... \n   +                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~; 
+                                                $msg += "`r`n InvocationInfo:`r`n   $($er.InvocationInfo.PositionMessage-replace `"`r`n`",`"`r`n`   `" )"; # At D:\myfile.psm1:800 char:83 \n   + ...         } | ForEach-Object{ "    ,`@(0,`"-`",`"T`",`"$($_.Name        ... \n   +                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~; 
                                                 $msg += "`r`n InvocationInfoLine: $($er.InvocationInfo.Line -replace `"`r`n`",`" `" -replace `"\s+`",`" `" )";
                                                 $msg += "`r`n InvocationInfoMyCommand: $($er.InvocationInfo.MyCommand)"; # ex: ForEach-Object
                                                 $msg += "`r`n InvocationInfoInvocationName: $($er.InvocationInfo.InvocationName)"; # ex: ForEach-Object
@@ -150,8 +151,8 @@ function StdErrHandleExc                      ( [System.Management.Automation.Er
                                                 if( $global:ModeDisallowInteractions ){ if( $delayInSec -gt 0 ){ StdOutLine "Waiting for $delayInSec seconds."; } ProcessSleepSec $delayInSec; }else{ StdOutRedLine "Press enter to exit"; Read-Host; } }
 function StdPipelineErrorWriteMsg             ( [String] $msg ){ Write-Error $msg; } # does not work in powershell-ise, so in general do not use it, use throw
 function StdOutBegMsgCareInteractiveMode      ( [String] $mode = "" ){ # available mode: "NoRequestAtBegin", "NoWaitAtEnd", "MinimizeConsole". Usually this is the first statement in a script after an info line.
-                                                ScriptResetRc; [String[]] $modes = @()+($mode -split "," | ForEach-Object { $_.Trim() });
-                                                Assert ((@()+($modes | Where-Object { $_ -ne "" -and $_ -ne "NoRequestAtBegin" -and $_ -ne "NoWaitAtEnd" -and $_ -ne "MinimizeConsole"})).Count -eq 0 ) "StdOutBegMsgCareInteractiveMode was called with unknown mode='$mode'";
+                                                ScriptResetRc; [String[]] $modes = @()+($mode -split "," | ForEach-Object{ $_.Trim() });
+                                                Assert ((@()+($modes | Where-Object{ $_ -ne "" -and $_ -ne "NoRequestAtBegin" -and $_ -ne "NoWaitAtEnd" -and $_ -ne "MinimizeConsole"})).Count -eq 0 ) "StdOutBegMsgCareInteractiveMode was called with unknown mode='$mode'";
                                                 GlobalSetModeNoWaitForEnterAtEnd ($modes -contains "NoWaitAtEnd");
                                                 if( -not $global:ModeDisallowInteractions -and $modes -notcontains "NoRequestAtBegin" ){ StdInAskForAnswerWhenInInteractMode "Are you sure (y/-)? "; }
                                                 if( $modes -contains "MinimizeConsole" ){ OutProgress "Minimize console"; ProcessSleepSec 0; ConsoleMinimize; } }
@@ -164,7 +165,7 @@ function AssertRcIsOk                         ( [String[]] $linesToOutProgress =
                                                 # can also be called with a single string; only nonempty progress lines are given out
                                                 if( ($LASTEXITCODE -ne $null -and $LASTEXITCODE -ne 0) -or -not $?) { # if no windows command was done then $LASTEXITCODE is null
                                                   [String] $msg = "Last operation failed [rc=$LASTEXITCODE].";
-                                                  $linesToOutProgress | Where-Object { -not [String]::IsNullOrWhiteSpace($_) } | ForEach-Object { OutProgress $_ };
+                                                  $linesToOutProgress | Where-Object{ -not [String]::IsNullOrWhiteSpace($_) } | ForEach-Object{ OutProgress $_ };
                                                   throw [Exception] $msg; } }
 function ScriptGetProcessCommandLine          (){ return [String] ([environment]::commandline); } # ex: "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" "& \"C:\myscript.ps1\"";
 function ScriptResetRc                        (){ $error.clear(); & "cmd.exe" "/C" "EXIT 0"; $error.clear(); AssertRcIsOk; } # reset ERRORLEVEL to 0
@@ -181,10 +182,10 @@ function ScriptGetTopCaller                   (){ [String] $f = $global:MyInvoca
                                                 return [String] $f; }
 function StreamAllProperties                  (){ $input | Select-Object *; }
 function StreamAllPropertyTypes               (){ $input | Get-Member -Type Property; }
-function StreamFilterWhitespaceLines          (){ $input | Where-Object { -not [String]::IsNullOrWhiteSpace($_) }; }
+function StreamFilterWhitespaceLines          (){ $input | Where-Object{ -not [String]::IsNullOrWhiteSpace($_) }; }
 function StreamToNull                         (){ $input | Out-Null; }
 function StreamToString                       (){ $input | Out-String -Width 999999999; }
-function StreamToStringDelEmptyLeadAndTrLines (){ $input | Out-String -Width 999999999 | ForEach-Object { $_ -replace "[ \f\t\v]]+\r\n","\r\n" -replace "^(\r\n)+","" -replace "(\r\n)+$","" }; }
+function StreamToStringDelEmptyLeadAndTrLines (){ $input | Out-String -Width 999999999 | ForEach-Object{ $_ -replace "[ \f\t\v]]+\r\n","\r\n" -replace "^(\r\n)+","" -replace "(\r\n)+$","" }; }
 function StreamToGridView                     (){ $input | Out-GridView -Title "TableData"; }
 function StreamToCsvStrings                   (){ $input | ConvertTo-Csv -NoTypeInformation; }
 function StreamToJsonString                   (){ $input | ConvertTo-Json -Depth 999999999; }
@@ -229,7 +230,7 @@ function ProcessRestartInElevatedAdminMode    (){ if( -not (ProcessIsRunningInEl
                                                   [Environment]::Exit("0"); # note: 'Exit 0;' would only leave the last '. mycommand' statement.
                                                   throw [Exception] "Exit done, but it did not work, so it throws now an exception.";
                                                 } } }
-function ProcessListRunnings                  (){ return (Get-Process * | Where-Object {$_.Id -ne 0} | Sort-Object ProcessName); }
+function ProcessListRunnings                  (){ return (Get-Process * | Where-Object{ $_.Id -ne 0 } | Sort-Object ProcessName); }
 function ProcessListRunningsAsStringArray     (){ return (ProcessListRunnings | Format-Table -auto -HideTableHeaders " ",ProcessName,ProductVersion,Company | StreamToStringDelEmptyLeadAndTrLines); }
 function ProcessIsRunning                     ( [String] $processName ){ return [Boolean] ((Get-Process -ErrorAction SilentlyContinue $processName) -ne $null); }
 function ProcessKill                          ( [String] $processName ){ [Object] $p = Get-Process ($processName -replace ".exe","") -ErrorAction SilentlyContinue; 
@@ -241,10 +242,10 @@ function ProcessGetCommandInEnvPathOrAltPaths ( [String] $commandNameOptionalWit
                                                 if( $cmd -ne $null ){ return [String] $cmd.Path; }
                                                 foreach( $d in $alternativePaths ){ [String] $f = (Join-Path $d $commandNameOptionalWithExtension); if( (FileExists $f) ){ return $f; } }
                                                 throw [Exception] "ProcessGetCommandInEnvPathOrDirs: commandName='$commandNameOptionalWithExtension' was wether found in env-path='$env:PATH' nor in alternativePaths='$alternativePaths'"; }
-function HelpHelp                             (){ Get-Help     | ForEach-Object { OutInfo $_; } }
-function HelpListOfAllVariables               (){ Get-Variable | Sort-Object Name | ForEach-Object { OutInfo "$($_.Name.PadRight(32)) $($_.Value)"; } } # Select-Object Name, Value | StreamToListString
-function HelpListOfAllAliases                 (){ Get-Alias    | Select-Object CommandType, Name, Version, Source | StreamToTableString | ForEach-Object { OutInfo $_; } }
-function HelpListOfAllCommands                (){ Get-Command  | Select-Object CommandType, Name, Version, Source | StreamToTableString | ForEach-Object { OutInfo $_; } }
+function HelpHelp                             (){ Get-Help     | ForEach-Object{ OutInfo $_; } }
+function HelpListOfAllVariables               (){ Get-Variable | Sort-Object Name | ForEach-Object{ OutInfo "$($_.Name.PadRight(32)) $($_.Value)"; } } # Select-Object Name, Value | StreamToListString
+function HelpListOfAllAliases                 (){ Get-Alias    | Select-Object CommandType, Name, Version, Source | StreamToTableString | ForEach-Object{ OutInfo $_; } }
+function HelpListOfAllCommands                (){ Get-Command  | Select-Object CommandType, Name, Version, Source | StreamToTableString | ForEach-Object{ OutInfo $_; } }
 function HelpGetType                          ( [Object] $obj ){ return [String] $obj.GetType(); }
 function OsPsVersion                          (){ return [String] (""+$Host.Version.Major+"."+$Host.Version.Minor); } # alternative: $PSVersionTable.PSVersion.Major
 function OsIsWinVistaOrHigher                 (){ return [Boolean] ([Environment]::OSVersion.Version -ge (new-object "Version" 6,0)); }
@@ -286,10 +287,10 @@ function PrivFileSecurityCreateOwner          ( [System.Security.Principal.Ident
                                                 $result.SetOwner($account);
                                                 return [System.Security.AccessControl.FileSecurity] $result; }
 function PrivFsSecurityHasFullControl         ( [System.Security.AccessControl.FileSystemSecurity] $acl, [System.Security.Principal.IdentityReference] $account, [Boolean] $isDir ){
-                                                $a = $acl.Access | Where-Object { $_.IdentityReference -eq $account } |
-                                                   Where-Object { $_.FileSystemRights -eq "FullControl" -and $_.AccessControlType -eq "Allow" } |
-                                                   Where-Object { -not $isDir -or ($_.InheritanceFlags.HasFlag([System.Security.AccessControl.InheritanceFlags]::ContainerInherit) -and $_.InheritanceFlags.HasFlag([System.Security.AccessControl.InheritanceFlags]::ObjectInherit)) };
-                                                   Where-Object { -not $isDir -or $_.PropagationFlags -eq [System.Security.AccessControl.PropagationFlags]::None }
+                                                $a = $acl.Access | Where-Object{ $_.IdentityReference -eq $account } |
+                                                   Where-Object{ $_.FileSystemRights -eq "FullControl" -and $_.AccessControlType -eq "Allow" } |
+                                                   Where-Object{ -not $isDir -or ($_.InheritanceFlags.HasFlag([System.Security.AccessControl.InheritanceFlags]::ContainerInherit) -and $_.InheritanceFlags.HasFlag([System.Security.AccessControl.InheritanceFlags]::ObjectInherit)) };
+                                                   Where-Object{ -not $isDir -or $_.PropagationFlags -eq [System.Security.AccessControl.PropagationFlags]::None }
                                                  return [Boolean] ($a -ne $null); }
 function RegistryMapToShortKey                ( [String] $key ){ 
                                                 if( -not $key.StartsWith("HKEY_","CurrentCultureIgnoreCase") ){ return [String] $key; }
@@ -380,11 +381,11 @@ function OsIsHibernateEnabled                 (){
                                                 if( OsIsWin7OrHigher ){ return [Boolean] (RegistryGetValueAsString "HKLM:\SYSTEM\CurrentControlSet\Control\Power" "HibernateEnabled") -eq "1"; }
                                                 # win7     ex: Die folgenden Standbymodusfunktionen sind auf diesem System verfügbar: Standby ( S1 S3 ) Ruhezustand Hybrider Standbymodus
                                                 # winVista ex: Die folgenden Ruhezustandfunktionen sind auf diesem System verfügbar: Standby ( S3 ) Ruhezustand Hybrider Standbymodus
-                                                [String] $out = & "$env:SystemRoot\system32\POWERCFG.EXE" "-AVAILABLESLEEPSTATES" | Where-Object {   
+                                                [String] $out = & "$env:SystemRoot\system32\POWERCFG.EXE" "-AVAILABLESLEEPSTATES" | Where-Object{
                                                   $_ -like "Die folgenden Standbymodusfunktionen sind auf diesem System verf*" -or $_ -like "Die folgenden Ruhezustandfunktionen sind auf diesem System verf*" }; 
                                                 AssertRcIsOk; return [Boolean] ((($out.Contains("Ruhezustand") -or $out.Contains("Hibernate"))) -and (FileExists "$env:SystemDrive\hiberfil.sys")); }
 function ServiceListRunnings                  (){ 
-                                                return (Get-Service * | Where-Object {$_.Status -eq "Running"} | Sort-Object Name | Format-Table -auto -HideTableHeaders " ",Name,DisplayName | StreamToStringDelEmptyLeadAndTrLines); }
+                                                return (Get-Service * | Where-Object{ $_.Status -eq "Running" } | Sort-Object Name | Format-Table -auto -HideTableHeaders " ",Name,DisplayName | StreamToStringDelEmptyLeadAndTrLines); }
 function ServiceListExistings                 (){ 
                                                 return [System.Management.ManagementObject[]] (Get-WmiObject win32_service | Sort-Object ProcessId,Name); } # we could also use Get-Service but members are lightly differnet; 2017-06 we got (RuntimeException: You cannot call a method on a null-valued expression.) so we added null check
 function ServiceListExistingsAsStringArray    (){ 
@@ -436,7 +437,7 @@ function ServiceMapHiddenToCurrentName        ( [String] $serviceName ){
                                                 [String[]] $a = @( "MessagingService_######", "PimIndexMaintenanceSvc_######", "UnistoreSvc_######", "UserDataSvc_######", "WpnUserService_######", "CDPUserSvc_######", "OneSyncSvc_######" );
                                                 if( $a -notcontains $serviceName ){ return $serviceName; }
                                                 [String] $mask = $serviceName -replace "_######","_*";
-                                                [String] $result = (Get-Service * | ForEach-Object Name | Where-Object { $_ -like $mask } | Sort | Select -First 1);
+                                                [String] $result = (Get-Service * | ForEach-Object Name | Where-Object{ $_ -like $mask } | Sort | Select -First 1);
                                                 if( $result -eq "" ){ $result = $serviceName;}
                                                 return [String] $result; }
 function TaskList                             (){ 
@@ -454,7 +455,7 @@ function TaskDisable                          ( [String] $taskPathAndName ){
 function FsEntryEsc                           ( [String] $fsentry ){ 
                                                 if( $fsentry -eq "" ){ throw [Exception] "Empty file name not allowed"; } # escaping is not nessessary if a command supports -LiteralPath.
                                                 return [String] [Management.Automation.WildcardPattern]::Escape($fsentry); } # important for chars as [,], etc.
-function FsEntryMakeValidFileName             ( [string] $str ){ [System.IO.Path]::GetInvalidFileNameChars() | ForEach-Object { $str = $str.Replace($_,'_') }; return [String] $str; }
+function FsEntryMakeValidFileName             ( [string] $str ){ [System.IO.Path]::GetInvalidFileNameChars() | ForEach-Object{ $str = $str.Replace($_,'_') }; return [String] $str; }
 function FsEntryGetAbsolutePath               ( [String] $fsEntry ){ 
                                                 return [String] ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($fsEntry)); }
                                                 # note: we cannot use (Resolve-Path -LiteralPath $fsEntry) because it will throw if path not exists, see http://stackoverflow.com/questions/3038337/powershell-resolve-path-that-might-not-exist
@@ -464,10 +465,11 @@ function FsEntryRemoveTrailingBackslash       ( [String] $fsEntry ){
                                                 if( $result -eq "" ){ $result = $fsEntry; } } return [String] $result; } # leading backslashes are not removed.
 function FsEntryMakeTrailingBackslash         ( [String] $fsEntry ){ 
                                                 [String] $result = $fsEntry; if( -not $result.EndsWith("\") ){ $result += "\"; } return [String] $result; }
-function FsEntryJoinRelativePatterns          ( [String] $dir, [String[]] $relativeFsEntriesPatternsSemicolonSeparated ){
-                                                # dir patterns must be specified by a trailing backslash. 
-                                                # ex: $relativeFsEntriesPatternsSemicolonSeparated = @( ".\dir;bin\;bin?\;obj\;", ".\dir;*.tmp;*.suo;", ".\dir\d1\", ".\dir\file*.txt");
-                                                return [String[]] ($relativeFsEntriesPatternsSemicolonSeparated.Split(";") | Where-Object { $_ -ne "" } | ForEach-Object { "$dir\$_" }); }
+function FsEntryJoinRelativePatterns          ( [String] $rootDir, [String[]] $relativeFsEntriesPatternsSemicolonSeparated ){
+	                                            # create an array ex: @( "c:\myroot\bin\", "c:\myroot\obj\", "c:\myroot\*.tmp", ... ) from input as @( "bin\;obj\;", ";*.tmp;*.suo", ".\dir\d1?\", ".\dir\file*.txt");
+                                                # if an fs entry specifies a dir patterns then it must be specified by a trailing backslash. 
+	                                            [String[]] $a = @(); $relativeFsEntriesPatternsSemicolonSeparated | ForEach-Object{ $a += StringSplitToArray ";" $_; };
+                                                return  ($a | ForEach-Object{ "$rootDir\$_" }); }
 function FsEntryGetFileNameWithoutExt         ( [String] $fsEntry ){ 
                                                 return [String] [System.IO.Path]::GetFileNameWithoutExtension($fsEntry); }
 function FsEntryGetFileName                   ( [String] $fsEntry ){ 
@@ -528,12 +530,12 @@ function FsEntryListAsFileSystemInfo          ( [String] $fsEntryPattern, [Boole
                                                   $result += (Get-Item -Force -ErrorAction SilentlyContinue -Path $pa.Replace("\*\","\.\"));
                                                 }
                                                 $result += (Get-ChildItem -Force -ErrorAction SilentlyContinue -Recurse:$recursive -Path $pa | 
-                                                  Where-Object { ($includeDirs -and $includeFiles) -or ($includeDirs -and $_.PSIsContainer) -or ($includeFiles -and -not $_.PSIsContainer) });
+                                                  Where-Object{ ($includeDirs -and $includeFiles) -or ($includeDirs -and $_.PSIsContainer) -or ($includeFiles -and -not $_.PSIsContainer) });
                                                 return $result; }
 function FsEntryListAsStringArray             ( [String] $fsEntryPattern, [Boolean] $recursive = $true, [Boolean] $includeDirs = $true, [Boolean] $includeFiles = $true ){
                                                 # Output of directories will have a trailing backslash. more see FsEntryListAsFileSystemInfo.
                                                 return [String[]] (@()+(FsEntryListAsFileSystemInfo $fsEntryPattern $recursive $includeDirs $includeFiles |
-                                                  ForEach-Object { $_.FullName+$(switch($_.PSIsContainer){True{"\"}default{""}}) })); }
+                                                  ForEach-Object{ $_.FullName+$(switch($_.PSIsContainer){True{"\"}default{""}}) })); }
 function FsEntryDelete                        ( [String] $fsEntry ){ 
                                                 if( $fsEntry.EndsWith("\") ){ DirDelete $fsEntry; }else{ FileDelete $fsEntry; } }
 function FsEntryRename                        ( [String] $fsEntryFrom, [String] $fsEntryTo ){ 
@@ -555,7 +557,7 @@ function FsEntryCreateParentDir               ( [String] $fsEntry ){ [String] $d
 function FsEntryMoveByPatternToDir            ( [String] $fsEntryPattern, [String] $targetDir, [Boolean] $showProgressFiles = $false ){ # target dir must exists
                                                 OutProgress "FsEntryMoveByPatternToDir '$fsEntryPattern' to '$targetDir'"; DirExistsAssert $targetDir;
                                                 FsEntryListAsStringArray $fsEntryPattern | Sort-Object | 
-                                                  ForEach-Object { if( $showProgressFiles ){ OutProgress "Source: $_"; }; Move-Item -Force -Path $_ -Destination (FsEntryEsc $targetDir); }; }
+                                                  ForEach-Object{ if( $showProgressFiles ){ OutProgress "Source: $_"; }; Move-Item -Force -Path $_ -Destination (FsEntryEsc $targetDir); }; }
 function FsEntryCopyByPatternByOverwrite      ( [String] $fsEntryPattern, [String] $targetDir, [Boolean] $continueOnErr = $false ){ 
                                                 OutProgress "FsEntryCopyByPatternByOverwrite '$fsEntryPattern' to '$targetDir' continueOnErr=$continueOnErr"; 
                                                 DirCreate $targetDir; Copy-Item -ErrorAction SilentlyContinue -Recurse -Force -Path $fsEntryPattern -Destination (FsEntryEsc $targetDir); 
@@ -586,7 +588,7 @@ function FsEntryAclRuleWrite                  ( [String] $modeSetAddOrDel, [Stri
                                                 else{ throw [Exception] "For modeSetAddOrDel expected 'Set', 'Add' or 'Del' but got '$modeSetAddOrDel'"; } 
                                                 Set-Acl -Path (FsEntryEsc $fsEntry) -AclObject $acl; <# Set-Acl does set or add #>
                                                 if( $recursive -and (FsEntryIsDir $fsEntry) ){
-                                                  FsEntryListAsStringArray "$fsEntry\*" $false | ForEach-Object { FsEntryAclRuleWrite $modeSetAddOrDel $_ $rule $true };
+                                                  FsEntryListAsStringArray "$fsEntry\*" $false | ForEach-Object{ FsEntryAclRuleWrite $modeSetAddOrDel $_ $rule $true };
                                                 } }
 function FsEntryTrySetOwner                   ( [String] $fsEntry, [System.Security.Principal.IdentityReference] $account, [Boolean] $recursive = $false ){ # usually account is (PrivGetGroupAdministrators)
                                                 ProcessRestartInElevatedAdminMode; 
@@ -614,7 +616,7 @@ function FsEntryTrySetOwner                   ( [String] $fsEntry, [System.Secur
                                                       }
                                                     } }
                                                   if( $recursive -and $fs.PSIsContainer ){
-                                                    FsEntryListAsStringArray "$fs\*" $false | ForEach-Object { FsEntryTrySetOwner $_ $account $true };
+                                                    FsEntryListAsStringArray "$fs\*" $false | ForEach-Object{ FsEntryTrySetOwner $_ $account $true };
                                                   }
                                                 }catch{
                                                   OutWarning "Ignoring: FsEntryTrySetOwner($fsEntry,$account) failed because $($_.Exception.Message)";
@@ -631,7 +633,7 @@ function FsEntryTrySetOwnerAndAclsIfNotSet    ( [String] $fsEntry, [System.Secur
                                                   FsEntryAclRuleWrite Set $fsEntry $rule $false;
                                                 }
                                                 if( $recursive -and $isDir ){
-                                                  FsEntryListAsStringArray "$fsEntry\*" $false | ForEach-Object { FsEntryTrySetOwnerAndAclsIfNotSet $_ $account $true };
+                                                  FsEntryListAsStringArray "$fsEntry\*" $false | ForEach-Object{ FsEntryTrySetOwnerAndAclsIfNotSet $_ $account $true };
                                                 } }
 function FsEntryTryForceRenaming              ( [String] $fsEntry, [String] $extension ){
                                                 if( (FsEntryExists $fsEntry) ){
@@ -842,7 +844,7 @@ function ShareCreate                          ( [String] $shareName, [String] $d
                                                 if( !(DirExists $dir)  ){ throw [Exception] "Cannot create share because original directory not exists: '$dir'"; }
                                                 FsEntryAssertExists $dir "Cannot create share";
                                                 [UInt32] $typeNr = ShareGetTypeNr $typeName;
-                                                [Object] $existingShare = ShareListAll "." $shareName | Where-Object {$_.Path -ieq $dir -and $_.TypeName -eq $typeName} | Select-Object -First 1;
+                                                [Object] $existingShare = ShareListAll "." $shareName | Where-Object{ $_.Path -ieq $dir -and $_.TypeName -eq $typeName } | Select-Object -First 1;
                                                 if( $existingShare -ne $null ){
                                                   OutVerbose "Already exists shareName='$shareName' dir='$dir' typeName=$typeName"; 
                                                   if( $ignoreIfAlreadyExists ){ return; }
@@ -977,7 +979,7 @@ function SqlPerformCmd                        ( [String] $server, [String] $db, 
                                                 # note: this did not work (restore hangs):
                                                 #   [Object[]] $relocateFileList = @();
                                                 #   [Object] $smoRestore = New-Object Microsoft.SqlServer.Management.Smo.Restore; $smoRestore.Devices.AddDevice($bakFile , [Microsoft.SqlServer.Management.Smo.DeviceType]::File);
-                                                #   $smoRestore.ReadFileList($server) | ForEach-Object { [String] $f = Join-Path $dataDir (Split-Path $_.PhysicalName -Leaf); $relocateFileList += New-Object Microsoft.SqlServer.Management.Smo.RelocateFile($_.LogicalName, $f); }
+                                                #   $smoRestore.ReadFileList($server) | ForEach-Object{ [String] $f = Join-Path $dataDir (Split-Path $_.PhysicalName -Leaf); $relocateFileList += New-Object Microsoft.SqlServer.Management.Smo.RelocateFile($_.LogicalName, $f); }
                                                 #   Restore-SqlDatabase -Partial -ReplaceDatabase -NoRecovery -ServerInstance $server -Database $dbName -BackupFile $bakFile -RelocateFile $relocateFileList;
                                               }
 function RdpConnect                           ( [String] $rdpfile, [String] $mstscOptions = "" ){
@@ -1047,7 +1049,7 @@ function ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [Strin
                                                   }
                                                   # alternative:
                                                   # function ByProgram(){
-                                                  #   OutProgress   "& `"MnCreateLnk.exe`" -Workdir `"$workDir`" `"$lnkFile`" `"$srcFile`" $arguments"; #alternative $($arguments|ForEach-Object {'`"'+$_+'`"'})
+                                                  #   OutProgress   "& `"MnCreateLnk.exe`" -Workdir `"$workDir`" `"$lnkFile`" `"$srcFile`" $arguments"; #alternative $($arguments|ForEach-Object{'`"'+$_+'`"'})
                                                   #   [String] $out = & "MnCreateLnk.exe" "-Workdir" (StringReplaceEmptyByTwoQuotes $workDir) $lnkFile $srcFile $arguments; AssertRcIsOk $out;
                                                   # } ByProgram;
                                                   ByWshShell;
@@ -1128,7 +1130,7 @@ function InfoAboutSystemInfo                  (){
                                                 # for future use:
                                                 # - powercfg /lastwake
                                                 # - powercfg /waketimers
-                                                # - Get-ScheduledTask | where {$_.settings.waketorun}
+                                                # - Get-ScheduledTask | where{ $_.settings.waketorun }
                                                 # - change:
                                                 #   - Dism /online /Enable-Feature /FeatureName:TFTP /All
                                                 #   - cmd /c assoc .jpg=IrfanView.jpg
@@ -1359,7 +1361,7 @@ function SvnEnvInfoGet                        ( [String] $dir ){
                                                 [String] $svnCachedAuthorizationDir = "$env:APPDATA\Subversion\auth\svn.simple";
                                                 # care only file names like "25ff84926a354d51b4e93754a00064d6"
                                                 [String[]] $files = FsEntryListAsStringArray "$svnCachedAuthorizationDir\*" $false $false | 
-                                                    Where-Object {(FsEntryGetFileName $_) -match "^[0-9a-f]{32}$"} | Sort-Object;
+                                                    Where-Object{ (FsEntryGetFileName $_) -match "^[0-9a-f]{32}$" } | Sort-Object;
                                                 foreach( $f in $files ){
                                                   [String[]] $lines = FileReadContentAsLines $f;
                                                   # filecontent example:
@@ -1502,10 +1504,10 @@ function SvnPreCommitCleanupRevertAndDelFiles ( [String] $svnWorkDir, [String[]]
                                                   SvnCleanup $svnWorkDir;
                                                   FileDelete $svnRequiresCleanup;
                                                 }
-                                                OutProgress "Remove known unused temp, cache and log directories and files";
+                                                OutProgress "Remove known unused temp, cache and log directories and files with pattern: $relativeDelFsEntryPatterns";
                                                 FsEntryJoinRelativePatterns $svnWorkDir $relativeDelFsEntryPatterns | 
-                                                  ForEach-Object { FsEntryListAsStringArray $_ } | Where-Object { $_ -ne "" } |
-                                                  ForEach-Object { FileAppendLines $svnLogFile "  Delete: $_"; FsEntryDelete $_; };
+                                                  ForEach-Object{ FsEntryListAsStringArray $_ } | Where-Object{ $_ -ne "" } |
+                                                  ForEach-Object{ FileAppendLines $svnLogFile "  Delete: $_"; FsEntryDelete $_; };
                                                 OutProgress "SvnRevert - Restore known unwanted changes of directories and files";
                                                 SvnRevert $svnWorkDir $relativeRevertFsEntries; }
 function SvnCommitAndGet                      ( [String] $svnWorkDir, [String] $svnUrl, [String] $svnUser, [Boolean] $ignoreIfHostNotReachable ){
@@ -1556,9 +1558,10 @@ function SvnCommitAndGet                      ( [String] $svnWorkDir, [String] $
 function GitClone                             ( [String] $tarDir, [String] $url, [Boolean] $errorAsWarning = $false ){ # ex: GitFetch "C:\WorkGit\mniederw\mn-hibernate" "https://github.com/mniederw/mn-hibernate"
                                                 [String] $dir = FsEntryGetAbsolutePath $tarDir;
                                                 try{
-                                                  Push-Location -Path $dir;
+                                                  #Push-Location -Path $dir;
                                                   # ex: remote: Counting objects: 123, done. \n Receiving objects: 56% (33/123)  0 (delta 0), pack-reused ... \n Receiving objects: 100% (123/123), 205.12 KiB | 0 bytes/s, done. \n Resolving deltas: 100% (123/123), done.
                                                   # ex: Logon failed, use ctrl+c to cancel basic credential prompt.
+                                                  #DirCreate $dir;
                                                   OutProgressText "git clone --quiet '$url' '$dir'     ";
                                                   [String[]] $out = & "git" "clone" "--quiet" $url $dir; AssertRcIsOk $out;
                                                   OutProgress "Ok, done. $out";
@@ -1567,12 +1570,12 @@ function GitClone                             ( [String] $tarDir, [String] $url,
                                                   OutWarning "GitClone($url,$tarDir) failed because $($_.Exception.Message)";
                                                   ScriptResetRc;
                                                 }finally{
-                                                  Pop-Location;
+                                                  #Pop-Location;
                                                 } }
 function GitFetch                             ( [String] $tarDir, [String] $url, [Boolean] $errorAsWarning = $false ){ # ex: GitFetch "C:\WorkGit\mniederw\mn-hibernate" "https://github.com/mniederw/mn-hibernate"
                                                 [String] $dir = FsEntryGetAbsolutePath $tarDir;
                                                 try{
-                                                  Push-Location -Path $dir;
+                                                  #Push-Location -Path $dir;
                                                   # ex: Logon failed, use ctrl+c to cancel basic credential prompt.
                                                   OutProgressText "git --git-dir='$dir\.git' fetch --quiet '$url'     ";
                                                   [String[]] $out = & "git" "--git-dir=$dir\.git" "fetch" "--quiet" $url; AssertRcIsOk $out;
@@ -1582,12 +1585,12 @@ function GitFetch                             ( [String] $tarDir, [String] $url,
                                                   OutWarning "GitFetch($url,$tarDir) failed because $($_.Exception.Message)";
                                                   ScriptResetRc;
                                                 }finally{
-                                                  Pop-Location;
+                                                  #Pop-Location;
                                                 } }
 function GitPull                              ( [String] $tarDir, [String] $url ){ # ex: GitPull "C:\WorkGit\mniederw\mn-hibernate" "https://github.com/mniederw/mn-hibernate"
                                                 [String] $dir = FsEntryGetAbsolutePath $tarDir;
                                                 try{
-                                                  Push-Location -Path $dir;
+                                                  #Push-Location -Path $dir;
                                                   OutProgressText "git --git-dir='$dir\.git' pull --quiet '$url'     ";
                                                   [String[]] $out = & "git" "--git-dir=$dir\.git" "pull" "--quiet" $url; AssertRcIsOk $out;
                                                   OutProgress "Ok, done.";
@@ -1595,7 +1598,7 @@ function GitPull                              ( [String] $tarDir, [String] $url 
                                                   OutWarning "GitPull($url,$tarDir) failed because $($_.Exception.Message)";
                                                   ScriptResetRc;
                                                 }finally{
-                                                  Pop-Location;
+                                                  #Pop-Location;
                                                 } }
 function GitLogList                           ( [String] $tarLogDir, [String] $localRepoDir ){
                                                 # overwrite git log info to files below specified dir, it writes files as Log.NameOfRepoRoot.NameOfRepo.Commits.log and Log.NameOfRepoRoot.NameOfRepo.CommitsAndFiles.log, 
@@ -1768,7 +1771,7 @@ function MnLibCommonSelfTest{
   Assert ((DateTimeFromStringAsFormat "2011-12-31"         ) -eq (Get-Date -Date "2011-12-31 00:00:00"));
   Assert ((DateTimeFromStringAsFormat "2011-12-31_23_59"   ) -eq (Get-Date -Date "2011-12-31 23:59:00"));
   Assert ((DateTimeFromStringAsFormat "2011-12-31_23_59_59") -eq (Get-Date -Date "2011-12-31 23:59:59"));
-  Assert (($mode -split ",").Count -eq 1 -and $mode.Split(",").Count -eq 1);
+  Assert (("abc" -split ",").Count -eq 1 -and "abc,".Split(",").Count -eq 2 -and ",abc".Split(",").Count -eq 2);
 } # MnLibCommonSelfTest; # is deactivated because we know it works :-)
 
 # Powershell useful additional documentation
@@ -1823,12 +1826,18 @@ function MnLibCommonSelfTest{
 #     Possible reasons: PS can have a regkey as current location. GetFullPath works with [System.IO.Directory]::GetCurrentDirectory().
 #     Recommendation: do not use [System.IO.Path]::GetFullPath, use Resolve-Path.
 #   - ForEach-Object iterates once with $null in pipeline:    see http://stackoverflow.com/questions/4356758/how-to-handle-null-in-the-pipeline
-#     $null | foreach-object{ write-host "badly reached." }
-#     But: @() | foreach-object{ write-host "ok not reached." }
-#     Recommendation: always use: $null | Where-Object {$_ -ne $null} | foreach-object{ write-host "ok not reached." }
-#     Alternative: $null | Foreach-Object -Begin{if($_ -eq $null){continue}} -Process {do your stuff here}
-#   - Empty array in pipeline is converted to $null: $r = [String[]]@() | Where-Object { $_ -ne "bla" }; $r -eq $null 
-#     Workaround:  $r = @()+([String[]]@() | Where-Object { $_ -ne "bla" }); $r -eq $null 
+#     $null | ForEach-Object{ write-host "badly reached." }
+#     But:  @() | ForEach-Object{ write-host "ok not reached." }
+#     Workaround if array variable can be null, then use:  $null | Where-Object{ $_ -ne $null } | ForEach-Object{ write-host "ok not reached." }
+#     Alternative: $null | ForEach-Object -Begin{if($_ -eq $null){continue}} -Process {do your stuff here}
+#     Recommendation: Make sure an array variable is never null.
+#   - Empty array in pipeline is converted to $null:  $r = ([String[]]@()) | Where-Object{ $_ -ne "bla" }; if( $r -eq $null ){ write-host "ok reached" };
+#     Workaround:  $r = @()+(([String[]]@()) | Where-Object{ $_ -ne "bla" }); if( !$r ){ write-host "ok reached, var is not null" };
+#   - Compare empty array with $null:  [Object[]] $r = @(); if( $r.gettype().Name -eq "Object[]" ){ write-host "ok reached" };
+#     if( $r.count -eq 0 ){ write-host "ok reached"; }
+#     if( $r -eq $null ){ write-host "never reached"; }   if( -not ($r -eq $null) ){ write-host "ok reached"; }
+#     if( $r -ne $null ){ write-host "never reached"; }   if( -not ($r -ne $null) ){ write-host "ok reached"; }
+#     Recommendation: Make sure an array variable is never null.
 # - Standard module paths:
 #   - %windir%\system32\WindowsPowerShell\v1.0\Modules    location for windows modules for all users
 #   - %ProgramW6432%\WindowsPowerShell\Modules\           location for any modules     for all users
@@ -1886,4 +1895,5 @@ function MnLibCommonSelfTest{
 # - Extensions and libraries: https://www.powershellgallery.com/  http://ss64.com/links/pslinks.html
 # - Important to know:
 #   - Alternative for Split-Path has problems: [System.IO.Path]::GetDirectoryName("c:\") -eq $null; [System.IO.Path]::GetDirectoryName("\\mymach\myshare\") -eq "\\mymach\myshare\";
-#
+#   - Split(): $a = "".Split(";",[System.StringSplitOptions]::RemoveEmptyEntries); # returns correctly an empty array and not null: $a.Count -eq 0;
+#     Usually Split is used with the option RemoveEmptyEntries.
