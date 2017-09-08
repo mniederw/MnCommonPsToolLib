@@ -75,7 +75,7 @@ if( $dirsWithPsm1Files.Count -ne 1 ){ throw [Exception] "Tool is designed for wo
 [String] $moduleTarDir = "$tarRootDir\$moduleName";
 Write-Host "Install Menu";
 Write-Host "------------`n";
-Write-Host "ModuleName    = '$moduleName'";
+Write-Host "ModuleName            = '$moduleName'";
 Write-Host "DirInstalled          = $(DirExists $moduleTarDir);  (TargetDir='$moduleTarDir'). ";
 Write-Host "PathInstalled         = $(PsModulePathContains $srcRootDir);  (SrcPath='$srcRootDir')";
 Write-Host "IsInElevatedAdminMode = $(ProcessIsRunningInElevatedAdminMode); `n";

@@ -1,8 +1,9 @@
 # Common powershell tool library
 #
-# 2013-2017 produced by Marc Niederwieser, Switzerland. This is freeware.
+# 2013-2017 produced by Marc Niederwieser, Switzerland. Licensed under GPL3. This is freeware.
 #
-# 2017-07-04  V1.1  git pull
+# 2017-09-08  V1.2  extend by jobs, parallel
+# 2017-08-11  V1.1  update
 # 2017-06-25  V1.0  published as open source to github
 #
 # This library encapsulates many common commands for the purpose of:
@@ -82,8 +83,41 @@ $Global:OutputEncoding                = [Console]::OutputEncoding ; # for pipe t
 
 # import some modules
 Import-Module -NoClobber -Name "ScheduledTasks";
-# for later usage: Import-Module -NoClobber -Name "SmbShare"; Import-Module -NoClobber -Name "SmbWitness";
+Import-Module -NoClobber -Name "SmbShare";
+# for later usage: Import-Module -NoClobber -Name "SmbWitness";
 Add-Type -Name Window -Namespace Console -MemberDefinition '[DllImport("Kernel32.dll")] public static extern IntPtr GetConsoleWindow(); [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, Int32 nCmdShow);';
+
+# statement extensions
+function ForEachParallel { # taken from https://powertoe.wordpress.com/2012/05/03/foreach-parallel/  ex: (0..20) | ForEachParallel { echo "Nr: $_"; sleep 1; }; (0..5) | ForEachParallel -MaxThreads 2 { echo "Nr: $_"; sleep 1; }
+  param( [Parameter(Mandatory=$true,position=0)]              [System.Management.Automation.ScriptBlock] $ScriptBlock,
+         [Parameter(Mandatory=$true,ValueFromPipeline=$true)] [PSObject]                                 $InputObject,
+         [Parameter(Mandatory=$false)]                        [int]                                      $MaxThreads=8 )
+  BEGIN{
+    try{
+      $iss = [system.management.automation.runspaces.initialsessionstate]::CreateDefault();
+      $pool = [Runspacefactory]::CreateRunspacePool(1,$maxthreads,$iss,$host); $pool.open();
+      $threads = @();
+      $ScriptBlock = $ExecutionContext.InvokeCommand.NewScriptBlock("param(`$_)`r`n"+$Scriptblock.ToString());
+    }catch{ $Host.UI.WriteErrorLine("ForEachParallel-BEGIN: $($_)");  }
+  }PROCESS{
+    try{
+      $powershell = [powershell]::Create().addscript($scriptblock).addargument($InputObject); $powershell.runspacepool = $pool;
+      $threads += @{ instance = $powershell; handle = $powershell.begininvoke(); };
+    }catch{ $Host.UI.WriteErrorLine("ForEachParallel-PROCESS: $($_)");  }
+  }END{
+    try{
+      [Boolean] $notdone = $true; while( $notdone ){ $notdone = $false;
+        for( [Int32] $i = 0; $i -lt $threads.count; $i++ ){
+          $thread = $threads[$i];
+          if( $thread ){
+            if( $thread.handle.iscompleted ){ $thread.instance.endinvoke($thread.handle); $thread.instance.dispose(); $threads[$i] = $null; }
+            else { $notdone = $true; }
+          }
+        }
+      }
+    }catch{ $Host.UI.WriteErrorLine("ForEachParallel-END: $($_)");  }
+  }
+}
 
 # set some self defined constant global variables
 if( (Get-Variable -Scope global -ErrorAction SilentlyContinue -Name ComputerName) -eq $null ){ # check wether last variable already exists because reload safe
@@ -203,11 +237,11 @@ function StreamToDataRowsString               ( [String[]] $propertyNames ){ if(
                                                 $input | Format-Table -Wrap -Force -autosize -HideTableHeaders $propertyNames | StreamToStringDelEmptyLeadAndTrLines; }
 function StreamToTableString                  ( [String[]] $propertyNames ){ if( $propertyNames -eq $null -or $propertyNames.Count -eq 0 ){ $propertyNames = @("*"); } 
                                                 $input | Format-Table -Wrap -Force -autosize $propertyNames | StreamToStringDelEmptyLeadAndTrLines; }
-function OutInfo                              ( [String] $line ){ Write-Host -ForegroundColor $InfoLineColor $line; }
-function OutWarning                           ( [String] $line, [Int32] $indentLevel = 1 ){ Write-Host -ForegroundColor Yellow (("  "*$indentLevel)+$line); }
-function OutSuccess                           ( [String] $line ){ Write-Host -ForegroundColor Green    $line; }
-function OutProgress                          ( [String] $line, [Int32] $indentLevel = 1 ){ if( $Global:ModeHideOutProgress ){ return; } Write-Host -ForegroundColor DarkGray (("  "*$indentLevel) +$line); } # used for tracing changing actions, otherwise use OutVerbose
-function OutProgressText                      ( [String] $str  ){ if( $Global:ModeHideOutProgress ){ return; } Write-Host -ForegroundColor DarkGray -nonewline $str; }
+function OutInfo                              ( [String] $line ){ Write-Host -ForegroundColor $InfoLineColor -NoNewline "$line`r`n"; } # NoNewline is used because on multi threading usage line text and newline can be interrupted between
+function OutWarning                           ( [String] $line, [Int32] $indentLevel = 1 ){ Write-Host -ForegroundColor Yellow -NoNewline (("  "*$indentLevel)+$line+"`r`n"); }
+function OutSuccess                           ( [String] $line ){ Write-Host -ForegroundColor Green -NoNewline "$line`r`n"; }
+function OutProgress                          ( [String] $line, [Int32] $indentLevel = 1 ){ if( $Global:ModeHideOutProgress ){ return; } Write-Host -ForegroundColor DarkGray -NoNewline (("  "*$indentLevel) +$line+"`r`n"); } # used for tracing changing actions, otherwise use OutVerbose
+function OutProgressText                      ( [String] $str  ){ if( $Global:ModeHideOutProgress ){ return; } Write-Host -ForegroundColor DarkGray -NoNewline $str; }
 function OutVerbose                           ( [String] $line ){ Write-Verbose -Message $line; } # output depends on $VerbosePreference, used tracing read or network operations
 function OutDebug                             ( [String] $line ){ Write-Debug -Message $line; } # output depends on $DebugPreference, used tracing read or network operations
 function OutWarnIfRcNotOkAndResetRc           ( [String] $msg ){ if( ($LASTEXITCODE -ne $null -and $LASTEXITCODE -ne 0) -or -not $?) { OutWarning "Last operation failed [rc=$LASTEXITCODE]. $msg"; ScriptResetRc; } }
@@ -242,6 +276,13 @@ function ProcessGetCommandInEnvPathOrAltPaths ( [String] $commandNameOptionalWit
                                                 if( $cmd -ne $null ){ return [String] $cmd.Path; }
                                                 foreach( $d in $alternativePaths ){ [String] $f = (Join-Path $d $commandNameOptionalWithExtension); if( (FileExists $f) ){ return $f; } }
                                                 throw [Exception] "ProcessGetCommandInEnvPathOrDirs: commandName='$commandNameOptionalWithExtension' was wether found in env-path='$env:PATH' nor in alternativePaths='$alternativePaths'"; }
+function JobStart                             ( [ScriptBlock] $scr, [Object[]] $scrArgs = $null, [String] $name = "Job" ){ # return job object of type PSRemotingJob, the returned object of the script block can later be requested
+                                                return [System.Management.Automation.Job] (Start-Job -name $name -ScriptBlock $scr -ArgumentList $scrArgs); }
+function JobGet                               ( [String] $id ){ return [System.Management.Automation.Job] (Get-Job -Id $id); } # return job object
+function JobGetState                          ( [String] $id ){ return [String] (JobGet $id).State; } # NotStarted, Running, Completed, Stopped, Failed, and Blocked.
+function JobWaitForNotRunning                 ( [Int32] $id, [Int32] $timeoutInSec = -1 ){ $job = Wait-Job -Id $id -Timeout $timeoutInSec; }
+function JobWaitForState                      ( [Int32] $id, [String] $state, [Int32] $timeoutInSec = -1 ){ $job = Wait-Job -Id $id -State $state -Force -Timeout $timeoutInSec; }
+function JobWaitForEnd                        ( [Int32] $id ){ JobWaitForNotRunning $id; return [Object] (Receive-Job -Id $id); } # return result object of script block, job is afterwards deleted
 function HelpHelp                             (){ Get-Help     | ForEach-Object{ OutInfo $_; } }
 function HelpListOfAllVariables               (){ Get-Variable | Sort-Object Name | ForEach-Object{ OutInfo "$($_.Name.PadRight(32)) $($_.Value)"; } } # Select-Object Name, Value | StreamToListString
 function HelpListOfAllAliases                 (){ Get-Alias    | Select-Object CommandType, Name, Version, Source | StreamToTableString | ForEach-Object{ OutInfo $_; } }
@@ -881,7 +922,7 @@ function NetPingHostIsConnectable             ( [String] $hostName ){
                                                 OutVerbose "Host $hostName not reachable, so flush dns, nslookup and retry";
                                                 & "ipconfig.exe" "/flushdns" | out-null; # note option /registerdns would require more privs
                                                 try{ [System.Net.Dns]::GetHostByName($hostName); }catch{}
-                                                #nslookup $hostName -ErrorAction SilentlyContinue | out-null;
+                                                # nslookup $hostName -ErrorAction SilentlyContinue | out-null;
                                                 return [Boolean] (Test-Connection -Cn $hostName -BufferSize 16 -Count 1 -ea 0 -quiet); }
 function MountPointLocksListAll               (){ 
                                                 OutVerbose "List all mount point locks"; return [Object] (Get-SmbConnection | 
@@ -889,32 +930,42 @@ function MountPointLocksListAll               (){
                                                 Sort-Object ServerName, ShareName, UserName, Credential); }
 function MountPointListAll                    (){ 
                                                 return [Object] (Get-SmbMapping | Select-Object LocalPath, RemotePath, Status); }
-function MountPointRemove                     ( [String] $drive, [String] $mountPoint = "" ){ # also remove PsDrive
-                                                if( (Get-SmbMapping -LocalPath "$($drive):" -ErrorAction SilentlyContinue) -ne $null ){
-                                                  OutProgress "MountPointRemove drive=$($drive):";
-                                                  Remove-SmbMapping -LocalPath "$($drive):" -Force -UpdateProfile;
+function MountPointGetByDrive                 ( [String] $drive ){ # return null if not found
+                                                if( -not $drive.EndsWith(":") ){ throw [Exception] "Expected drive='$drive' with trailing colon"; }
+                                                return [Object] (Get-SmbMapping -LocalPath $drive -ErrorAction SilentlyContinue); }
+function MountPointRemove                     ( [String] $drive, [String] $mountPoint = "", [Boolean] $suppressProgress = $false ){ # also remove PsDrive
+                                                if( -not $drive.EndsWith(":") ){ throw [Exception] "Expected drive='$drive' with trailing colon"; }
+                                                if( (MountPointGetByDrive $drive) -ne $null ){
+                                                  if( -not $suppressProgress ){ OutProgress "MountPointRemove drive=$drive"; }
+                                                  Remove-SmbMapping -LocalPath $drive -Force -UpdateProfile;
                                                 }
                                                 if( $mountPoint -ne "" -and (Get-SmbMapping -RemotePath $mountPoint -ErrorAction SilentlyContinue) -ne $null ){
-                                                  OutProgress "MountPointRemovePath $mountPoint";
+                                                  if( -not $suppressProgress ){ OutProgress "MountPointRemovePath $mountPoint"; }
                                                   Remove-SmbMapping -RemotePath $mountPoint -Force -UpdateProfile;
                                                 }
-                                                if( (Get-PSDrive -Name $drive -ErrorAction SilentlyContinue) -ne $null ){
-                                                  OutProgress "MountPointRemovePsDrive $drive";
-                                                  Remove-PSDrive -Name $drive -Force; # force means no confirmation
+                                                if( (Get-PSDrive -Name ($drive -replace ":","") -ErrorAction SilentlyContinue) -ne $null ){
+                                                  if( -not $suppressProgress ){ OutProgress "MountPointRemovePsDrive $drive"; }
+                                                  Remove-PSDrive -Name ($drive -replace ":","") -Force; # force means no confirmation
                                                 } }
-function MountPointCreate                     ( [String] $drive, [String] $mountPoint, [System.Management.Automation.PSCredential] $cred = $null, [Boolean] $errorAsWarning = $false ){
-                                                MountPointRemove $drive $mountPoint; # required because New-SmbMapping has no force param
+function MountPointCreate                     ( [String] $drive, [String] $mountPoint, [System.Management.Automation.PSCredential] $cred = $null, [Boolean] $errorAsWarning = $false, [Boolean] $noPreLogMsg = $false ){
+                                                if( -not $drive.EndsWith(":") ){ throw [Exception] "Expected drive='$drive' with trailing colon"; }
                                                 [String] $us = switch($cred -eq $null){ True{"CurrentUser($env:USERNAME)"} default{$cred.UserName}};
                                                 [String] $pw = switch($cred -eq $null){ True{""} default{(CredentialGetPasswordTextFromCred $cred)}};
-                                                OutProgressText "  MountPointCreate drive=$drive mountPoint=$($mountPoint.PadRight(20)) us=$($us.PadRight(12)) pw=*** ";
+                                                [String] $traceInfo = "MountPointCreate drive=$drive mountPoint=$($mountPoint.PadRight(22)) us=$($us.PadRight(12)) pw=*** state=";
+                                                if( $noPreLogMsg ){ }else{ OutProgressText $traceInfo; }
+                                                [Object] $smbMap = MountPointGetByDrive $drive;
+                                                if( $smbMap -ne $null -and $smbMap.RemotePath -eq $mountPoint -and $smbMap.Status -eq "OK" ){ 
+                                                  if( $noPreLogMsg ){ OutProgress "$($traceInfo)OkNoChange."; }else{ OutSuccess "OkNoChange."; } return; 
+                                                }
+                                                MountPointRemove $drive $mountPoint $true; # required because New-SmbMapping has no force param
                                                 try{
                                                   # alternative: SaveCredentials 
                                                   if( $pw -eq ""){
-                                                    $obj = New-SmbMapping -LocalPath "$($drive):" -RemotePath $mountPoint -Persistent $true -UserName $us;
+                                                    $obj = New-SmbMapping -LocalPath $drive -RemotePath $mountPoint -Persistent $true -UserName $us;
                                                   }else{
-                                                    $obj = New-SmbMapping -LocalPath "$($drive):" -RemotePath $mountPoint -Persistent $true -UserName $us -Password $pw;
+                                                    $obj = New-SmbMapping -LocalPath $drive -RemotePath $mountPoint -Persistent $true -UserName $us -Password $pw;
                                                   }
-                                                  OutSuccess "Ok.";
+                                                  if( $noPreLogMsg ){ OutProgress "$($traceInfo)Ok."; }else{ OutSuccess "Ok."; }
                                                 }catch{
                                                   # ex: System.Exception: New-SmbMapping(Z,\\spider\Transfer,spider\u0) failed because Mehrfache Verbindungen zu einem Server oder einer freigegebenen Ressource von demselben Benutzer unter Verwendung mehrerer Benutzernamen sind nicht zulässig. 
                                                   #     Trennen Sie alle früheren Verbindungen zu dem Server bzw. der freigegebenen Ressource, und versuchen Sie es erneut.
@@ -927,9 +978,10 @@ function MountPointCreate                     ( [String] $drive, [String] $mount
                                                   if    ( $exMsg -eq "Der Netzwerkpfad wurde nicht gefunden." ) { $msg = "HostNotFound"; } # 53 BAD_NETPATH
                                                   elseif( $exMsg -eq "Der Netzwerkname wurde nicht gefunden." ){ $msg = "NameNotFound"; } # 67 BAD_NET_NAME
                                                   elseif( $exMsg -eq "Zugriff verweigert" ){ $msg = "AccessDenied"; } # 5 ACCESS_DENIED: 
-                                                  elseif( $exMsg -eq "Mehrfache Verbindungen zu einem Server oder einer freigegebenen Ressource von demselben Benutzer unter Verwendung mehrerer Benutzernamen sind nicht zulässig. Trennen Sie alle früheren Verbindungen zu dem Server bzw. der freigegebenen Ressource, und versuchen Sie es erneut." ){ $msg = "MultiConnectionsByMultiUserNamesNotAllowed"; } # 1219 SESSION_CREDENTIAL_CONFLICT
+                                                  elseif( $exMsg -eq "Mehrfache Verbindungen zu einem Server oder einer freigegebenen Ressource von demselben Benutzer unter Verwendung mehrerer Benutzernamen sind nicht zulässig. Trennen Sie alle früheren Verbindungen zu dem Server bzw. der freigegebenen Ressource, und versuchen Sie es erneut." ){
+                                                    $msg = "MultiConnectionsByMultiUserNamesNotAllowed"; } # 1219 SESSION_CREDENTIAL_CONFLICT
                                                   else {}
-                                                  OutWarning $msg 0;
+                                                  if( $noPreLogMsg ){ OutProgress "$($traceInfo)$($msg)"; }else{ OutWarning $msg 0; }
                                                   # alternative: (New-Object -ComObject WScript.Network).MapNetworkDrive("B:", "\\FPS01\users")
                                                 } }
 function PsDriveListAll                       (){ 
@@ -937,11 +989,12 @@ function PsDriveListAll                       (){
                                                 return Get-PSDrive -PSProvider FileSystem | Select-Object Name,@{Name="ShareName";Expression={$_.DisplayRoot+""}},Description,CurrentLocation,Free,Used | Sort-Object Name; }
                                                 # not used: Root, Provider. PSDrive: Note are only for current session, even if persist.
 function PsDriveCreate                        ( [String] $drive, [String] $mountPoint, [System.Management.Automation.PSCredential] $cred = $null ){
+                                                if( -not $drive.EndsWith(":") ){ throw [Exception] "Expected drive='$drive' with trailing colon"; }
                                                 MountPointRemove $drive $mountPoint;
                                                 [String] $us = switch($cred -eq $null){ True{"CurrentUser($env:USERNAME)"} default{$cred.UserName}};
                                                 OutProgress "MountPointCreate drive=$drive mountPoint=$mountPoint cred.username=$us";
                                                 try{
-                                                  $obj = New-PSDrive -Name $drive -Root $mountPoint -PSProvider "FileSystem" -Scope Global -Persist -Description "$mountPoint($drive)" -Credential $cred;
+                                                  $obj = New-PSDrive -Name ($drive -replace ":","") -Root $mountPoint -PSProvider "FileSystem" -Scope Global -Persist -Description "$mountPoint($drive)" -Credential $cred;
                                                 }catch{
                                                   # ex: System.ComponentModel.Win32Exception (0x80004005): Der lokale Gerätename wird bereits verwendet
                                                   # ex: System.Exception: Mehrfache Verbindungen zu einem Server oder einer freigegebenen Ressource von demselben Benutzer unter Verwendung mehrerer Benutzernamen sind nicht zulässig. 
