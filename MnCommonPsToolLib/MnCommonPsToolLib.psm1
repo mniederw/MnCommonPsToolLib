@@ -797,8 +797,9 @@ function FileDelete                           ( [String] $file, [Boolean] $ignor
                                                 if( (FileExists $file) ){ OutProgress "FileDelete$(switch($ignoreReadonly){$true{''}default{'CareReadonly'}}) '$file'"; 
                                                   Remove-Item -Force:$ignoreReadonly -LiteralPath $file; } }
 function FileCopy                             ( [String] $srcFile, [String] $tarFile, [Boolean] $overwrite = $false ){ 
-                                                OutProgress "FileCopy(Overwrite=$overwrite) '$srcFile' to '$tarFile'"; 
-                                                FsEntryCreateParentDir $tarFile; Copy-Item -Force:$overwrite (FsEntryEsc $srcFile) (FsEntryEsc $tarFile); }
+                                                OutProgress "FileCopy(Overwrite=$overwrite) '$srcFile' to '$tarFile'";
+                                                if( -not $overwrite -and (FileExists $tarFile) ){ throw [Exception] "FileCopy(Overwrite=$overwrite,src='$srcFile',tar='$tarFile') failed because target already exists."; }
+                                                FsEntryCreateParentDir $tarFile; Copy-Item -Force:$overwrite -LiteralPath $srcFile -Destination (FsEntryEsc $tarFile); }
 function DriveMapTypeToString                 ( [UInt32] $driveType ){
                                                 return [String] $(switch($driveType){ 1{"NoRootDir"} 2{"RemovableDisk"} 3{"LocalDisk"} 4{"NetworkDrive"} 5{"CompactDisk"} 6{"RamDisk"} default{"UnknownDriveType=driveType"}}); }
 function DriveList                            (){
