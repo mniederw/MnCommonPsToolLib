@@ -195,11 +195,15 @@ function StdInAskForAnswerWhenInInteractMode  ( [String] $line, [String] $expect
 function StdOutEndMsgCareInteractiveMode      ( [Int32] $delayInSec = 1 ){ if( $global:ModeDisallowInteractions -or $global:ModeNoWaitForEnterAtEnd ){ 
                                                 OutSuccess "Ok, done. Ending in $delayInSec second(s)."; ProcessSleepSec $delayInSec; }else{ OutSuccess "Ok, done. Press Enter to Exit;"; StdInReadLine; } }
 function Assert                               ( [Boolean] $cond, [String] $msg = "" ){ if( -not $cond ){ throw [Exception] "Assertion failed $msg"; } }
-function AssertRcIsOk                         ( [String[]] $linesToOutProgress = $null ){
+function AssertRcIsOk                         ( [String[]] $linesToOutProgress = $null, [Boolean] $useLinesAsExcMessage = $false ){
                                                 # can also be called with a single string; only nonempty progress lines are given out
                                                 if( ($LASTEXITCODE -ne $null -and $LASTEXITCODE -ne 0) -or -not $?) { # if no windows command was done then $LASTEXITCODE is null
-                                                  [String] $msg = "Last operation failed [rc=$LASTEXITCODE].";
-                                                  $linesToOutProgress | Where-Object{ -not [String]::IsNullOrWhiteSpace($_) } | ForEach-Object{ OutProgress $_ };
+                                                  [String] $msg = "Last operation failed [rc=$LASTEXITCODE]. ";
+                                                  if( $useLinesAsExcMessage ){
+                                                    [String] $out = ([String]$linesToOutProgress).Trim();
+                                                    if( $LASTEXITCODE -eq 1 -and $out -ne "" ){ $msg = ""; }
+                                                    $msg += $out;
+                                                  }else{ $linesToOutProgress | Where-Object{ -not [String]::IsNullOrWhiteSpace($_) } | ForEach-Object{ OutProgress $_ }; }
                                                   throw [Exception] $msg; } }
 function ScriptGetProcessCommandLine          (){ return [String] ([environment]::commandline); } # ex: "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" "& \"C:\myscript.ps1\"";
 function ScriptResetRc                        (){ $error.clear(); & "cmd.exe" "/C" "EXIT 0"; $error.clear(); AssertRcIsOk; } # reset ERRORLEVEL to 0
@@ -569,7 +573,7 @@ function FsEntryListAsFileSystemInfo          ( [String] $fsEntryPattern, [Boole
                                                 [System.IO.FileSystemInfo[]] $result = @();
                                                 if( $trailingBackslashMode -and $pa.Contains("\*\") ){
                                                   # handle that ".\*\dir\" would also find top dir
-												  $pa = $pa.Replace("\*\","\.\"); # otherwise Get-ChildItem would find dirs.
+												                          $pa = $pa.Replace("\*\","\.\"); # otherwise Get-ChildItem would find dirs.
                                                   $result += (Get-Item -Force -ErrorAction SilentlyContinue -Path $pa);
                                                 }
                                                 $result += (Get-ChildItem -Force -ErrorAction SilentlyContinue -Recurse:$recursive -Path $pa | 
@@ -1761,92 +1765,91 @@ function SvnCommitAndGet                      ( [String] $svnWorkDir, [String] $
                                                   FileAppendLine $svnLogFile (StringFromException $_.Exception);
                                                   throw;
                                                 } }
-function GitClone                             ( [String] $tarDir, [String] $url, [Boolean] $errorAsWarning = $false ){ # target dir must exist. ex: GitFetch "C:\WorkGit\mniederw\MnCommonPsToolLib" "https://github.com/mniederw/MnCommonPsToolLib"
-                                                [String] $dir = FsEntryGetAbsolutePath $tarDir;
+function GitCmd                               ( [String] $cmd, [String] $tarRootDir, [String] $url, [Boolean] $errorAsWarning = $false ){
+                                                # ex: GitCmd Clone "C:\WorkGit" "https://github.com/mniederw/MnCommonPsToolLib"
+                                                # $cmd == "Clone": target dir must not exist.
+                                                # $cmd == "Fetch": target dir must exist.
+                                                # $cmd == "Pull" : target dir must exist. [git pull] is the same as [git fetch] and then [git merge FETCH_HEAD]. [git pull -rebase] runs [git rebase] instead of [git merge].
+                                                if( @("Clone","Fetch","Pull") -notcontains $cmd ){ throw [Exception] "Expected one of (Clone,Fetch,Pull) instead of: $cmd"; }
+                                                [Boolean] $doChangeDir = @("Fetch","Pull") -contains $cmd;
+                                                [String] $dir = FsEntryGetAbsolutePath (GitBuildLocalDirFromUrl $tarRootDir $url);
                                                 try{
-                                                  Push-Location -Path $dir; # required depending on repo config
+                                                  if( $doChangeDir ){ Push-Location -Path $dir; } # required depending on repo config
                                                   # ex: remote: Counting objects: 123, done. \n Receiving objects: 56% (33/123)  0 (delta 0), pack-reused ... \n Receiving objects: 100% (123/123), 205.12 KiB | 0 bytes/s, done. \n Resolving deltas: 100% (123/123), done.
-                                                  # ex: Logon failed, use ctrl+c to cancel basic credential prompt.
-                                                  OutProgressText "git clone --quiet '$url' '$dir'     ";
-                                                  [String[]] $out = & "git" "clone" "--quiet" $url $dir; AssertRcIsOk $out;
-                                                  OutProgress "Ok, done. $out";
-                                                }catch{
-                                                  if( -not $errorAsWarning ){ throw [Exception] "GitClone($url,$tarDir) failed because $($_.Exception.Message)"; }
-                                                  OutWarning "GitClone($url,$tarDir) failed because $($_.Exception.Message)";
-                                                  ScriptResetRc;
-                                                }finally{
-                                                  Pop-Location;
-                                                } }
-function GitFetch                             ( [String] $tarDir, [String] $url, [Boolean] $errorAsWarning = $false ){ # ex: GitFetch "C:\WorkGit\mniederw\MnCommonPsToolLib" "https://github.com/mniederw/MnCommonPsToolLib"
-                                                [String] $dir = FsEntryGetAbsolutePath $tarDir;
-                                                try{
-                                                  Push-Location -Path $dir; # required depending on repo config
-                                                  # ex: Logon failed, use ctrl+c to cancel basic credential prompt.
-                                                  OutProgressText "git --git-dir='$dir\.git' fetch --quiet '$url'     ";
-                                                  [String[]] $out = & "git" "--git-dir=$dir\.git" "fetch" "--quiet" $url; AssertRcIsOk $out;
-                                                  OutProgress "Ok, done.";
-                                                }catch{
-                                                  if( -not $errorAsWarning ){ throw [Exception] "GitFetch($url,$tarDir) failed because $($_.Exception.Message)"; }
-                                                  OutWarning "GitFetch($url,$tarDir) failed because $($_.Exception.Message)";
-                                                  ScriptResetRc;
-                                                }finally{
-                                                  Pop-Location;
-                                                } }
-function GitPull                              ( [String] $tarDir, [String] $url ){ # ex: GitPull "C:\WorkGit\mniederw\MnCommonPsToolLib" "https://github.com/mniederw/MnCommonPsToolLib"
-                                                [String] $dir = FsEntryGetAbsolutePath $tarDir;
-                                                try{
-                                                  Push-Location -Path $dir; # required depending on repo config
-                                                  OutProgressText "git --git-dir='$dir\.git' pull --quiet '$url'     ";
-                                                  [String[]] $out = & "git" "--git-dir=$dir\.git" "pull" "--quiet" $url; AssertRcIsOk $out;
-                                                  OutProgress "Ok, done.";
-                                                }catch{
-                                                  OutWarning "GitPull($url,$tarDir) failed because $($_.Exception.Message)";
-                                                  ScriptResetRc;
-                                                }finally{
-                                                  Pop-Location;
-                                                } }
-function GitLogList                           ( [String] $tarLogDir, [String] $localRepoDir ){
-                                                # overwrite git log info to files below specified dir, it writes files as Log.NameOfRepoRoot.NameOfRepo.Commits.log and Log.NameOfRepoRoot.NameOfRepo.CommitsAndFiles.log, 
-                                                # ex: GitListLog "C:\WorkGit\Log" "C:\WorkGit\mniederw\MnCommonPsToolLib"
-                                                [String] $dir = FsEntryGetAbsolutePath $localRepoDir;
-                                                [String] $repoName =  (Split-Path -Leaf (Split-Path -Parent $dir)) + "." + (Split-Path -Leaf $dir);
-                                                # ex: Logon failed, use ctrl+c to cancel basic credential prompt.
-                                                function LogMode ([String] $mode, [String] $fout) {
-                                                  [String[]] $options = @( "--git-dir=$dir\.git", "log", "--after=1990-01-01", "--pretty=format:%ci %cn/%ce %s", $mode );
-                                                  OutProgressText "git $options ; ";
-                                                  [String[]] $out = @();
-                                                  try{
-                                                    $out = & "git" $options 2>&1; AssertRcIsOk $out;
-                                                  }catch{
-                                                    if( $_.Exception.Message -eq "fatal: your current branch 'master' does not have any commits yet" ){ # Last operation failed [rc=128]
-                                                      $out += "Info: your current branch 'master' does not have any commits yet.";
-                                                      OutProgressText "Info: empty master.";
-                                                    }else{
-                                                      $out += "Warning: GitLogList($localRepoDir) failed because $($_.Exception.Message)";
-                                                      OutProgressText $out;
-                                                    }
-                                                    ScriptResetRc;
+                                                  [String[]] $out = $null;
+                                                  if( $cmd -eq "Clone" ){
+                                                    OutProgressText "git clone --quiet '$url' '$dir' ";
+                                                    $out = & "git" "clone" "--quiet" $url $dir 2>&1;
+                                                  }elseif( $cmd -eq "Fetch" ){
+                                                    OutProgressText "git --git-dir='$dir\.git' fetch --quiet '$url' ";
+                                                    $out = & "git" "--git-dir=$dir\.git" "fetch" "--quiet" $url 2>&1;
+                                                  }elseif( $cmd -eq "Pull" ){
+                                                    OutProgressText "cd dir; git --git-dir='$dir\.git' pull --quiet '$url' "; # defaults: "--no-rebase" "origin"
+                                                    $out = & "git" "--git-dir=$dir\.git" "pull" "--quiet" $url 2>&1;
                                                   }
-                                                  FileWriteFromLines $fout $out $true;
-                                                }
-                                                LogMode ""          "$tarLogDir\Log.$repoName.Commits.log";
-                                                LogMode "--summary" "$tarLogDir\Log.$repoName.CommitsAndFiles.log"; }
+                                                  AssertRcIsOk $out $true;
+                                                  OutSuccess "Ok $out";
+                                                }catch{
+                                                  # ex: Logon failed, use ctrl+c to cancel basic credential prompt.
+                                                  # ex: remote: Repository not found. fatal: repository 'https://github.com/mniederw/UnknownRepo/' not found
+                                                  # ex: fatal: Not a git repository: 'D:\WorkGit\mniederw\UnknownRepo\.git'
+                                                  # ex: error: Your local changes to the following files would be overwritten by merge:
+                                                  [String] $msg = "GitCmd($cmd,$tarRootDir,$url) failed because $($_.Exception.Message)";
+                                                  if( -not $errorAsWarning ){ throw [Exception] $msg; }
+                                                  OutWarning $msg;
+                                                  ScriptResetRc;
+                                                }finally{
+                                                  if( $doChangeDir ){ Pop-Location; }
+                                                } }
 function GitCloneOrFetchOrPull                ( [String] $tarRootDir, [String] $url, [Boolean] $usePullNotFetch = $false, [Boolean] $errorAsWarning = $false ){
                                                 # extracts path of url below host as relative dir, uses this path below target root dir to create or update git; 
                                                 # ex: GitCloneOrFetchOrPull "C:\WorkGit" "https://github.com/mniederw/MnCommonPsToolLib"
                                                 [String] $tarDir = (GitBuildLocalDirFromUrl $tarRootDir $url);
                                                 if( (DirExists $tarDir) ){
                                                   if( $usePullNotFetch ){
-                                                    GitPull $tarDir $url;
+                                                    GitCmd "Pull" $tarRootDir $url $errorAsWarning;
                                                   }else{
-                                                    GitFetch $tarDir $url;
+                                                    GitCmd "Fetch" $tarRootDir $url $errorAsWarning;
                                                   }
                                                 }else{
-                                                  GitClone $tarDir $url $errorAsWarning;
+                                                  GitCmd "Clone" $tarRootDir $url $errorAsWarning;
                                                 } }
+function GitListCommitComments                ( [String] $tarDir, [String] $localRepoDir, [String] $fileExtension = ".tmp", [String] $prefix = "Log.", [Int32] $doOnlyIfOlderThanAgeInDays = 14 ){
+                                                # overwrite git log info files below specified target dir, 
+                                                # For the name of the repo it takes the two last dir parts separated with a dot (NameOfRepoParent.NameOfRepo).
+                                                # it writes files as Log.NameOfRepoParent.NameOfRepo.CommittedComments.tmp and Log.NameOfRepoParent.NameOfRepo.CommittedChangedFiles.tmp 
+                                                # it is quite slow about 10 sec per repo, so it can controlled by $doOnlyIfOlderThanAgeInDays.
+                                                # ex: GitListCommitComments "C:\WorkGit\_CommitComments" "C:\WorkGit\mniederw\MnCommonPsToolLib"
+                                                [String] $dir = FsEntryGetAbsolutePath $localRepoDir;
+                                                [String] $repoName =  (Split-Path -Leaf (Split-Path -Parent $dir)) + "." + (Split-Path -Leaf $dir);
+                                                function GitGetLog ([String] $mode, [String] $fout) {
+                                                  if( -not (FsEntryNotExistsOrIsOlderThanNrDays $fout $doOnlyIfOlderThanAgeInDays) ){
+                                                    OutProgress "Process git log not nessessary because file is newer than $doOnlyIfOlderThanAgeInDays days: $fout";
+                                                  }else{
+                                                    [String[]] $options = @( "--git-dir=$dir\.git", "log", "--after=1990-01-01", "--pretty=format:%ci %cn/%ce %s", $mode );
+                                                    OutProgressText "git $options ; ";
+                                                    [String[]] $out = @();
+                                                    try{
+                                                      $out = & "git" $options 2>&1; AssertRcIsOk $out;
+                                                    }catch{
+                                                      if( $_.Exception.Message -eq "fatal: your current branch 'master' does not have any commits yet" ){ # Last operation failed [rc=128]
+                                                        $out += "Info: your current branch 'master' does not have any commits yet.";
+                                                        OutProgressText "Info: empty master.";
+                                                      }else{
+                                                        $out += "Warning: GitListCommitComments($localRepoDir) failed because $($_.Exception.Message)";
+                                                        OutProgressText $out;
+                                                      }
+                                                      ScriptResetRc;
+                                                    }
+                                                    FileWriteFromLines $fout $out $true;
+                                                  }
+                                                }
+                                                GitGetLog ""          "$tarDir\$prefix$repoName.CommittedComments$fileExtension";
+                                                GitGetLog "--summary" "$tarDir\$prefix$repoName.CommittedChangedFiles$fileExtension"; }
 function GitCloneOrFetchIgnoreError           ( [String] $tarRootDir, [String] $url ){ GitCloneOrFetchOrPull $tarRootDir $url $false $true; }
 function GitCloneOrPullIgnoreError            ( [String] $tarRootDir, [String] $url ){ GitCloneOrFetchOrPull $tarRootDir $url $true  $true; }
-function GitBuildLocalDirFromUrl              ( [String] $tarRootDir, [String] $url ){ return [String] (Join-Path $tarRootDir ([System.Uri]$url).AbsolutePath.Replace("/","\")); } # AbsolutePath ex: "/mydir1/dir2";
+function GitBuildLocalDirFromUrl              ( [String] $tarRootDir, [String] $url ){ return [String] (FsEntryGetAbsolutePath (Join-Path $tarRootDir ([System.Uri]$url).AbsolutePath.Replace("/","\"))); }
+                                                # ex: GitBuildLocalDirFromUrl(".\gitdir","http://myhost/mydir1/dir2") == "C:\gitdir\mydir1\dir2";
 function PrivShowTokenPrivileges              (){ 
                                                 whoami /priv; }
 function PrivEnableTokenPrivilege             (){
@@ -1962,6 +1965,12 @@ function JuniperNcEstablishVpnConnAndRdp      ( [String] $rdpfile, [String] $url
                                                 [String] $secureCredentialFile = "$rdpfile.vpn-uspw.$ComputerName.txt";
                                                 JuniperNcEstablishVpnConn $secureCredentialFile $url $realm;
                                                 RdpConnect $rdpfile; }
+
+# breaking changes:
+function GitClone                             ( [String] $tarDir, [String] $url, [Boolean] $errorAsWarning = $false ){ throw [Exception] "GitClone: 2017-09-22: Not supported anymore use GitCmd Clone with tarRootDir."; }
+function GitFetch                             ( [String] $tarDir, [String] $url, [Boolean] $errorAsWarning = $false ){ throw [Exception] "GitFetch: 2017-09-22: Not supported anymore use GitCmd Fetch with tarRootDir."; }
+function GitPull                              ( [String] $tarDir, [String] $url                                     ){ throw [Exception] "GitPull: 2017-09-22: Not supported anymore use GitCmd Pull with tarRootDir."; }
+function GitLogList                           ( [String] $tarLogDir, [String] $localRepoDir                         ){ throw [Exception] "GitLogList: 2017-09-22: Not supported anymore use GitListCommitComments."; }
 
 # ----------------------------------------------------------------------------------------------------
 
