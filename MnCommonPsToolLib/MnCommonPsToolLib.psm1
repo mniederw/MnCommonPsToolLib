@@ -88,7 +88,7 @@ Import-Module -NoClobber -Name "SmbShare";
 Add-Type -Name Window -Namespace Console -MemberDefinition '[DllImport("Kernel32.dll")] public static extern IntPtr GetConsoleWindow(); [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, Int32 nCmdShow);';
 
 # statement extensions
-function ForEachParallel { # taken from https://powertoe.wordpress.com/2012/05/03/foreach-parallel/  ex: (0..20) | ForEachParallel { echo "Nr: $_"; sleep 1; }; (0..5) | ForEachParallel -MaxThreads 2 { echo "Nr: $_"; sleep 1; }
+function ForEachParallel { # based on https://powertoe.wordpress.com/2012/05/03/foreach-parallel/  ex: (0..20) | ForEachParallel { echo "Nr: $_"; sleep 1; }; (0..5) | ForEachParallel -MaxThreads 2 { echo "Nr: $_"; sleep 1; }
   param( [Parameter(Mandatory=$true,position=0)]              [System.Management.Automation.ScriptBlock] $ScriptBlock,
          [Parameter(Mandatory=$true,ValueFromPipeline=$true)] [PSObject]                                 $InputObject,
          [Parameter(Mandatory=$false)]                        [int]                                      $MaxThreads=8 )
@@ -595,7 +595,9 @@ function FsEntryCreateDirSymLink              ( [String] $symLinkDir, [String] $
                                                 Set-Location $cd; }
 function FsEntryReportMeasureInfo             ( [String] $fsEntry ){ # works recursive
                                                 [Microsoft.PowerShell.Commands.GenericMeasureInfo] $size = Get-ChildItem -Force -ErrorAction SilentlyContinue -Recurse -LiteralPath $fsEntry |
-                                                Measure-Object -Property length -sum; return [String] "SizeInBytes=$($size.sum); NrOfFsEntries=$($size.count);"; }
+                                                  Measure-Object -Property length -sum;
+                                                if( $fsEntry -eq $null ){ throw [Exception] "Not exists: '$fsEntry'"; }
+                                                return [String] "SizeInBytes=$($size.sum); NrOfFsEntries=$($size.count);"; }
 function FsEntryCreateParentDir               ( [String] $fsEntry ){ [String] $dir = FsEntryGetParentDir $fsEntry; DirCreate $dir; }
 function FsEntryMoveByPatternToDir            ( [String] $fsEntryPattern, [String] $targetDir, [Boolean] $showProgressFiles = $false ){ # target dir must exists
                                                 OutProgress "FsEntryMoveByPatternToDir '$fsEntryPattern' to '$targetDir'"; DirExistsAssert $targetDir;
@@ -797,9 +799,8 @@ function FileDelete                           ( [String] $file, [Boolean] $ignor
                                                 if( (FileExists $file) ){ OutProgress "FileDelete$(switch($ignoreReadonly){$true{''}default{'CareReadonly'}}) '$file'"; 
                                                   Remove-Item -Force:$ignoreReadonly -LiteralPath $file; } }
 function FileCopy                             ( [String] $srcFile, [String] $tarFile, [Boolean] $overwrite = $false ){ 
-                                                OutProgress "FileCopy(Overwrite=$overwrite) '$srcFile' to '$tarFile'";
-                                                if( -not $overwrite -and (FileExists $tarFile) ){ throw [Exception] "FileCopy(Overwrite=$overwrite,src='$srcFile',tar='$tarFile') failed because target already exists."; }
-                                                FsEntryCreateParentDir $tarFile; Copy-Item -Force:$overwrite -LiteralPath $srcFile -Destination (FsEntryEsc $tarFile); }
+                                                OutProgress "FileCopy(Overwrite=$overwrite) '$srcFile' to '$tarFile'"; 
+                                                FsEntryCreateParentDir $tarFile; Copy-Item -Force:$overwrite (FsEntryEsc $srcFile) (FsEntryEsc $tarFile); }
 function DriveMapTypeToString                 ( [UInt32] $driveType ){
                                                 return [String] $(switch($driveType){ 1{"NoRootDir"} 2{"RemovableDisk"} 3{"LocalDisk"} 4{"NetworkDrive"} 5{"CompactDisk"} 6{"RamDisk"} default{"UnknownDriveType=driveType"}}); }
 function DriveList                            (){
@@ -1312,33 +1313,174 @@ function WgetDownloadSite                     ( [String] $url, [String] $tarDir,
                                                 FileAppendLine $logf $state;
                                                 OutProgress $state; }
 function CurlDownloadFile                     ( [String] $url, [String] $tarFile, [String] $us = "", [String] $pw = "", [Int32] $limitRateBytesPerSec = 2000000000 ){
-                                                # download to single file)
+                                                # download by overwrite to single file, timestamps are also taken.
                                                 # curl: DICT, FILE, FTP, FTPS, Gopher, HTTP, HTTPS, IMAP, IMAPS, LDAP, LDAPS, POP3, POP3S, RTMP, RTSP, SCP, SFTP, SMB, SMTP, SMTPS, Telnet and TFTP. 
                                                 #       curl supports SSL certificates, HTTP POST, HTTP PUT, FTP uploading, HTTP form based upload, proxies, HTTP/2, cookies, 
                                                 #       user+password authentication (Basic, Plain, Digest, CRAM-MD5, NTLM, Negotiate and Kerberos), file transfer resume, proxy tunneling and more. 
                                                 # $url: check if slash at end, is empty
                                                 if( $us -ne "" -and $pw -eq "" ){ throw [Exception] "Missing password for username=$us"; }
                                                 [String[]] $opt = @( "--user-agent", "`"Mozilla/5.0 (Windows NT 6.1; WOW64; rv:40.0) Gecko/20100101 Firefox/40.1`""
-                                                  ,"--progress-bar"
-                                                  #,"--silent" # no progress meter
-                                                  ,"--create-dirs"
+                                                  ,"--silent"                # no progress meter
+                                                  ,"--create-dirs"           # create the necessary local directory hierarchy as needed of --output file
                                                   ,"--connect-timeout", "70" # in sec
                                                   ,"--retry","2"
                                                   ,"--retry-delay","5"
                                                   ,"--show-error"
                                                   ,"--create-dirs"
-                                                  ,"--remote-time"  # Set the remote file's time on the local output
+                                                  ,"--remote-time"           # Set the remote file's time on the local output
                                                   ,"--limit-rate","$limitRateBytesPerSec"
-                                                  ,"--output", "$tarFile"
+                                                  ,"--insecure"              # Allow connections to SSL sites without certs check
+                                                  ,"--output", "$tarFile"    # Write to FILE instead of stdout
+                                                  #,"--progress-bar"         # Display transfer progress as a progress bar
+                                                  #,"--cacert","cacert.pem"         CA certificate to verify peer against (SSL), see https://curl.haxx.se/docs/caextract.html
                                                   #,"--remote-name"  # Write output to a file named as the remote file ex: "http://a.be/c.ext"
                                                   # --remote-name-all  Use the remote file name for all URLs
                                                   #--max-time <seconds>
                                                   #--netrc-optional
                                                   #--ftp-create-dirs  for put
-                                                  #
                                                   #"--stderr <file>"
-                                                  #--create-dirs  # When used in conjunction with the -o option, curl will create the necessary local directory hierarchy as needed. This option creates the dirs mentioned with the -o option, nothing else. 
-                                                  #                 If the -o file name uses no dir or if the dirs it mentions already exist, no dir will be created. 
+                                                  # --append                   Append to target file when uploading (F/SFTP)
+                                                  # --basic                    Use HTTP Basic Authentication (H)
+                                                  # --capath DIR               CA directory to verify peer against (SSL)
+                                                  # --cert CERT[:PASSWD]       Client certificate file and password (SSL)
+                                                  # --cert-type TYPE           Certificate file type (DER/PEM/ENG) (SSL)
+                                                  # --ciphers LIST             SSL ciphers to use (SSL)
+                                                  # --compressed               Request compressed response (using deflate or gzip)
+                                                  # --crlfile FILE             Get a CRL list in PEM format from the given file
+                                                  # --data DATA                HTTP POST data (H)
+                                                  # --data-urlencode DATA      HTTP POST data url encoded (H)
+                                                  # --digest                   Use HTTP Digest Authentication (H)
+                                                  # --dns-servers              DNS server addrs to use: 1.1.1.1;2.2.2.2
+                                                  # --dump-header FILE         Write the headers to FILE
+                                                  # --ftp-account DATA         Account data string (F)
+                                                  # --ftp-alternative-to-user COMMAND  String to replace "USER [name]" (F)
+                                                  # --ftp-method [MULTICWD/NOCWD/SINGLECWD]  Control CWD usage (F)
+                                                  # --ftp-pasv      Use PASV/EPSV instead of PORT (F)
+                                                  # --ftp-port ADR  Use PORT with given address instead of PASV (F)
+                                                  # --ftp-skip-pasv-ip  Skip the IP address for PASV (F)
+                                                  # --ftp-pret      Send PRET before PASV (for drftpd) (F)
+                                                  # --ftp-ssl-ccc   Send CCC after authenticating (F)
+                                                  # --ftp-ssl-ccc-mode ACTIVE/PASSIVE  Set CCC mode (F)
+                                                  # --ftp-ssl-control  Require SSL/TLS for FTP login, clear for transfer (F)
+                                                  # --get           Send the -d data with a HTTP GET (H)
+                                                  # --globoff       Disable URL sequences and ranges using {} and []
+                                                  # --header LINE   Pass custom header LINE to server (H)
+                                                  # --head          Show document info only
+                                                  # --help          This help text
+                                                  # --hostpubmd5 MD5  Hex-encoded MD5 string of the host public key. (SSH)
+                                                  # --http1.0       Use HTTP 1.0 (H)
+                                                  # --http1.1       Use HTTP 1.1 (H)
+                                                  # --http2         Use HTTP 2 (H)
+                                                  # --ignore-content-length  Ignore the HTTP Content-Length header
+                                                  # --include       Include protocol headers in the output (H/F)
+                                                  # --interface INTERFACE  Use network INTERFACE (or address)
+                                                  # --ipv4          Resolve name to IPv4 address
+                                                  # --ipv6          Resolve name to IPv6 address
+                                                  # --junk-session-cookies  Ignore session cookies read from file (H)
+                                                  # --keepalive-time SECONDS  Wait SECONDS between keepalive probes
+                                                  # --key KEY       Private key file name (SSL/SSH)
+                                                  # --key-type TYPE  Private key file type (DER/PEM/ENG) (SSL)
+                                                  # --krb LEVEL     Enable Kerberos with security LEVEL (F)
+                                                  # --libcurl FILE  Dump libcurl equivalent code of this command line
+                                                  # --limit-rate RATE  Limit transfer speed to RATE
+                                                  # --list-only     List only mode (F/POP3)
+                                                  # --local-port RANGE  Force use of RANGE for local port numbers
+                                                  # --location      Follow redirects (H)
+                                                  # --location-trusted  Like '--location', and send auth to other hosts (H)
+                                                  # --login-options OPTIONS  Server login options (IMAP, POP3, SMTP)
+                                                  # --manual        Display the full manual
+                                                  # --mail-from FROM  Mail from this address (SMTP)
+                                                  # --mail-rcpt TO  Mail to this/these addresses (SMTP)
+                                                  # --mail-auth AUTH  Originator address of the original email (SMTP)
+                                                  # --max-filesize BYTES  Maximum file size to download (H/F)
+                                                  # --max-redirs NUM  Maximum number of redirects allowed (H)
+                                                  # --max-time SECONDS  Maximum time allowed for the transfer
+                                                  # --metalink      Process given URLs as metalink XML file
+                                                  # --negotiate     Use HTTP Negotiate (SPNEGO) authentication (H)
+                                                  # --netrc         Must read .netrc for user name and password
+                                                  # --netrc-optional  Use either .netrc or URL; overrides -n
+                                                  # --netrc-file FILE  Specify FILE for netrc
+                                                  # --next          Allows the following URL to use a separate set of options
+                                                  # --no-alpn       Disable the ALPN TLS extension (H)
+                                                  # --no-buffer     Disable buffering of the output stream
+                                                  # --no-keepalive  Disable keepalive use on the connection
+                                                  # --no-npn        Disable the NPN TLS extension (H)
+                                                  # --no-sessionid  Disable SSL session-ID reusing (SSL)
+                                                  # --noproxy       List of hosts which do not use proxy
+                                                  # --ntlm          Use HTTP NTLM authentication (H)
+                                                  # --oauth2-bearer TOKEN  OAuth 2 Bearer Token (IMAP, POP3, SMTP)
+                                                  # --pass PASS     Pass phrase for the private key (SSL/SSH)
+                                                  # --pinnedpubkey FILE  Public key (PEM/DER) to verify peer against (OpenSSL/GnuTLS/GSKit only)
+                                                  # --post301       Do not switch to GET after following a 301 redirect (H)
+                                                  # --post302       Do not switch to GET after following a 302 redirect (H)
+                                                  # --post303       Do not switch to GET after following a 303 redirect (H)
+                                                  # --proto PROTOCOLS  Enable/disable PROTOCOLS
+                                                  # --proto-redir PROTOCOLS  Enable/disable PROTOCOLS on redirect
+                                                  # --proxy [PROTOCOL://]HOST[:PORT]  Use proxy on given port
+                                                  # --proxy-anyauth  Pick "any" proxy authentication method (H)
+                                                  # --proxy-basic   Use Basic authentication on the proxy (H)
+                                                  # --proxy-digest  Use Digest authentication on the proxy (H)
+                                                  # --proxy-negotiate  Use HTTP Negotiate (SPNEGO) authentication on the proxy (H)
+                                                  # --proxy-ntlm    Use NTLM authentication on the proxy (H)
+                                                  # --proxy-user USER[:PASSWORD]  Proxy user and password
+                                                  # --proxy1.0 HOST[:PORT]  Use HTTP/1.0 proxy on given port
+                                                  # --proxytunnel   Operate through a HTTP proxy tunnel (using CONNECT)
+                                                  # --pubkey KEY    Public key file name (SSH)
+                                                  # --quote CMD     Send command(s) to server before transfer (F/SFTP)
+                                                  # --random-file FILE  File for reading random data from (SSL)
+                                                  # --range RANGE   Retrieve only the bytes within RANGE
+                                                  # --raw           Do HTTP "raw"; no transfer decoding (H)
+                                                  # --referer       Referer URL (H)
+                                                  # --remote-header-name  Use the header-provided filename (H)
+                                                  # --remote-name   Write output to a file named as the remote file
+                                                  # --remote-name-all  Use the remote file name for all URLs
+                                                  # --remote-time   Set the remote file's time on the local output
+                                                  # --request COMMAND  Specify request command to use
+                                                  # --resolve HOST:PORT:ADDRESS  Force resolve of HOST:PORT to ADDRESS
+                                                  # --retry NUM   Retry request NUM times if transient problems occur
+                                                  # --retry-delay SECONDS  Wait SECONDS between retries
+                                                  # --retry-max-time SECONDS  Retry only within this period
+                                                  # --sasl-ir       Enable initial response in SASL authentication
+                                                  # --show-error    Show error. With -s, make curl show errors when they occur
+                                                  # --silent        Silent mode (don't output anything)
+                                                  # --socks4 HOST[:PORT]  SOCKS4 proxy on given host + port
+                                                  # --socks4a HOST[:PORT]  SOCKS4a proxy on given host + port
+                                                  # --socks5 HOST[:PORT]  SOCKS5 proxy on given host + port
+                                                  # --socks5-hostname HOST[:PORT]  SOCKS5 proxy, pass host name to proxy
+                                                  # --socks5-gssapi-service NAME  SOCKS5 proxy service name for GSS-API
+                                                  # --socks5-gssapi-nec  Compatibility with NEC SOCKS5 server
+                                                  # --speed-limit RATE  Stop transfers below RATE for 'speed-time' secs
+                                                  # --speed-time SECONDS  Trigger 'speed-limit' abort after SECONDS (default: 30)
+                                                  # --ssl           Try SSL/TLS (FTP, IMAP, POP3, SMTP)
+                                                  # --ssl-reqd      Require SSL/TLS (FTP, IMAP, POP3, SMTP)
+                                                  # --sslv2         Use SSLv2 (SSL)
+                                                  # --sslv3         Use SSLv3 (SSL)
+                                                  # --ssl-allow-beast  Allow security flaw to improve interop (SSL)
+                                                  # --stderr FILE   Where to redirect stderr (use "-" for stdout)
+                                                  # --tcp-nodelay   Use the TCP_NODELAY option
+                                                  # --telnet-option OPT=VAL  Set telnet option
+                                                  # --tftp-blksize VALUE  Set TFTP BLKSIZE option (must be >512)
+                                                  # --time-cond TIME  Transfer based on a time condition
+                                                  # --tlsv1         Use => TLSv1 (SSL)
+                                                  # --tlsv1.0       Use TLSv1.0 (SSL)
+                                                  # --tlsv1.1       Use TLSv1.1 (SSL)
+                                                  # --tlsv1.2       Use TLSv1.2 (SSL)
+                                                  # --trace FILE    Write a debug trace to FILE
+                                                  # --trace-ascii FILE  Like --trace, but without hex output
+                                                  # --trace-time    Add time stamps to trace/verbose output
+                                                  # --tr-encoding   Request compressed transfer encoding (H)
+                                                  # --upload-file FILE  Transfer FILE to destination
+                                                  # --url URL       URL to work with
+                                                  # --use-ascii     Use ASCII/text transfer
+                                                  # --user USER[:PASSWORD]  Server user and password
+                                                  # --tlsuser USER  TLS username
+                                                  # --tlspassword STRING  TLS password
+                                                  # --tlsauthtype STRING  TLS authentication type (default: SRP)
+                                                  # --unix-socket FILE    Connect through this Unix domain socket
+                                                  # --user-agent STRING  Send User-Agent STRING to server (H)
+                                                  # --verbose       Make the operation more talkative
+                                                  # --write-out FORMAT  Use output FORMAT after completion
+                                                  # --xattr         Store metadata in extended file attributes
                                                 );
                                                 if( $us -ne "" ){ $opt.Add("--user"); $opt.Add(($us+":"+$pw)); }
                                                 OutInfo "CurlDownloadFile from $url to '$tarFile'";
@@ -1348,7 +1490,15 @@ function CurlDownloadFile                     ( [String] $url, [String] $tarFile
                                                 DirCreate $tarDir;
                                                 FileAppendLine $logf "$curlExe $opt --url $url";
                                                 OutProgress "$curlExe $opt --url $url";
-                                                & $curlExe $opt "--url" $url;
+                                                [String] $out = & $curlExe $opt "--url" $url; AssertRcIsOk $out;
+                                                FileAppendLines $logf (StringArrayAddIndent $out 2);
+                                                # sometimes:
+                                                # curl: (60) SSL certificate problem: unable to get local issuer certificate More details here: http://curl.haxx.se/docs/sslcerts.html
+                                                # curl performs SSL certificate verification by default, using a "bundle" of Certificate Authority (CA) public keys (CA certs). 
+                                                # If the default bundle file isn't adequate, you can specify an alternate file using the --cacert option.
+                                                # If this HTTPS server uses a certificate signed by a CA represented in the bundle, the certificate verification probably failed 
+                                                # due to a problem with the certificate (it might be expired, or the name might not match the domain name in the URL).
+                                                # If you'd like to turn off curl's verification of the certificate, use the -k (or --insecure) option.
                                                 [String] $state = "TargetFile: $(FsEntryReportMeasureInfo $tarFile)";
                                                 FileAppendLine $logf $state;
                                                 OutProgress $state;
@@ -1611,13 +1761,12 @@ function SvnCommitAndGet                      ( [String] $svnWorkDir, [String] $
                                                   FileAppendLine $svnLogFile (StringFromException $_.Exception);
                                                   throw;
                                                 } }
-function GitClone                             ( [String] $tarDir, [String] $url, [Boolean] $errorAsWarning = $false ){ # ex: GitFetch "C:\WorkGit\mniederw\mn-hibernate" "https://github.com/mniederw/mn-hibernate"
+function GitClone                             ( [String] $tarDir, [String] $url, [Boolean] $errorAsWarning = $false ){ # target dir must exist. ex: GitFetch "C:\WorkGit\mniederw\MnCommonPsToolLib" "https://github.com/mniederw/MnCommonPsToolLib"
                                                 [String] $dir = FsEntryGetAbsolutePath $tarDir;
                                                 try{
-                                                  #Push-Location -Path $dir;
+                                                  Push-Location -Path $dir; # required depending on repo config
                                                   # ex: remote: Counting objects: 123, done. \n Receiving objects: 56% (33/123)  0 (delta 0), pack-reused ... \n Receiving objects: 100% (123/123), 205.12 KiB | 0 bytes/s, done. \n Resolving deltas: 100% (123/123), done.
                                                   # ex: Logon failed, use ctrl+c to cancel basic credential prompt.
-                                                  #DirCreate $dir;
                                                   OutProgressText "git clone --quiet '$url' '$dir'     ";
                                                   [String[]] $out = & "git" "clone" "--quiet" $url $dir; AssertRcIsOk $out;
                                                   OutProgress "Ok, done. $out";
@@ -1626,12 +1775,12 @@ function GitClone                             ( [String] $tarDir, [String] $url,
                                                   OutWarning "GitClone($url,$tarDir) failed because $($_.Exception.Message)";
                                                   ScriptResetRc;
                                                 }finally{
-                                                  #Pop-Location;
+                                                  Pop-Location;
                                                 } }
-function GitFetch                             ( [String] $tarDir, [String] $url, [Boolean] $errorAsWarning = $false ){ # ex: GitFetch "C:\WorkGit\mniederw\mn-hibernate" "https://github.com/mniederw/mn-hibernate"
+function GitFetch                             ( [String] $tarDir, [String] $url, [Boolean] $errorAsWarning = $false ){ # ex: GitFetch "C:\WorkGit\mniederw\MnCommonPsToolLib" "https://github.com/mniederw/MnCommonPsToolLib"
                                                 [String] $dir = FsEntryGetAbsolutePath $tarDir;
                                                 try{
-                                                  #Push-Location -Path $dir;
+                                                  Push-Location -Path $dir; # required depending on repo config
                                                   # ex: Logon failed, use ctrl+c to cancel basic credential prompt.
                                                   OutProgressText "git --git-dir='$dir\.git' fetch --quiet '$url'     ";
                                                   [String[]] $out = & "git" "--git-dir=$dir\.git" "fetch" "--quiet" $url; AssertRcIsOk $out;
@@ -1641,12 +1790,12 @@ function GitFetch                             ( [String] $tarDir, [String] $url,
                                                   OutWarning "GitFetch($url,$tarDir) failed because $($_.Exception.Message)";
                                                   ScriptResetRc;
                                                 }finally{
-                                                  #Pop-Location;
+                                                  Pop-Location;
                                                 } }
-function GitPull                              ( [String] $tarDir, [String] $url ){ # ex: GitPull "C:\WorkGit\mniederw\mn-hibernate" "https://github.com/mniederw/mn-hibernate"
+function GitPull                              ( [String] $tarDir, [String] $url ){ # ex: GitPull "C:\WorkGit\mniederw\MnCommonPsToolLib" "https://github.com/mniederw/MnCommonPsToolLib"
                                                 [String] $dir = FsEntryGetAbsolutePath $tarDir;
                                                 try{
-                                                  #Push-Location -Path $dir;
+                                                  Push-Location -Path $dir; # required depending on repo config
                                                   OutProgressText "git --git-dir='$dir\.git' pull --quiet '$url'     ";
                                                   [String[]] $out = & "git" "--git-dir=$dir\.git" "pull" "--quiet" $url; AssertRcIsOk $out;
                                                   OutProgress "Ok, done.";
@@ -1654,11 +1803,11 @@ function GitPull                              ( [String] $tarDir, [String] $url 
                                                   OutWarning "GitPull($url,$tarDir) failed because $($_.Exception.Message)";
                                                   ScriptResetRc;
                                                 }finally{
-                                                  #Pop-Location;
+                                                  Pop-Location;
                                                 } }
 function GitLogList                           ( [String] $tarLogDir, [String] $localRepoDir ){
                                                 # overwrite git log info to files below specified dir, it writes files as Log.NameOfRepoRoot.NameOfRepo.Commits.log and Log.NameOfRepoRoot.NameOfRepo.CommitsAndFiles.log, 
-                                                # ex: GitListLog "C:\WorkGit\Log" "C:\WorkGit\mniederw\mn-hibernate"
+                                                # ex: GitListLog "C:\WorkGit\Log" "C:\WorkGit\mniederw\MnCommonPsToolLib"
                                                 [String] $dir = FsEntryGetAbsolutePath $localRepoDir;
                                                 [String] $repoName =  (Split-Path -Leaf (Split-Path -Parent $dir)) + "." + (Split-Path -Leaf $dir);
                                                 # ex: Logon failed, use ctrl+c to cancel basic credential prompt.
@@ -1684,7 +1833,7 @@ function GitLogList                           ( [String] $tarLogDir, [String] $l
                                                 LogMode "--summary" "$tarLogDir\Log.$repoName.CommitsAndFiles.log"; }
 function GitCloneOrFetchOrPull                ( [String] $tarRootDir, [String] $url, [Boolean] $usePullNotFetch = $false, [Boolean] $errorAsWarning = $false ){
                                                 # extracts path of url below host as relative dir, uses this path below target root dir to create or update git; 
-                                                # ex: GitCloneOrFetchOrPull "C:\WorkGit" "https://github.com/mniederw/mn-hibernate"
+                                                # ex: GitCloneOrFetchOrPull "C:\WorkGit" "https://github.com/mniederw/MnCommonPsToolLib"
                                                 [String] $tarDir = (GitBuildLocalDirFromUrl $tarRootDir $url);
                                                 if( (DirExists $tarDir) ){
                                                   if( $usePullNotFetch ){
@@ -1859,6 +2008,7 @@ function MnLibCommonSelfTest{
 #   $PS...                - some variables
 #   $MaximumAliasCount, $MaximumDriveCount, $MaximumErrorCount, $MaximumFunctionCount, $MaximumHistoryCount, $MaximumVariableCount   - some maximum values
 #   $StackTrace, $ConsoleFileName, $ErrorView, $ExecutionContext, $Host, $input, $NestedPromptLevel, $PID, $PWD, $ShellId            - some environment values
+#   $PSScriptRoot         - folder of current running script
 # - Comparison operators; -eq, -ne, -lt, -le, -gt, -ge, "abcde" -like "aB?d*", -notlike, 
 #   @( "a1", "a2" ) -contains "a2", -notcontains, "abcdef" -match "b[CD]", -notmatch, "abcdef" -cmatch "b[cd]", -notcmatch, -not
 # - Automatic variables see: http://technet.microsoft.com/en-us/library/dd347675.aspx
