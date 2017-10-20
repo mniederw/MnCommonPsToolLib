@@ -2,6 +2,7 @@
 #
 # 2013-2017 produced by Marc Niederwieser, Switzerland. Licensed under GPL3. This is freeware.
 #
+# 2017-10-10  V1.3  extend functions
 # 2017-09-08  V1.2  extend by jobs, parallel
 # 2017-08-11  V1.1  update
 # 2017-06-25  V1.0  published as open source to github
@@ -829,16 +830,16 @@ function CredentialReadFromFile               ( [String] $file ){
                                                   # alternative: New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $User, (Get-Content -Encoding Default -LiteralPath $File | ConvertTo-SecureString)
                                                   return (New-Object System.Management.Automation.PSCredential((CredentialStandardizeUserWithDomain $us), $pwSecure));
                                                 }catch{ throw [Exception] "Credential file '$secureCredentialFile' has not expected format for credentials, you may remove it and retry"; } }
-function CredentialReadFromParamOrInput       ( [String] $username = "", [String] $password = "" ){ 
+function CredentialReadFromParamOrInput       ( [String] $username = "", [String] $password = "", [String] $requestMessage = "Enter username: " ){ 
                                                 [String] $us = $username; 
-                                                while( $us -eq "" ){ $us = StdInReadLine   "Enter username: "; } 
+                                                while( $us -eq "" ){ $us = StdInReadLine $requestMessage; } 
                                                 [System.Security.SecureString] $pwSecure = $null; 
                                                 if( $password -eq "" ){ $pwSecure = StdInReadLinePw "Enter password for username=$($us): "; }else{ $pwSecure = CredentialGetSecureStrFromText $password; }
                                                 return (New-Object System.Management.Automation.PSCredential((CredentialStandardizeUserWithDomain $us), $pwSecure)); }
 function CredentialStandardizeUserWithDomain  ( [String] $username ){
                                                 # allowed username as input: "", "u0", "u0@domain", "@domain\u0", "domain\u0"   #> <# used because for unknown reasons sometimes a username like user@domain does not work, it requires domain\user.
                                                 if( $username.Contains("\") -or -not $username.Contains("@") ){ return $username; } return [String] ($username.Split("@",2)[1]+"\"+$username.Split("@",2)[0]); }
-function CredentialGetAndStoreIfNotExists     ( [String] $secureCredentialFile, [String] $username = "", [String] $password = ""){
+function CredentialGetAndStoreIfNotExists     ( [String] $secureCredentialFile, [String] $username = "", [String] $password = "", [String] $requestMessage = "Enter username: " ){
                                                 # if username or password is empty then they are asked from std input.
                                                 # if file exists then it takes credentials from it.
                                                 # if file not exists then it is written by given credentials.
@@ -846,7 +847,7 @@ function CredentialGetAndStoreIfNotExists     ( [String] $secureCredentialFile, 
                                                 if( $secureCredentialFile -ne "" -and (FileExists $secureCredentialFile) ){
                                                   $cred = CredentialReadFromFile $secureCredentialFile;
                                                 }else{
-                                                  $cred = CredentialReadFromParamOrInput $username $password;
+                                                  $cred = CredentialReadFromParamOrInput $username $password $requestMessage;
                                                 }
                                                 if( $secureCredentialFile -ne "" -and (FileNotExists $secureCredentialFile) ){
                                                   CredentialWriteToFile $cred $secureCredentialFile;
@@ -1490,11 +1491,21 @@ function CurlDownloadFile                     ( [String] $url, [String] $tarFile
                                                 OutInfo "CurlDownloadFile from $url to '$tarFile'";
                                                 [String] $tarDir = FsEntryGetParentDir $tarFile;
                                                 [String] $logf = "$tarDir\$CurrentMonthIsoString.curl.log";
-                                                [String] $curlExe = ProcessGetCommandInEnvPathOrAltPaths "curl.exe"; # ex: D:\Work\PortableProg\Tool\...
+                                                [String] $curlExe = ProcessGetCommandInEnvPathOrAltPaths "curl.exe";
                                                 DirCreate $tarDir;
                                                 FileAppendLine $logf "$curlExe $opt --url $url";
                                                 OutProgress "$curlExe $opt --url $url";
-                                                [String] $out = & $curlExe $opt "--url" $url; AssertRcIsOk $out;
+                                                [String] $out = & $curlExe $opt "--url" $url;
+                                                if( $LASTEXITCODE -eq 60 ){
+                                                  # curl: (60) SSL certificate problem: unable to get local issuer certificate. More details here: http://curl.haxx.se/docs/sslcerts.html
+                                                  # curl performs SSL certificate verification by default, using a "bundle" of Certificate Authority (CA) public keys (CA certs). 
+                                                  # If the default bundle file isn't adequate, you can specify an alternate file using the --cacert option.
+                                                  # If this HTTPS server uses a certificate signed by a CA represented in the bundle, the certificate verification probably failed 
+                                                  # due to a problem with the certificate (it might be expired, or the name might not match the domain name in the URL).
+                                                  # If you'd like to turn off curl's verification of the certificate, use the -k (or --insecure) option.
+                                                  throw [Exception] "Curl($url) failed because SSL certificate problem as expired or domain name not matches, alternatively use --insecure option.";
+                                                }
+                                                AssertRcIsOk $out;
                                                 FileAppendLines $logf (StringArrayAddIndent $out 2);
                                                 # sometimes:
                                                 # curl: (60) SSL certificate problem: unable to get local issuer certificate More details here: http://curl.haxx.se/docs/sslcerts.html
