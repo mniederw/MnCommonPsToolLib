@@ -63,8 +63,17 @@ function InstallSrcPathToPsModulePathIfNotInstalled( [String] $srcDir ){
     PsModulePathAdd $srcDir;
   }
 }
-
-
+function OutCurrentInstallState( [String] $srcRootDir, [String] $moduleTarDir, [String] $color = "White" ){
+  [Boolean] $srcRootDirIsInPath = PsModulePathContains $srcRootDir;
+  [Boolean] $moduleTarDirExists = DirExists $moduleTarDir;
+  [String] $installedText = switch($srcRootDirIsInPath){
+    $true{"Installed-for-Developers. "}
+    default{switch($moduleTarDirExists){
+      $true{"Installed-in-Standard-Mode. "}
+      default{"Not-Installed. "}}}};
+  Write-Host -ForegroundColor White -NoNewLine "Current installation state: ";
+  Write-Host -ForegroundColor $color $installedText;
+}
 
 [String] $tarRootDir = "$Env:ProgramW6432\WindowsPowerShell\Modules"; # more see: https://msdn.microsoft.com/en-us/library/dd878350(v=vs.85).aspx
 [String] $srcRootDir = $PSScriptRoot; # ex: "D:\WorkGit\mniederw\MnCommonPsToolLib_master"
@@ -73,20 +82,31 @@ if( $dirsWithPsm1Files.Count -ne 1 ){ throw [Exception] "Tool is designed for wo
 [String] $moduleSrcDir = $dirsWithPsm1Files[0]; # ex: "D:\WorkGit\mniederw\MnCommonPsToolLib_master\MnCommonPsToolLib"
 [String] $moduleName = [System.IO.Path]::GetFileName($moduleSrcDir); # ex: "MnCommonPsToolLib"
 [String] $moduleTarDir = "$tarRootDir\$moduleName";
-Write-Host "Install Menu";
-Write-Host "------------`n";
-Write-Host "ModuleName            = '$moduleName'";
-Write-Host "DirInstalled          = $(DirExists $moduleTarDir);  (TargetDir='$moduleTarDir'). ";
-Write-Host "PathInstalled         = $(PsModulePathContains $srcRootDir);  (SrcPath='$srcRootDir')";
-Write-Host "IsInElevatedAdminMode = $(ProcessIsRunningInElevatedAdminMode); `n";
-Write-Host "  I = Standard installation of ps module by uninstalling first and then ";
-Write-Host "      by copying it to the common folder for ps modules for all users: ";
-Write-Host "      '$tarRootDir'.";
-Write-Host "  A = Alternative installation of ps module for developers while changing ";
-Write-Host "      and testing the module by uninstalling first and then by adding the path ";
-Write-Host "      of this script as entry to the ps module path ($envVar). ";
-Write-Host "  U = Uninstall (both: copied folder and path entry). ";
-Write-Host "  Q = Quit. `n";
+Write-Host -ForegroundColor White    "Install Menu for Powershell Module - $moduleName";
+Write-Host -ForegroundColor White    "-------------------------------------------------------------------------------`n";
+Write-Host -ForegroundColor DarkGray "  For installation or uninstallation the elevated administrator mode is ";
+Write-Host -ForegroundColor DarkGray "  required and this tool automatically prompts for it. ";
+Write-Host -ForegroundColor DarkGray "  Powershell requires for any installation of a module that its file must be ";
+Write-Host -ForegroundColor DarkGray "  located in a folder with the same name as the module name. ";
+Write-Host -ForegroundColor DarkGray "  An installation in standard mode does first an uninstallation and then for ";
+Write-Host -ForegroundColor DarkGray "  installation it copies the ps module folder to the common ps module folder ";
+Write-Host -ForegroundColor DarkGray "  for all users. An alternative installation for developers does also first an ";
+Write-Host -ForegroundColor DarkGray "  uninstallation and then it adds the path of the module folder as entry to the ";
+Write-Host -ForegroundColor DarkGray "  ps module path environment variable ($envVar). ";
+Write-Host -ForegroundColor DarkGray "  An uninstallation does both, it removes the copied folder from the common ps ";
+Write-Host -ForegroundColor DarkGray "  module folder for all users and it removes the path entry from the ps module ";
+Write-Host -ForegroundColor DarkGray "  path environment variable. ";
+Write-Host -ForegroundColor DarkGray "  ";
+Write-Host -ForegroundColor DarkGray "  IsInElevatedAdminMode = $(ProcessIsRunningInElevatedAdminMode).";
+Write-Host -ForegroundColor DarkGray "  SrcRootDir = '$srcRootDir' ";
+Write-Host -ForegroundColor DarkGray "  CommonPsModuleFolderForAllUsers = '$tarRootDir' ";
+Write-Host -ForegroundColor DarkGray "  ";
+OutCurrentInstallState $srcRootDir $moduleTarDir;
+Write-Host -ForegroundColor White    "";
+Write-Host -ForegroundColor White    "  I = Install or reinstall in standard mode. ";
+Write-Host -ForegroundColor White    "  A = Alternative installation for developers to change and test the module. ";
+Write-Host -ForegroundColor White    "  U = Uninstall. ";
+Write-Host -ForegroundColor White    "  Q = Quit. `n";
 if( $sel -ne "" ){ Write-Host "Selection: $sel "; }
 while( @("I","A","U","Q") -notcontains $sel ){
   Write-Host -ForegroundColor Cyan -nonewline "Enter selection and press enter (case insensitive: I,A,U,Q): ";
@@ -96,5 +116,6 @@ if( $sel -eq "U" ){ UninstallDir $moduleTarDir; UninstallSrcPath $srcRootDir; }
 if( $sel -eq "I" ){ UninstallDir $moduleTarDir; UninstallSrcPath $srcRootDir; InstallDir $moduleSrcDir $tarRootDir; }
 if( $sel -eq "A" ){ UninstallDir $moduleTarDir; InstallSrcPathToPsModulePathIfNotInstalled $srcRootDir; }
 if( $sel -eq "Q" ){ Write-Host -ForegroundColor DarkGray "Quit."; }
-Write-Host -ForegroundColor Green "Ok, done. Press enter to exit. ";
+if( $sel -eq "U" -or $sel -eq "I" -or $sel -eq "A" ){ OutCurrentInstallState $srcRootDir $moduleTarDir "Green"; }
+Write-Host -ForegroundColor Cyan "Ok, done. Press enter to exit. ";
 Read-Host;
