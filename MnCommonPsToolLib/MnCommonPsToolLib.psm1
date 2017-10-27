@@ -145,6 +145,7 @@ function StringIsNullOrEmpty                  ( [String] $s ){ return [Boolean] 
 function StringIsNotEmpty                     ( [String] $s ){ return [Boolean] (-not [String]::IsNullOrEmpty($s)); }
 function StringIsNullOrWhiteSpace             ( [String] $s ){ return [Boolean] (-not [String]::IsNullOrWhiteSpace($s)); }
 function StringSplitIntoLines                 ( [String] $s ){ return [String[]] (($s -replace "`r`n", "`n") -split "`n"); } # for empty string it returns an array with one item.
+function StringReplaceNewlinesBySpaces        ( [String] $s ){ return [String] ($s -replace "`r`n", "`n" -replace "`r", "" -replace "`n", " "); }
 function StringArrayInsertIndent              ( [String[]] $lines, [Int32] $nrOfBlanks ){ if( $lines -eq $null ){ return [String[]] $null; } return [String[]] ($lines | %{ ((" "*$nrOfBlanks)+$_); }); }
 function StringArrayDistinct                  ( [String[]] $lines ){ return [String[]] ($lines | Select-Object -Unique); }
 function StringPadRight                       ( [String] $s, [Int32] $len, [Boolean] $doQuote = $false  ){ [String] $r = $s; if( $doQuote ){ $r = '"'+$r+'"'; } return [String] $r.PadRight($len); }
@@ -228,9 +229,9 @@ function StreamToNull                         (){ $input | Out-Null; }
 function StreamToString                       (){ $input | Out-String -Width 999999999; }
 function StreamToStringDelEmptyLeadAndTrLines (){ $input | Out-String -Width 999999999 | ForEach-Object{ $_ -replace "[ \f\t\v]]+\r\n","\r\n" -replace "^(\r\n)+","" -replace "(\r\n)+$","" }; }
 function StreamToGridView                     (){ $input | Out-GridView -Title "TableData"; }
-function StreamToCsvStrings                   (){ $input | ConvertTo-Csv -NoTypeInformation; }
-function StreamToJsonString                   (){ $input | ConvertTo-Json -Depth 999999999; }
-function StreamToJsonCompressedString         (){ $input | ConvertTo-Json -Depth 999999999 -Compress; }
+function StreamToCsvStrings                   (){ $input | ConvertTo-Csv -NoTypeInformation; } # does not work for a simple string array as expected
+function StreamToJsonString                   (){ $input | ConvertTo-Json -Depth 100; }
+function StreamToJsonCompressedString         (){ $input | ConvertTo-Json -Depth 100 -Compress; }
 function StreamToXmlString                    (){ $input | ConvertTo-Xml -Depth 999999999 -As String -NoTypeInformation; }
 function StreamToHtmlTableStrings             (){ $input | ConvertTo-Html -Title "TableData" -Body $null -As Table; }
 function StreamToHtmlListStrings              (){ $input | ConvertTo-Html -Title "TableData" -Body $null -As List; }
@@ -243,7 +244,7 @@ function StreamToXmlFile                      ( [String] $file, [Boolean] $overw
 function StreamToDataRowsString               ( [String[]] $propertyNames ){ if( $propertyNames -eq $null -or $propertyNames.Count -eq 0 ){ $propertyNames = @("*"); } 
                                                 $input | Format-Table -Wrap -Force -autosize -HideTableHeaders $propertyNames | StreamToStringDelEmptyLeadAndTrLines; }
 function StreamToTableString                  ( [String[]] $propertyNames ){ if( $propertyNames -eq $null -or $propertyNames.Count -eq 0 ){ $propertyNames = @("*"); } 
-                                                $input | Format-Table -Wrap -Force -autosize $propertyNames | StreamToStringDelEmptyLeadAndTrLines; }
+                                                $input | Format-Table -Wrap -Force -autosize $propertyNames | StreamToStringDelEmptyLeadAndTrLines; } # does not work for a simple string array as expected
 function OutInfo                              ( [String] $line ){ Write-Host -ForegroundColor $InfoLineColor -NoNewline "$line`r`n"; } # NoNewline is used because on multi threading usage line text and newline can be interrupted between
 function OutWarning                           ( [String] $line, [Int32] $indentLevel = 1 ){ Write-Host -ForegroundColor Yellow -NoNewline (("  "*$indentLevel)+$line+"`r`n"); }
 function OutSuccess                           ( [String] $line ){ Write-Host -ForegroundColor Green -NoNewline "$line`r`n"; }
@@ -713,7 +714,7 @@ function FsEntryTryForceRenaming              ( [String] $fsEntry, [String] $ext
 function DriveFreeSpace                       ( [String] $drive ){ 
                                                 return [Int64] (Get-PSDrive $drive | Select-Object -ExpandProperty Free); }
 function DirExists                            ( [String] $dir ){ 
-                                                try{ return [Boolean] (Test-Path -PathType Container -path (FsEntryEsc $dir) ); }catch{ throw [Exception] "DirExists($dir) failed because $($_.Exception.Message)"; } }
+                                                try{ return [Boolean] (Test-Path -PathType Container -LiteralPath $dir); }catch{ throw [Exception] "DirExists($dir) failed because $($_.Exception.Message)"; } }
 function DirExistsAssert                      ( [String] $dir ){ 
                                                 if( -not (DirExists $dir) ){ throw [Exception] "Dir not exists: '$dir'."; } }
 function DirCreate                            ( [String] $dir ){ 
@@ -741,7 +742,7 @@ function FileGetSize                          ( [String] $file ){
                                                 return [Int64] (Get-ChildItem -Force -File -LiteralPath $file).Length; }
 function FileExists                           ( [String] $file ){ 
                                                 if( $file -eq "" ){ throw [Exception] "FileExists: Empty file name not allowed"; } 
-                                                [String] $f2 = FsEntryGetAbsolutePath $file; if( Test-Path -PathType Leaf -Path $f2 ){ return $true; } # todo literalpath
+                                                [String] $f2 = FsEntryGetAbsolutePath $file; if( Test-Path -PathType Leaf -LiteralPath $f2 ){ return $true; }
                                                 # Note: Known bug: Test-Path does not work for hidden and system files, so we need an additional check.
                                                 # Note2: The following would not works on vista and win7-with-ps2: [String] $d = Split-Path $f2; return ([System.IO.Directory]::EnumerateFiles($d) -contains $f2);
                                                 return [System.IO.File]::Exists($f2); }
@@ -1995,33 +1996,50 @@ function JuniperNcEstablishVpnConnAndRdp      ( [String] $rdpfile, [String] $url
                                                 [String] $secureCredentialFile = "$rdpfile.vpn-uspw.$ComputerName.txt";
                                                 JuniperNcEstablishVpnConn $secureCredentialFile $url $realm;
                                                 RdpConnect $rdpfile; }
-function MnCommonPsToolLibCallSelfUpdate      ( [Boolean] $doWaitIfFailed = $true ){
-                                                [String] $moduleName = "MnCommonPsToolLib";
-                                                [String] $url = "https://github.com/mniederw/MnCommonPsToolLib/blob/master/$moduleName/$moduleName.psm1";
-                                                [String] $tarRootDir = "$Env:ProgramW6432\WindowsPowerShell\Modules"; # more see: https://msdn.microsoft.com/en-us/library/dd878350(v=vs.85).aspx
-                                                [String] $moduleFile = "$tarRootDir\$moduleName\$moduleName.psm1";
-                                                [String] $host = (NetExtractHostName $url);
-                                                OutInfo "Check for update of $moduleFile from $url";
+function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $url, [Boolean] $requireElevatedAdminMode, [Boolean] $doWaitIfFailed = $false, [String] $additionalOkUpdMsg = "" ){
                                                 try{
-                                                  if( (FileNotExists $moduleFile) ){ throw [Exception] "Target file to update not exists: '$moduleFile'"; }
-                                                  if( -not (Test-Connection -Cn $host -BufferSize 16 -Count 1 -ea 0 -Quiet) ){ throw [Exception] "Host '$host' not pingable"; }
-                                                  if( -not (ProcessIsRunningInElevatedAdminMode) ){ throw [Exception] "Is not in elevated admin mode"; return; }
+                                                  if( (FileNotExists $targetFile) ){ 
+                                                    throw [Exception] "For updating it is required that target file previously exists but it does not: '$targetFile'";
+                                                  }                                                 
+                                                  if( $requireElevatedAdminMode -and -not (ProcessIsRunningInElevatedAdminMode) ){ 
+                                                    throw [Exception] "Is not in elevated admin mode."; 
+                                                  }
+                                                  [String] $host = (NetExtractHostName $url);
+                                                  if( -not (Test-Connection -Cn $host -BufferSize 16 -Count 1 -ea 0 -Quiet) ){ 
+                                                    throw [Exception] "Host '$host' is not pingable."; 
+                                                  }
                                                   [String] $tmp = (FileGetTempFile);
                                                   CurlDownloadFile $url $tmp;
-                                                  if( FileContentsAreEqual $moduleFile $tmp ){
+                                                  if( FileContentsAreEqual $targetFile $tmp ){
                                                     OutProgress "Ok, is up to date, nothing done.";
                                                   }else{
-                                                    ProcessRestartInElevatedAdminMode;
-                                                    FileMove $tmp $moduleFile $true;
-                                                    OutSuccess "Ok, updated '$moduleFile'. Please restart all powershell.exe processes which are using it.";
+                                                    if( $requireElevatedAdminMode ){ 
+                                                      ProcessRestartInElevatedAdminMode; 
+                                                    }
+                                                    FileMove $tmp $targetFile $true;
+                                                    OutSuccess "Ok, updated '$targetFile'. $additionalOkUpdMsg";
                                                   }
                                                   return [Boolean] $true;
                                                 }catch{
-                                                  OutWarning "No update will be done because $($_.Exception.Message)";
-                                                  if( $doWaitIfFailed ){ StdInReadLine "Press enter to continue."; }
+                                                  OutWarning "No update could be done because $($_.Exception.Message)";
+                                                  if( $doWaitIfFailed ){ 
+                                                    StdInReadLine "Press enter to continue."; 
+                                                  }
                                                   return [Boolean] $false;
-                                                }
+                                                } }
+function MnCommonPsToolLibCallSelfUpdate      ( [Boolean] $doWaitIfFailed = $true ){
+                                                # If installed in standard mode (saved under \Program Files\WindowsPowerShell\Modules\...) and it is running as admin 
+                                                # and the newest file is downloadable then it actualizes current module if there is any change by overwriting its file 
+                                                # and it outputs a success message. 
+                                                # Otherwise if it failed it will output a warning message and wait for pressing enter which can be discarded as an option.
+                                                [String] $moduleName = "MnCommonPsToolLib";
+                                                [String] $tarRootDir = "$Env:ProgramW6432\WindowsPowerShell\Modules"; # more see: https://msdn.microsoft.com/en-us/library/dd878350(v=vs.85).aspx
+                                                [String] $moduleFile = "$tarRootDir\$moduleName\$moduleName.psm1";                                               
+                                                [String] $url = "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/master/$moduleName/$moduleName.psm1";
+                                                OutInfo "Check for update of $moduleFile `n  from $url";
+                                                [Boolean] $dummyResult = ToolPerformFileUpdateAndIsActualized $moduleFile $url $true $doWaitIfFailed "`n  Please restart all processes which are using it.";
                                               }
+function MnCommonPsToolLibCallSelfUpdateNoWait(){ MnCommonPsToolLibCallSelfUpdate $false; }
 
 # breaking changes:
 function GitClone                             ( [String] $tarDir, [String] $url, [Boolean] $errorAsWarning = $false ){ throw [Exception] "GitClone: 2017-09-22: Not supported anymore use GitCmd Clone with tarRootDir."; }
