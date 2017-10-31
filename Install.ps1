@@ -58,16 +58,18 @@ Write-Host -ForegroundColor White    "";
 Write-Host -ForegroundColor White    "  I = Install or reinstall in standard mode. ";
 Write-Host -ForegroundColor White    "  A = Alternative installation for developers to change and test the module. ";
 Write-Host -ForegroundColor White    "  U = Uninstall. ";
+Write-Host -ForegroundColor White    "  W = When in standard mode do update from web - perform MnCommonPsToolLibSelfUpdate ";
 Write-Host -ForegroundColor White    "  Q = Quit. `n";
 if( $sel -ne "" ){ Write-Host "Selection: $sel "; }
-while( @("I","A","U","Q") -notcontains $sel ){
+while( @("I","A","U","W","Q") -notcontains $sel ){
   Write-Host -ForegroundColor Cyan -nonewline "Enter selection and press enter (case insensitive: I,A,U,Q): ";
   [String] $sel = (Read-Host);
 }
 if( $sel -eq "U" ){ UninstallDir $moduleTarDir; UninstallSrcPath $srcRootDir; }
 if( $sel -eq "I" ){ UninstallDir $moduleTarDir; UninstallSrcPath $srcRootDir; InstallDir $moduleSrcDir $tarRootDir; }
 if( $sel -eq "A" ){ UninstallDir $moduleTarDir; InstallSrcPathToPsModulePathIfNotInstalled $srcRootDir; }
+if( $sel -eq "W" ){ MnCommonPsToolLibSelfUpdateNoWait; }
 if( $sel -eq "Q" ){ Write-Host -ForegroundColor DarkGray "Quit."; }
 if( $sel -eq "U" -or $sel -eq "I" -or $sel -eq "A" ){ OutCurrentInstallState $srcRootDir $moduleTarDir "Green"; }
-Write-Host -ForegroundColor Cyan "Ok, done. Press enter to exit. ";
+Write-Host -ForegroundColor Cyan "Ok, finished. Press enter to exit. ";
 Read-Host;

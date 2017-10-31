@@ -93,18 +93,20 @@ Add-Type -Name Window -Namespace Console -MemberDefinition '[DllImport("Kernel32
 function ForEachParallel { # based on https://powertoe.wordpress.com/2012/05/03/foreach-parallel/  ex: (0..20) | ForEachParallel { echo "Nr: $_"; sleep 1; }; (0..5) | ForEachParallel -MaxThreads 2 { echo "Nr: $_"; sleep 1; }
   param( [Parameter(Mandatory=$true,position=0)]              [System.Management.Automation.ScriptBlock] $ScriptBlock,
          [Parameter(Mandatory=$true,ValueFromPipeline=$true)] [PSObject]                                 $InputObject,
-         [Parameter(Mandatory=$false)]                        [int]                                      $MaxThreads=8 )
+         [Parameter(Mandatory=$false)]                        [Int32]                                    $MaxThreads=8 )
   BEGIN{
     try{
-      $iss = [system.management.automation.runspaces.initialsessionstate]::CreateDefault();
+      $iss = [System.Management.Automation.Runspaces.Initialsessionstate]::CreateDefault();
       $pool = [Runspacefactory]::CreateRunspacePool(1,$maxthreads,$iss,$host); $pool.open();
       $threads = @();
       $ScriptBlock = $ExecutionContext.InvokeCommand.NewScriptBlock("param(`$_)`r`n"+$Scriptblock.ToString());
     }catch{ $Host.UI.WriteErrorLine("ForEachParallel-BEGIN: $($_)");  }
   }PROCESS{
     try{
-      $powershell = [powershell]::Create().addscript($scriptblock).addargument($InputObject); $powershell.runspacepool = $pool;
-      $threads += @{ instance = $powershell; handle = $powershell.begininvoke(); };
+      $powershell = [powershell]::Create().addscript($scriptblock).addargument($InputObject); 
+      $powershell.runspacepool = $pool;
+      $threads += @{ instance = $powershell; 
+        handle = $powershell.begininvoke(); };
     }catch{ $Host.UI.WriteErrorLine("ForEachParallel-PROCESS: $($_)");  }
   }END{
     try{
@@ -112,7 +114,9 @@ function ForEachParallel { # based on https://powertoe.wordpress.com/2012/05/03/
         for( [Int32] $i = 0; $i -lt $threads.count; $i++ ){
           $thread = $threads[$i];
           if( $thread ){
-            if( $thread.handle.iscompleted ){ $thread.instance.endinvoke($thread.handle); $thread.instance.dispose(); $threads[$i] = $null; }
+            if( $thread.handle.iscompleted ){ 
+              $thread.instance.endinvoke($thread.handle); 
+              $thread.instance.dispose(); $threads[$i] = $null; }
             else { $notdone = $true; }
           }
         }
@@ -2027,7 +2031,7 @@ function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $
                                                   }
                                                   return [Boolean] $false;
                                                 } }
-function MnCommonPsToolLibCallSelfUpdate      ( [Boolean] $doWaitIfFailed = $true ){
+function MnCommonPsToolLibSelfUpdate          ( [Boolean] $doWaitIfFailed = $true ){
                                                 # If installed in standard mode (saved under \Program Files\WindowsPowerShell\Modules\...) and it is running as admin 
                                                 # and the newest file is downloadable then it actualizes current module if there is any change by overwriting its file 
                                                 # and it outputs a success message. 
@@ -2039,7 +2043,7 @@ function MnCommonPsToolLibCallSelfUpdate      ( [Boolean] $doWaitIfFailed = $tru
                                                 OutInfo "Check for update of $moduleFile `n  from $url";
                                                 [Boolean] $dummyResult = ToolPerformFileUpdateAndIsActualized $moduleFile $url $true $doWaitIfFailed "`n  Please restart all processes which are using it.";
                                               }
-function MnCommonPsToolLibCallSelfUpdateNoWait(){ MnCommonPsToolLibCallSelfUpdate $false; }
+function MnCommonPsToolLibSelfUpdateNoWait    (){ MnCommonPsToolLibSelfUpdate $false; }
 
 # breaking changes:
 function GitClone                             ( [String] $tarDir, [String] $url, [Boolean] $errorAsWarning = $false ){ throw [Exception] "GitClone: 2017-09-22: Not supported anymore use GitCmd Clone with tarRootDir."; }
