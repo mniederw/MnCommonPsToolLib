@@ -2,6 +2,7 @@
 #
 # 2013-2017 produced by Marc Niederwieser, Switzerland. Licensed under GPL3. This is freeware.
 #
+# 2017-11-22  V1.5  extend functions, improved self-update by hash
 # 2017-10-22  V1.4  extend functions, improve FileContentsAreEqual, self-update
 # 2017-10-10  V1.3  extend functions
 # 2017-09-08  V1.2  extend by jobs, parallel
@@ -828,6 +829,9 @@ function FileCopy                             ( [String] $srcFile, [String] $tar
 function FileMove                             ( [String] $srcFile, [String] $tarFile, [Boolean] $overwrite = $false ){ 
                                                 OutProgress "FileMove(Overwrite=$overwrite) '$srcFile' to '$tarFile'"; 
                                                 FsEntryCreateParentDir $tarFile; Move-Item -Force:$overwrite -LiteralPath $srcFile -Destination $tarFile; }
+function FileGetHexStringOfHash128BitsMd5     ( [String] $srcFile ){ return [String] (get-filehash -Algorithm "MD5"    $srcFile).Hash; }
+function FileGetHexStringOfHash256BitsSha2    ( [String] $srcFile ){ return [String] (get-filehash -Algorithm "SHA256" $srcFile).Hash; } # 2017-11 ps standard is SHA256, available are: SHA1;SHA256;SHA384;SHA512;MACTripleDES;MD5;RIPEMD160
+function FileGetHexStringOfHash512BitsSha2    ( [String] $srcFile ){ return [String] (get-filehash -Algorithm "SHA512" $srcFile).Hash; }
 function DriveMapTypeToString                 ( [UInt32] $driveType ){
                                                 return [String] $(switch($driveType){ 1{"NoRootDir"} 2{"RemovableDisk"} 3{"LocalDisk"} 4{"NetworkDrive"} 5{"CompactDisk"} 6{"RamDisk"} default{"UnknownDriveType=driveType"}}); }
 function DriveList                            (){
@@ -1542,6 +1546,9 @@ function CurlDownloadFile                     ( [String] $url, [String] $tarFile
                                                 FileAppendLineWithTs $logf $stateMsg;
                                                 OutProgress $stateMsg;
                                                 AssertRcIsOk; }
+function CurlDownloadToString                 ( [String] $url, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Boolean] $onlyIfNewer = $false ){
+                                                [String] $tmp = (FileGetTempFile); CurlDownloadFile $url $tmp $us $pw $ignoreSslCheck $onlyIfNewer;
+                                                [String] $result = (FileReadContentAsString $tmp); FileDelete $tmp; return [String] $result; }
 <# Type: SvnEnvInfo #>                        Add-Type -TypeDefinition "public struct SvnEnvInfo {public string Url; public string Path; public string RealmPattern; public string CachedAuthorizationFile; public string CachedAuthorizationUser; public string Revision; }";
                                                 # ex: Url="https://myhost/svn/Work"; Path="D:\Work"; RealmPattern="https://myhost:443"; CachedAuthorizationFile="$env:APPDATA\Subversion\auth\svn.simple\25ff84926a354d51b4e93754a00064d6"; CachedAuthorizationUser="myuser"; Revision="1234"
 function SvnExe                               (){ 
@@ -2001,24 +2008,33 @@ function JuniperNcEstablishVpnConnAndRdp      ( [String] $rdpfile, [String] $url
                                                 JuniperNcEstablishVpnConn $secureCredentialFile $url $realm;
                                                 RdpConnect $rdpfile; }
 function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $url, [Boolean] $requireElevatedAdminMode, [Boolean] $doWaitIfFailed = $false, [String] $additionalOkUpdMsg = "" ){
+                                                # Assert the correct installed environment by requiring that the file to be update previously exists.
+                                                # Assert the network is prepared by checking if host is reachable.
+                                                # Then it downloads the hash file and checks it with the current installed file.
+                                                # If there is any change then it requests for running as admin, it downloads the module and verifies it with the previously downloaded hash file.
+                                                # Then the current module is actualized by overwriting its file and a success message is given out.
+                                                # Otherwise if it failed it will output a warning message and optionally wait for pressing enter key.
+                                                # It returns true if the file is now actualized.
                                                 try{
+                                                  [String] $hash512BitsSha2Url = "$url.sha2";
+                                                  OutInfo "Check for update of $targetFile `n  from $url";
                                                   if( (FileNotExists $targetFile) ){ 
-                                                    throw [Exception] "For updating it is required that target file previously exists but it does not: '$targetFile'";
-                                                  }                                                 
-                                                  if( $requireElevatedAdminMode -and -not (ProcessIsRunningInElevatedAdminMode) ){ 
-                                                    throw [Exception] "Is not in elevated admin mode."; 
+                                                    throw [Exception] "Unexpected environment, for updating it is required that target file previously exists but it does not: '$targetFile'";
                                                   }
                                                   [String] $host = (NetExtractHostName $url);
                                                   if( -not (Test-Connection -Cn $host -BufferSize 16 -Count 1 -ea 0 -Quiet) ){ 
                                                     throw [Exception] "Host '$host' is not pingable."; 
                                                   }
-                                                  [String] $tmp = (FileGetTempFile);
-                                                  CurlDownloadFile $url $tmp;
-                                                  if( FileContentsAreEqual $targetFile $tmp ){
+                                                  [String] $hash = CurlDownloadToString $hash512BitsSha2Url;
+                                                  if( $hash -eq (FileGetHexStringOfHash512BitsSha2 $targetFile) ){
                                                     OutProgress "Ok, is up to date, nothing done.";
                                                   }else{
                                                     if( $requireElevatedAdminMode ){ 
                                                       ProcessRestartInElevatedAdminMode; 
+                                                    }
+                                                    [String] $tmp = (FileGetTempFile); CurlDownloadFile $url $tmp;
+                                                    if( $hash -ne (FileGetHexStringOfHash512BitsSha2 $tmp) ){
+                                                      throw [Exception] "The hash of the downloaded file from $url does not match the content of $hash512BitsSha2Url"; 
                                                     }
                                                     FileMove $tmp $targetFile $true;
                                                     OutSuccess "Ok, updated '$targetFile'. $additionalOkUpdMsg";
@@ -2031,25 +2047,15 @@ function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $
                                                   }
                                                   return [Boolean] $false;
                                                 } }
-function MnCommonPsToolLibSelfUpdate          ( [Boolean] $doWaitIfFailed = $true ){
-                                                # If installed in standard mode (saved under \Program Files\WindowsPowerShell\Modules\...) and it is running as admin 
-                                                # and the newest file is downloadable then it actualizes current module if there is any change by overwriting its file 
-                                                # and it outputs a success message. 
-                                                # Otherwise if it failed it will output a warning message and wait for pressing enter which can be discarded as an option.
+function MnCommonPsToolLibSelfUpdate          ( [Boolean] $doWaitForEnterKeyIfFailed = $false ){
+                                                # If installed in standard mode (saved under c:\Program Files\WindowsPowerShell\Modules\...) then it performs a self update to the newest version from github.
                                                 [String] $moduleName = "MnCommonPsToolLib";
                                                 [String] $tarRootDir = "$Env:ProgramW6432\WindowsPowerShell\Modules"; # more see: https://msdn.microsoft.com/en-us/library/dd878350(v=vs.85).aspx
                                                 [String] $moduleFile = "$tarRootDir\$moduleName\$moduleName.psm1";                                               
                                                 [String] $url = "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/master/$moduleName/$moduleName.psm1";
-                                                OutInfo "Check for update of $moduleFile `n  from $url";
-                                                [Boolean] $dummyResult = ToolPerformFileUpdateAndIsActualized $moduleFile $url $true $doWaitIfFailed "`n  Please restart all processes which are using it.";
+                                                [String] $additionalOkUpdMsg = "`n  Please restart all processes which are using it.";
+                                                [Boolean] $dummyResult = ToolPerformFileUpdateAndIsActualized $moduleFile $url $true $doWaitForEnterKeyIfFailed $additionalOkUpdMsg;
                                               }
-function MnCommonPsToolLibSelfUpdateNoWait    (){ MnCommonPsToolLibSelfUpdate $false; }
-
-# breaking changes:
-function GitClone                             ( [String] $tarDir, [String] $url, [Boolean] $errorAsWarning = $false ){ throw [Exception] "GitClone: 2017-09-22: Not supported anymore use GitCmd Clone with tarRootDir."; }
-function GitFetch                             ( [String] $tarDir, [String] $url, [Boolean] $errorAsWarning = $false ){ throw [Exception] "GitFetch: 2017-09-22: Not supported anymore use GitCmd Fetch with tarRootDir."; }
-function GitPull                              ( [String] $tarDir, [String] $url                                     ){ throw [Exception] "GitPull: 2017-09-22: Not supported anymore use GitCmd Pull with tarRootDir."; }
-function GitLogList                           ( [String] $tarLogDir, [String] $localRepoDir                         ){ throw [Exception] "GitLogList: 2017-09-22: Not supported anymore use GitListCommitComments."; }
 
 # ----------------------------------------------------------------------------------------------------
 

@@ -17,7 +17,9 @@ function TestAssertions{
 }
 
 function TestCommon(){
+  [DateTime] $oldestDate = Get-Date -Date "0001-01-01 00:00:00.000";
   OutProgress "Today in ISO format: $(DateTimeAsStringIsoDate)";
+  OutProgress "Oldest date is: $(DateTimeAsStringIso $oldestDate)";
 }
 
 function TestFsEntries(){
@@ -38,12 +40,16 @@ function TestFsEntries(){
 
 function TestParallelScripts1 {
   OutInfo "Test 5 parallel scripts which each is waiting 1 second";
+  [DateTime] $startedAt = Get-Date;
   (0..5) |ForEachParallel { OutProgress "Running script nr: $_ and wait one second."; sleep 1; }
+  OutProgress "Total used time: $((New-Timespan -Start $startedAt -End (Get-Date)).ToString('d\ hh\:mm\:ss\.fff'))";
 }
 
 function TestParallelScripts2 {
   OutInfo "Test 5 parallel scripts which each is waiting some random seconds between 1.1 and 1.9 seconds";
+  [DateTime] $startedAt = Get-Date;
   (0..5) | ForEachParallel -MaxThreads 2 { $t = 1.0 + ((Get-Random -Minimum 1 -Maximum 9) / 10); OutProgress "Running script nr: $_ and wait $t seconds."; sleep $t; };
+  OutProgress "Total used time: $((New-Timespan -Start $startedAt -End (Get-Date)).ToString('d\ hh\:mm\:ss\.fff'))";
 }
 
 function TestAsynchronousJob {
