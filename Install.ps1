@@ -1,11 +1,11 @@
 
 # Do not change the following line, it is a powershell statement and not a comment!
 #Requires -Version 3.0
-
 param( [String] $sel )
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
-trap [Exception] { $Host.UI.WriteErrorLine($_); Read-Host; break; }
 $Global:ErrorActionPreference = "Stop";
+$PSModuleAutoLoadingPreference = "none"; # disable autoloading modules
+trap [Exception] { $Host.UI.WriteErrorLine($_); Read-Host; break; }
 [String] $envVar = "PSModulePath";
 function OutInfo                                    ( [String] $line ){ Write-Host -ForegroundColor White           $line; }
 function OutProgress                                ( [String] $line ){ Write-Host -ForegroundColor DarkGray        $line; }
@@ -31,11 +31,11 @@ function OutCurrentInstallState                     ( [String] $srcRootDir, [Str
 function GenerateHashFile                           ( [String] $srcFile ){ Out-File -Encoding UTF8 -LiteralPath "$srcFile.sha2" -Inputobject (get-filehash -Algorithm "SHA512" $srcFile).Hash; OutProgress "Created '$srcFile.sha2'"; }
 
 [String] $tarRootDir = "$Env:ProgramW6432\WindowsPowerShell\Modules"; # more see: https://msdn.microsoft.com/en-us/library/dd878350(v=vs.85).aspx
-[String] $srcRootDir = $PSScriptRoot; if( $srcRootDir -eq "" ){ $srcRootDir = FsEntryGetAbsolutePath "."; } # ex: "D:\WorkGit\mniederw\MnCommonPsToolLib_master"
+[String] $srcRootDir = $PSScriptRoot; if( $srcRootDir -eq "" ){ $srcRootDir = FsEntryGetAbsolutePath "."; } # ex: "D:\WorkGit\myaccount\MyNameOfPsToolLib_master"
 [String[]] $dirsWithPsm1Files = @()+(DirListDirs $srcRootDir | Where-Object{ DirHasFiles $_ "*.psm1" });
 if( $dirsWithPsm1Files.Count -ne 1 ){ throw [Exception] "Tool is designed for working below '$srcRootDir' with exactly one directory which contains psm1 files but found $($dirsWithPsm1Files.Count) dirs ($dirsWithPsm1Files)"; }
-[String] $moduleSrcDir = $dirsWithPsm1Files[0]; # ex: "D:\WorkGit\mniederw\MnCommonPsToolLib_master\MnCommonPsToolLib"
-[String] $moduleName = [System.IO.Path]::GetFileName($moduleSrcDir); # ex: "MnCommonPsToolLib"
+[String] $moduleSrcDir = $dirsWithPsm1Files[0]; # ex: "D:\WorkGit\myaccount\MyNameOfPsToolLib_master\MyNameOfPsToolLib"
+[String] $moduleName = [System.IO.Path]::GetFileName($moduleSrcDir); # ex: "MyNameOfPsToolLib"
 [String] $moduleTarDir = "$tarRootDir\$moduleName";
 OutInfo    "Install Menu for Powershell Module - $moduleName";
 OutInfo    "-------------------------------------------------------------------------------`n";
@@ -53,9 +53,9 @@ OutProgress "  module folder for all users and it removes the path entry from th
 OutProgress "  path environment variable. ";
 OutProgress "  ";
 OutProgress "  Current environment:";
-OutProgress "  IsInElevatedAdminMode = $(ProcessIsRunningInElevatedAdminMode).";
-OutProgress "  SrcRootDir = '$srcRootDir' ";
-OutProgress "  CommonPsModuleFolderForAllUsers = '$tarRootDir' ";
+OutProgress "    IsInElevatedAdminMode = $(ProcessIsRunningInElevatedAdminMode).";
+OutProgress "    SrcRootDir = '$srcRootDir' ";
+OutProgress "    CommonPsModuleFolderForAllUsers = '$tarRootDir' ";
 OutProgress "  ";
 OutCurrentInstallState $srcRootDir $moduleTarDir;
 OutInfo    "";
@@ -77,4 +77,4 @@ if( $sel -eq "W" ){ MnCommonPsToolLibSelfUpdate; }
 if( $sel -eq "C" -and (DirExists "$srcRootDir\.git") ){ GenerateHashFile "$moduleSrcDir\$moduleName.psm1"; }
 if( $sel -eq "Q" ){ OutProgress "Quit."; }
 if( $sel -eq "U" -or $sel -eq "I" -or $sel -eq "A" ){ OutCurrentInstallState $srcRootDir $moduleTarDir "Green"; }
-OutQuestion "Ok, finished. Press enter to exit. "; Read-Host;
+OutQuestion "Finished. Press enter to exit. "; Read-Host;

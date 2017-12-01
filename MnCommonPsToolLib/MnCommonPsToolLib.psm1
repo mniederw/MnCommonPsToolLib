@@ -128,15 +128,15 @@ function ForEachParallel { # based on https://powertoe.wordpress.com/2012/05/03/
 
 # set some self defined constant global variables
 if( (Get-Variable -Scope global -ErrorAction SilentlyContinue -Name ComputerName) -eq $null ){ # check wether last variable already exists because reload safe
-  New-Variable -option Constant -scope global -name CurrentMonthIsoString   -value ([String](Get-Date -format yyyy-MM)); # alternative: yyyy-MM-dd_HH_mm
-  New-Variable -option Constant -scope global -name CurrentWeekIsoString    -value ([String](Get-Date -uformat "YYYY-W%V"));
-  New-Variable -option Constant -scope global -name UserQuickLaunchDir      -value ([String]"$env:APPDATA\Microsoft\Internet Explorer\Quick Launch");
-  New-Variable -option Constant -scope global -name UserSendToDir           -value ([String]"$env:APPDATA\Microsoft\Windows\SendTo");
-  New-Variable -option Constant -scope global -name UserMenuDir             -value ([String]"$env:APPDATA\Microsoft\Windows\Start Menu");
-  New-Variable -option Constant -scope global -name UserMenuStartupDir      -value ([String]"$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup");
-  New-Variable -option Constant -scope global -name AllUsersMenuDir         -value ([String]"$env:ALLUSERSPROFILE\Microsoft\Windows\Start Menu");
-  New-Variable -option Constant -scope global -name InfoLineColor           -Value $(switch($Host.Name -eq "Windows PowerShell ISE Host"){$true{"Gray"}default{"White"}}); # ise is white so we need a contrast color
-  New-Variable -option Constant -scope global -name ComputerName            -value ([String]"$env:computername".ToLower());
+  New-Variable -option Constant -scope global -name CurrentMonthIsoString        -value ([String](Get-Date -format yyyy-MM)); # alternative: yyyy-MM-dd_HH_mm
+  New-Variable -option Constant -scope global -name CurrentMonthAndWeekIsoString -value ([String]((Get-Date -format "yyyy-MM-")+(Get-Date -uformat "W%V")));
+  New-Variable -option Constant -scope global -name UserQuickLaunchDir           -value ([String]"$env:APPDATA\Microsoft\Internet Explorer\Quick Launch");
+  New-Variable -option Constant -scope global -name UserSendToDir                -value ([String]"$env:APPDATA\Microsoft\Windows\SendTo");
+  New-Variable -option Constant -scope global -name UserMenuDir                  -value ([String]"$env:APPDATA\Microsoft\Windows\Start Menu");
+  New-Variable -option Constant -scope global -name UserMenuStartupDir           -value ([String]"$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup");
+  New-Variable -option Constant -scope global -name AllUsersMenuDir              -value ([String]"$env:ALLUSERSPROFILE\Microsoft\Windows\Start Menu");
+  New-Variable -option Constant -scope global -name InfoLineColor                -Value $(switch($Host.Name -eq "Windows PowerShell ISE Host"){$true{"Gray"}default{"White"}}); # ise is white so we need a contrast color
+  New-Variable -option Constant -scope global -name ComputerName                 -value ([String]"$env:computername".ToLower());
 }
 # ----- exported tools and types -----
 
@@ -145,6 +145,7 @@ function GlobalSetModeHideOutProgress         ( [Boolean] $val = $true ){ $Globa
 function GlobalSetModeDisallowInteractions    ( [Boolean] $val = $true ){ $Global:ModeDisallowInteractions = $val; } # if true then any call to read from input will throw, it will not restart script for entering elevated admin mode and after any unhandled exception it does not wait for a key
 function GlobalSetModeDisallowElevation       ( [Boolean] $val = $true ){ $Global:ModeDisallowElevation    = $val; } # if true then it will not restart script for entering elevated admin mode
 function GlobalSetModeNoWaitForEnterAtEnd     ( [Boolean] $val = $true ){ $Global:ModeNoWaitForEnterAtEnd  = $val; } # if true then it will not wait for enter in StdOutBegMsgCareInteractiveMode
+function GlobalSetModeEnableAutoLoadingPref   ( [Boolean] $val = $true ){ $Global:PSModuleAutoLoadingPreference = $(switch($val){$true{$null}$false{"none"}}); } # enable or disable autoloading modules, available internal values: All (=default), ModuleQualified, None.
 
 function StringIsNullOrEmpty                  ( [String] $s ){ return [Boolean] [String]::IsNullOrEmpty($s); }
 function StringIsNotEmpty                     ( [String] $s ){ return [Boolean] (-not [String]::IsNullOrEmpty($s)); }
@@ -2026,9 +2027,10 @@ function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $
                                                     throw [Exception] "Host '$host' is not pingable."; 
                                                   }
                                                   [String] $hash = CurlDownloadToString $hash512BitsSha2Url;
-                                                  if( $hash -eq (FileGetHexStringOfHash512BitsSha2 $targetFile) ){
+                                                  if( $hash -eq (FileGetHexStringOfHash512BitsSha2 $targetFile).TrimEnd() ){
                                                     OutProgress "Ok, is up to date, nothing done.";
                                                   }else{
+                                                    OutProgress "There are changes between the current file and that from url, so going to download and install it.";
                                                     if( $requireElevatedAdminMode ){ 
                                                       ProcessRestartInElevatedAdminMode; 
                                                     }
