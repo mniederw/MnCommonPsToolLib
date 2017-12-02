@@ -2037,7 +2037,7 @@ function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $
                                                   if( -not (Test-Connection -Cn $host -BufferSize 16 -Count 1 -ea 0 -Quiet) ){ 
                                                     throw [Exception] "Host '$host' is not pingable."; 
                                                   }
-                                                  [String] $hash = CurlDownloadToString $hash512BitsSha2Url;
+                                                  [String] $hash = (CurlDownloadToString $hash512BitsSha2Url).TrimEnd();
                                                   if( $hash -eq (FileGetHexStringOfHash512BitsSha2 $targetFile) ){
                                                     OutProgress "Ok, is up to date, nothing done.";
                                                   }else{
@@ -2047,7 +2047,7 @@ function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $
                                                     }
                                                     [String] $tmp = (FileGetTempFile); CurlDownloadFile $url $tmp;
                                                     if( $hash -ne (FileGetHexStringOfHash512BitsSha2 $tmp) ){
-                                                      throw [Exception] "The hash of the downloaded file from $url does not match the content of $hash512BitsSha2Url. Probably author did not update hash after updating source, then you must manually get source or wait until author updates hash."; 
+                                                      throw [Exception] "The hash of the downloaded file from $url`n  does not match the content of $hash512BitsSha2Url.`n  Probably author did not update hash after updating source, then you must manually get source or wait until author updates hash."; 
                                                     }
                                                     FileMove $tmp $targetFile $true;
                                                     OutSuccess "Ok, updated '$targetFile'. $additionalOkUpdMsg";
