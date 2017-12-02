@@ -2,7 +2,7 @@
 #
 # 2013-2017 produced by Marc Niederwieser, Switzerland. Licensed under GPL3. This is freeware.
 #
-# 2017-12-02  V1.6  improved self-update hash handling
+# 2017-12-02  V1.6  improved self-update hash handling, improve touch.
 # 2017-11-22  V1.5  extend functions, improved self-update by hash
 # 2017-10-22  V1.4  extend functions, improve FileContentsAreEqual, self-update
 # 2017-10-10  V1.3  extend functions
@@ -16,10 +16,10 @@
 #
 # Notes about common approaches:
 # - Typesafe: Functions and its arguments and return values are always specified with its type to assert type reliablility.
-# - ANSI/UTF8: Text file contents are written as default as UTF8-BOM. 
+# - ANSI/UTF8: Text file contents are written as default as UTF8-BOM for improving compatibility to other platforms besides Windows.
 #   They are read in ANSI if they have no BOM (byte order mark) or otherwise according to BOM.
-#   The reason for this is compatibility to other platforms besides Windows.
-# - Indenting format of this file: The statements of the functions below are indented in this way because funtion names should be easy readable as documentation.
+# - Indenting format of this file: The statements of the functions below are indented in the given way because function names should be easy readable as documentation.
+# - On writing or appending files they automatically create its path parts.
 # - Notes about tracing information lines:
 #   - Progress : Any change of the system will be notified with (Write-Host -ForegroundColor DarkGray). Is enabled as default.
 #   - Verbose  : Some read io will be notified with (Write-Verbose) which can be enabled by VerbosePreference.
@@ -27,27 +27,27 @@
 #
 #
 # Example usages of this module for a .ps1 script:
-#      # my script
+#      # Simple example for using MnCommonPsToolLib 
 #      Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1";
 #      Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
-#      OutInfo "hello world";
-#      OutProgress "working";
+#      OutInfo "Hello world";
+#      OutProgress "Working";
 #      StdInReadLine "Press enter to exit.";
 # or
-#      # my script
+#      # Simple example for using MnCommonPsToolLib with standard interactive mode
 #      Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1";
 #      Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
-#      OutInfo "hello world";
+#      OutInfo "Simple example for using MnCommonPsToolLib with standard interactive mode";
 #      StdOutBegMsgCareInteractiveMode; # will ask: if you are sure (y/n)
-#      OutProgress "changing anything";
+#      OutProgress "Working";
 #      StdOutEndMsgCareInteractiveMode; # will write: Ok, done. Press Enter to Exit
 # or
-#      # my script
+#      # Simple example for using MnCommonPsToolLib with standard interactive mode without request or waiting
 #      Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1";
 #      Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
-#      OutInfo "hello world";
+#      OutInfo "Simple example for using MnCommonPsToolLib with standard interactive mode without request or waiting";
 #      StdOutBegMsgCareInteractiveMode "NoRequestAtBegin, NoWaitAtEnd"; # will nothing write
-#      OutProgress "changing anything";
+#      OutProgress "Working";
 #      StdOutEndMsgCareInteractiveMode; # will write: "Ok, done. Ending in 1 second(s)."
 
 
@@ -195,11 +195,11 @@ function StdErrHandleExc                      ( [System.Management.Automation.Er
                                                 StdOutRedLine $msg;
                                                 if( $global:ModeDisallowInteractions ){ if( $delayInSec -gt 0 ){ StdOutLine "Waiting for $delayInSec seconds."; } ProcessSleepSec $delayInSec; }else{ StdOutRedLine "Press enter to exit"; Read-Host; } }
 function StdPipelineErrorWriteMsg             ( [String] $msg ){ Write-Error $msg; } # does not work in powershell-ise, so in general do not use it, use throw
-function StdOutBegMsgCareInteractiveMode      ( [String] $mode = "" ){ # available mode: "NoRequestAtBegin", "NoWaitAtEnd", "MinimizeConsole". Usually this is the first statement in a script after an info line.
+function StdOutBegMsgCareInteractiveMode      ( [String] $mode = "DoRequestAtBegin" ){ # available mode: "DoRequestAtBegin", "NoRequestAtBegin", "NoWaitAtEnd", "MinimizeConsole". Usually this is the first statement in a script after an info line. So you can give your scripts a standard styling.
                                                 ScriptResetRc; [String[]] $modes = @()+($mode -split "," | ForEach-Object{ $_.Trim() });
-                                                Assert ((@()+($modes | Where-Object{ $_ -ne "" -and $_ -ne "NoRequestAtBegin" -and $_ -ne "NoWaitAtEnd" -and $_ -ne "MinimizeConsole"})).Count -eq 0 ) "StdOutBegMsgCareInteractiveMode was called with unknown mode='$mode'";
+                                                Assert ((@()+($modes | Where-Object{ $_ -ne "DoRequestAtBegin" -and $_ -ne "NoRequestAtBegin" -and $_ -ne "NoWaitAtEnd" -and $_ -ne "MinimizeConsole"})).Count -eq 0 ) "StdOutBegMsgCareInteractiveMode was called with unknown mode='$mode'";
                                                 GlobalSetModeNoWaitForEnterAtEnd ($modes -contains "NoWaitAtEnd");
-                                                if( -not $global:ModeDisallowInteractions -and $modes -notcontains "NoRequestAtBegin" ){ StdInAskForAnswerWhenInInteractMode "Are you sure (y/-)? "; }
+                                                if( -not $global:ModeDisallowInteractions -and $modes -notcontains "NoRequestAtBegin" ){ StdInAskForAnswerWhenInInteractMode "Are you sure (y/n)? "; }
                                                 if( $modes -contains "MinimizeConsole" ){ OutProgress "Minimize console"; ProcessSleepSec 0; ConsoleMinimize; } }
 function StdInAskForAnswerWhenInInteractMode  ( [String] $line, [String] $expectedAnswer = "y" ){
                                                 if( -not $global:ModeDisallowInteractions ){ [String] $answer = StdInReadLine $line; if( $answer.ToLower() -ne $expectedAnswer ){ StdOutRedLineAndPerformExit "Aborted"; } } }
@@ -775,6 +775,7 @@ function FileWriteFromString                  ( [String] $file, [String] $conten
                                                 # alternative: Set-Content -Encoding $encoding -Path (FsEntryEsc $file) -Value $content; but this would lock file, and see http://stackoverflow.com/questions/10655788/powershell-set-content-and-out-file-what-is-the-difference
 function FileWriteFromLines                   ( [String] $file, [String[]] $lines, [Boolean] $overwrite = $false, [String] $encoding = "UTF8" ){ 
                                                 OutProgress "WriteFile $file"; FsEntryCreateParentDir $file; $lines | Out-File -Force -NoClobber:$(-not $overwrite) -Encoding $encoding -LiteralPath $file; }
+function FileCreateEmpty                      ( [String] $file, [Boolean] $overwrite = $false ){ if( $overwrite ){ OutProgress "FileCreateEmpty-ByOverwrite $file"; } FsEntryCreateParentDir $file; Out-File -Force -NoClobber:$(-not $overwrite) -Encoding ASCII -LiteralPath $file; }
 function FileAppendLineWithTs                 ( [String] $file, [String] $line ){ FileAppendLine $file "$(DateTimeAsStringIso) $line"; }
 function FileAppendLine                       ( [String] $file, [String] $line, [Boolean] $tsPrefix = $false ){ 
                                                 FsEntryCreateParentDir $file; Out-File -Encoding Default -Append -LiteralPath $file -InputObject $line; }
@@ -800,8 +801,7 @@ function FileReadEncoding                     ( [String] $file ){
                                                 if($b.Length -ge 4 -and $b[0] -eq 0xfb -and $b[1] -eq 0xee -and $b[2] -eq 0x28                     ){ return [String] "BOCU-1"           ; }
                                                 if($b.Length -ge 4 -and $b[0] -eq 0x84 -and $b[1] -eq 0x31 -and $b[2] -eq 0x95 -and $b[3] -eq 0x33 ){ return [String] "GB-18030"         ; }
                                                 else                                                                                                { return [String] "Default"          ; } } # codepage=1252; =ANSI
-function FileTouch                            ( [String] $file ){ 
-                                                OutProgress "Touch: `"$file`""; [String[]] $out = & "touch.exe" $file; AssertRcIsOk; }
+function FileTouch                            ( [String] $file ){ OutProgress "Touch: `"$file`""; if( FileExists $file ){ (Get-Item -Force -LiteralPath $file).LastWriteTime = (Get-Date); }else{ FileCreateEmpty $file; } }
 function FileContentsAreEqual                 ( [String] $f1, [String] $f2, [Boolean] $allowSecondFileNotExists = $true ){ # first file must exist
                                                 FileAssertExists $f1; if( $allowSecondFileNotExists -and -not (FileExists $f2) ){ return $false; }
                                                 [System.IO.FileInfo] $fi1 = Get-Item -Force -LiteralPath $f1; [System.IO.FileStream] $fs1 = $null;
