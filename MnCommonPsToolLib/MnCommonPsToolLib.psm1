@@ -2,6 +2,7 @@
 #
 # 2013-2017 produced by Marc Niederwieser, Switzerland. Licensed under GPL3. This is freeware.
 #
+# 2017-12-02  V1.6  improved self-update hash handling
 # 2017-11-22  V1.5  extend functions, improved self-update by hash
 # 2017-10-22  V1.4  extend functions, improve FileContentsAreEqual, self-update
 # 2017-10-10  V1.3  extend functions
