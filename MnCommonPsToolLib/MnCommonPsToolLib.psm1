@@ -58,10 +58,11 @@ Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including unin
 trap [Exception] { $Host.UI.WriteErrorLine($_); break; } # ensure really no exc can continue! Is not called if a catch block is used! It is recommended for client code to use catch blocks for handling exceptions.
 
 # define global variables if they are not yet defined; caller of this script can anytime set or change these variables to control the specified behaviour.
-if( -not [Boolean](Get-Variable ModeHideOutProgress      -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeHideOutProgress      -value $false; }
-if( -not [Boolean](Get-Variable ModeDisallowInteractions -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeDisallowInteractions -value $false; }
-if( -not [Boolean](Get-Variable ModeDisallowElevation    -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeDisallowElevation    -value $false; }
-if( -not [String] (Get-Variable ModeNoWaitForEnterAtEnd  -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeNoWaitForEnterAtEnd  -value $false; }
+if( -not [Boolean](Get-Variable ModeHideOutProgress               -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeHideOutProgress               -value $false; }
+if( -not [Boolean](Get-Variable ModeDisallowInteractions          -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeDisallowInteractions          -value $false; }
+if( -not [Boolean](Get-Variable ModeDisallowElevation             -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeDisallowElevation             -value $false; }
+if( -not [String] (Get-Variable ModeNoWaitForEnterAtEnd           -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeNoWaitForEnterAtEnd           -value $false; }
+if( -not [String] (Get-Variable ArgsForRestartInElevatedAdminMode -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ArgsForRestartInElevatedAdminMode -value @()   ; }
 
 # set some powershell predefined global variables:
 $Global:ErrorActionPreference         = "Stop"                    ; # abort if a called exe will write to stderr, default is 'Continue'.
@@ -264,7 +265,7 @@ function ProcessIsRunningInElevatedAdminMode  (){ return [Boolean] ([Security.Pr
 function ProcessAssertInElevatedAdminMode     (){ if( -not (ProcessIsRunningInElevatedAdminMode) ){ throw [Exception] "Assertion failed because requires to be in elevated admin mode"; } }
 function ProcessRestartInElevatedAdminMode    (){ if( -not (ProcessIsRunningInElevatedAdminMode) ){
                                                 [String[]] $topCallerArguments = @(); # currently it supports no arguments because we do not know how to access them (something like $global:args would be nice)
-                                                [String[]] $cmd = @( (ScriptGetTopCaller) ) + $topCallerArguments;
+                                                [String[]] $cmd = @( (ScriptGetTopCaller) ) + $topCallerArguments + $Global:ArgsForRestartInElevatedAdminMode;
                                                 if( $Global:ModeDisallowInteractions -or $Global:ModeDisallowElevation ){ 
                                                   [String] $msg = "Script is currently not in elevated admin mode but the proceeding statements would require it. "
                                                   $msg += "The calling script=`"$cmd`" has the modes ModeDisallowInteractions=$Global:ModeDisallowInteractions and ModeDisallowElevation=$Global:ModeDisallowElevation, ";
@@ -832,7 +833,17 @@ function FileMove                             ( [String] $srcFile, [String] $tar
                                                 FsEntryCreateParentDir $tarFile; Move-Item -Force:$overwrite -LiteralPath $srcFile -Destination $tarFile; }
 function FileGetHexStringOfHash128BitsMd5     ( [String] $srcFile ){ return [String] (get-filehash -Algorithm "MD5"    $srcFile).Hash; }
 function FileGetHexStringOfHash256BitsSha2    ( [String] $srcFile ){ return [String] (get-filehash -Algorithm "SHA256" $srcFile).Hash; } # 2017-11 ps standard is SHA256, available are: SHA1;SHA256;SHA384;SHA512;MACTripleDES;MD5;RIPEMD160
-function FileGetHexStringOfHash512BitsSha2    ( [String] $srcFile ){ return [String] (get-filehash -Algorithm "SHA512" $srcFile).Hash; }
+function FileGetHexStringOfHash512BitsSha2    ( [String] $srcFile ){ return [String] (get-filehash -Algorithm "SHA512" $srcFile).Hash; } # 2017-12: this is our standard for ps
+function FileUpdateItsHashSha2FileIfNessessary( [String] $srcFile ){
+                                                [String] $hashTarFile = "$srcFile.sha2"; 
+                                                [String] $hashSrc = FileGetHexStringOfHash512BitsSha2 $srcFile;
+                                                [String] $hashTar = $(switch((FileNotExists $hashTarFile) -or (FileGetSize $hashTarFile) -gt 8200){$true{""}default{(FileReadContentAsString $hashTarFile).TrimEnd()}})  ;
+                                                if( $hashSrc -eq $hashTar ){
+                                                  OutProgress "File is up to date, nothing done with '$hashTarFile'.";
+                                                }else{
+                                                  Out-File -Encoding UTF8 -LiteralPath $hashTarFile -Inputobject $hashSrc;
+                                                  OutProgress "Created '$hashTarFile'."; 
+                                                } }
 function DriveMapTypeToString                 ( [UInt32] $driveType ){
                                                 return [String] $(switch($driveType){ 1{"NoRootDir"} 2{"RemovableDisk"} 3{"LocalDisk"} 4{"NetworkDrive"} 5{"CompactDisk"} 6{"RamDisk"} default{"UnknownDriveType=driveType"}}); }
 function DriveList                            (){
@@ -2027,7 +2038,7 @@ function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $
                                                     throw [Exception] "Host '$host' is not pingable."; 
                                                   }
                                                   [String] $hash = CurlDownloadToString $hash512BitsSha2Url;
-                                                  if( $hash -eq (FileGetHexStringOfHash512BitsSha2 $targetFile).TrimEnd() ){
+                                                  if( $hash -eq (FileGetHexStringOfHash512BitsSha2 $targetFile) ){
                                                     OutProgress "Ok, is up to date, nothing done.";
                                                   }else{
                                                     OutProgress "There are changes between the current file and that from url, so going to download and install it.";
@@ -2036,14 +2047,14 @@ function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $
                                                     }
                                                     [String] $tmp = (FileGetTempFile); CurlDownloadFile $url $tmp;
                                                     if( $hash -ne (FileGetHexStringOfHash512BitsSha2 $tmp) ){
-                                                      throw [Exception] "The hash of the downloaded file from $url does not match the content of $hash512BitsSha2Url"; 
+                                                      throw [Exception] "The hash of the downloaded file from $url does not match the content of $hash512BitsSha2Url. Probably author did not update hash after updating source, then you must manually get source or wait until author updates hash."; 
                                                     }
                                                     FileMove $tmp $targetFile $true;
                                                     OutSuccess "Ok, updated '$targetFile'. $additionalOkUpdMsg";
                                                   }
                                                   return [Boolean] $true;
                                                 }catch{
-                                                  OutWarning "No update could be done because $($_.Exception.Message)";
+                                                  OutWarning "update failed because $($_.Exception.Message)";
                                                   if( $doWaitIfFailed ){ 
                                                     StdInReadLine "Press enter to continue."; 
                                                   }
@@ -2065,7 +2076,7 @@ Export-ModuleMember -function *; # export all functions from this script which a
 
 trap [Exception] { StdErrHandleExc $_; break; }
 
-function MnLibCommonSelfTest{
+function MnLibCommonSelfTest{ # perform some tests
   Assert ((2 + 3) -eq 5);
   Assert ([Math]::Min(-5,-9) -eq -9);
   Assert ("xyz".substring(1,0) -eq "");
