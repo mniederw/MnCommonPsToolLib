@@ -96,6 +96,7 @@ function ForEachParallel { # based on https://powertoe.wordpress.com/2012/05/03/
   param( [Parameter(Mandatory=$true,position=0)]              [System.Management.Automation.ScriptBlock] $ScriptBlock,
          [Parameter(Mandatory=$true,ValueFromPipeline=$true)] [PSObject]                                 $InputObject,
          [Parameter(Mandatory=$false)]                        [Int32]                                    $MaxThreads=8 )
+  # note: for some unknown reason we sometimes get a red line "One or more errors occurred." but it continuous successfully.
   BEGIN{
     try{
       $iss = [System.Management.Automation.Runspaces.Initialsessionstate]::CreateDefault();
@@ -107,8 +108,7 @@ function ForEachParallel { # based on https://powertoe.wordpress.com/2012/05/03/
     try{
       $powershell = [powershell]::Create().addscript($scriptblock).addargument($InputObject); 
       $powershell.runspacepool = $pool;
-      $threads += @{ instance = $powershell; 
-        handle = $powershell.begininvoke(); };
+      $threads += @{ instance = $powershell; handle = $powershell.begininvoke(); };
     }catch{ $Host.UI.WriteErrorLine("ForEachParallel-PROCESS: $($_)");  }
   }END{
     try{
@@ -117,9 +117,8 @@ function ForEachParallel { # based on https://powertoe.wordpress.com/2012/05/03/
           $thread = $threads[$i];
           if( $thread ){
             if( $thread.handle.iscompleted ){ 
-              $thread.instance.endinvoke($thread.handle); 
-              $thread.instance.dispose(); $threads[$i] = $null; }
-            else { $notdone = $true; }
+              $thread.instance.endinvoke($thread.handle); $thread.instance.dispose(); $threads[$i] = $null;
+            }else{ $notdone = $true; }
           }
         }
       }

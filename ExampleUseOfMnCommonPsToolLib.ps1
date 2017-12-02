@@ -39,16 +39,16 @@ function TestFsEntries(){
 }
 
 function TestParallelScripts1 {
-  OutInfo "Test 5 parallel scripts which each is waiting 1 second";
+  OutInfo "Test 4 parallel scripts which each is waiting 1 second";
   [DateTime] $startedAt = Get-Date;
-  (0..5) |ForEachParallel { OutProgress "Running script nr: $_ and wait one second."; sleep 1; }
+  (0..4) |ForEachParallel { OutProgress "Running script nr: $_ and wait one second."; sleep 1; }
   OutProgress "Total used time: $((New-Timespan -Start $startedAt -End (Get-Date)).ToString('d\ hh\:mm\:ss\.fff'))";
 }
 
 function TestParallelScripts2 {
-  OutInfo "Test 5 parallel scripts which each is waiting some random seconds between 1.1 and 1.9 seconds";
+  OutInfo "Test 4 parallel scripts which each is waiting some random seconds between 1.1 and 1.9 seconds";
   [DateTime] $startedAt = Get-Date;
-  (0..5) | ForEachParallel -MaxThreads 2 { $t = 1.0 + ((Get-Random -Minimum 1 -Maximum 9) / 10); OutProgress "Running script nr: $_ and wait $t seconds."; sleep $t; };
+  (0..4) | ForEachParallel -MaxThreads 2 { $t = 1.0 + ((Get-Random -Minimum 1 -Maximum 9) / 10); OutProgress "Running script nr: $_ and wait $t seconds."; sleep $t; };
   OutProgress "Total used time: $((New-Timespan -Start $startedAt -End (Get-Date)).ToString('d\ hh\:mm\:ss\.fff'))";
 }
 
