@@ -113,12 +113,12 @@ function ForEachParallel { # based on https://powertoe.wordpress.com/2012/05/03/
     }catch{ $Host.UI.WriteErrorLine("ForEachParallel-PROCESS: $($_)");  }
   }END{
     try{
-      [Boolean] $notdone = $true; while( $notdone ){ $notdone = $false;
+      [Boolean] $notdone = $true; while( $notdone ){ $notdone = $false; [System.Threading.Thread]::Sleep(200);
         for( [Int32] $i = 0; $i -lt $threads.count; $i++ ){
           $thread = $threads[$i];
-          if( $thread ){
+          if( $thread.handle ){
             if( $thread.handle.iscompleted ){ 
-              $thread.instance.endinvoke($thread.handle); $thread.instance.dispose(); $threads[$i] = $null;
+              $thread.instance.endinvoke($thread.handle); $thread.instance.dispose(); $threads[$i].handle = $null;
             }else{ $notdone = $true; }
           }
         }
@@ -2038,7 +2038,8 @@ function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $
                                                     throw [Exception] "Host '$host' is not pingable."; 
                                                   }
                                                   [String] $hash = (CurlDownloadToString $hash512BitsSha2Url).TrimEnd();
-                                                  if( $hash -eq (FileGetHexStringOfHash512BitsSha2 $targetFile) ){
+                                                  [String] $hash2 = FileGetHexStringOfHash512BitsSha2 $targetFile;
+                                                  if( $hash -eq $hash2 ){
                                                     OutProgress "Ok, is up to date, nothing done.";
                                                   }else{
                                                     OutProgress "There are changes between the current file and that from url, so going to download and install it.";
@@ -2066,7 +2067,7 @@ function MnCommonPsToolLibSelfUpdate          ( [Boolean] $doWaitForEnterKeyIfFa
                                                 [String] $tarRootDir = "$Env:ProgramW6432\WindowsPowerShell\Modules"; # more see: https://msdn.microsoft.com/en-us/library/dd878350(v=vs.85).aspx
                                                 [String] $moduleFile = "$tarRootDir\$moduleName\$moduleName.psm1";                                               
                                                 [String] $url = "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/master/$moduleName/$moduleName.psm1";
-                                                [String] $additionalOkUpdMsg = "`n  Please restart all processes which are using it.";
+                                                [String] $additionalOkUpdMsg = "`n  Please restart all processes which may have an old version of the modified env-vars before using functions of this library.";
                                                 [Boolean] $dummyResult = ToolPerformFileUpdateAndIsActualized $moduleFile $url $true $doWaitForEnterKeyIfFailed $additionalOkUpdMsg;
                                               }
 

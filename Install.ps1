@@ -56,6 +56,8 @@ OutProgress     "  ps module path environment variable ($envVar). ";
 OutProgress     "  An uninstallation does both, it removes the copied folder from the common ps ";
 OutProgress     "  module folder for all users and it removes the path entry from the ps module ";
 OutProgress     "  path environment variable. ";
+OutProgress     "  (*) Before using these commands after switching install mode you probably ";
+OutProgress     "  need to restart your calling shell or program as example a file manager. ";
 OutProgress     "  By using this software you agree with the terms of GPL3. ";
 OutProgress     "  ";
 OutProgress     "  Current environment:";
@@ -67,8 +69,8 @@ OutInfo         "";
 OutInfo         "  I = Install or reinstall in standard mode. ";
 OutInfo         "  A = Alternative installation for developers to change and test the module. ";
 OutInfo         "  N = Uninstall. ";
-OutInfo         "  U = When installed in standard mode do update from web. ";
-if( $isDev ){ OutInfo "  H = For developer and when installed: actualize sha2 hash file of library. "; }
+OutInfo         "  U = When installed (*) in standard mode do update from web. ";
+if( $isDev ){ OutInfo "  H = For developer and when installed (*): actualize sha2 hash file of library. "; }
 OutInfo         "  Q = Quit. `n";
 if( $sel -ne "" ){ OutProgress "Selection: $sel "; }
 while( @("I","A","N","U","Q","H") -notcontains $sel ){
@@ -79,7 +81,7 @@ $Global:ArgsForRestartInElevatedAdminMode = $sel;
 if( $sel -eq "N"             ){ UninstallDir $moduleTarDir; UninstallSrcPath $srcRootDir;                                       OutCurrentInstallState $srcRootDir $moduleTarDir "Green"; }
 if( $sel -eq "I"             ){ UninstallDir $moduleTarDir; UninstallSrcPath $srcRootDir; InstallDir $moduleSrcDir $tarRootDir; OutCurrentInstallState $srcRootDir $moduleTarDir "Green"; }
 if( $sel -eq "A"             ){ UninstallDir $moduleTarDir; InstallSrcPathToPsModulePathIfNotInst $srcRootDir;                  OutCurrentInstallState $srcRootDir $moduleTarDir "Green"; }
-if( $sel -eq "U"             ){ $PSModuleAutoLoadingPreference = "All"; MnCommonPsToolLibSelfUpdate; }
-if( $sel -eq "H" -and $isDev ){ $PSModuleAutoLoadingPreference = "All"; FileUpdateItsHashSha2FileIfNessessary "$moduleSrcDir\$moduleName.psm1"; }
+if( $sel -eq "U"             ){ $PSModuleAutoLoadingPreference = "All"; MnCommonPsToolLib\MnCommonPsToolLibSelfUpdate; }
+if( $sel -eq "H" -and $isDev ){ $PSModuleAutoLoadingPreference = "All"; MnCommonPsToolLib\FileUpdateItsHashSha2FileIfNessessary "$moduleSrcDir\$moduleName.psm1"; }
 if( $sel -eq "Q"             ){ OutProgress "Quit."; }
 OutQuestion "Finished. Press enter to exit. "; Read-Host;
