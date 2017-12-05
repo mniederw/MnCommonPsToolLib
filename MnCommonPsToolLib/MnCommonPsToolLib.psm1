@@ -2047,8 +2047,15 @@ function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $
                                                       ProcessRestartInElevatedAdminMode; 
                                                     }
                                                     [String] $tmp = (FileGetTempFile); CurlDownloadFile $url $tmp;
-                                                    if( $hash -ne (FileGetHexStringOfHash512BitsSha2 $tmp) ){
-                                                      throw [Exception] "The hash of the downloaded file from $url`n  does not match the content of $hash512BitsSha2Url.`n  Probably author did not update hash after updating source, then you must manually get source or wait until author updates hash."; 
+                                                    [String] $hash3 = (FileGetHexStringOfHash512BitsSha2 $tmp);
+                                                    if( $hash -ne $hash3 ){
+                                                      throw [Exception] ("The hash of the downloaded file from $url`n"`
+                                                        +"  (=$hash3)"`
+                                                        +"  does not match the content of $hash512BitsSha2Url.`n"`
+                                                        +"  (=$hash)"`
+                                                        +"  Probably author did not update hash after updating source, then you must manually get source or wait until author updates hash."`
+                                                        +"  "); 
+                                                      throw [Exception] 
                                                     }
                                                     FileMove $tmp $targetFile $true;
                                                     OutSuccess "Ok, updated '$targetFile'. $additionalOkUpdMsg";
