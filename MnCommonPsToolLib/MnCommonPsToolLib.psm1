@@ -2,13 +2,14 @@
 #
 # 2013-2017 produced by Marc Niederwieser, Switzerland. Licensed under GPL3. This is freeware.
 #
+# 2017-12-16  V1.7  fix WgetDownloadSite
 # 2017-12-02  V1.6  improved self-update hash handling, improve touch.
-# 2017-11-22  V1.5  extend functions, improved self-update by hash
-# 2017-10-22  V1.4  extend functions, improve FileContentsAreEqual, self-update
-# 2017-10-10  V1.3  extend functions
-# 2017-09-08  V1.2  extend by jobs, parallel
-# 2017-08-11  V1.1  update
-# 2017-06-25  V1.0  published as open source to github
+# 2017-11-22  V1.5  extend functions, improved self-update by hash.
+# 2017-10-22  V1.4  extend functions, improve FileContentsAreEqual, self-update.
+# 2017-10-10  V1.3  extend functions.
+# 2017-09-08  V1.2  extend by jobs, parallel.
+# 2017-08-11  V1.1  update.
+# 2017-06-25  V1.0  published as open source to github.
 #
 # This library encapsulates many common commands for the purpose of:
 #   Making behaviour compatible for usage with powershell.exe and powershell_ise.exe,
@@ -208,19 +209,20 @@ function StdOutEndMsgCareInteractiveMode      ( [Int32] $delayInSec = 1 ){ if( $
 function Assert                               ( [Boolean] $cond, [String] $msg = "" ){ if( -not $cond ){ throw [Exception] "Assertion failed $msg"; } }
 function AssertRcIsOk                         ( [String[]] $linesToOutProgress = $null, [Boolean] $useLinesAsExcMessage = $false ){
                                                 # can also be called with a single string; only nonempty progress lines are given out
-                                                if( ($LASTEXITCODE -ne $null -and $LASTEXITCODE -ne 0) -or -not $?) { # if no windows command was done then $LASTEXITCODE is null
-                                                  [String] $msg = "Last operation failed [rc=$LASTEXITCODE]. ";
+                                                [Int32] $rc = ScriptGetAndClearLastRc; if( $rc -ne 0 ){
+                                                  [String] $msg = "Last operation failed [rc=$rc]. ";
                                                   if( $useLinesAsExcMessage ){
                                                     [String] $out = ([String]$linesToOutProgress).Trim();
-                                                    if( $LASTEXITCODE -eq 1 -and $out -ne "" ){ $msg = ""; }
+                                                    if( $rc -eq 1 -and $out -ne "" ){ $msg = ""; }
                                                     $msg += $out;
                                                   }else{ $linesToOutProgress | Where-Object{ -not [String]::IsNullOrWhiteSpace($_) } | ForEach-Object{ OutProgress $_ }; }
                                                   throw [Exception] $msg; } }
-function ScriptGetProcessCommandLine          (){ return [String] ([environment]::commandline); } # ex: "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" "& \"C:\myscript.ps1\"";
+function ScriptGetAndClearLastRc              (){ [Int32] $rc = 0; if( ($LASTEXITCODE -ne $null -and $LASTEXITCODE -ne 0) -or -not $? ){ $rc = $LASTEXITCODE; ScriptResetRc; } return [Int32] $rc; } # if no windows command was done then $LASTEXITCODE is null
 function ScriptResetRc                        (){ $error.clear(); & "cmd.exe" "/C" "EXIT 0"; $error.clear(); AssertRcIsOk; } # reset ERRORLEVEL to 0
 function ScriptNrOfScopes                     (){ [Int32] $i = 1; while($true){ 
                                                 try{ Get-Variable null -Scope $i -ValueOnly -ErrorAction SilentlyContinue | Out-Null; $i++; 
                                                 }catch{ <# ex: System.Management.Automation.PSArgumentOutOfRangeException #> return [Int32] ($i-1); } } }
+function ScriptGetProcessCommandLine          (){ return [String] ([environment]::commandline); } # ex: "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" "& \"C:\myscript.ps1\"";
 function ScriptGetDirOfLibModule              (){ return [String] $PSScriptRoot ; } # get dir       of the script file of this function or empty if not from a script; alternative: [String] $f = ScriptGetFileOfLibModule; if( $f -eq "" ){ return [String] ""; } return [String] (FsEntryGetParentDir $f);
 function ScriptGetFileOfLibModule             (){ return [String] $PSCommandPath; } # get full path of the script file of this function or empty if not from a script. alternative1: try{ return [String] (Get-Variable MyInvocation -Scope 1 -ValueOnly).MyCommand.Path; }catch{ return [String] ""; }  alternative2: $script:MyInvocation.MyCommand.Path
 function ScriptGetCallerOfLibModule           (){ return [String] $MyInvocation.PSCommandPath; } # return empty if called interactive. alternative for dir: $MyInvocation.PSScriptRoot
@@ -259,7 +261,6 @@ function OutProgress                          ( [String] $line, [Int32] $indentL
 function OutProgressText                      ( [String] $str  ){ if( $Global:ModeHideOutProgress ){ return; } Write-Host -ForegroundColor DarkGray -NoNewline $str; }
 function OutVerbose                           ( [String] $line ){ Write-Verbose -Message $line; } # output depends on $VerbosePreference, used tracing read or network operations
 function OutDebug                             ( [String] $line ){ Write-Debug -Message $line; } # output depends on $DebugPreference, used tracing read or network operations
-function OutWarnIfRcNotOkAndResetRc           ( [String] $msg ){ if( ($LASTEXITCODE -ne $null -and $LASTEXITCODE -ne 0) -or -not $?) { OutWarning "Last operation failed [rc=$LASTEXITCODE]. $msg"; ScriptResetRc; } }
 function OutClear                             (){ Clear-Host; }
 function ProcessIsRunningInElevatedAdminMode  (){ return [Boolean] ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"); }
 function ProcessAssertInElevatedAdminMode     (){ if( -not (ProcessIsRunningInElevatedAdminMode) ){ throw [Exception] "Assertion failed because requires to be in elevated admin mode"; } }
@@ -608,10 +609,11 @@ function FsEntryCreateDirSymLink              ( [String] $symLinkDir, [String] $
                                                 [String] $symLinkName = FsEntryGetFileName $symLinkDir;
                                                 & "cmd.exe" "/c" ('mklink /J "'+$symLinkName+'" "'+$symLinkOriginDir+'"'); AssertRcIsOk;
                                                 Set-Location $cd; }
-function FsEntryReportMeasureInfo             ( [String] $fsEntry ){ # works recursive
+function FsEntryReportMeasureInfo             ( [String] $fsEntry ){ # must exists, works recursive
+                                                if( FsEntryNotExists $fsEntry ){ throw [Exception] "File system entry not exists: '$fsEntry'"; }
                                                 [Microsoft.PowerShell.Commands.GenericMeasureInfo] $size = Get-ChildItem -Force -ErrorAction SilentlyContinue -Recurse -LiteralPath $fsEntry |
                                                   Measure-Object -Property length -sum;
-                                                if( $fsEntry -eq $null ){ throw [Exception] "Not exists: '$fsEntry'"; }
+                                                if( $size -eq $null ){ return [String] "SizeInBytes=0; NrOfFsEntries=0;"; }
                                                 return [String] "SizeInBytes=$($size.sum); NrOfFsEntries=$($size.count);"; }
 function FsEntryCreateParentDir               ( [String] $fsEntry ){ [String] $dir = FsEntryGetParentDir $fsEntry; DirCreate $dir; }
 function FsEntryMoveByPatternToDir            ( [String] $fsEntryPattern, [String] $targetDir, [Boolean] $showProgressFiles = $false ){ # target dir must exists
@@ -1066,7 +1068,7 @@ function SqlRunScriptFile                     ( [String] $sqlserver, [String] $s
                                                 [String] $sqlcmd = SqlGetCmdExe;
                                                 FsEntryCreateParentDir $outfile;
                                                 & $sqlcmd "-b" "-S" $sqlserver "-i" $sqlfile "-o" $outfile;
-                                                if( -not $? ){ if( ! $continueOnErr ){ AssertRcIsOk; }else{ OutWarning "Ignore: SqlRunScriptFile '$sqlfile' on '$sqlserver' failed with rc=$LASTEXITCODE, more see outfile, will continue"; } }
+                                                if( -not $? ){ if( ! $continueOnErr ){ AssertRcIsOk; }else{ OutWarning "Ignore: SqlRunScriptFile '$sqlfile' on '$sqlserver' failed with rc=$(ScriptGetAndClearLastRc), more see outfile, will continue"; } }
                                                 FileAssertExists $outfile; }
 function SqlPerformCmd                        ( [String] $server, [String] $db, [String] $cmd ){
                                                 if( -not (Get-Module "sqlps") ){
@@ -1294,7 +1296,7 @@ function StringCommandLineToArray             ( [String] $commandLine ){
                                                 }
                                                 return [String[]] $result; }
 function WgetDownloadSite                     ( [String] $url, [String] $tarDir, [Int32] $level = 999, [Int32] $maxBytes = ([Int32]::MaxValue), [String] $us = "", 
-                                                  [String] $pw = "", [Int32] $limitRateBytesPerSec = ([Int32]::MaxValue), [Boolean] $alsoRetrieveToParentOfUrl = $false ){
+                                                  [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Int32] $limitRateBytesPerSec = ([Int32]::MaxValue), [Boolean] $alsoRetrieveToParentOfUrl = $false ){
                                                 # mirror site to dir; wget: HTTP, SHTTP, FTP.
                                                 [String] $logfn = "$CurrentMonthIsoString.wget.log";
                                                 [String] $logf = "$tarDir\$logfn";
@@ -1321,6 +1323,7 @@ function WgetDownloadSite                     ( [String] $url, [String] $tarDir,
                                                   ,"--password='$pw'"
                                                   #,"--timestamping" 
                                                   ,"--no-clobber" # skip downloads to existing files, either noclobber or timestamping ,"--timestamping"
+                                                  ,$(switch($ignoreSslCheck){$true{"--no-check-certificate"}$false{""}})
                                                   # If a file is downloaded more than once in the same directory, Wget’s behavior depends on a few options, including ‘-nc’.
                                                   # In certain cases, the local file will be clobb  ered, or overwritten, upon repeated download.
                                                   # In other cases it will be preserved.
@@ -1336,7 +1339,6 @@ function WgetDownloadSite                     ( [String] $url, [String] $tarDir,
                                                   #,"--convert-links"  # Convert non-relative links locally    deactivated because:  Both --no-clobber and --convert-links were specified, only --convert-links will be used.
                                                   # --force-html    # When input is read from a file, force it to be treated as an HTML file. This enables you to retrieve relative links from existing HTML files on your local disk, by adding <base href="url"> to HTML, or using the ‘--base’ command-line option.
                                                   # --input-file=$fileslist
-                                                  # --no-check-certificate
                                                   # --ca-certificate file.crt   (more see http://users.ugent.be/~bpuype/wget/#download)
                                                   # more about logon forms: http://wget.addictivecode.org/FrequentlyAskedQuestions
                                                   # backup without file conversions: wget -mirror -p -P c:\wget_files\example2 ftp://username:password@ftp.yourdomain.com
@@ -1345,13 +1347,16 @@ function WgetDownloadSite                     ( [String] $url, [String] $tarDir,
                                                 );
                                                 # maybe we should also: $url/sitemap.xml
                                                 DirCreate $tarDir;
-                                                [String] $stateBefore = FsEntryReportMeasureInfo "$tarDir";
+                                                [String] $stateBefore = FsEntryReportMeasureInfo $tarDir;
                                                 # alternative would be for wget: Invoke-WebRequest
                                                 [String] $wgetExe = ProcessGetCommandInEnvPathOrAltPaths "wget"; # ex: D:\Work\PortableProg\Tool\...
                                                 FileAppendLineWithTs $logf "$wgetExe $url $opt";
                                                 OutProgress "$wgetExe $url $opt";
                                                 & $wgetExe $url $opt "--append-output=$logf";
-                                                OutWarnIfRcNotOkAndResetRc "Ignore errors: 0=OK. 1=Generic. 2=CommandLineOption. 3=FileIo. 4=Network. 5=SslVerification. 6=Authentication. 7=Protocol. 8=ServerIssuedSomeResponse(ex:404NotFound)."
+                                                [Int32] $rc = ScriptGetAndClearLastRc; if( $rc -ne 0 ){
+                                                  [String] $err = switch($rc){ 0 {"OK"} 1 {"Generic"} 2 {"CommandLineOption"} 3 {"FileIo"} 4 {"Network"} 5 {"SslVerification"} 6 {"Authentication"} 7 {"Protocol"} 8 {"ServerIssuedSomeResponse(ex:404NotFound)"} default {"Unknown(rc=$rc)"} };
+                                                  OutWarning "Warning: Ignored one or more occurrences of error: $err. More see logfile=`"$logf`".";
+                                                }
                                                 [String] $state = "TargetDir: $(FsEntryReportMeasureInfo "$tarDir") (BeforeStart: $stateBefore)";
                                                 FileAppendLineWithTs $logf $state;
                                                 OutProgress $state; }

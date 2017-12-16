@@ -57,14 +57,14 @@ OutProgress     "  An uninstallation does both, it removes the copied folder fro
 OutProgress     "  module folder for all users and it removes the path entry from the ps module ";
 OutProgress     "  path environment variable. ";
 OutProgress     "  (*) Before using these commands after switching install mode you probably ";
-OutProgress     "  need to restart your calling shell or program as example a file manager. ";
+OutProgress     "      need to restart your calling shell or program as example a file manager. ";
 OutProgress     "  By using this software you agree with the terms of GPL3. ";
 OutProgress     "  ";
 OutProgress     "  Current environment:";
 OutProgress     "    IsInElevatedAdminMode = $(ProcessIsRunningInElevatedAdminMode).";
 OutProgress     "    SrcRootDir = '$srcRootDir' ";
 OutProgress     "    CommonPsModuleFolderForAllUsers = '$tarRootDir' ";
-OutProgressText "    "; OutCurrentInstallState $srcRootDir $moduleTarDir;
+OutProgressText "    "; OutCurrentInstallState $srcRootDir $moduleTarDir "White";
 OutInfo         "";
 OutInfo         "  I = Install or reinstall in standard mode. ";
 OutInfo         "  A = Alternative installation for developers to change and test the module. ";
