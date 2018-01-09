@@ -81,7 +81,7 @@ $Global:ArgsForRestartInElevatedAdminMode = $sel;
 if( $sel -eq "N"             ){ UninstallDir $moduleTarDir; UninstallSrcPath $srcRootDir;                                       OutCurrentInstallState $srcRootDir $moduleTarDir "Green"; }
 if( $sel -eq "I"             ){ UninstallDir $moduleTarDir; UninstallSrcPath $srcRootDir; InstallDir $moduleSrcDir $tarRootDir; OutCurrentInstallState $srcRootDir $moduleTarDir "Green"; }
 if( $sel -eq "A"             ){ UninstallDir $moduleTarDir; InstallSrcPathToPsModulePathIfNotInst $srcRootDir;                  OutCurrentInstallState $srcRootDir $moduleTarDir "Green"; }
-if( $sel -eq "U"             ){ $PSModuleAutoLoadingPreference = "All"; MnCommonPsToolLib\MnCommonPsToolLibSelfUpdate; }
-if( $sel -eq "H" -and $isDev ){ $PSModuleAutoLoadingPreference = "All"; MnCommonPsToolLib\FileUpdateItsHashSha2FileIfNessessary "$moduleSrcDir\$moduleName.psm1"; }
+if( $sel -eq "U"             ){ $PSModuleAutoLoadingPreference = "All"; try{ MnCommonPsToolLib\MnCommonPsToolLibSelfUpdate;                                            }catch{ Import-Module "MnCommonPsToolLib"; throw; } }
+if( $sel -eq "H" -and $isDev ){ $PSModuleAutoLoadingPreference = "All"; try{ MnCommonPsToolLib\FileUpdateItsHashSha2FileIfNessessary "$moduleSrcDir\$moduleName.psm1"; }catch{ Import-Module "MnCommonPsToolLib"; throw; } }
 if( $sel -eq "Q"             ){ OutProgress "Quit."; }
 OutQuestion "Finished. Press enter to exit. "; Read-Host;

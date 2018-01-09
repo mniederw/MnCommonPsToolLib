@@ -2,6 +2,7 @@
 #
 # 2013-2017 produced by Marc Niederwieser, Switzerland. Licensed under GPL3. This is freeware.
 #
+# 2017-12-30  V1.8  improve RemoveSmb, renamed SvnCheckout to SvnCheckoutAndUpdate and implement retry
 # 2017-12-16  V1.7  fix WgetDownloadSite
 # 2017-12-02  V1.6  improved self-update hash handling, improve touch.
 # 2017-11-22  V1.5  extend functions, improved self-update by hash.
@@ -94,7 +95,7 @@ Import-Module -NoClobber -Name "SmbShare";
 Add-Type -Name Window -Namespace Console -MemberDefinition '[DllImport("Kernel32.dll")] public static extern IntPtr GetConsoleWindow(); [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, Int32 nCmdShow);';
 
 # statement extensions
-function ForEachParallel { # based on https://powertoe.wordpress.com/2012/05/03/foreach-parallel/  ex: (0..20) | ForEachParallel { echo "Nr: $_"; sleep 1; }; (0..5) | ForEachParallel -MaxThreads 2 { echo "Nr: $_"; sleep 1; }
+function ForEachParallel { # based on https://powertoe.wordpress.com/2012/05/03/foreach-parallel/  ex: (0..20) | ForEachParallel { echo "Nr: $_"; Start-Sleep 1; }; (0..5) | ForEachParallel -MaxThreads 2 { echo "Nr: $_"; Start-Sleep 1; }
   param( [Parameter(Mandatory=$true,position=0)]              [System.Management.Automation.ScriptBlock] $ScriptBlock,
          [Parameter(Mandatory=$true,ValueFromPipeline=$true)] [PSObject]                                 $InputObject,
          [Parameter(Mandatory=$false)]                        [Int32]                                    $MaxThreads=8 )
@@ -114,7 +115,7 @@ function ForEachParallel { # based on https://powertoe.wordpress.com/2012/05/03/
     }catch{ $Host.UI.WriteErrorLine("ForEachParallel-PROCESS: $($_)");  }
   }END{
     try{
-      [Boolean] $notdone = $true; while( $notdone ){ $notdone = $false; [System.Threading.Thread]::Sleep(200);
+      [Boolean] $notdone = $true; while( $notdone ){ $notdone = $false; [System.Threading.Thread]::Sleep(200); # in msec
         for( [Int32] $i = 0; $i -lt $threads.count; $i++ ){
           $thread = $threads[$i];
           if( $thread.handle ){
@@ -159,7 +160,7 @@ function StringArrayDistinct                  ( [String[]] $lines ){ return [Str
 function StringPadRight                       ( [String] $s, [Int32] $len, [Boolean] $doQuote = $false  ){ [String] $r = $s; if( $doQuote ){ $r = '"'+$r+'"'; } return [String] $r.PadRight($len); }
 function StringSplitToArray                   ( [String] $sep, [String] $s, [Boolean] $removeEmptyEntries = $true ){ return [String[]] (@()+$s.Split($sep,$(switch($removeEmptyEntries){$true{[System.StringSplitOptions]::RemoveEmptyEntries}default{[System.StringSplitOptions]::None}}))); }
 function StringReplaceEmptyByTwoQuotes        ( [String] $str ){ return [String] $(switch((StringIsNullOrEmpty $str)){$true{"`"`""}default{$str}}); }
-function StringFromException                  ( [Exception] $ex ){ return [String] "$($ex.GetType().Name): $($ex.Message -replace `"`r`n`",`" `") $($ex.Data|ForEach-Object{`"`r`n Data: $($_.Values)]`"})`r`n StackTrace:`r`n$($ex.StackTrace)"; } # note: .Data is never null.
+function StringFromException                  ( [Exception] $ex ){ return [String] "$($ex.GetType().Name): $($ex.Message -replace `"`r`n`",`" `") $($ex.Data|ForEach-Object{`"`r`n Data: $($_.Values)]`"})`r`n StackTrace:`r`n$($ex.StackTrace)"; } # use this if $_.Exception.Message is not enough. note: .Data is never null.
 function DateTimeAsStringForFileName          (){ return [String] (Get-Date -format yyyy-MM-dd_HH_mm); }
 function DateTimeAsStringIso                  ( [String] $fmt = "yyyy-MM-dd HH:mm" ){ return [String] (Get-Date -format $fmt); }
 function DateTimeAsStringIsoDate              (){ return [String] (DateTimeAsStringIso "yyyy-MM-dd"); }
@@ -178,6 +179,7 @@ function StdOutLine                           ( [String] $line ){ $Host.UI.Write
 function StdOutRedLine                        ( [String] $line ){ $Host.UI.WriteErrorLine($line); } # writes an stderr line in red
 function StdOutRedLineAndPerformExit          ( [String] $line, [Int32] $delayInSec = 1 ){ StdOutRedLine $line; if( $global:ModeDisallowInteractions ){ ProcessSleepSec $delayInSec; }else{ StdInReadLine "Press Enter to Exit"; }; Exit 1; }
 function StdErrHandleExc                      ( [System.Management.Automation.ErrorRecord] $er, [Int32] $delayInSec = 1 ){
+                                                # Output full error information in red lines and then either wait for pressing enter or otherwise if interactions are globally disallowed then wait specified delay
                                                 [String] $msg = "$(StringFromException $er.Exception)"; # ex: "ArgumentOutOfRangeException: Specified argument was out of the range of valid values. Parameter name: times  at ..."
                                                 $msg += "`r`n ScriptStackTrace: `r`n   $($er.ScriptStackTrace -replace `"`r`n`",`"`r`n`   `")"; # ex: at <ScriptBlock>, C:\myfile.psm1: line 800 at MyFunc
                                                 $msg += "`r`n InvocationInfo:`r`n   $($er.InvocationInfo.PositionMessage-replace `"`r`n`",`"`r`n`   `" )"; # At D:\myfile.psm1:800 char:83 \n   + ...         } | ForEach-Object{ "    ,`@(0,`"-`",`"T`",`"$($_.Name        ... \n   +                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~; 
@@ -783,8 +785,8 @@ function FileAppendLine                       ( [String] $file, [String] $line, 
                                                 FsEntryCreateParentDir $file; Out-File -Encoding Default -Append -LiteralPath $file -InputObject $line; }
 function FileAppendLines                      ( [String] $file, [String[]] $lines ){ 
                                                 FsEntryCreateParentDir $file; $lines | Out-File -Encoding Default -Append -LiteralPath $file; }
-function FileGetTempFile                      (){ 
-                                                return [Object] [System.IO.Path]::GetTempFileName(); }
+function FileGetTempFile                      (){ return [Object] [System.IO.Path]::GetTempFileName(); }
+function FileDelTempFile                      ( [String] $file ){ if( (FileExists $file) ){ OutDebug "FileDelete -Force '$file'"; Remove-Item -Force -LiteralPath $file; } } # as FileDelete but no progress msg
 function FileReadEncoding                     ( [String] $file ){
                                                 # read BOM = Byte order mark.
                                                 [Byte[]] $b = Get-Content -Encoding Byte -ReadCount 4 -TotalCount 4 -LiteralPath $file; # works also when lesser than 4 bytes
@@ -980,9 +982,10 @@ function MountPointListAll                    (){
 function MountPointGetByDrive                 ( [String] $drive ){ # return null if not found
                                                 if( -not $drive.EndsWith(":") ){ throw [Exception] "Expected drive='$drive' with trailing colon"; }
                                                 return [Object] (Get-SmbMapping -LocalPath $drive -ErrorAction SilentlyContinue); }
-function MountPointRemove                     ( [String] $drive, [String] $mountPoint = "", [Boolean] $suppressProgress = $false ){ # also remove PsDrive
-                                                if( -not $drive.EndsWith(":") ){ throw [Exception] "Expected drive='$drive' with trailing colon"; }
-                                                if( (MountPointGetByDrive $drive) -ne $null ){
+function MountPointRemove                     ( [String] $drive, [String] $mountPoint = "", [Boolean] $suppressProgress = $false ){ # also remove PsDrive; drive can be empty then mountPoint must be given
+                                                if( $drive -eq "" -and $mountPoint -eq "" ){ throw [Exception] "MountPointRemove: missing either drive or mountPoint."; }
+                                                if( $drive -ne "" -and -not $drive.EndsWith(":") ){ throw [Exception] "Expected drive='$drive' with trailing colon"; }
+                                                if( $drive -ne "" -and (MountPointGetByDrive $drive) -ne $null ){
                                                   if( -not $suppressProgress ){ OutProgress "MountPointRemove drive=$drive"; }
                                                   Remove-SmbMapping -LocalPath $drive -Force -UpdateProfile;
                                                 }
@@ -990,10 +993,10 @@ function MountPointRemove                     ( [String] $drive, [String] $mount
                                                   if( -not $suppressProgress ){ OutProgress "MountPointRemovePath $mountPoint"; }
                                                   Remove-SmbMapping -RemotePath $mountPoint -Force -UpdateProfile;
                                                 }
-                                                if( (Get-PSDrive -Name ($drive -replace ":","") -ErrorAction SilentlyContinue) -ne $null ){
+                                                if( $drive -ne "" -and (Get-PSDrive -Name ($drive -replace ":","") -ErrorAction SilentlyContinue) -ne $null ){
                                                   if( -not $suppressProgress ){ OutProgress "MountPointRemovePsDrive $drive"; }
                                                   Remove-PSDrive -Name ($drive -replace ":","") -Force; # force means no confirmation
-                                                } }
+                                                } }                                                
 function MountPointCreate                     ( [String] $drive, [String] $mountPoint, [System.Management.Automation.PSCredential] $cred = $null, [Boolean] $errorAsWarning = $false, [Boolean] $noPreLogMsg = $false ){
                                                 if( -not $drive.EndsWith(":") ){ throw [Exception] "Expected drive='$drive' with trailing colon"; }
                                                 [String] $us = switch($cred -eq $null){ True{"CurrentUser($env:USERNAME)"} default{$cred.UserName}};
@@ -1160,26 +1163,28 @@ function ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [Strin
                                                     $bytes[0x15] = $bytes[0x15] -bor 0x20; # set byte 21 (0x15) bit 6 (0x20) ON
                                                     [IO.File]::WriteAllBytes($lnkFile,$bytes);
                                                   } } }
-function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [String] $sourceDir, [String] $srcMenuLinkFileExtension ){
-                                                # Find all files below sourceDir with the extension srcMenuLinkFileExtension (ex: ".menulink.txt"),
-                                                # which we call these files as menu-item-reference-file.
-                                                # For each of them it will create a menu item below targetMenuRootDir (ex: "$env:APPDATA\Microsoft\Windows\Start Menu\HomePortableProg").
-                                                # The name of the target menu item will be taken from the name of the menu-item-reference-file without the extension.
-                                                # The menu sub folder for the target menu item will be taken from the relative location of the menu-item-reference-file below the sourceDir.
-                                                # The command for the target menu will be taken from the first line of the content of the menu-item-reference-file.
-                                                # if target lnkfile already exists it does nothing.
-                                                # ex: ToolCreateMenuLinksByMenuItemRefFile "$env:APPDATA\Microsoft\Windows\Start Menu\HomePortableProg" "D:\MyPortableProgs" ".menulink.txt";
-                                                [String] $m = FsEntryGetAbsolutePath $targetMenuRootDir; # ex: "C:\Users\u1\AppData\Roaming\Microsoft\Windows\Start Menu\HomePortableProg"
+function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [String] $sourceDir, [String] $srcMenuLinkFileExtension = ".menulink.txt"){
+                                                # Create menu entries based on files below a dir.
+                                                # ex: ToolCreateMenuLinksByMenuItemRefFile "$env:APPDATA\Microsoft\Windows\Start Menu\MyPortableProg" "D:\MyPortableProgs" ".menulink.txt";
+                                                # Find all files below sourceDir with the extension (ex: ".menulink.txt"), which we call them menu-item-reference-file.
+                                                # For each of these files it will create a menu item below the target menu root dir (ex: "$env:APPDATA\Microsoft\Windows\Start Menu\MyPortableProg").
+                                                # The name of the target menu item (ex: "Manufactor ProgramName V1 en 2016") will be taken 
+                                                # from the name of the menu-item-reference-file (...\Manufactor ProgramName V1 en 2016.menulink.txt) without the extension (ex: ".menulink.txt")
+                                                # and the sub menu folder will be taken from the relative location of the menu-item-reference-file below the sourceDir.
+                                                # The command for the target menu will be taken from the first line (ex: "D:\MyPortableProgs\Manufactor ProgramName\AnyProgram.exe")
+                                                # of the content of the menu-item-reference-file. If target lnkfile already exists it does nothing.
+                                                [String] $m = FsEntryGetAbsolutePath $targetMenuRootDir; # ex: "C:\Users\u1\AppData\Roaming\Microsoft\Windows\Start Menu\MyPortableProg"
                                                 [String] $sdir = FsEntryGetAbsolutePath $sourceDir; # ex: "D:\MyPortableProgs"
                                                 OutProgress "Create menu links to '$m' from '$sdir\*$srcMenuLinkFileExtension' files";
                                                 Assert ($srcMenuLinkFileExtension -ne "" -or (-not $srcMenuLinkFileExtension.EndsWith("\"))) "srcMenuLinkFileExtension is empty or has trailing backslash";
+                                                if( -not (DirExists $sdir) ){ OutWarning "Ignoring dir not exists: '$sdir'"; }
                                                 [String[]] $menuLinkFiles = FsEntryListAsStringArray "$sdir\*$srcMenuLinkFileExtension" $true $false | Sort-Object;
                                                 foreach( $f in $menuLinkFiles ){
                                                   [String] $d = FsEntryGetParentDir $f; # ex: "D:\MyPortableProgs\Appl\Graphic"
                                                   if( -not $d.StartsWith($sdir)){ throw [Exception] "Expected '$d' below '$sdir'"; }
                                                   [String] $relBelowSrcDir = $d.Substring($sdir.Length); # ex: "\Appl\Graphic"
                                                   [String] $workDir = "";
-                                                  # ex: "C:\Users\u1\AppData\Roaming\Microsoft\Windows\Start Menu\HomePortableProg\Appl\Graphic\Manufactor ProgramName V1 en 2016.lnk"
+                                                  # ex: "C:\Users\u1\AppData\Roaming\Microsoft\Windows\Start Menu\MyPortableProg\Appl\Graphic\Manufactor ProgramName V1 en 2016.lnk"
                                                   [String] $lnkFile = "$($m)$($relBelowSrcDir)\$((FsEntryGetFileName $f).TrimEnd($srcMenuLinkFileExtension).TrimEnd()).lnk";
                                                   [String] $cmdLine = FileReadContentAsLines $f | Select-Object -First 1;
                                                   [String[]] $ar = StringCommandLineToArray $cmdLine;
@@ -1565,16 +1570,16 @@ function CurlDownloadFile                     ( [String] $url, [String] $tarFile
                                                 AssertRcIsOk; }
 function CurlDownloadToString                 ( [String] $url, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Boolean] $onlyIfNewer = $false ){
                                                 [String] $tmp = (FileGetTempFile); CurlDownloadFile $url $tmp $us $pw $ignoreSslCheck $onlyIfNewer;
-                                                [String] $result = (FileReadContentAsString $tmp); FileDelete $tmp; return [String] $result; }
+                                                [String] $result = (FileReadContentAsString $tmp); FileDelTempFile $tmp; return [String] $result; }
 <# Type: SvnEnvInfo #>                        Add-Type -TypeDefinition "public struct SvnEnvInfo {public string Url; public string Path; public string RealmPattern; public string CachedAuthorizationFile; public string CachedAuthorizationUser; public string Revision; }";
                                                 # ex: Url="https://myhost/svn/Work"; Path="D:\Work"; RealmPattern="https://myhost:443"; CachedAuthorizationFile="$env:APPDATA\Subversion\auth\svn.simple\25ff84926a354d51b4e93754a00064d6"; CachedAuthorizationUser="myuser"; Revision="1234"
 function SvnExe                               (){ 
                                                 return [String] ((RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseSVN" "Directory") + ".\bin\svn.exe"); }
 <# Script local variable: svnLogFile #>       [String] $script:svnLogFile = "$env:TEMP\MnLibCommonSvn.$CurrentMonthIsoString.log";
-function SvnEnvInfoGet                        ( [String] $dir ){
+function SvnEnvInfoGet                        ( [String] $workDir ){
                                                 # return SvnEnvInfo; no param is null.
                                                 OutProgress "SvnEnvInfo - Get svn environment info";
-                                                FileAppendLineWithTs $svnLogFile "SvnEnvInfoGet($dir)";
+                                                FileAppendLineWithTs $svnLogFile "SvnEnvInfoGet($workDir)";
                                                 # example:
                                                 #   Path: D:\Work
                                                 #   Working Copy Root Path: D:\Work
@@ -1588,9 +1593,9 @@ function SvnEnvInfoGet                        ( [String] $dir ){
                                                 #   Last Changed Author: xy
                                                 #   Last Changed Rev: 1234
                                                 #   Last Changed Date: 2013-12-31 23:59:59 +0100 (Mi, 31 Dec 2013)
-                                                [String[]] $out = & (SvnExe) "info" $dir; AssertRcIsOk $out;
+                                                [String[]] $out = & (SvnExe) "info" $workDir; AssertRcIsOk $out;
                                                 FileAppendLines $svnLogFile (StringArrayInsertIndent $out 2);
-                                                [String[]] $out2 = & (SvnExe) "propget" "svn:ignore" "-R" $dir; AssertRcIsOk $out2;
+                                                [String[]] $out2 = & (SvnExe) "propget" "svn:ignore" "-R" $workDir; AssertRcIsOk $out2;
                                                 # example:
                                                 #   work\Users\MyName - test?.txt
                                                 #   test2*.txt
@@ -1667,24 +1672,25 @@ function SvnEnvInfoGet                        ( [String] $dir ){
                                                 }
                                                 OutProgress "SvnEnvInfo: Url=$($result.Url) Path='$($result.Path)' User='$($result.CachedAuthorizationUser)' Revision='$($result.Revision)'"; # not used: RealmPattern='$($r.RealmPattern)' CachedAuthorizationFile='$($r.CachedAuthorizationFile)' 
                                                 return $result; }
-function SvnGetDotSvnDir                      ( $svnWorkDir ){
-                                                [String] $d = FsEntryGetAbsolutePath $svnWorkDir;
+function SvnGetDotSvnDir                      ( $workSubDir ){
+                                                # return absolute .svn dir up from given dir which must exists
+                                                [String] $d = FsEntryGetAbsolutePath $workSubDir;
                                                 for( [Int32] $i = 0; $i -lt 200; $i++ ){
                                                   if( DirExists "$d\.svn" ){ return [String] "$d\.svn"; }
                                                   $d = FsEntryGetAbsolutePath (Join-Path $d "..");
                                                 }
-                                                throw [Exception] "Missing directory '.svn' within or up from the path '$svnWorkDir'"; }
-function SvnAuthorizationSave                ( [String] $dir, [String] $user ){
+                                                throw [Exception] "Missing directory '.svn' within or up from the path '$workSubDir'"; }
+function SvnAuthorizationSave                ( [String] $workDir, [String] $user ){
                                                 # if this part fails then you should clear authorization account in svn settings
                                                 OutProgress "SvnAuthorizationSave user=$user";
-                                                FileAppendLineWithTs $svnLogFile "SvnAuthorizationSave($dir)";
-                                                [String] $dotSvnDir = SvnGetDotSvnDir $dir;
+                                                FileAppendLineWithTs $svnLogFile "SvnAuthorizationSave($workDir)";
+                                                [String] $dotSvnDir = SvnGetDotSvnDir $workDir;
                                                 DirCopyToParentDirByAddAndOverwrite "$env:APPDATA\Subversion\auth\svn.simple" "$dotSvnDir\OwnSvnAuthSimpleSaveUser_$user\"; }
-function SvnAuthorizationTryLoadFile          ( [String] $dir, [String] $user ){
+function SvnAuthorizationTryLoadFile          ( [String] $workDir, [String] $user ){
                                                 # if work auth dir exists then copy content to svn cache dir
                                                 OutProgress "SvnAuthorizationTryLoadFile - try to reload from an earlier save";
-                                                FileAppendLineWithTs $svnLogFile "SvnAuthorizationTryLoadFile($dir)";
-                                                [String] $dotSvnDir = SvnGetDotSvnDir $dir;
+                                                FileAppendLineWithTs $svnLogFile "SvnAuthorizationTryLoadFile($workDir)";
+                                                [String] $dotSvnDir = SvnGetDotSvnDir $workDir;
                                                 [String] $svnWorkAuthDir = "$dotSvnDir\OwnSvnAuthSimpleSaveUser_$user\svn.simple";
                                                 [String] $svnAuthDir = "$env:APPDATA\Subversion\auth\";
                                                 if( DirExists $svnWorkAuthDir ){
@@ -1692,11 +1698,14 @@ function SvnAuthorizationTryLoadFile          ( [String] $dir, [String] $user ){
                                                 }else{
                                                   OutProgress "Load not done because not found dir: '$svnWorkAuthDir'";
                                                 } } # for later usage: function SvnAuthorizationClear (){ FileAppendLineWithTs $svnLogFile "SvnAuthorizationClear"; [String] $svnAuthCurr = "$env:APPDATA\Subversion\auth\svn.simple"; DirCopyToParentDirByAddAndOverwrite $svnAuthCurr $svnAuthWork; }
-function SvnCleanup                           ( [String] $dir ){
-                                                FileAppendLineWithTs $svnLogFile "SvnCleanup($dir)";
-                                                [String[]] $out = & (SvnExe) "cleanup" $dir; AssertRcIsOk $out;
+function SvnCleanup                           ( [String] $workDir ){
+                                                # cleanup a previously failed checkout, update or commit operation.
+                                                FileAppendLineWithTs $svnLogFile "SvnCleanup($workDir)";
+                                                # for future alternative option: --trust-server-cert-failures unknown-ca,cn-mismatch,expired,not-yet-valid,other
+                                                [String[]] $out = & (SvnExe) "cleanup" --non-interactive $workDir; AssertRcIsOk $out;
                                                 FileAppendLines $svnLogFile (StringArrayInsertIndent $out 2); }
-function SvnStatus                            ( [String] $dir, [Boolean] $showFiles ){
+function SvnStatus                            ( [String] $workDir, [Boolean] $showFiles ){
+                                                # return true if it has any pending changes, otherwise false.
                                                 # example: "M       D:\Work\..."
                                                 # first char: Says if item was added, deleted, or otherwise changed
                                                 #   ' ' no modifications
@@ -1736,9 +1745,9 @@ function SvnStatus                            ( [String] $dir, [Boolean] $showFi
                                                 #   ' ' normal
                                                 #   'C' tree-Conflicted
                                                 # If the item is a tree conflict victim, an additional line is printed after the item's status line, explaining the nature of the conflict.
-                                                FileAppendLineWithTs $svnLogFile "SvnStatus($dir)";
+                                                FileAppendLineWithTs $svnLogFile "SvnStatus($workDir)";
                                                 OutVerbose "SvnStatus - List pending changes";
-                                                [String[]] $out = & (SvnExe) "status" $dir; AssertRcIsOk $out;
+                                                [String[]] $out = & (SvnExe) "status" $workDir; AssertRcIsOk $out;
                                                 FileAppendLines $svnLogFile (StringArrayInsertIndent $out 2);
                                                 [Int32] $nrOfPendingChanges = $out | wc -l; # maybe we can ignore lines with '!'
                                                 OutProgress "NrOfPendingChanged=$nrOfPendingChanges";
@@ -1746,57 +1755,94 @@ function SvnStatus                            ( [String] $dir, [Boolean] $showFi
                                                 [Boolean] $hasAnyChange = $nrOfPendingChanges -gt 0;
                                                 if( $showFiles -and $hasAnyChange ){ $out | %{ OutProgress $_; }; }
                                                 return [Boolean] $hasAnyChange; }
-function SvnRevert                            ( [String] $dir, [String[]] $relativeRevertFsEntries ){
+function SvnRevert                            ( [String] $workDir, [String[]] $relativeRevertFsEntries ){
+                                                # undo the specified fs-entries if they have any pending change
                                                 foreach( $f in $relativeRevertFsEntries ){
-                                                  FileAppendLineWithTs $svnLogFile "SvnRevert(`"$dir\$f`")";
-                                                  [String[]] $out = & (SvnExe) "revert" "--recursive" "$dir\$f"; AssertRcIsOk $out;
+                                                  FileAppendLineWithTs $svnLogFile "SvnRevert(`"$workDir\$f`")";
+                                                  [String[]] $out = & (SvnExe) "revert" "--recursive" "$workDir\$f"; AssertRcIsOk $out;
                                                   FileAppendLines $svnLogFile (StringArrayInsertIndent $out 2);
                                                 } }
-function SvnCommit                            ( [String] $dir ){
-                                                FileAppendLineWithTs $svnLogFile "SvnCommit($dir) call checkin dialog";
+function SvnCommit                            ( [String] $workDir ){
+                                                FileAppendLineWithTs $svnLogFile "SvnCommit($workDir) call checkin dialog";
                                                 [String] $tortoiseExe = (RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseSVN" "Directory") + ".\bin\TortoiseProc.exe";
-                                                Start-Process -NoNewWindow -Wait "$tortoiseExe" @("/closeonend:2","/command:commit","/path:`"$dir`""); AssertRcIsOk; }
-function SvnCheckout                          ( [String] $dir, [String] $url, [String] $user ){
-                                                OutProgress "SvnCheckout: Get all changes from $url to '$dir'";
-                                                FileAppendLineWithTs $svnLogFile "SvnCheckout($dir,$url,$user)";
-                                                & (SvnExe) "checkout" "--non-interactive" "--ignore-externals" "--username" $user $url $dir | %{ FileAppendLineWithTs $svnLogFile ("  "+$_); OutProgress $_ 2; };
-                                                # ex: svn: E170013: Unable to connect to a repository at URL 'https://mycomp/svn/Work/mydir'
-                                                #     svn: E230001: Server SSL certificate verification failed: issuer is not trusted   Exception: Last operation failed [rc=1].
-                                                AssertRcIsOk;
-                                                } # alternative tortoiseExe /closeonend:2 /command:checkout /path:$dir /url:$url
-function SvnPreCommitCleanupRevertAndDelFiles ( [String] $svnWorkDir, [String[]] $relativeDelFsEntryPatterns, [String[]] $relativeRevertFsEntries ){
-                                                OutInfo "SvnPreCommitCleanupRevertAndDelFiles '$svnWorkDir'";
-                                                [String] $dotSvnDir = SvnGetDotSvnDir $svnWorkDir;
+                                                Start-Process -NoNewWindow -Wait "$tortoiseExe" @("/closeonend:2","/command:commit","/path:`"$workDir`""); AssertRcIsOk; }
+function SvnUpdate                            ( [String] $workDir, [String] $user ){ SvnCheckoutAndUpdate $workDir "" $user $true; }
+function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url, [String] $user, [Boolean] $doUpdateOnly = $false ){
+                                                # init working copy and get (init and update) last changes. 
+                                                # If specified update only then no url is nessessary but if given then it verifies it.
+                                                # note: we do not use svn-update because svn-checkout does the same (the difference is only the use of an url).
+                                                # note: for some known svn network problems as often after 5-20 GB received it will automatically cleanup, 30 sec wait and retry (max 100 times).
+                                                if( $doUpdateOnly ){ 
+                                                  Assert ((DirExists $workDir) -and (SvnGetDotSvnDir $workDir)) "Missing work dir or it is not a svn repo: '$workDir'";
+                                                  [String] $repoUrl = (SvnEnvInfoGet $workDir).Url;
+                                                  if( $url -eq "" ){ $url = $repoUrl; }else{ Assert ($url -eq $repoUrl) "Given url=$url does not match url in repository: $repoUrl"; }
+                                                }
+                                                [String] $tmp = (FileGetTempFile);
+                                                [Int32] $maxNrOfTries = 100; [Int32] $nrOfTries = 0; while($true){ $nrOfTries++;
+                                                  try{
+                                                    OutProgress "SvnCheckoutAndUpdate: get all changes from $url to '$workDir' $(switch($doUpdateOnly){$true{''}default{'and if it not exists and then init working copy first'}}).";
+                                                    FileAppendLineWithTs $svnLogFile "SvnCheckoutAndUpdate($workDir,$url,$user)";
+                                                    # for future alternative option: --trust-server-cert-failures unknown-ca,cn-mismatch,expired,not-yet-valid,other
+                                                    if( $doUpdateOnly ){
+                                                      & (SvnExe) "update" "--non-interactive" "--ignore-externals" "--username" $user $workDir 2> $tmp | %{ FileAppendLineWithTs $svnLogFile ("  "+$_); OutProgress $_ 2; };
+                                                    }else{
+                                                      # alternative tortoiseExe /closeonend:2 /command:checkout /path:$workDir /url:$url
+                                                      & (SvnExe) "checkout" "--non-interactive" "--ignore-externals" "--username" $user $url $workDir 2> $tmp | %{ FileAppendLineWithTs $svnLogFile ("  "+$_); OutProgress $_ 2; };
+                                                    }
+                                                    AssertRcIsOk (FileReadContentAsLines $tmp) $true;
+                                                    # ex: svn: E170013: Unable to connect to a repository at URL 'https://mycomp/svn/Work/mydir'
+                                                    #     svn: E230001: Server SSL certificate verification failed: issuer is not trusted   Exception: Last operation failed [rc=1].
+                                                    break;
+                                                  }catch{
+                                                    # ex: "svn: E120106: ra_serf: The server sent a truncated HTTP response body"
+                                                    # ex: "svn: E155037: Previous operation has not finished; run 'cleanup' if it was interrupted"
+                                                    # ex: "svn: E155004: Run 'svn cleanup' to remove locks (type 'svn help cleanup' for details)"
+                                                    # ex: "svn: E175002: REPORT request on '/svn/Work/!svn/me' failed"
+                                                    # ex: "svn: E200030: sqlite[S10]: disk I/O error, executing statement 'VACUUM '"
+                                                    [String] $m = $_.Exception.Message;
+                                                    [String] $msg = "SvnCheckoutAndUpdate($workDir,$url,$user) failed because $m.";
+                                                    FileAppendLineWithTs $svnLogFile $msg;
+                                                    [Boolean] $isKnownProblemToSolveWithRetry = $m.Contains(" E120106:") -or $m.Contains(" E155037:") -or $m.Contains(" E155004:") -or $m.Contains(" E175002:") -or $m.Contains(" E200030:");
+                                                    if( -not $isKnownProblemToSolveWithRetry -or $nrOfTries -ge $maxNrOfTries ){ throw [Exception] $msg; }
+                                                    [String] $msg2 = "Is try nr $nrOfTries of $maxNrOfTries, will do cleanup, wait 30 sec and if not reached max then retry.";
+                                                    OutWarning "$msg $msg2";
+                                                    FileAppendLineWithTs $svnLogFile $msg2;
+                                                    SvnCleanup $workDir;
+                                                    ProcessSleepSec 30;
+                                                  }finally{ FileDelTempFile $tmp; } } }
+function SvnPreCommitCleanupRevertAndDelFiles ( [String] $workDir, [String[]] $relativeDelFsEntryPatterns, [String[]] $relativeRevertFsEntries ){
+                                                OutInfo "SvnPreCommitCleanupRevertAndDelFiles '$workDir'";
+                                                [String] $dotSvnDir = SvnGetDotSvnDir $workDir;
                                                 [String] $svnRequiresCleanup = "$dotSvnDir\OwnSvnRequiresCleanup.txt";
                                                 if( (FileExists $svnRequiresCleanup) ){ # optimized because it is slow
                                                   OutProgress "SvnCleanup - Perform cleanup because previous run was not completed";
-                                                  SvnCleanup $svnWorkDir;
+                                                  SvnCleanup $workDir;
                                                   FileDelete $svnRequiresCleanup;
                                                 }
                                                 OutProgress "Remove known unused temp, cache and log directories and files";
-                                                FsEntryJoinRelativePatterns $svnWorkDir $relativeDelFsEntryPatterns | 
+                                                FsEntryJoinRelativePatterns $workDir $relativeDelFsEntryPatterns | 
                                                   ForEach-Object{ FsEntryListAsStringArray $_ } | Where-Object{ $_ -ne "" } |
                                                   ForEach-Object{ FileAppendLines $svnLogFile "  Delete: $_"; FsEntryDelete $_; };
                                                 OutProgress "SvnRevert - Restore known unwanted changes of directories and files";
-                                                SvnRevert $svnWorkDir $relativeRevertFsEntries; }
-function SvnCommitAndGet                      ( [String] $svnWorkDir, [String] $svnUrl, [String] $svnUser, [Boolean] $ignoreIfHostNotReachable ){
+                                                SvnRevert $workDir $relativeRevertFsEntries; }
+function SvnCommitAndGet                      ( [String] $workDir, [String] $svnUrl, [String] $svnUser, [Boolean] $ignoreIfHostNotReachable ){
                                                 # assumes stored credentials are matching specified svn user, check svn dir, do svn cleanup, check svn user, delete temporary files, svn commit, svn update
-                                                [String] $traceInfo = "SvnCommitAndGet workdir='$svnWorkDir' url=$svnUrl user=$svnUser";
+                                                [String] $traceInfo = "SvnCommitAndGet workdir='$workDir' url=$svnUrl user=$svnUser";
                                                 OutInfo "$traceInfo svnLogFile='$svnLogFile'";
                                                 FileAppendLineWithTs $svnLogFile ("`r`n"+("-"*80)+"`r`n"+(DateTimeAsStringIso)+" "+$traceInfo);
                                                 try{
-                                                  [String] $dotSvnDir = SvnGetDotSvnDir $svnWorkDir;
+                                                  [String] $dotSvnDir = SvnGetDotSvnDir $workDir;
                                                   [String] $svnRequiresCleanup = "$dotSvnDir\OwnSvnRequiresCleanup.txt";
                                                   # check preconditions
                                                   if( $svnUrl  -eq "" ){ throw [Exception] "SvnUrl is empty which is not allowed"; }
                                                   if( $svnUser -eq "" ){ throw [Exception] "SvnUser is empty which is not allowed"; }
                                                   #
-                                                  [SvnEnvInfo] $r = SvnEnvInfoGet $svnWorkDir;
+                                                  [SvnEnvInfo] $r = SvnEnvInfoGet $workDir;
                                                   #
-                                                  OutProgress "Verify expected SvnUser='$svnUser' matches CachedAuthorizationUser='$($r.CachedAuthorizationUser)' - if last user was not found so try load";
+                                                  OutProgress "Verify expected SvnUser='$svnUser' matches CachedAuthorizationUser='$($r.CachedAuthorizationUser)' - if last user was not found then try to load it";
                                                   if( $r.CachedAuthorizationUser -eq "" ){
-                                                    SvnAuthorizationTryLoadFile $svnWorkDir $svnUser;
-                                                    $r = SvnEnvInfoGet $svnWorkDir;
+                                                    SvnAuthorizationTryLoadFile $workDir $svnUser;
+                                                    $r = SvnEnvInfoGet $workDir;
                                                   }
                                                   if( $r.CachedAuthorizationUser -eq "" ){ throw [Exception] "This script asserts that configured SvnUser='$svnUser' matches last accessed user because it requires stored credentials, but last user was not saved, please call svn-repo-browser, login, save authentication and then retry."; }
                                                   if( $svnUser -ne $r.CachedAuthorizationUser ){ throw [Exception] "Configured SvnUser='$svnUser' does not match last accessed user='$lastUser', please call svn-settings, clear cached authentication-data, call svn-repo-browser, login, save authentication and then retry."; }
@@ -1808,16 +1854,16 @@ function SvnCommitAndGet                      ( [String] $svnWorkDir, [String] $
                                                   }
                                                   #
                                                   FileAppendLineWithTs $svnRequiresCleanup "";
-                                                  [Boolean] $hasAnyChange = SvnStatus $svnWorkDir $false;
+                                                  [Boolean] $hasAnyChange = SvnStatus $workDir $false;
                                                   while( $hasAnyChange ){
                                                     OutProgress "SvnCommit - Calling dialog to checkin all pending changes and wait for end of it";
-                                                    SvnCommit $svnWorkDir;
-                                                    $hasAnyChange = SvnStatus $svnWorkDir $true;
+                                                    SvnCommit $workDir;
+                                                    $hasAnyChange = SvnStatus $workDir $true;
                                                   }
                                                   #
-                                                  SvnCheckout $svnWorkDir $svnUrl $svnUser;
-                                                  SvnAuthorizationSave $svnWorkDir $svnUser;
-                                                  [SvnEnvInfo] $r = SvnEnvInfoGet $svnWorkDir;
+                                                  SvnCheckoutAndUpdate $workDir $svnUrl $svnUser;
+                                                  SvnAuthorizationSave $workDir $svnUser;
+                                                  [SvnEnvInfo] $r = SvnEnvInfoGet $workDir;
                                                   #
                                                   FileDelete $svnRequiresCleanup;
                                                 }catch{
