@@ -2,7 +2,7 @@
 #
 # 2013-2018 produced by Marc Niederwieser, Switzerland. Licensed under GPL3. This is freeware.
 #
-# 2018-01-09  V1.9  unify error messages, improved elevation.
+# 2018-01-09  V1.9  unify error messages, improved elevation, PsDownloadFile.
 # 2017-12-30  V1.8  improve RemoveSmb, renamed SvnCheckout to SvnCheckoutAndUpdate and implement retry
 # 2017-12-16  V1.7  fix WgetDownloadSite
 # 2017-12-02  V1.6  improved self-update hash handling, improve touch.
@@ -188,7 +188,7 @@ function StdErrHandleExc                      ( [System.Management.Automation.Er
                                                 $msg += "`r`n InvocationInfoMyCommand: $($er.InvocationInfo.MyCommand)"; # ex: ForEach-Object
                                                 $msg += "`r`n InvocationInfoInvocationName: $($er.InvocationInfo.InvocationName)"; # ex: ForEach-Object
                                                 $msg += "`r`n InvocationInfoPSScriptRoot: $($er.InvocationInfo.PSScriptRoot)"; # ex: D:\MyModuleDir
-                                                $msg += "`r`n InvocationInfoPSCommandPath: $($er.InvocationInfo.PSCommandPath)"; # ex: D:\Work\PrgCfg\LocalUtility\Modules\AdminCheckAndUpdateSystem.PartManageExecs.psm1
+                                                $msg += "`r`n InvocationInfoPSCommandPath: $($er.InvocationInfo.PSCommandPath)"; # ex: D:\MyToolModule.psm1
                                                 $msg += "`r`n FullyQualifiedErrorId: $($er.FullyQualifiedErrorId)"; # ex: "System.ArgumentOutOfRangeException,Microsoft.PowerShell.Commands.ForEachObjectCommand"
                                                 $msg += "`r`n ErrorRecord: $($er.ToString() -replace `"`r`n`",`" `")"; # ex: "Specified argument was out of the range of valid values. Parametername: times"
                                                 $msg += "`r`n CategoryInfo: $(switch($er.CategoryInfo -ne $null){$true{$er.CategoryInfo.ToString()}default{''}})"; # https://msdn.microsoft.com/en-us/library/system.management.automation.errorcategory(v=vs.85).aspx
@@ -1373,6 +1373,36 @@ function WgetDownloadSite                     ( [String] $url, [String] $tarDir,
                                                 [String] $state = "TargetDir: $(FsEntryReportMeasureInfo "$tarDir") (BeforeStart: $stateBefore)";
                                                 FileAppendLineWithTs $logf $state;
                                                 OutProgress $state; }
+<# Type: ServerCertificateValidationCallback #> Add-Type -TypeDefinition "using System;using System.Net;using System.Net.Security;using System.Security.Cryptography.X509Certificates; public class ServerCertificateValidationCallback { public static void Ignore() { ServicePointManager.ServerCertificateValidationCallback += delegate( Object obj, X509Certificate certificate, X509Chain chain, SslPolicyErrors errors ){ return true; }; } } ";
+function PsDownloadFile                       ( [String] $url, [String] $tarFile, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Boolean] $onlyIfNewer = $false ){
+                                                # powershell internal implementation of curl or wget which works for http, https and ftp only.
+                                                if( $url -eq "" ){ throw [Exception] "Wrong file url: '$url'"; } # alternative check: -or $url.EndsWith("/") 
+                                                if( $us -ne "" -and $pw -eq "" ){ throw [Exception] "Missing password for username=$us"; }
+                                                if( $onlyIfNewer -and (FileExists $tarFile) ){ throw [Exception] "PsDownloadFile with onlyIfNewer is not yet implemented"; }
+                                                [String] $userAgent = "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:40.0) Gecko/20100101 Firefox/40.1";
+                                                OutInfo "PsDownloadFile $url to '$tarFile'";
+                                                [String] $tarDir = FsEntryGetParentDir $tarFile;
+                                                [String] $logf = "$tarDir\$CurrentMonthIsoString.ps.log";
+                                                DirCreate $tarDir;
+                                                FileAppendLineWithTs $logf "Invoke-WebRequest -Uri $url -OutFile $tarFile";
+                                                OutProgress "Logfile: $logf";
+                                                if( $ignoreSslCheck ){
+                                                  # note: this alternative is now obsolete (see https://msdn.microsoft.com/en-us/library/system.net.servicepointmanager.certificatepolicy(v=vs.110).aspx):
+                                                  #   Add-Type -TypeDefinition " using System.Net; using System.Security.Cryptography.X509Certificates; public class TrustAllCertsPolicy : ICertificatePolicy { public bool CheckValidationResult( ServicePoint srvPoint, X509Certificate certificate, WebRequest request, int certificateProblem){ return true; } } ";
+                                                  #   [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy;
+                                                  [ServerCertificateValidationCallback]::Ignore();
+                                                  # Known Bug: we currently do not restore this option so it will influence all following calls
+                                                }
+                                                if( $us -ne "" ){
+                                                  [System.Management.Automation.PSCredential] $cred = (CredentialReadFromParamOrInput $us $pw);
+                                                  Invoke-WebRequest -Uri $url -OutFile $tarFile -TimeoutSec 70 -UserAgent $userAgent -Credential $cred;
+                                                }else{
+                                                  Invoke-WebRequest -Uri $url -OutFile $tarFile -TimeoutSec 70 -UserAgent $userAgent;
+                                                }
+                                                # for future use: -UseDefaultCredentials, -Headers, -MaximumRedirection, -Method, -Body, -ContentType, -TransferEncoding, -InFile
+                                                [String] $stateMsg = "Ok, downloaded $(FileGetSize $tarFile) bytes.";
+                                                FileAppendLineWithTs $logf $stateMsg;
+                                                OutProgress $stateMsg; }
 function CurlDownloadFile                     ( [String] $url, [String] $tarFile, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Boolean] $onlyIfNewer = $false ){
                                                 # download by overwrite to single file, requires curl.exe in path, timestamps are also taken, 
                                                 #   logging info is stored next to downloaded file in $CurrentMonthIsoString.curl.log, 
@@ -1578,6 +1608,9 @@ function CurlDownloadFile                     ( [String] $url, [String] $tarFile
                                                 AssertRcIsOk; }
 function CurlDownloadToString                 ( [String] $url, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Boolean] $onlyIfNewer = $false ){
                                                 [String] $tmp = (FileGetTempFile); CurlDownloadFile $url $tmp $us $pw $ignoreSslCheck $onlyIfNewer;
+                                                [String] $result = (FileReadContentAsString $tmp); FileDelTempFile $tmp; return [String] $result; }
+function PSDownloadToString                   ( [String] $url, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Boolean] $onlyIfNewer = $false ){
+                                                [String] $tmp = (FileGetTempFile); PsDownloadFile $url $tmp $us $pw $ignoreSslCheck $onlyIfNewer;
                                                 [String] $result = (FileReadContentAsString $tmp); FileDelTempFile $tmp; return [String] $result; }
 <# Type: SvnEnvInfo #>                        Add-Type -TypeDefinition "public struct SvnEnvInfo {public string Url; public string Path; public string RealmPattern; public string CachedAuthorizationFile; public string CachedAuthorizationUser; public string Revision; }";
                                                 # ex: Url="https://myhost/svn/Work"; Path="D:\Work"; RealmPattern="https://myhost:443"; CachedAuthorizationFile="$env:APPDATA\Subversion\auth\svn.simple\25ff84926a354d51b4e93754a00064d6"; CachedAuthorizationUser="myuser"; Revision="1234"
@@ -2096,7 +2129,7 @@ function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $
                                                   if( -not (Test-Connection -Cn $host -BufferSize 16 -Count 1 -ea 0 -Quiet) ){ 
                                                     throw [Exception] "Host '$host' is not pingable."; 
                                                   }
-                                                  [String] $hash = (CurlDownloadToString $hash512BitsSha2Url).TrimEnd();
+                                                  [String] $hash = (PsDownloadToString $hash512BitsSha2Url).TrimEnd();
                                                   [String] $hash2 = FileGetHexStringOfHash512BitsSha2 $targetFile;
                                                   if( $hash -eq $hash2 ){
                                                     OutProgress "Ok, is up to date, nothing done.";
@@ -2105,7 +2138,7 @@ function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $
                                                     if( $requireElevatedAdminMode ){ 
                                                       ProcessRestartInElevatedAdminMode; 
                                                     }
-                                                    [String] $tmp = (FileGetTempFile); CurlDownloadFile $url $tmp;
+                                                    [String] $tmp = (FileGetTempFile); PsDownloadFile $url $tmp;
                                                     [String] $hash3 = (FileGetHexStringOfHash512BitsSha2 $tmp);
                                                     if( $hash -ne $hash3 ){
                                                       throw [Exception] ("The hash of the downloaded file from $url`n"`
