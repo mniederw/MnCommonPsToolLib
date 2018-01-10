@@ -1,7 +1,8 @@
 # Common powershell tool library
 #
-# 2013-2017 produced by Marc Niederwieser, Switzerland. Licensed under GPL3. This is freeware.
+# 2013-2018 produced by Marc Niederwieser, Switzerland. Licensed under GPL3. This is freeware.
 #
+# 2018-01-09  V1.9  unify error messages, improved elevation.
 # 2017-12-30  V1.8  improve RemoveSmb, renamed SvnCheckout to SvnCheckoutAndUpdate and implement retry
 # 2017-12-16  V1.7  fix WgetDownloadSite
 # 2017-12-02  V1.6  improved self-update hash handling, improve touch.
@@ -219,6 +220,7 @@ function AssertRcIsOk                         ( [String[]] $linesToOutProgress =
                                                     $msg += $out;
                                                   }else{ $linesToOutProgress | Where-Object{ -not [String]::IsNullOrWhiteSpace($_) } | ForEach-Object{ OutProgress $_ }; }
                                                   throw [Exception] $msg; } }
+function ScriptGetCurrentFunc                 (){ return [String] ((Get-Variable MyInvocation -Scope 1).Value.MyCommand.Name); }
 function ScriptGetAndClearLastRc              (){ [Int32] $rc = 0; if( ($LASTEXITCODE -ne $null -and $LASTEXITCODE -ne 0) -or -not $? ){ $rc = $LASTEXITCODE; ScriptResetRc; } return [Int32] $rc; } # if no windows command was done then $LASTEXITCODE is null
 function ScriptResetRc                        (){ $error.clear(); & "cmd.exe" "/C" "EXIT 0"; $error.clear(); AssertRcIsOk; } # reset ERRORLEVEL to 0
 function ScriptNrOfScopes                     (){ [Int32] $i = 1; while($true){ 
@@ -227,12 +229,14 @@ function ScriptNrOfScopes                     (){ [Int32] $i = 1; while($true){
 function ScriptGetProcessCommandLine          (){ return [String] ([environment]::commandline); } # ex: "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" "& \"C:\myscript.ps1\"";
 function ScriptGetDirOfLibModule              (){ return [String] $PSScriptRoot ; } # get dir       of the script file of this function or empty if not from a script; alternative: [String] $f = ScriptGetFileOfLibModule; if( $f -eq "" ){ return [String] ""; } return [String] (FsEntryGetParentDir $f);
 function ScriptGetFileOfLibModule             (){ return [String] $PSCommandPath; } # get full path of the script file of this function or empty if not from a script. alternative1: try{ return [String] (Get-Variable MyInvocation -Scope 1 -ValueOnly).MyCommand.Path; }catch{ return [String] ""; }  alternative2: $script:MyInvocation.MyCommand.Path
-function ScriptGetCallerOfLibModule           (){ return [String] $MyInvocation.PSCommandPath; } # return empty if called interactive. alternative for dir: $MyInvocation.PSScriptRoot
-function ScriptGetTopCaller                   (){ [String] $f = $global:MyInvocation.MyCommand.Definition.Trim(); # return empty if called interactive. usage ex: "&'C:\Temp\A.ps1'" or '&"C:\Temp\A.ps1"' or on ISE '"C:\Temp\A.ps1"'
+function ScriptGetCallerOfLibModule           (){ return [String] $MyInvocation.PSCommandPath; } # return can be empty or implicit module if called interactive. alternative for dir: $MyInvocation.PSScriptRoot
+function ScriptGetTopCaller                   (){ [String] $f = $global:MyInvocation.MyCommand.Definition.Trim(); # return can be empty or implicit module if called interactive. usage ex: "&'C:\Temp\A.ps1'" or '&"C:\Temp\A.ps1"' or on ISE '"C:\Temp\A.ps1"'
                                                 if( $f -eq "" -or $f -eq "ScriptGetTopCaller" ){ return ""; }
                                                 if( $f.StartsWith("&") ){ $f = $f.Substring(1,$f.Length-1).Trim(); }
                                                 if( ($f -match "^\'.+\'$") -or ($f -match "^\`".+\`"$") ){ $f = $f.Substring(1,$f.Length-2); }
                                                 return [String] $f; }
+function ScriptIsProbablyInteractive          (){ [String] $f = $global:MyInvocation.MyCommand.Definition.Trim(); # return can be empty or implicit module if called interactive. usage ex: "&'C:\Temp\A.ps1'" or '&"C:\Temp\A.ps1"' or on ISE '"C:\Temp\A.ps1"'
+                                                return [Boolean] $f -eq "" -or $f -eq "ScriptGetTopCaller" -or -not $f.StartsWith("&"); }
 function StreamAllProperties                  (){ $input | Select-Object *; }
 function StreamAllPropertyTypes               (){ $input | Get-Member -Type Property; }
 function StreamFilterWhitespaceLines          (){ $input | Where-Object{ -not [String]::IsNullOrWhiteSpace($_) }; }
@@ -268,7 +272,7 @@ function ProcessIsRunningInElevatedAdminMode  (){ return [Boolean] ([Security.Pr
 function ProcessAssertInElevatedAdminMode     (){ if( -not (ProcessIsRunningInElevatedAdminMode) ){ throw [Exception] "Assertion failed because requires to be in elevated admin mode"; } }
 function ProcessRestartInElevatedAdminMode    (){ if( -not (ProcessIsRunningInElevatedAdminMode) ){
                                                 [String[]] $topCallerArguments = @(); # currently it supports no arguments because we do not know how to access them (something like $global:args would be nice)
-                                                [String[]] $cmd = @( (ScriptGetTopCaller) ) + $topCallerArguments + $Global:ArgsForRestartInElevatedAdminMode;
+                                                [String[]] $cmd = @( (ScriptGetTopCaller) ) + $topCallerArguments + $Global:ArgsForRestartInElevatedAdminMode; # ex: "C:\myscr.ps1" or if interactive then statement name ex: "ProcessRestartInElevatedAdminMode"
                                                 if( $Global:ModeDisallowInteractions -or $Global:ModeDisallowElevation ){ 
                                                   [String] $msg = "Script is currently not in elevated admin mode but the proceeding statements would require it. "
                                                   $msg += "The calling script=`"$cmd`" has the modes ModeDisallowInteractions=$Global:ModeDisallowInteractions and ModeDisallowElevation=$Global:ModeDisallowElevation, ";
@@ -276,24 +280,26 @@ function ProcessRestartInElevatedAdminMode    (){ if( -not (ProcessIsRunningInEl
                                                   $msg += "Now it will continue but it will probably fail."; 
                                                   OutWarning $msg;
                                                 }else{
-                                                  OutProgress "Not running in elevated administrator mode so elevate current script and exit: $cmd"; 
-                                                  Start-Process -Verb "RunAs" -FilePath "powershell.exe" -ArgumentList "& `"$cmd`" "; # ex: InvalidOperationException: This command cannot be run due to the error: Der Vorgang wurde durch den Benutzer abgebrochen.
+                                                  $cmd = @("&", "`"$cmd`"" );
+                                                  if( ScriptIsProbablyInteractive ){ $cmd = @("-NoExit") + $cmd; }
+                                                  OutProgress "Not running in elevated administrator mode so elevate current script and exit: powershell.exe $cmd";
+                                                  Start-Process -Verb "RunAs" -FilePath "powershell.exe" -ArgumentList $cmd; # ex: InvalidOperationException: This command cannot be run due to the error: Der Vorgang wurde durch den Benutzer abgebrochen.
                                                   # AssertRcIsOk; seams not to be nessessary
                                                   [Environment]::Exit("0"); # note: 'Exit 0;' would only leave the last '. mycommand' statement.
                                                   throw [Exception] "Exit done, but it did not work, so it throws now an exception.";
                                                 } } }
 function ProcessListRunnings                  (){ return (Get-Process * | Where-Object{ $_.Id -ne 0 } | Sort-Object ProcessName); }
 function ProcessListRunningsAsStringArray     (){ return (ProcessListRunnings | Format-Table -auto -HideTableHeaders " ",ProcessName,ProductVersion,Company | StreamToStringDelEmptyLeadAndTrLines); }
-function ProcessIsRunning                     ( [String] $processName ){ return [Boolean] ((Get-Process -ErrorAction SilentlyContinue $processName) -ne $null); }
+function ProcessIsRunning                     ( [String] $processName ){ return [Boolean] ((Get-Process -ErrorAction SilentlyContinue ($processName -replace ".exe","")) -ne $null); }
 function ProcessKill                          ( [String] $processName ){ [Object] $p = Get-Process ($processName -replace ".exe","") -ErrorAction SilentlyContinue; 
                                                 if( $p -ne $null ){ OutProgress "ProcessKill $processName"; ProcessRestartInElevatedAdminMode; $p.Kill(); } }
 function ProcessSleepSec                      ( [Int32] $sec ){ Start-Sleep -s $sec; }
 function ProcessListInstalledAppx             (){ return [String[]] (Get-AppxPackage | Select-Object PackageFullName | Sort PackageFullName); }
-function ProcessGetCommandInEnvPathOrAltPaths ( [String] $commandNameOptionalWithExtension, [String[]] $alternativePaths = @() ){
+function ProcessGetCommandInEnvPathOrAltPaths ( [String] $commandNameOptionalWithExtension, [String[]] $alternativePaths = @(), [String] $downloadHintMsg ){
                                                 [System.Management.Automation.CommandInfo] $cmd = Get-Command -CommandType Application -Name $commandNameOptionalWithExtension -ErrorAction SilentlyContinue;
                                                 if( $cmd -ne $null ){ return [String] $cmd.Path; }
                                                 foreach( $d in $alternativePaths ){ [String] $f = (Join-Path $d $commandNameOptionalWithExtension); if( (FileExists $f) ){ return $f; } }
-                                                throw [Exception] "ProcessGetCommandInEnvPathOrDirs: commandName='$commandNameOptionalWithExtension' was wether found in env-path='$env:PATH' nor in alternativePaths='$alternativePaths'"; }
+                                                throw [Exception] "$(ScriptGetCurrentFunc): commandName='$commandNameOptionalWithExtension' was wether found in env-path='$env:PATH' nor in alternativePaths='$alternativePaths'. $downloadHintMsg"; }
 function JobStart                             ( [ScriptBlock] $scr, [Object[]] $scrArgs = $null, [String] $name = "Job" ){ # return job object of type PSRemotingJob, the returned object of the script block can later be requested
                                                 return [System.Management.Automation.Job] (Start-Job -name $name -ScriptBlock $scr -ArgumentList $scrArgs); }
 function JobGet                               ( [String] $id ){ return [System.Management.Automation.Job] (Get-Job -Id $id); } # return job object
@@ -387,12 +393,12 @@ function RegistrySetValue                     ( [String] $key, [String] $name, [
                                                 } 
                                                 try{ Set-ItemProperty -Path $key -Name $name -Type $type -Value $val; 
                                                 }catch{ # ex: SecurityException: Requested registry access is not allowed.
-                                                  throw [Exception] "RegistrySetValue($key,$name) failed because $($_.Exception.Message) (often it requires elevated mode)"; } }                                                
+                                                  throw [Exception] "$(ScriptGetCurrentFunc)($key,$name) failed because $($_.Exception.Message) (often it requires elevated mode)"; } }                                                
 function RegistryImportFile                   ( [String] $regFile ){
                                                 OutProgress "RegistryImportFile '$regFile'"; FileAssertExists $regFile; 
                                                 try{ <# stupid, it writes success to stderr #> & "$env:SystemRoot\system32\reg.exe" "IMPORT" $regFile 2>&1 | Out-Null; AssertRcIsOk; 
                                                 }catch{ <# ignore always: System.Management.Automation.RemoteException Der Vorgang wurde erfolgreich beendet. #> [String] $expectedMsg = "Der Vorgang wurde erfolgreich beendet."; 
-                                                  if( $_.Exception.Message -ne $expectedMsg ){ throw [Exception] "RegistryImportFile '$regFile' failed. We expected an exc but this must match '$expectedMsg' but we got: '$($_.Exception.Message)'"; } ScriptResetRc; } }
+                                                  if( $_.Exception.Message -ne $expectedMsg ){ throw [Exception] "$(ScriptGetCurrentFunc)('$regFile') failed. We expected an exc but this must match '$expectedMsg' but we got: '$($_.Exception.Message)'"; } ScriptResetRc; } }
 function RegistryKeyGetAcl                    ( [String] $key ){
                                                 return [System.Security.AccessControl.RegistrySecurity] (Get-Acl -Path $key); } # must be called with shortkey form
 function RegistryKeyGetHkey                   ( [String] $key ){
@@ -402,7 +408,7 @@ function RegistryKeyGetHkey                   ( [String] $key ){
                                                 elseif( $key.StartsWith("HKCC:") ){ return [Microsoft.Win32.Registry]::CurrentConfig; }
                                                 elseif( $key.StartsWith("HKPD:") ){ return [Microsoft.Win32.Registry]::PerformanceData; }
                                                 elseif( $key.StartsWith("HKU:" ) ){ return [Microsoft.Win32.Registry]::Users; }
-                                                else{ throw [Exception] "Unknown HKey in: '$key'"; } }
+                                                else{ throw [Exception] "$(ScriptGetCurrentFunc): Unknown HKey in: '$key'"; } }
 function RegistryKeyGetSubkey                 ( [String] $key ){ 
                                                 return [String] $key.Split(":",2)[1]; }
 function RegistryPrivRuleCreate               ( [System.Security.Principal.IdentityReference] $account, [String] $regRight = "" ){
@@ -420,13 +426,13 @@ function RegistryKeySetOwnerForced            ( [String] $key, [System.Security.
                                                 try{ [Object] $k = (RegistryKeyGetHkey $key).OpenSubKey((RegistryKeyGetSubkey $key),[Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,[System.Security.AccessControl.RegistryRights]::TakeOwnership);
                                                 [Object] $acl = $k.GetAccessControl();
                                                 $acl.SetOwner($account); $k.SetAccessControl($acl); $k.Close();
-                                                }catch{ throw [Exception] "RegistryKeySetOwnerForced($key,$account) failed because $($_.Exception.Message)"; } }
+                                                }catch{ throw [Exception] "$(ScriptGetCurrentFunc)($key,$account) failed because $($_.Exception.Message)"; } }
 function RegistryKeySetAccessRuleForced       ( [String] $key, [System.Security.AccessControl.RegistryAccessRule] $rule ){ # use this if object is protected by TrustedInstaller
                                                 ProcessRestartInElevatedAdminMode; PrivEnableTokenPrivilege SeTakeOwnershipPrivilege; PrivEnableTokenPrivilege SeRestorePrivilege;
                                                 try{ [Object] $k = (RegistryKeyGetHkey $key).OpenSubKey((RegistryKeyGetSubkey $key),[Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,[System.Security.AccessControl.RegistryRights]::TakeOwnership);
                                                   [Object] $acl = $k.GetAccessControl();
                                                   $acl.SetAccessRule($rule); <# alternative: AddAccessRule #> $k.SetAccessControl($acl); $k.Close(); 
-                                                }catch{ throw [Exception] "RegistryKeySetAccessRuleForced($key,$rule) failed because $($_.Exception.Message)"; } }
+                                                }catch{ throw [Exception] "$(ScriptGetCurrentFunc)($key,$rule) failed because $($_.Exception.Message)"; } }
 function OsGetWindowsProductKey               (){
                                                 [String] $map = "BCDFGHJKMPQRTVWXY2346789"; 
                                                 [Object] $value = (Get-ItemProperty "HKLM:\\SOFTWARE\Microsoft\Windows NT\CurrentVersion").digitalproductid[0x34..0x42]; [String] $p = ""; 
@@ -476,12 +482,14 @@ function ServiceSetStartType                  ( [String] $serviceName, [String] 
                                                 [UInt32] $delayedAutostart = RegistryGetValueAsObject $key $regName; # null converted to 0
                                                 [Object] $s = ServiceGet $serviceName; if( $s -eq $null ){ throw [Exception] "Service $serviceName not exists"; }
                                                 if( $s.StartType -ne $startTypeExt -or ($targetDelayedAutostart -ne $null -and $targetDelayedAutostart -ne $delayedAutostart) ){
-                                                  OutProgress "ServiceSetStartType '$serviceName' $startType"; 
+                                                  OutProgress "$(ScriptGetCurrentFunc) '$serviceName' $startType"; 
                                                   if( $s.StartType -ne $startTypeExt ){ 
                                                     ProcessRestartInElevatedAdminMode;
-                                                    try{ Set-Service -Name $serviceName -StartupType $startTypeExt; }catch{ #ex: for aswbIDSAgent which is antivir protection we got: ServiceCommandException: Service ... cannot be configured due to the following error: Zugriff verweigert
+                                                    try{ Set-Service -Name $serviceName -StartupType $startTypeExt;
+                                                    }catch{ #ex: for aswbIDSAgent which is antivir protection we got: ServiceCommandException: Service ... cannot be configured due to the following error: Zugriff verweigert
+                                                      [String] $msg = "$(ScriptGetCurrentFunc)($serviceName,$startType) because $($_.Exception.Message)";
                                                       if( -not $errorAsWarning ){ throw [Exception] $msg; }
-                                                      OutWarning "ignore failing of ServiceSetStartType($serviceName,$startType) because $($_.Exception.Message)";
+                                                      OutWarning "ignore failing of $msg";
                                                     }
                                                   }
                                                   if( $targetDelayedAutostart -ne $null -and $targetDelayedAutostart -ne $delayedAutostart ){
@@ -629,10 +637,10 @@ function FsEntryCopyByPatternByOverwrite      ( [String] $fsEntryPattern, [Strin
 function FsEntryFindNotExistingVersionedName  ( [String] $fsEntry, [String] $ext = ".bck", [Int32] $maxNr = 9999 ){ # return ex: "C:\Dir\MyName.001.bck"
                                                 $fsEntry = (FsEntryGetAbsolutePath $fsEntry);
                                                 while( $fsEntry.EndsWith('\') ){ $fsEntry = $fsEntry.Remove($fsEntry.Length-1); }
-                                                if( $fsEntry.EndsWith('\') ){ throw [Exception] "FsEntryFindNotExistingVersionedName($fsEntry) not available because has trailing backslash"; }
-                                                if( $fsEntry.Length -gt (260-4-$ext.Length) ){ throw [Exception] "FsEntryFindNotExistingVersionedName($fsEntry,$ext) not available because fullpath longer than 260-4-extLength"; }
+                                                if( $fsEntry.EndsWith('\') ){ throw [Exception] "$(ScriptGetCurrentFunc)($fsEntry) not available because has trailing backslash"; }
+                                                if( $fsEntry.Length -gt (260-4-$ext.Length) ){ throw [Exception] "$(ScriptGetCurrentFunc)($fsEntry,$ext) not available because fullpath longer than 260-4-extLength"; }
                                                 [Int32] $n = 1; do{ [String] $newFs = $fsEntry + "." + $n.ToString("D3")+$ext; if( (FsEntryNotExists $newFs) ){ return [String] $newFs; } $n += 1; }until( $n -gt $maxNr );
-                                                throw [Exception] "FsEntryFindNotExistingVersionedName($fsEntry,$ext,$maxNr) not available because reached maxNr"; }
+                                                throw [Exception] "$(ScriptGetCurrentFunc)($fsEntry,$ext,$maxNr) not available because reached maxNr"; }
 function FsEntryAclGet                        ( [String] $fsEntry ){
                                                 ProcessRestartInElevatedAdminMode;
                                                 return [System.Security.AccessControl.FileSystemSecurity] (Get-Acl -Path (FsEntryEsc $fsEntry)); }
@@ -725,7 +733,7 @@ function FsEntryTryForceRenaming              ( [String] $fsEntry, [String] $ext
 function DriveFreeSpace                       ( [String] $drive ){ 
                                                 return [Int64] (Get-PSDrive $drive | Select-Object -ExpandProperty Free); }
 function DirExists                            ( [String] $dir ){ 
-                                                try{ return [Boolean] (Test-Path -PathType Container -LiteralPath $dir); }catch{ throw [Exception] "DirExists($dir) failed because $($_.Exception.Message)"; } }
+                                                try{ return [Boolean] (Test-Path -PathType Container -LiteralPath $dir); }catch{ throw [Exception] "$(ScriptGetCurrentFunc)($dir) failed because $($_.Exception.Message)"; } }
 function DirExistsAssert                      ( [String] $dir ){ 
                                                 if( -not (DirExists $dir) ){ throw [Exception] "Dir not exists: '$dir'."; } }
 function DirCreate                            ( [String] $dir ){ 
@@ -735,14 +743,14 @@ function DirDelete                            ( [String] $dir, [Boolean] $ignore
                                                 if( (DirExists $dir) ){ 
                                                   try{ OutProgress "DirDelete$(switch($ignoreReadonly){$true{''}default{'CareReadonly'}}) '$dir'"; Remove-Item -Force:$ignoreReadonly -Recurse -LiteralPath $dir; 
                                                   }catch{ <# ex: Für das Ausführen des Vorgangs sind keine ausreichenden Berechtigungen vorhanden. #> 
-                                                    throw [Exception] "DirDelete$(switch($ignoreReadonly){$true{''}default{'CareReadonly'}})('$dir') failed because $($_.Exception.Message) (maybe locked or readonly files exists)"; } } }
+                                                    throw [Exception] "$(ScriptGetCurrentFunc)$(switch($ignoreReadonly){$true{''}default{'CareReadonly'}})('$dir') failed because $($_.Exception.Message) (maybe locked or readonly files exists)"; } } }
 function DirDeleteContent                     ( [String] $dir, [Boolean] $ignoreReadonly = $true ){
                                                 # remove dir content if it exists, be careful when using this.
                                                 if( (DirExists $dir) -and (@()+(Get-ChildItem -Force -Directory -LiteralPath $dir)).Count -gt 0 ){ 
                                                   try{ OutProgress "DirDeleteContent$(switch($ignoreReadonly){$true{''}default{'CareReadonly'}}) '$dir'"; 
                                                     Remove-Item -Force:$ignoreReadonly -Recurse "$(FsEntryEsc $dir)\*"; 
                                                   }catch{ <# ex: Für das Ausführen des Vorgangs sind keine ausreichenden Berechtigungen vorhanden. #> 
-                                                    throw [Exception] "DirDeleteContent$(switch($ignoreReadonly){$true{''}default{'CareReadonly'}})('$dir') failed because $($_.Exception.Message) (maybe locked or readonly files exists)"; } } }
+                                                    throw [Exception] "$(ScriptGetCurrentFunc)$(switch($ignoreReadonly){$true{''}default{'CareReadonly'}})('$dir') failed because $($_.Exception.Message) (maybe locked or readonly files exists)"; } } }
 function DirDeleteIfIsEmpty                   ( [String] $dir, [Boolean] $ignoreReadonly = $true ){
                                                 if( (DirExists $dir) -and (@()+(Get-ChildItem -Force -LiteralPath $dir)).Count -eq 0 ){ DirDelete $dir; } }
 function DirCopyToParentDirByAddAndOverwrite  ( [String] $srcDir, [String] $tarParentDir ){ 
@@ -752,7 +760,7 @@ function DirCopyToParentDirByAddAndOverwrite  ( [String] $srcDir, [String] $tarP
 function FileGetSize                          ( [String] $file ){ 
                                                 return [Int64] (Get-ChildItem -Force -File -LiteralPath $file).Length; }
 function FileExists                           ( [String] $file ){ 
-                                                if( $file -eq "" ){ throw [Exception] "FileExists: Empty file name not allowed"; } 
+                                                if( $file -eq "" ){ throw [Exception] "$(ScriptGetCurrentFunc): Empty file name not allowed"; } 
                                                 [String] $f2 = FsEntryGetAbsolutePath $file; if( Test-Path -PathType Leaf -LiteralPath $f2 ){ return $true; }
                                                 # Note: Known bug: Test-Path does not work for hidden and system files, so we need an additional check.
                                                 # Note2: The following would not works on vista and win7-with-ps2: [String] $d = Split-Path $f2; return ([System.IO.Directory]::EnumerateFiles($d) -contains $f2);
@@ -855,7 +863,7 @@ function DriveList                            (){
 function CredentialGetSecureStrFromHexString  ( [String] $text ){ 
                                                 return [System.Security.SecureString] (ConvertTo-SecureString $text); } # will throw if it is not an encrypted string
 function CredentialGetSecureStrFromText       ( [String] $text ){ 
-                                                if( $text -eq "" ){ throw [Exception] "DoEncryptWithCurrentCredentials is not allowed to be called with empty string"; } return [System.Security.SecureString] (ConvertTo-SecureString $text -AsPlainText -Force); }
+                                                if( $text -eq "" ){ throw [Exception] "$(ScriptGetCurrentFunc) is not allowed to be called with empty string"; } return [System.Security.SecureString] (ConvertTo-SecureString $text -AsPlainText -Force); }
 function CredentialGetHexStrFromSecureString  ( [System.Security.SecureString] $code ){ 
                                                 return [String] (ConvertFrom-SecureString $code); } # ex: "ea32f9d30de3d3dc7fcd86a6a8f587ed9"
 function CredentialGetTextFromSecureString    ( [System.Security.SecureString] $code ){ 
@@ -930,7 +938,7 @@ function ShareRemove                          ( [String] $shareName ){
                                                     25{"Net name not found"}
                                                     default{"Unknown rc=$rc"}
                                                   }
-                                                  throw [Exception] "ShareRemove(sharename='$shareName') failed because $errMsg";
+                                                  throw [Exception] "$(ScriptGetCurrentFunc)(sharename='$shareName') failed because $errMsg";
                                                 } }
 function ShareCreate                          ( [String] $shareName, [String] $dir, [String] $typeName = "DiskDrive", [Int32] $nrOfAccessUsers = 25, [String] $descr = "", [Boolean] $ignoreIfAlreadyExists = $true ){
                                                 if( !(DirExists $dir)  ){ throw [Exception] "Cannot create share because original directory not exists: '$dir'"; }
@@ -951,7 +959,7 @@ function ShareCreate                          ( [String] $shareName, [String] $d
                                                 if( $rc -ne 0 ){
                                                   [String] $errMsg = switch( $rc ){ 0{"Ok, Success"} 2{"Access denied"} 8{"Unknown failure"} 9{"Invalid name"} 10{"Invalid level"} 21{"Invalid parameter"} 
                                                     22{"Duplicate share"} 23{"Redirected path"} 24{"Unknown device or directory"} 25{"Net name not found"} default{"Unknown rc=$rc"} }
-                                                  throw [Exception] "ShareCreate(dir='$dir',sharename='$shareName',typenr=$typeNr) failed because $errMsg";
+                                                  throw [Exception] "$(ScriptGetCurrentFunc)(dir='$dir',sharename='$shareName',typenr=$typeNr) failed because $errMsg";
                                                 } }
 function SmbShareListAll2                     ( [String] $selectShareName = "*" ){
                                                 # almost the same as ShareListAll
@@ -983,7 +991,7 @@ function MountPointGetByDrive                 ( [String] $drive ){ # return null
                                                 if( -not $drive.EndsWith(":") ){ throw [Exception] "Expected drive='$drive' with trailing colon"; }
                                                 return [Object] (Get-SmbMapping -LocalPath $drive -ErrorAction SilentlyContinue); }
 function MountPointRemove                     ( [String] $drive, [String] $mountPoint = "", [Boolean] $suppressProgress = $false ){ # also remove PsDrive; drive can be empty then mountPoint must be given
-                                                if( $drive -eq "" -and $mountPoint -eq "" ){ throw [Exception] "MountPointRemove: missing either drive or mountPoint."; }
+                                                if( $drive -eq "" -and $mountPoint -eq "" ){ throw [Exception] "$(ScriptGetCurrentFunc): missing either drive or mountPoint."; }
                                                 if( $drive -ne "" -and -not $drive.EndsWith(":") ){ throw [Exception] "Expected drive='$drive' with trailing colon"; }
                                                 if( $drive -ne "" -and (MountPointGetByDrive $drive) -ne $null ){
                                                   if( -not $suppressProgress ){ OutProgress "MountPointRemove drive=$drive"; }
@@ -1062,7 +1070,7 @@ function SqlGetCmdExe                         (){
                                                 elseif( (RegistryExistsValue $k2 "Path") -and (FileExists ((RegistryGetValueAsString $k2 "Path")+"sqlcmd.EXE")) ){ $k = $k2; }
                                                 elseif( (RegistryExistsValue $k3 "Path") -and (FileExists ((RegistryGetValueAsString $k3 "Path")+"sqlcmd.EXE")) ){ $k = $k3; }
                                                 elseif( (RegistryExistsValue $k4 "Path") -and (FileExists ((RegistryGetValueAsString $k4 "Path")+"sqlcmd.EXE")) ){ $k = $k4; }
-                                                else { throw [Exception] "Wether Sql Server 2016, 2014, 2012 nor 2008 is installed so cannot find sqlcmd.exe"; }
+                                                else { throw [Exception] "Wether Sql Server 2016, 2014, 2012 nor 2008 is installed, so cannot find sqlcmd.exe"; }
                                                 [String] $sqlcmd = (RegistryGetValueAsString $k "Path") + "sqlcmd.EXE"; # "C:\Program Files\Microsoft SQL Server\130\Tools\Binn\sqlcmd.EXE"
                                                 return [String] $sqlcmd; }
 function SqlRunScriptFile                     ( [String] $sqlserver, [String] $sqlfile, [String] $outFile, [Boolean] $continueOnErr ){
@@ -1149,7 +1157,7 @@ function ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [Strin
                                                       # $s.RelativePath = ...
                                                       $s.Save(); # does overwrite; ex: ToolRecreateShortcut "C:\tmp.lnk" "C:\Windows\notepad.exe" "a.tmp" "Call Notepad";
                                                     }catch{
-                                                      throw [Exception] "ToolRecreateShortcut('$workDir','$lnkFile','$srcFile','$argLine','$descr') failed because $($_.Exception.Message)";
+                                                      throw [Exception] "$(ScriptGetCurrentFunc)('$workDir','$lnkFile','$srcFile','$argLine','$descr') failed because $($_.Exception.Message)";
                                                     }
                                                   }
                                                   # alternative:
@@ -1538,7 +1546,7 @@ function CurlDownloadFile                     ( [String] $url, [String] $tarFile
                                                 if( $us -ne "" ){ $opt += @( "--user", "$($us):$pw" ); }
                                                 if( $ignoreSslCheck ){ $opt += "--insecure"; }
                                                 if( $onlyIfNewer -and (FileExists $tarFile) ){ $opt += @( "--time-cond", $tarFile); }
-                                                [String] $curlExe = ProcessGetCommandInEnvPathOrAltPaths "curl.exe";
+                                                [String] $curlExe = ProcessGetCommandInEnvPathOrAltPaths "curl.exe" @() "Please download it from http://curl.haxx.se/download.html and install it and add dir to path env var.";
                                                 [String] $curlCaCert = "$(FsEntryGetParentDir $curlExe)\curl-ca-bundle.crt";
                                                 if( -not $url.StartsWith("http:") -and (FileExists $curlCaCert) ){ $opt += @( "--cacert", $curlCaCert); }
                                                 OutInfo "CurlDownloadFile $url to '$tarFile'";
@@ -1664,7 +1672,7 @@ function SvnEnvInfoGet                        ( [String] $workDir ){
                                                   }
                                                   if( $realm -ne "" ){
                                                     if( $realm.StartsWith("<$($result.RealmPattern)>") ){
-                                                      if( $result.CachedAuthorizationFile -ne "" ){ throw [Exception] "there exist more than one file with realmPattern='$($result.RealmPattern)': '$($result.CachedAuthorizationFile)' and '$f'. "; }
+                                                      if( $result.CachedAuthorizationFile -ne "" ){ throw [Exception] "There exist more than one file with realmPattern='$($result.RealmPattern)': '$($result.CachedAuthorizationFile)' and '$f'. "; }
                                                       $result.CachedAuthorizationFile = $f;
                                                       $result.CachedAuthorizationUser = $user;
                                                     }
@@ -1800,7 +1808,7 @@ function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url
                                                     # ex: "svn: E175002: REPORT request on '/svn/Work/!svn/me' failed"
                                                     # ex: "svn: E200030: sqlite[S10]: disk I/O error, executing statement 'VACUUM '"
                                                     [String] $m = $_.Exception.Message;
-                                                    [String] $msg = "SvnCheckoutAndUpdate($workDir,$url,$user) failed because $m.";
+                                                    [String] $msg = "$(ScriptGetCurrentFunc)($workDir,$url,$user) failed because $m.";
                                                     FileAppendLineWithTs $svnLogFile $msg;
                                                     [Boolean] $isKnownProblemToSolveWithRetry = $m.Contains(" E120106:") -or $m.Contains(" E155037:") -or $m.Contains(" E155004:") -or $m.Contains(" E175002:") -or $m.Contains(" E200030:");
                                                     if( -not $isKnownProblemToSolveWithRetry -or $nrOfTries -ge $maxNrOfTries ){ throw [Exception] $msg; }
@@ -1899,7 +1907,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   # ex: remote: Repository not found. fatal: repository 'https://github.com/mniederw/UnknownRepo/' not found
                                                   # ex: fatal: Not a git repository: 'D:\WorkGit\mniederw\UnknownRepo\.git'
                                                   # ex: error: Your local changes to the following files would be overwritten by merge:
-                                                  [String] $msg = "GitCmd($cmd,$tarRootDir,$url) failed because $($_.Exception.Message)";
+                                                  [String] $msg = "$(ScriptGetCurrentFunc)($cmd,$tarRootDir,$url) failed because $($_.Exception.Message)";
                                                   if( -not $errorAsWarning ){ throw [Exception] $msg; }
                                                   OutWarning $msg;
                                                   ScriptResetRc;
@@ -2106,7 +2114,6 @@ function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $
                                                         +"  (=$hash)"`
                                                         +"  Probably author did not update hash after updating source, then you must manually get source or wait until author updates hash."`
                                                         +"  "); 
-                                                      throw [Exception] 
                                                     }
                                                     FileMove $tmp $targetFile $true;
                                                     OutSuccess "Ok, updated '$targetFile'. $additionalOkUpdMsg";
