@@ -2,6 +2,9 @@
 #
 # 2013-2018 produced by Marc Niederwieser, Switzerland. Licensed under GPL3. This is freeware.
 #
+# 2018-02-14  V1.12 new function StdInAskForBoolean. DirExistsAssert is deprecated, use DirAssertExists instead.
+# 2018-02-06  V1.11 extend functions, fix FsEntryGetFileName.
+# 2018-01-13  V1.10 improve log file names.
 # 2018-01-09  V1.9  unify error messages, improved elevation, PsDownloadFile.
 # 2017-12-30  V1.8  improve RemoveSmb, renamed SvnCheckout to SvnCheckoutAndUpdate and implement retry
 # 2017-12-16  V1.7  fix WgetDownloadSite
@@ -142,6 +145,10 @@ if( (Get-Variable -Scope global -ErrorAction SilentlyContinue -Name ComputerName
   New-Variable -option Constant -scope global -name InfoLineColor                -Value $(switch($Host.Name -eq "Windows PowerShell ISE Host"){$true{"Gray"}default{"White"}}); # ise is white so we need a contrast color
   New-Variable -option Constant -scope global -name ComputerName                 -value ([String]"$env:computername".ToLower());
 }
+
+# Script local variables
+[String] $script:LogDir = "$env:TEMP\MnCommonPsToolLibLog";
+
 # ----- exported tools and types -----
 
 function GlobalSetModeVerboseEnable           ( [Boolean] $val = $true ){ $Global:VerbosePreference = $(switch($val){$true{"Continue"}$false{"SilentlyContinue"}}); }
@@ -175,6 +182,7 @@ function StdInAssertAllowInteractions         (){ if( $global:ModeDisallowIntera
 function StdInReadLine                        ( [String] $line ){ Write-Host -ForegroundColor Cyan -nonewline $line; StdInAssertAllowInteractions; return [String] (Read-Host); }
 function StdInReadLinePw                      ( [String] $line ){ Write-Host -ForegroundColor Cyan -nonewline $line; StdInAssertAllowInteractions; return [System.Security.SecureString] (Read-Host -AsSecureString); }
 function StdInAskForEnter                     (){ [String] $line = StdInReadLine "Press Enter to Exit"; }
+function StdInAskForBoolean                   ( [String] $msg =  "Enter Yes or No (y/n)?", [String] $strForYes = "y", [String] $strForNo = "n" ){ while($true){ Write-Host -ForegroundColor Magenta -NoNewline $msg; [String] $answer = ReadLine ""; if( $answer -eq $strForYes ){ return [Boolean] $true ; } if( $answer -eq $strForNo  ){ return [Boolean] $false; } } }
 function StdInWaitForAKey                     (){ StdInAssertAllowInteractions; $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") | Out-Null; } # does not work in powershell-ise, so in general do not use it, use StdInReadLine()
 function StdOutLine                           ( [String] $line ){ $Host.UI.WriteLine($line); } # writes an stdout line in default color, normally not used, rather use OutInfo because it gives more information what to output
 function StdOutRedLine                        ( [String] $line ){ $Host.UI.WriteErrorLine($line); } # writes an stderr line in red
@@ -268,6 +276,7 @@ function OutProgressText                      ( [String] $str  ){ if( $Global:Mo
 function OutVerbose                           ( [String] $line ){ Write-Verbose -Message $line; } # output depends on $VerbosePreference, used tracing read or network operations
 function OutDebug                             ( [String] $line ){ Write-Debug -Message $line; } # output depends on $DebugPreference, used tracing read or network operations
 function OutClear                             (){ Clear-Host; }
+function ProcessFindExecutableInPath          ( [String] $exec ){ [Object] $p = (Get-Command $exec -ErrorAction SilentlyContinue); if( $p -eq $null ){ return [String] ""; } return [String] $p.Source; } # return full path or empty if not found
 function ProcessIsRunningInElevatedAdminMode  (){ return [Boolean] ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"); }
 function ProcessAssertInElevatedAdminMode     (){ if( -not (ProcessIsRunningInElevatedAdminMode) ){ throw [Exception] "Assertion failed because requires to be in elevated admin mode"; } }
 function ProcessRestartInElevatedAdminMode    (){ if( -not (ProcessIsRunningInElevatedAdminMode) ){
@@ -288,6 +297,7 @@ function ProcessRestartInElevatedAdminMode    (){ if( -not (ProcessIsRunningInEl
                                                   [Environment]::Exit("0"); # note: 'Exit 0;' would only leave the last '. mycommand' statement.
                                                   throw [Exception] "Exit done, but it did not work, so it throws now an exception.";
                                                 } } }
+function ProcessGetCurrentThreadId            (){ return [Int32] [Threading.Thread]::CurrentThread.ManagedThreadId; }
 function ProcessListRunnings                  (){ return (Get-Process * | Where-Object{ $_.Id -ne 0 } | Sort-Object ProcessName); }
 function ProcessListRunningsAsStringArray     (){ return (ProcessListRunnings | Format-Table -auto -HideTableHeaders " ",ProcessName,ProductVersion,Company | StreamToStringDelEmptyLeadAndTrLines); }
 function ProcessIsRunning                     ( [String] $processName ){ return [Boolean] ((Get-Process -ErrorAction SilentlyContinue ($processName -replace ".exe","")) -ne $null); }
@@ -538,9 +548,9 @@ function FsEntryJoinRelativePatterns          ( [String] $rootDir, [String[]] $r
                                                 [String[]] $a = @(); $relativeFsEntriesPatternsSemicolonSeparated | ForEach-Object{ $a += StringSplitToArray ";" $_; };
                                                 return  ($a | ForEach-Object{ "$rootDir\$_" }); }
 function FsEntryGetFileNameWithoutExt         ( [String] $fsEntry ){ 
-                                                return [String] [System.IO.Path]::GetFileNameWithoutExtension($fsEntry); }
+                                                return [String] [System.IO.Path]::GetFileNameWithoutExtension((FsEntryRemoveTrailingBackslash $fsEntry)); }
 function FsEntryGetFileName                   ( [String] $fsEntry ){ 
-                                                return [String] [System.IO.Path]::GetFileName($fsEntry); }
+                                                return [String] [System.IO.Path]::GetFileName((FsEntryRemoveTrailingBackslash $fsEntry)); }
 function FsEntryMakeAbsolutePath              ( [String] $dirWhenFsEntryIsRelative, [String] $fsEntryRelativeOrAbsolute ){ 
                                                 return [String] (FsEntryGetAbsolutePath ([System.IO.Path]::Combine($dirWhenFsEntryIsRelative,$fsEntryRelativeOrAbsolute))); }
 function FsEntryGetDrive                      ( [String] $fsEntry ){ # ex: "C:"
@@ -627,7 +637,7 @@ function FsEntryReportMeasureInfo             ( [String] $fsEntry ){ # must exis
                                                 return [String] "SizeInBytes=$($size.sum); NrOfFsEntries=$($size.count);"; }
 function FsEntryCreateParentDir               ( [String] $fsEntry ){ [String] $dir = FsEntryGetParentDir $fsEntry; DirCreate $dir; }
 function FsEntryMoveByPatternToDir            ( [String] $fsEntryPattern, [String] $targetDir, [Boolean] $showProgressFiles = $false ){ # target dir must exists
-                                                OutProgress "FsEntryMoveByPatternToDir '$fsEntryPattern' to '$targetDir'"; DirExistsAssert $targetDir;
+                                                OutProgress "FsEntryMoveByPatternToDir '$fsEntryPattern' to '$targetDir'"; DirAssertExists $targetDir;
                                                 FsEntryListAsStringArray $fsEntryPattern | Sort-Object | 
                                                   ForEach-Object{ if( $showProgressFiles ){ OutProgress "Source: $_"; }; Move-Item -Force -Path $_ -Destination (FsEntryEsc $targetDir); }; }
 function FsEntryCopyByPatternByOverwrite      ( [String] $fsEntryPattern, [String] $targetDir, [Boolean] $continueOnErr = $false ){ 
@@ -734,7 +744,7 @@ function DriveFreeSpace                       ( [String] $drive ){
                                                 return [Int64] (Get-PSDrive $drive | Select-Object -ExpandProperty Free); }
 function DirExists                            ( [String] $dir ){ 
                                                 try{ return [Boolean] (Test-Path -PathType Container -LiteralPath $dir); }catch{ throw [Exception] "$(ScriptGetCurrentFunc)($dir) failed because $($_.Exception.Message)"; } }
-function DirExistsAssert                      ( [String] $dir ){ 
+function DirAssertExists                      ( [String] $dir ){ 
                                                 if( -not (DirExists $dir) ){ throw [Exception] "Dir not exists: '$dir'."; } }
 function DirCreate                            ( [String] $dir ){ 
                                                 New-Item -type directory -Force (FsEntryEsc $dir) | Out-Null; } # create dir if it not yet exists,;we do not call OutProgress because is not an important change.
@@ -1310,10 +1320,9 @@ function StringCommandLineToArray             ( [String] $commandLine ){
                                                 return [String[]] $result; }
 function WgetDownloadSite                     ( [String] $url, [String] $tarDir, [Int32] $level = 999, [Int32] $maxBytes = ([Int32]::MaxValue), [String] $us = "", 
                                                   [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Int32] $limitRateBytesPerSec = ([Int32]::MaxValue), [Boolean] $alsoRetrieveToParentOfUrl = $false ){
-                                                # mirror site to dir; wget: HTTP, SHTTP, FTP.
-                                                [String] $logfn = "$CurrentMonthIsoString.wget.log";
-                                                [String] $logf = "$tarDir\$logfn";
-                                                OutInfo "WgetDownloadSite from $url to $tarDir (only newer files, logfile=$logfn)";
+                                                # mirror site to dir; wget: HTTP, HTTPS, FTP. Logfile is written into target dir.
+                                                [String] $logf = "$tarDir\.Download.$CurrentMonthIsoString.log";
+                                                OutInfo "WgetDownloadSite from $url to '$tarDir' (only newer files, logfile=`"$logf`")";
                                                 [String[]] $opt = @(
                                                    "--directory-prefix=$tarDir"
                                                   ,$(switch($alsoRetrieveToParentOfUrl){$true{""}$false{"--no-parent"}})
@@ -1365,6 +1374,7 @@ function WgetDownloadSite                     ( [String] $url, [String] $tarDir,
                                                 [String] $wgetExe = ProcessGetCommandInEnvPathOrAltPaths "wget"; # ex: D:\Work\PortableProg\Tool\...
                                                 FileAppendLineWithTs $logf "$wgetExe $url $opt";
                                                 OutProgress "$wgetExe $url $opt";
+                                                OutProgress "Logfile: `"$logf`"";
                                                 & $wgetExe $url $opt "--append-output=$logf";
                                                 [Int32] $rc = ScriptGetAndClearLastRc; if( $rc -ne 0 ){
                                                   [String] $err = switch($rc){ 0 {"OK"} 1 {"Generic"} 2 {"CommandLineOption"} 3 {"FileIo"} 4 {"Network"} 5 {"SslVerification"} 6 {"Authentication"} 7 {"Protocol"} 8 {"ServerIssuedSomeResponse(ex:404NotFound)"} default {"Unknown(rc=$rc)"} };
@@ -1382,10 +1392,10 @@ function PsDownloadFile                       ( [String] $url, [String] $tarFile
                                                 [String] $userAgent = "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:40.0) Gecko/20100101 Firefox/40.1";
                                                 OutInfo "PsDownloadFile $url to '$tarFile'";
                                                 [String] $tarDir = FsEntryGetParentDir $tarFile;
-                                                [String] $logf = "$tarDir\$CurrentMonthIsoString.ps.log";
+                                                [String] $logf = "$LogDir\Download.$CurrentMonthIsoString.$($PID)_$(ProcessGetCurrentThreadId).log";
                                                 DirCreate $tarDir;
                                                 FileAppendLineWithTs $logf "Invoke-WebRequest -Uri $url -OutFile $tarFile";
-                                                OutProgress "Logfile: $logf";
+                                                OutProgress "Logfile: `"$logf`"";
                                                 if( $ignoreSslCheck ){
                                                   # note: this alternative is now obsolete (see https://msdn.microsoft.com/en-us/library/system.net.servicepointmanager.certificatepolicy(v=vs.110).aspx):
                                                   #   Add-Type -TypeDefinition " using System.Net; using System.Security.Cryptography.X509Certificates; public class TrustAllCertsPolicy : ICertificatePolicy { public bool CheckValidationResult( ServicePoint srvPoint, X509Certificate certificate, WebRequest request, int certificateProblem){ return true; } } ";
@@ -1404,8 +1414,7 @@ function PsDownloadFile                       ( [String] $url, [String] $tarFile
                                                 FileAppendLineWithTs $logf $stateMsg;
                                                 OutProgress $stateMsg; }
 function CurlDownloadFile                     ( [String] $url, [String] $tarFile, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Boolean] $onlyIfNewer = $false ){
-                                                # download by overwrite to single file, requires curl.exe in path, timestamps are also taken, 
-                                                #   logging info is stored next to downloaded file in $CurrentMonthIsoString.curl.log, 
+                                                # download a single file by overwrite it, requires curl.exe in path, timestamps are also taken, logging info is stored in a global logfile, 
                                                 #   for user agent info a relative new mozilla firefox is set, if file curl-ca-bundle.crt exists next to curl.exe then this is taken.
                                                 # Supported protocols: DICT, FILE, FTP, FTPS, Gopher, HTTP, HTTPS, IMAP, IMAPS, LDAP, LDAPS, POP3, POP3S, RTMP, RTSP, SCP, SFTP, SMB, SMTP, SMTPS, Telnet and TFTP. 
                                                 # Supported features:  SSL certificates, HTTP POST, HTTP PUT, FTP uploading, HTTP form based upload, proxies, HTTP/2, cookies, 
@@ -1581,10 +1590,10 @@ function CurlDownloadFile                     ( [String] $url, [String] $tarFile
                                                 if( -not $url.StartsWith("http:") -and (FileExists $curlCaCert) ){ $opt += @( "--cacert", $curlCaCert); }
                                                 OutInfo "CurlDownloadFile $url to '$tarFile'";
                                                 [String] $tarDir = FsEntryGetParentDir $tarFile;
-                                                [String] $logf = "$tarDir\$CurrentMonthIsoString.curl.log";
+                                                [String] $logf = "$LogDir\Download.$CurrentMonthIsoString.$($PID)_$(ProcessGetCurrentThreadId).log";
                                                 DirCreate $tarDir;
                                                 FileAppendLineWithTs $logf "$curlExe $opt --url $url";
-                                                OutProgress "Logfile: $logf";
+                                                OutProgress "Logfile: `"$logf`"";
                                                 [String] $out = & $curlExe $opt "--url" $url;
                                                 if( $LASTEXITCODE -eq 60 ){
                                                   # curl: (60) SSL certificate problem: unable to get local issuer certificate. More details here: http://curl.haxx.se/docs/sslcerts.html
@@ -1616,11 +1625,11 @@ function PSDownloadToString                   ( [String] $url, [String] $us = ""
                                                 # ex: Url="https://myhost/svn/Work"; Path="D:\Work"; RealmPattern="https://myhost:443"; CachedAuthorizationFile="$env:APPDATA\Subversion\auth\svn.simple\25ff84926a354d51b4e93754a00064d6"; CachedAuthorizationUser="myuser"; Revision="1234"
 function SvnExe                               (){ 
                                                 return [String] ((RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseSVN" "Directory") + ".\bin\svn.exe"); }
-<# Script local variable: svnLogFile #>       [String] $script:svnLogFile = "$env:TEMP\MnLibCommonSvn.$CurrentMonthIsoString.log";
+<# Script local variable: svnLogFile #>       [String] $script:svnLogFile = "$script:LogDir\Svn.$CurrentMonthIsoString.$($PID)_$(ProcessGetCurrentThreadId).log";
 function SvnEnvInfoGet                        ( [String] $workDir ){
                                                 # return SvnEnvInfo; no param is null.
                                                 OutProgress "SvnEnvInfo - Get svn environment info";
-                                                FileAppendLineWithTs $svnLogFile "SvnEnvInfoGet($workDir)";
+                                                FileAppendLineWithTs $svnLogFile "SvnEnvInfoGet(`"$workDir`")";
                                                 # example:
                                                 #   Path: D:\Work
                                                 #   Working Copy Root Path: D:\Work
@@ -1724,13 +1733,13 @@ function SvnGetDotSvnDir                      ( $workSubDir ){
 function SvnAuthorizationSave                ( [String] $workDir, [String] $user ){
                                                 # if this part fails then you should clear authorization account in svn settings
                                                 OutProgress "SvnAuthorizationSave user=$user";
-                                                FileAppendLineWithTs $svnLogFile "SvnAuthorizationSave($workDir)";
+                                                FileAppendLineWithTs $svnLogFile "SvnAuthorizationSave(`"$workDir`")";
                                                 [String] $dotSvnDir = SvnGetDotSvnDir $workDir;
                                                 DirCopyToParentDirByAddAndOverwrite "$env:APPDATA\Subversion\auth\svn.simple" "$dotSvnDir\OwnSvnAuthSimpleSaveUser_$user\"; }
 function SvnAuthorizationTryLoadFile          ( [String] $workDir, [String] $user ){
                                                 # if work auth dir exists then copy content to svn cache dir
                                                 OutProgress "SvnAuthorizationTryLoadFile - try to reload from an earlier save";
-                                                FileAppendLineWithTs $svnLogFile "SvnAuthorizationTryLoadFile($workDir)";
+                                                FileAppendLineWithTs $svnLogFile "SvnAuthorizationTryLoadFile(`"$workDir`")";
                                                 [String] $dotSvnDir = SvnGetDotSvnDir $workDir;
                                                 [String] $svnWorkAuthDir = "$dotSvnDir\OwnSvnAuthSimpleSaveUser_$user\svn.simple";
                                                 [String] $svnAuthDir = "$env:APPDATA\Subversion\auth\";
@@ -1741,7 +1750,7 @@ function SvnAuthorizationTryLoadFile          ( [String] $workDir, [String] $use
                                                 } } # for later usage: function SvnAuthorizationClear (){ FileAppendLineWithTs $svnLogFile "SvnAuthorizationClear"; [String] $svnAuthCurr = "$env:APPDATA\Subversion\auth\svn.simple"; DirCopyToParentDirByAddAndOverwrite $svnAuthCurr $svnAuthWork; }
 function SvnCleanup                           ( [String] $workDir ){
                                                 # cleanup a previously failed checkout, update or commit operation.
-                                                FileAppendLineWithTs $svnLogFile "SvnCleanup($workDir)";
+                                                FileAppendLineWithTs $svnLogFile "SvnCleanup(`"$workDir`")";
                                                 # for future alternative option: --trust-server-cert-failures unknown-ca,cn-mismatch,expired,not-yet-valid,other
                                                 [String[]] $out = & (SvnExe) "cleanup" --non-interactive $workDir; AssertRcIsOk $out;
                                                 FileAppendLines $svnLogFile (StringArrayInsertIndent $out 2); }
@@ -1786,7 +1795,7 @@ function SvnStatus                            ( [String] $workDir, [Boolean] $sh
                                                 #   ' ' normal
                                                 #   'C' tree-Conflicted
                                                 # If the item is a tree conflict victim, an additional line is printed after the item's status line, explaining the nature of the conflict.
-                                                FileAppendLineWithTs $svnLogFile "SvnStatus($workDir)";
+                                                FileAppendLineWithTs $svnLogFile "SvnStatus(`"$workDir`")";
                                                 OutVerbose "SvnStatus - List pending changes";
                                                 [String[]] $out = & (SvnExe) "status" $workDir; AssertRcIsOk $out;
                                                 FileAppendLines $svnLogFile (StringArrayInsertIndent $out 2);
@@ -1804,7 +1813,7 @@ function SvnRevert                            ( [String] $workDir, [String[]] $r
                                                   FileAppendLines $svnLogFile (StringArrayInsertIndent $out 2);
                                                 } }
 function SvnCommit                            ( [String] $workDir ){
-                                                FileAppendLineWithTs $svnLogFile "SvnCommit($workDir) call checkin dialog";
+                                                FileAppendLineWithTs $svnLogFile "SvnCommit(`"$workDir`") call checkin dialog";
                                                 [String] $tortoiseExe = (RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseSVN" "Directory") + ".\bin\TortoiseProc.exe";
                                                 Start-Process -NoNewWindow -Wait "$tortoiseExe" @("/closeonend:2","/command:commit","/path:`"$workDir`""); AssertRcIsOk; }
 function SvnUpdate                            ( [String] $workDir, [String] $user ){ SvnCheckoutAndUpdate $workDir "" $user $true; }
@@ -1822,7 +1831,7 @@ function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url
                                                 [Int32] $maxNrOfTries = 100; [Int32] $nrOfTries = 0; while($true){ $nrOfTries++;
                                                   try{
                                                     OutProgress "SvnCheckoutAndUpdate: get all changes from $url to '$workDir' $(switch($doUpdateOnly){$true{''}default{'and if it not exists and then init working copy first'}}).";
-                                                    FileAppendLineWithTs $svnLogFile "SvnCheckoutAndUpdate($workDir,$url,$user)";
+                                                    FileAppendLineWithTs $svnLogFile "SvnCheckoutAndUpdate(`"$workDir`",$url,$user)";
                                                     # for future alternative option: --trust-server-cert-failures unknown-ca,cn-mismatch,expired,not-yet-valid,other
                                                     if( $doUpdateOnly ){
                                                       & (SvnExe) "update" "--non-interactive" "--ignore-externals" "--username" $user $workDir 2> $tmp | %{ FileAppendLineWithTs $svnLogFile ("  "+$_); OutProgress $_ 2; };
@@ -1841,7 +1850,7 @@ function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url
                                                     # ex: "svn: E175002: REPORT request on '/svn/Work/!svn/me' failed"
                                                     # ex: "svn: E200030: sqlite[S10]: disk I/O error, executing statement 'VACUUM '"
                                                     [String] $m = $_.Exception.Message;
-                                                    [String] $msg = "$(ScriptGetCurrentFunc)($workDir,$url,$user) failed because $m.";
+                                                    [String] $msg = "$(ScriptGetCurrentFunc)(`"$workDir`",$url,$user) failed because $m.";
                                                     FileAppendLineWithTs $svnLogFile $msg;
                                                     [Boolean] $isKnownProblemToSolveWithRetry = $m.Contains(" E120106:") -or $m.Contains(" E155037:") -or $m.Contains(" E155004:") -or $m.Contains(" E175002:") -or $m.Contains(" E200030:");
                                                     if( -not $isKnownProblemToSolveWithRetry -or $nrOfTries -ge $maxNrOfTries ){ throw [Exception] $msg; }
@@ -1863,13 +1872,13 @@ function SvnPreCommitCleanupRevertAndDelFiles ( [String] $workDir, [String[]] $r
                                                 OutProgress "Remove known unused temp, cache and log directories and files";
                                                 FsEntryJoinRelativePatterns $workDir $relativeDelFsEntryPatterns | 
                                                   ForEach-Object{ FsEntryListAsStringArray $_ } | Where-Object{ $_ -ne "" } |
-                                                  ForEach-Object{ FileAppendLines $svnLogFile "  Delete: $_"; FsEntryDelete $_; };
+                                                  ForEach-Object{ FileAppendLines $svnLogFile "  Delete: `"$_`""; FsEntryDelete $_; };
                                                 OutProgress "SvnRevert - Restore known unwanted changes of directories and files";
                                                 SvnRevert $workDir $relativeRevertFsEntries; }
 function SvnCommitAndGet                      ( [String] $workDir, [String] $svnUrl, [String] $svnUser, [Boolean] $ignoreIfHostNotReachable ){
                                                 # assumes stored credentials are matching specified svn user, check svn dir, do svn cleanup, check svn user, delete temporary files, svn commit, svn update
                                                 [String] $traceInfo = "SvnCommitAndGet workdir='$workDir' url=$svnUrl user=$svnUser";
-                                                OutInfo "$traceInfo svnLogFile='$svnLogFile'";
+                                                OutInfo "$traceInfo svnLogFile=`"$svnLogFile`"";
                                                 FileAppendLineWithTs $svnLogFile ("`r`n"+("-"*80)+"`r`n"+(DateTimeAsStringIso)+" "+$traceInfo);
                                                 try{
                                                   [String] $dotSvnDir = SvnGetDotSvnDir $workDir;
@@ -2013,7 +2022,7 @@ function PrivEnableTokenPrivilege             (){
                                                     "SeSystemProfilePrivilege", "SeSystemtimePrivilege", "SeTakeOwnershipPrivilege", "SeTcbPrivilege", "SeTimeZonePrivilege", "SeTrustedCredManAccessPrivilege", "SeUndockPrivilege", "SeUnsolicitedInputPrivilege")]
                                                     $Privilege,
                                                   # The process on which to adjust the privilege. Defaults to the current process.
-                                                  $ProcessId = $pid,
+                                                  $ProcessId = $PID,
                                                   # Switch to disable the privilege, rather than enable it.
                                                   [Switch] $Disable
                                                 )
@@ -2170,6 +2179,9 @@ function MnCommonPsToolLibSelfUpdate          ( [Boolean] $doWaitForEnterKeyIfFa
                                               }
 
 # ----------------------------------------------------------------------------------------------------
+
+# deprecated, will be removed soon.
+function DirExistsAssert                      ( [String] $dir ){ OutWarning "DirExistsAssert is deprecated, use DirAssertExists instead, will be removed in next major version"; DirAssertExists $dir; }
 
 Export-ModuleMember -function *; # export all functions from this script which are above this line (types are implicit usable)
 
