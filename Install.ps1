@@ -57,7 +57,8 @@ OutProgress     "  An uninstallation does both, it removes the copied folder fro
 OutProgress     "  module folder for all users and it removes the path entry from the ps module ";
 OutProgress     "  path environment variable. ";
 OutProgress     "  (*) Before using these commands after switching install mode you probably ";
-OutProgress     "      need to restart your calling shell or program as example a file manager. ";
+OutProgress     "      need to restart your calling shell or calling program as example a file ";
+OutProgress     "      manager because it still references the previous installed module. ";
 OutProgress     "  By using this software you agree with the terms of GPL3. ";
 OutProgress     "  ";
 OutProgress     "  Current environment:";
@@ -81,7 +82,7 @@ $Global:ArgsForRestartInElevatedAdminMode = $sel;
 if( $sel -eq "N"             ){ UninstallDir $moduleTarDir; UninstallSrcPath $srcRootDir;                                       OutCurrentInstallState $srcRootDir $moduleTarDir "Green"; }
 if( $sel -eq "I"             ){ UninstallDir $moduleTarDir; UninstallSrcPath $srcRootDir; InstallDir $moduleSrcDir $tarRootDir; OutCurrentInstallState $srcRootDir $moduleTarDir "Green"; }
 if( $sel -eq "A"             ){ UninstallDir $moduleTarDir; InstallSrcPathToPsModulePathIfNotInst $srcRootDir;                  OutCurrentInstallState $srcRootDir $moduleTarDir "Green"; }
-if( $sel -eq "U"             ){ $PSModuleAutoLoadingPreference = "All"; try{ MnCommonPsToolLib\MnCommonPsToolLibSelfUpdate;                                            }catch{ Import-Module "MnCommonPsToolLib"; throw; } }
-if( $sel -eq "H" -and $isDev ){ $PSModuleAutoLoadingPreference = "All"; try{ MnCommonPsToolLib\FileUpdateItsHashSha2FileIfNessessary "$moduleSrcDir\$moduleName.psm1"; }catch{ Import-Module "MnCommonPsToolLib"; throw; } }
+if( $sel -eq "U"             ){ $PSModuleAutoLoadingPreference = "All"; try{ Import-Module "MnCommonPsToolLib.psm1"; MnCommonPsToolLib\MnCommonPsToolLibSelfUpdate;                                            }catch{ OutProgress "Please restart shell and maybe calling file manager and retry"; throw; } }
+if( $sel -eq "H" -and $isDev ){ $PSModuleAutoLoadingPreference = "All"; try{ Import-Module "MnCommonPsToolLib.psm1"; MnCommonPsToolLib\FileUpdateItsHashSha2FileIfNessessary "$moduleSrcDir\$moduleName.psm1"; }catch{ OutProgress "Please restart shell and maybe calling file manager and retry"; throw; } }
 if( $sel -eq "Q"             ){ OutProgress "Quit."; }
 OutQuestion "Finished. Press enter to exit. "; Read-Host;

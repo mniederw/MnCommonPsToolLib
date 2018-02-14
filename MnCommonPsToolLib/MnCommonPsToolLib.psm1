@@ -2,20 +2,6 @@
 #
 # 2013-2018 produced by Marc Niederwieser, Switzerland. Licensed under GPL3. This is freeware.
 #
-# 2018-02-14  V1.12 new function StdInAskForBoolean. DirExistsAssert is deprecated, use DirAssertExists instead.
-# 2018-02-06  V1.11 extend functions, fix FsEntryGetFileName.
-# 2018-01-13  V1.10 improve log file names.
-# 2018-01-09  V1.9  unify error messages, improved elevation, PsDownloadFile.
-# 2017-12-30  V1.8  improve RemoveSmb, renamed SvnCheckout to SvnCheckoutAndUpdate and implement retry
-# 2017-12-16  V1.7  fix WgetDownloadSite
-# 2017-12-02  V1.6  improved self-update hash handling, improve touch.
-# 2017-11-22  V1.5  extend functions, improved self-update by hash.
-# 2017-10-22  V1.4  extend functions, improve FileContentsAreEqual, self-update.
-# 2017-10-10  V1.3  extend functions.
-# 2017-09-08  V1.2  extend by jobs, parallel.
-# 2017-08-11  V1.1  update.
-# 2017-06-25  V1.0  published as open source to github.
-#
 # This library encapsulates many common commands for the purpose of:
 #   Making behaviour compatible for usage with powershell.exe and powershell_ise.exe,
 #   fixing problems, supporting tracing information and simplifying commands for documentation.
@@ -56,10 +42,25 @@
 #      OutProgress "Working";
 #      StdOutEndMsgCareInteractiveMode; # will write: "Ok, done. Ending in 1 second(s)."
 
-
-
 # Do not change the following line, it is a powershell statement and not a comment! Note: if it would be run interactively then it would throw: RuntimeException: Error on creating the pipeline.
 #Requires -Version 3.0
+
+# Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
+#   Major version changes will reflect breaking changes and minor identifies extensions and third number are for bugfixes.
+[String] $MnCommonPsToolLibVersion = "1.12";
+# 2018-02-14  V1.12  new function StdInAskForBoolean. DirExistsAssert is deprecated, use DirAssertExists instead.
+# 2018-02-06  V1.11  extend functions, fix FsEntryGetFileName.
+# 2018-01-18  V1.10  HelpListOfAllModules, version var, improve ForEachParallel, improve log file names. 
+# 2018-01-09  V1.9   unify error messages, improved elevation, PsDownloadFile
+# 2017-12-30  V1.8   improve RemoveSmb, renamed SvnCheckout to SvnCheckoutAndUpdate and implement retry
+# 2017-12-16  V1.7   fix WgetDownloadSite
+# 2017-12-02  V1.6   improved self-update hash handling, improve touch.
+# 2017-11-22  V1.5   extend functions, improved self-update by hash.
+# 2017-10-22  V1.4   extend functions, improve FileContentsAreEqual, self-update.
+# 2017-10-10  V1.3   extend functions.
+# 2017-09-08  V1.2   extend by jobs, parallel.
+# 2017-08-11  V1.1   update.
+# 2017-06-25  V1.0   published as open source to github.
 
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 trap [Exception] { $Host.UI.WriteErrorLine($_); break; } # ensure really no exc can continue! Is not called if a catch block is used! It is recommended for client code to use catch blocks for handling exceptions.
@@ -99,7 +100,9 @@ Import-Module -NoClobber -Name "SmbShare";
 Add-Type -Name Window -Namespace Console -MemberDefinition '[DllImport("Kernel32.dll")] public static extern IntPtr GetConsoleWindow(); [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, Int32 nCmdShow);';
 
 # statement extensions
-function ForEachParallel { # based on https://powertoe.wordpress.com/2012/05/03/foreach-parallel/  ex: (0..20) | ForEachParallel { echo "Nr: $_"; Start-Sleep 1; }; (0..5) | ForEachParallel -MaxThreads 2 { echo "Nr: $_"; Start-Sleep 1; }
+function ForEachParallel {
+  # based on https://powertoe.wordpress.com/2012/05/03/foreach-parallel/  
+  # ex: (0..20) | ForEachParallel { echo "Nr: $_"; Start-Sleep 1; }; (0..5) | ForEachParallel -MaxThreads 2 { echo "Nr: $_"; Start-Sleep 1; }
   param( [Parameter(Mandatory=$true,position=0)]              [System.Management.Automation.ScriptBlock] $ScriptBlock,
          [Parameter(Mandatory=$true,ValueFromPipeline=$true)] [PSObject]                                 $InputObject,
          [Parameter(Mandatory=$false)]                        [Int32]                                    $MaxThreads=8 )
@@ -121,10 +124,10 @@ function ForEachParallel { # based on https://powertoe.wordpress.com/2012/05/03/
     try{
       [Boolean] $notdone = $true; while( $notdone ){ $notdone = $false; [System.Threading.Thread]::Sleep(200); # in msec
         for( [Int32] $i = 0; $i -lt $threads.count; $i++ ){
-          $thread = $threads[$i];
-          if( $thread.handle ){
-            if( $thread.handle.iscompleted ){ 
-              $thread.instance.endinvoke($thread.handle); $thread.instance.dispose(); $threads[$i].handle = $null;
+          if( $threads[$i].handle ){
+            if( $threads[$i].handle.iscompleted ){ 
+              $threads[$i].instance.endinvoke($threads[$i].handle); $threads[$i].instance.dispose(); 
+              $threads[$i].handle = $null; [gc]::Collect();
             }else{ $notdone = $true; }
           }
         }
@@ -321,6 +324,7 @@ function HelpHelp                             (){ Get-Help     | ForEach-Object{
 function HelpListOfAllVariables               (){ Get-Variable | Sort-Object Name | ForEach-Object{ OutInfo "$($_.Name.PadRight(32)) $($_.Value)"; } } # Select-Object Name, Value | StreamToListString
 function HelpListOfAllAliases                 (){ Get-Alias    | Select-Object CommandType, Name, Version, Source | StreamToTableString | ForEach-Object{ OutInfo $_; } }
 function HelpListOfAllCommands                (){ Get-Command  | Select-Object CommandType, Name, Version, Source | StreamToTableString | ForEach-Object{ OutInfo $_; } }
+function HelpListOfAllModules                 (){ Get-Module -ListAvailable | Sort-Object Name | Select-Object Name, ModuleType, Version, ExportedCommands; }
 function HelpGetType                          ( [Object] $obj ){ return [String] $obj.GetType(); }
 function OsPsVersion                          (){ return [String] (""+$Host.Version.Major+"."+$Host.Version.Minor); } # alternative: $PSVersionTable.PSVersion.Major
 function OsIsWinVistaOrHigher                 (){ return [Boolean] ([Environment]::OSVersion.Version -ge (new-object "Version" 6,0)); }
@@ -2178,10 +2182,10 @@ function MnCommonPsToolLibSelfUpdate          ( [Boolean] $doWaitForEnterKeyIfFa
                                                 [Boolean] $dummyResult = ToolPerformFileUpdateAndIsActualized $moduleFile $url $true $doWaitForEnterKeyIfFailed $additionalOkUpdMsg;
                                               }
 
-# ----------------------------------------------------------------------------------------------------
-
-# deprecated, will be removed soon.
+# deprecated, will be removed on next major version
 function DirExistsAssert                      ( [String] $dir ){ OutWarning "DirExistsAssert is deprecated, use DirAssertExists instead, will be removed in next major version"; DirAssertExists $dir; }
+
+# ----------------------------------------------------------------------------------------------------
 
 Export-ModuleMember -function *; # export all functions from this script which are above this line (types are implicit usable)
 
@@ -2238,6 +2242,7 @@ function MnLibCommonSelfTest{ # perform some tests
 #   $LASTEXITCODE : Contains the exit code of the last Win32 executable execution. should never manually set, even not: $global:LASTEXITCODE = $null;
 # - Available colors for options -foregroundcolor and -backgroundcolor: 
 #   Black DarkBlue DarkGreen DarkCyan DarkRed DarkMagenta DarkYellow Gray DarkGray Blue Green Cyan Red Magenta Yellow White
+# - Manifest .psd1 file can be created with: New-ModuleManifest MnCommonPsToolLib.psd1 -ModuleVersion "1.0" -Author "Marc Niederwieser"
 # - Know Bugs:
 #   - Powershell V2 Bug: checking strings for $null is different between if and switch tests:
 #     http://stackoverflow.com/questions/12839479/powershell-treats-empty-string-as-equivalent-to-null-in-switch-statements-but-no

@@ -16,7 +16,8 @@ Files:
 - MnCommonPsToolLib\MnCommonPsToolLib.psm1 :
   This is the powershell module, which satisfies the required condition for all modules 
   accessed by PsModulePath to be located in a folder with the same name as the module file.
+  For version see into the module file.
 
 - LICENSE_GPL3.txt : Standard License file.
 
-- ExampleUseOfMnCommonPsToolLib*.ps1 : examples to show usage of library.
+- Examples\*.ps1 : examples to show usage of library.
