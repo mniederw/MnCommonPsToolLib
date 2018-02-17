@@ -47,7 +47,9 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for bugfixes.
-[String] $MnCommonPsToolLibVersion = "1.12";
+[String] $MnCommonPsToolLibVersion = "1.12.1";
+
+# 2018-02-17  V1.12.1 docu.
 # 2018-02-14  V1.12  new function StdInAskForBoolean. DirExistsAssert is deprecated, use DirAssertExists instead.
 # 2018-02-06  V1.11  extend functions, fix FsEntryGetFileName.
 # 2018-01-18  V1.10  HelpListOfAllModules, version var, improve ForEachParallel, improve log file names. 
@@ -238,7 +240,7 @@ function ScriptNrOfScopes                     (){ [Int32] $i = 1; while($true){
                                                 try{ Get-Variable null -Scope $i -ValueOnly -ErrorAction SilentlyContinue | Out-Null; $i++; 
                                                 }catch{ <# ex: System.Management.Automation.PSArgumentOutOfRangeException #> return [Int32] ($i-1); } } }
 function ScriptGetProcessCommandLine          (){ return [String] ([environment]::commandline); } # ex: "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" "& \"C:\myscript.ps1\"";
-function ScriptGetDirOfLibModule              (){ return [String] $PSScriptRoot ; } # get dir       of the script file of this function or empty if not from a script; alternative: [String] $f = ScriptGetFileOfLibModule; if( $f -eq "" ){ return [String] ""; } return [String] (FsEntryGetParentDir $f);
+function ScriptGetDirOfLibModule              (){ return [String] $PSScriptRoot ; } # get dir       of the script file of this function or empty if not from a script; alternative: (Split-Path -Parent -Path ($script:MyInvocation.MyCommand.Path))
 function ScriptGetFileOfLibModule             (){ return [String] $PSCommandPath; } # get full path of the script file of this function or empty if not from a script. alternative1: try{ return [String] (Get-Variable MyInvocation -Scope 1 -ValueOnly).MyCommand.Path; }catch{ return [String] ""; }  alternative2: $script:MyInvocation.MyCommand.Path
 function ScriptGetCallerOfLibModule           (){ return [String] $MyInvocation.PSCommandPath; } # return can be empty or implicit module if called interactive. alternative for dir: $MyInvocation.PSScriptRoot
 function ScriptGetTopCaller                   (){ [String] $f = $global:MyInvocation.MyCommand.Definition.Trim(); # return can be empty or implicit module if called interactive. usage ex: "&'C:\Temp\A.ps1'" or '&"C:\Temp\A.ps1"' or on ISE '"C:\Temp\A.ps1"'
@@ -559,7 +561,7 @@ function FsEntryMakeAbsolutePath              ( [String] $dirWhenFsEntryIsRelati
                                                 return [String] (FsEntryGetAbsolutePath ([System.IO.Path]::Combine($dirWhenFsEntryIsRelative,$fsEntryRelativeOrAbsolute))); }
 function FsEntryGetDrive                      ( [String] $fsEntry ){ # ex: "C:"
                                                 return [String] (Split-Path -Qualifier (FsEntryGetAbsolutePath $fsEntry)); }
-function FsEntryIsDir                         ( [String] $fsEntry ){ return [Boolean] (Get-Item -Force -LiteralPath $fsEntry).PSIsContainer; }
+function FsEntryIsDir                         ( [String] $fsEntry ){ return [Boolean] (Get-Item -Force -LiteralPath $fsEntry).PSIsContainer; } # empty string not allowed
 function FsEntryGetParentDir                  ( [String] $fsEntry ){ # returned path does not contain trailing backslash; for c:\ or \\mach\share it return "";
                                                 return [String] (Split-Path -LiteralPath (FsEntryGetAbsolutePath $fsEntry)); }
 function FsEntryExists                        ( [String] $fsEntry ){ 
