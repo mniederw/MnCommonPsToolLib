@@ -47,9 +47,9 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for bugfixes.
-[String] $MnCommonPsToolLibVersion = "1.12.1";
+[String] $MnCommonPsToolLibVersion = "1.13";
 
-# 2018-02-17  V1.12.1 docu.
+# 2018-02-23  V1.13  renamed deprecated DateTime* functions, new FsEntryGetLastModified, improve PsDownload
 # 2018-02-14  V1.12  new function StdInAskForBoolean. DirExistsAssert is deprecated, use DirAssertExists instead.
 # 2018-02-06  V1.11  extend functions, fix FsEntryGetFileName.
 # 2018-01-18  V1.10  HelpListOfAllModules, version var, improve ForEachParallel, improve log file names. 
@@ -174,10 +174,10 @@ function StringPadRight                       ( [String] $s, [Int32] $len, [Bool
 function StringSplitToArray                   ( [String] $sep, [String] $s, [Boolean] $removeEmptyEntries = $true ){ return [String[]] (@()+$s.Split($sep,$(switch($removeEmptyEntries){$true{[System.StringSplitOptions]::RemoveEmptyEntries}default{[System.StringSplitOptions]::None}}))); }
 function StringReplaceEmptyByTwoQuotes        ( [String] $str ){ return [String] $(switch((StringIsNullOrEmpty $str)){$true{"`"`""}default{$str}}); }
 function StringFromException                  ( [Exception] $ex ){ return [String] "$($ex.GetType().Name): $($ex.Message -replace `"`r`n`",`" `") $($ex.Data|ForEach-Object{`"`r`n Data: $($_.Values)]`"})`r`n StackTrace:`r`n$($ex.StackTrace)"; } # use this if $_.Exception.Message is not enough. note: .Data is never null.
-function DateTimeAsStringForFileName          (){ return [String] (Get-Date -format yyyy-MM-dd_HH_mm); }
-function DateTimeAsStringIso                  ( [String] $fmt = "yyyy-MM-dd HH:mm" ){ return [String] (Get-Date -format $fmt); }
-function DateTimeAsStringIsoDate              (){ return [String] (DateTimeAsStringIso "yyyy-MM-dd"); }
-function DateTimeFromStringAsFormat           ( [String] $s ){ [String] $fmt = "yyyy-MM-dd"; if( $s.Length -gt 16 ){ $fmt = "yyyy-MM-dd_HH_mm_ss"; }elseif( $s.Length -gt 10 ){ $fmt = "yyyy-MM-dd_HH_mm"; } return [DateTime] [datetime]::ParseExact($s,$fmt,$null); }
+function DateTimeAsStringIso                  ( [DateTime] $ts, [String] $fmt = "yyyy-MM-dd HH:mm:ss" ){ return [String] $ts.ToString($fmt); }
+function DateTimeNowAsStringIso               ( [String] $fmt = "yyyy-MM-dd HH:mm:ss" ){ return [String] (Get-Date -format $fmt); }
+function DateTimeNowAsStringIsoDate           (){ return [String] (DateTimeNowAsStringIso "yyyy-MM-dd"); }
+function DateTimeFromStringIso                ( [String] $s ){ [String] $fmt = "yyyy-MM-dd_HH_mm_ss.fff"; if( $s.Length -le 10 ){ $fmt = "yyyy-MM-dd"; }elseif( $s.Length -le 16 ){ $fmt = "yyyy-MM-dd_HH_mm"; }elseif( $s.Length -le 19 ){ $fmt = "yyyy-MM-dd_HH_mm_ss"; }elseif( $s.Length -le 20 ){ $fmt = "yyyy-MM-dd_HH_mm_ss."; }elseif( $s.Length -le 21 ){ $fmt = "yyyy-MM-dd_HH_mm_ss.f"; }elseif( $s.Length -le 22 ){ $fmt = "yyyy-MM-dd_HH_mm_ss.ff"; } return [DateTime] [datetime]::ParseExact($s,$fmt,$null); }
 function ByteArraysAreEqual                   ( [Byte[]] $a1, [Byte[]] $a2 ){ if( $a1.LongLength -ne $a2.LongLength ){ return $false; } for( [Int64] $i = 0; $i -lt $a1.LongLength; $i++ ){ if( $a1[$i] -ne $a2[$i] ){ return $false; } } return $true; }
 function ConsoleHide                          (){ [Object] $p = [Console.Window]::GetConsoleWindow(); $b = [Console.Window]::ShowWindow($p,0); } #0 hide (also by PowerShell.exe -WindowStyle Hidden)
 function ConsoleShow                          (){ [Object] $p = [Console.Window]::GetConsoleWindow(); $b = [Console.Window]::ShowWindow($p,5); } #5 nohide
@@ -572,8 +572,10 @@ function FsEntryAssertExists                  ( [String] $fsEntry, [String] $tex
                                                 if( !(FsEntryExists $fsEntry) ){ throw [Exception] "$text because fs entry not exists: '$fsEntry'"; } }
 function FsEntryAssertNotExists               ( [String] $fsEntry, [String] $text = "Assertion failed" ){ 
                                                 if(  (FsEntryExists $fsEntry) ){ throw [Exception] "$text because fs entry already exists: '$fsEntry'"; } }
+function FsEntryGetLastModified               ( [String] $fsEntry ){ 
+                                                return [DateTime] (Get-Item -Force -LiteralPath $fsEntry).LastWriteTime; }
 function FsEntryNotExistsOrIsOlderThanNrDays  ( [String] $fsEntry, [Int32] $maxAgeInDays ){ 
-                                                return [Boolean] ((FsEntryNotExists $fsEntry) -or ((Get-Item -Force -LiteralPath $fsEntry).LastWriteTime.AddDays($maxAgeInDays) -lt (Get-Date))); }
+                                                return [Boolean] ((FsEntryNotExists $fsEntry) -or ((FsEntryGetLastModified $fsEntry).AddDays($maxAgeInDays) -lt (Get-Date))); }
 function FsEntrySetAttributeReadOnly          ( [String] $fsEntry, [Boolean] $val ){ 
                                                 OutProgress "FsFileSetAttributeReadOnly $fsEntry $val"; Set-ItemProperty (FsEntryEsc $fsEntry) -name IsReadOnly -value $val; }
 function FsEntryFindFlatSingleByPattern       ( [String] $fsEntryPattern ){ 
@@ -786,7 +788,7 @@ function FileNotExists                        ( [String] $file ){
 function FileAssertExists                     ( [String] $file ){ 
                                                 if( (FileNotExists $file) ){ throw [Exception] "File not exists: '$file'."; } }
 function FileExistsAndIsNewer                 ( [String] $ftar, [String] $fsrc ){ 
-                                                FileAssertExists $fsrc; return [Boolean] ((FileExists $ftar) -and ((Get-Item -Force -LiteralPath $ftar).LastWriteTime -ge (Get-Item -Force -LiteralPath $fsrc).LastWriteTime)); }
+                                                FileAssertExists $fsrc; return [Boolean] ((FileExists $ftar) -and ((FsEntryGetLastModified $ftar) -ge (FsEntryGetLastModified $fsrc))); }
 function FileNotExistsOrIsOlder               ( [String] $ftar, [String] $fsrc ){ 
                                                 return [Boolean] -not (FileExistsAndIsNewer $ftar $fsrc); }
 function FileReadContentAsString              ( [String] $file ){ 
@@ -804,7 +806,7 @@ function FileWriteFromString                  ( [String] $file, [String] $conten
 function FileWriteFromLines                   ( [String] $file, [String[]] $lines, [Boolean] $overwrite = $false, [String] $encoding = "UTF8" ){ 
                                                 OutProgress "WriteFile $file"; FsEntryCreateParentDir $file; $lines | Out-File -Force -NoClobber:$(-not $overwrite) -Encoding $encoding -LiteralPath $file; }
 function FileCreateEmpty                      ( [String] $file, [Boolean] $overwrite = $false ){ if( $overwrite ){ OutProgress "FileCreateEmpty-ByOverwrite $file"; } FsEntryCreateParentDir $file; Out-File -Force -NoClobber:$(-not $overwrite) -Encoding ASCII -LiteralPath $file; }
-function FileAppendLineWithTs                 ( [String] $file, [String] $line ){ FileAppendLine $file "$(DateTimeAsStringIso) $line"; }
+function FileAppendLineWithTs                 ( [String] $file, [String] $line ){ FileAppendLine $file "$(DateTimeNowAsStringIso "yyyy-MM-dd HH:mm") $line"; }
 function FileAppendLine                       ( [String] $file, [String] $line, [Boolean] $tsPrefix = $false ){ 
                                                 FsEntryCreateParentDir $file; Out-File -Encoding Default -Append -LiteralPath $file -InputObject $line; }
 function FileAppendLines                      ( [String] $file, [String[]] $lines ){ 
@@ -1224,7 +1226,7 @@ function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [St
                                                   } } }
 function InfoAboutComputerOverview            (){ 
                                                 return [String[]] @( "InfoAboutComputerOverview:", "", "ComputerName   : $ComputerName", "UserName       : $env:UserName", 
-                                                "Datetime       : $(DateTimeAsStringIso)", "ProductKey     : $(OsGetWindowsProductKey)", 
+                                                "Datetime       : $(DateTimeNowAsStringIso 'yyyy-MM-dd HH:mm')", "ProductKey     : $(OsGetWindowsProductKey)", 
                                                 "ConnetedDrives : $([System.IO.DriveInfo]::getdrives())", "PathVariable   : $env:PATH" ); }
 function InfoAboutExistingShares              (){
                                                 [String[]] $result = @( "Info about existing shares:", "" );
@@ -1390,32 +1392,66 @@ function WgetDownloadSite                     ( [String] $url, [String] $tarDir,
                                                 FileAppendLineWithTs $logf $state;
                                                 OutProgress $state; }
 <# Type: ServerCertificateValidationCallback #> Add-Type -TypeDefinition "using System;using System.Net;using System.Net.Security;using System.Security.Cryptography.X509Certificates; public class ServerCertificateValidationCallback { public static void Ignore() { ServicePointManager.ServerCertificateValidationCallback += delegate( Object obj, X509Certificate certificate, X509Chain chain, SslPolicyErrors errors ){ return true; }; } } ";
+function PsWebRequestLastModifiedFailSafe     ( [String] $url ){ # return DateTime.MaxValue in case of any problem
+                                                [net.WebResponse] $resp = $null;
+                                                try{
+                                                  [net.HttpWebRequest] $webRequest = [net.WebRequest]::Create($url);
+                                                  $resp = $webRequest.GetResponse();
+                                                  $resp.Close();
+                                                  if( $resp.StatusCode -ne [system.net.httpstatuscode]::ok ){ throw [Exception] "GetResponse($url) failed with statuscode=$($resp.StatusCode)"; }
+                                                  if( $resp.LastModified -lt (DateTimeFromStringIso "1970-01-01") ){ throw [Exception] "GetResponse($url) failed because LastModified=$($resp.LastModified) is unexpected lower than 1970"; }
+                                                  return [DateTime] $resp.LastModified;
+                                                }catch{ return [DateTime]::MaxValue; }finally{ if( $resp -ne $null ){ $resp.Dispose(); } } }
 function PsDownloadFile                       ( [String] $url, [String] $tarFile, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Boolean] $onlyIfNewer = $false ){
-                                                # powershell internal implementation of curl or wget which works for http, https and ftp only.
+                                                # powershell internal implementation of curl or wget which works for http, https and ftp only. Cares 3xx for auto redirections.
                                                 if( $url -eq "" ){ throw [Exception] "Wrong file url: '$url'"; } # alternative check: -or $url.EndsWith("/") 
                                                 if( $us -ne "" -and $pw -eq "" ){ throw [Exception] "Missing password for username=$us"; }
-                                                if( $onlyIfNewer -and (FileExists $tarFile) ){ throw [Exception] "PsDownloadFile with onlyIfNewer is not yet implemented"; }
-                                                [String] $userAgent = "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:40.0) Gecko/20100101 Firefox/40.1";
                                                 OutInfo "PsDownloadFile $url to '$tarFile'";
-                                                [String] $tarDir = FsEntryGetParentDir $tarFile;
-                                                [String] $logf = "$LogDir\Download.$CurrentMonthIsoString.$($PID)_$(ProcessGetCurrentThreadId).log";
-                                                DirCreate $tarDir;
-                                                FileAppendLineWithTs $logf "Invoke-WebRequest -Uri $url -OutFile $tarFile";
-                                                OutProgress "Logfile: `"$logf`"";
                                                 if( $ignoreSslCheck ){
                                                   # note: this alternative is now obsolete (see https://msdn.microsoft.com/en-us/library/system.net.servicepointmanager.certificatepolicy(v=vs.110).aspx):
                                                   #   Add-Type -TypeDefinition " using System.Net; using System.Security.Cryptography.X509Certificates; public class TrustAllCertsPolicy : ICertificatePolicy { public bool CheckValidationResult( ServicePoint srvPoint, X509Certificate certificate, WebRequest request, int certificateProblem){ return true; } } ";
                                                   #   [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy;
                                                   [ServerCertificateValidationCallback]::Ignore();
                                                   # Known Bug: we currently do not restore this option so it will influence all following calls
+                                                  # maybe later we use: -SkipCertificateCheck
                                                 }
+                                                [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Ssl3 -bor [System.Net.SecurityProtocolType]::Tls -bor [System.Net.SecurityProtocolType]::Tls12; # default is: Ssl3, Tls.
+                                                if( $onlyIfNewer -and (FileExists $tarFile) ){
+                                                  [DateTime] $webTs = (PsWebRequestLastModifiedFailSafe $url);
+                                                  [DateTime] $fileTs = (FsEntryGetLastModified $tarFile);
+                                                  if( $webTs -le $fileTs ){
+                                                    OutProgress "Ok, download not nessessary because WebFileLastChange=$(DateTimeAsStringIso $webTs) is older than TarFileLastChange=$(DateTimeAsStringIso $fileTs).";
+                                                    return;
+                                                  }
+                                                  # old: throw [Exception] "PsDownloadFile with onlyIfNewer is not yet implemented"; 
+                                                }
+                                                #[String] $userAgent = "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:40.0) Gecko/20100101 Firefox/40.1";
+                                                [String] $tarDir = FsEntryGetParentDir $tarFile;
+                                                [String] $logf = "$LogDir\Download.$CurrentMonthIsoString.$($PID)_$(ProcessGetCurrentThreadId).log";
+                                                DirCreate $tarDir;
+                                                OutProgress "Logfile: `"$logf`"";
+                                                FileAppendLineWithTs $logf "WebClient.DownloadFile(url=$url,tar=$tarFile)";
+                                                $webclient = new-object System.Net.WebClient;
                                                 if( $us -ne "" ){
                                                   [System.Management.Automation.PSCredential] $cred = (CredentialReadFromParamOrInput $us $pw);
-                                                  Invoke-WebRequest -Uri $url -OutFile $tarFile -TimeoutSec 70 -UserAgent $userAgent -Credential $cred;
+                                                  $webclient.Credentials = $cred;
+                                                }
+                                                try{
+                                                  $webclient.DownloadFile($url,$tarFile);
+                                                }catch{ 
+                                                  # ex: The request was aborted: Could not create SSL/TLS secure channel.
+                                                  throw [Exception] "WebClient.DownloadFile(url=$url,tar=$tarFile) failed because $($_.Exception.Message)"; 
+                                                }
+                                                <#
+                                                FileAppendLineWithTs $logf "Invoke-WebRequest -Uri $url -OutFile $tarFile";
+                                                if( $us -ne "" ){
+                                                  [System.Management.Automation.PSCredential] $cred = (CredentialReadFromParamOrInput $us $pw);
+                                                  Invoke-WebRequest -Uri $url -OutFile $tarFile -MaximumRedirection 2 -TimeoutSec 70 -UserAgent $userAgent -Credential $cred;
                                                 }else{
-                                                  Invoke-WebRequest -Uri $url -OutFile $tarFile -TimeoutSec 70 -UserAgent $userAgent;
+                                                  Invoke-WebRequest -Uri $url -OutFile $tarFile -MaximumRedirection 2 -TimeoutSec 70 -UserAgent $userAgent;
                                                 }
                                                 # for future use: -UseDefaultCredentials, -Headers, -MaximumRedirection, -Method, -Body, -ContentType, -TransferEncoding, -InFile
+                                                #>
                                                 [String] $stateMsg = "Ok, downloaded $(FileGetSize $tarFile) bytes.";
                                                 FileAppendLineWithTs $logf $stateMsg;
                                                 OutProgress $stateMsg; }
@@ -1839,12 +1875,14 @@ function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url
                                                     OutProgress "SvnCheckoutAndUpdate: get all changes from $url to '$workDir' $(switch($doUpdateOnly){$true{''}default{'and if it not exists and then init working copy first'}}).";
                                                     FileAppendLineWithTs $svnLogFile "SvnCheckoutAndUpdate(`"$workDir`",$url,$user)";
                                                     # for future alternative option: --trust-server-cert-failures unknown-ca,cn-mismatch,expired,not-yet-valid,other
-                                                    if( $doUpdateOnly ){
-                                                      & (SvnExe) "update" "--non-interactive" "--ignore-externals" "--username" $user $workDir 2> $tmp | %{ FileAppendLineWithTs $svnLogFile ("  "+$_); OutProgress $_ 2; };
-                                                    }else{
-                                                      # alternative tortoiseExe /closeonend:2 /command:checkout /path:$workDir /url:$url
-                                                      & (SvnExe) "checkout" "--non-interactive" "--ignore-externals" "--username" $user $url $workDir 2> $tmp | %{ FileAppendLineWithTs $svnLogFile ("  "+$_); OutProgress $_ 2; };
-                                                    }
+                                                    # for future alternative option: --quite
+                                                    [String[]] $opt = @( "--non-interactive", "--ignore-externals" );
+                                                    if( $user -ne "" ){ $opt += @( "--username", $user ); }
+                                                    # alternative for checkout: tortoiseExe /closeonend:2 /command:checkout /path:$workDir /url:$url
+                                                    if( $doUpdateOnly ){ $opt += @( "update"  ) + $opt + @(       $workDir ); }
+                                                    else               { $opt += @( "checkout") + $opt + @( $url, $workDir ); }
+                                                    FileAppendLineWithTs $svnLogFile "`"$(SvnExe)`" $opt";
+                                                    & (SvnExe) $opt 2> $tmp | %{ FileAppendLineWithTs $svnLogFile ("  "+$_); OutProgress $_ 2; };
                                                     AssertRcIsOk (FileReadContentAsLines $tmp) $true;
                                                     # ex: svn: E170013: Unable to connect to a repository at URL 'https://mycomp/svn/Work/mydir'
                                                     #     svn: E230001: Server SSL certificate verification failed: issuer is not trusted   Exception: Last operation failed [rc=1].
@@ -1855,8 +1893,9 @@ function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url
                                                     # ex: "svn: E155004: Run 'svn cleanup' to remove locks (type 'svn help cleanup' for details)"
                                                     # ex: "svn: E175002: REPORT request on '/svn/Work/!svn/me' failed"
                                                     # ex: "svn: E200030: sqlite[S10]: disk I/O error, executing statement 'VACUUM '"
+                                                    # ex: "svn: E205000: Try 'svn help checkout' for more information"
                                                     [String] $m = $_.Exception.Message;
-                                                    [String] $msg = "$(ScriptGetCurrentFunc)(`"$workDir`",$url,$user) failed because $m.";
+                                                    [String] $msg = "$(ScriptGetCurrentFunc)(dir=`"$workDir`",url=$url,$user) failed because $m. Logfile='$svnLogFile'.";
                                                     FileAppendLineWithTs $svnLogFile $msg;
                                                     [Boolean] $isKnownProblemToSolveWithRetry = $m.Contains(" E120106:") -or $m.Contains(" E155037:") -or $m.Contains(" E155004:") -or $m.Contains(" E175002:") -or $m.Contains(" E200030:");
                                                     if( -not $isKnownProblemToSolveWithRetry -or $nrOfTries -ge $maxNrOfTries ){ throw [Exception] $msg; }
@@ -1885,7 +1924,7 @@ function SvnCommitAndGet                      ( [String] $workDir, [String] $svn
                                                 # assumes stored credentials are matching specified svn user, check svn dir, do svn cleanup, check svn user, delete temporary files, svn commit, svn update
                                                 [String] $traceInfo = "SvnCommitAndGet workdir='$workDir' url=$svnUrl user=$svnUser";
                                                 OutInfo "$traceInfo svnLogFile=`"$svnLogFile`"";
-                                                FileAppendLineWithTs $svnLogFile ("`r`n"+("-"*80)+"`r`n"+(DateTimeAsStringIso)+" "+$traceInfo);
+                                                FileAppendLineWithTs $svnLogFile ("`r`n"+("-"*80)+"`r`n"+(DateTimeNowAsStringIso "yyyy-MM-dd HH:mm")+" "+$traceInfo);
                                                 try{
                                                   [String] $dotSvnDir = SvnGetDotSvnDir $workDir;
                                                   [String] $svnRequiresCleanup = "$dotSvnDir\OwnSvnRequiresCleanup.txt";
@@ -2186,6 +2225,8 @@ function MnCommonPsToolLibSelfUpdate          ( [Boolean] $doWaitForEnterKeyIfFa
 
 # deprecated, will be removed on next major version
 function DirExistsAssert                      ( [String] $dir ){ OutWarning "DirExistsAssert is deprecated, use DirAssertExists instead, will be removed in next major version"; DirAssertExists $dir; }
+function DateTimeFromStringAsFormat           ( [String] $s   ){ OutWarning "DateTimeFromStringAsFormat is deprecated, use DateTimeFromStringIso instead, will be removed in next major version"; return (DateTimeFromStringIso $s); }
+function DateTimeAsStringForFileName          (               ){ OutWarning "DateTimeAsStringForFileName is deprecated, use (DateTimeNowAsStringIso yyyy-MM-dd_HH_mm_ss) instead, will be removed in next major version"; return (DateTimeNowAsStringIso yyyy-MM-dd_HH_mm_ss); }
 
 # ----------------------------------------------------------------------------------------------------
 
@@ -2197,9 +2238,14 @@ function MnLibCommonSelfTest{ # perform some tests
   Assert ((2 + 3) -eq 5);
   Assert ([Math]::Min(-5,-9) -eq -9);
   Assert ("xyz".substring(1,0) -eq "");
-  Assert ((DateTimeFromStringAsFormat "2011-12-31"         ) -eq (Get-Date -Date "2011-12-31 00:00:00"));
-  Assert ((DateTimeFromStringAsFormat "2011-12-31_23_59"   ) -eq (Get-Date -Date "2011-12-31 23:59:00"));
-  Assert ((DateTimeFromStringAsFormat "2011-12-31_23_59_59") -eq (Get-Date -Date "2011-12-31 23:59:59"));
+  Assert ((DateTimeFromStringIso "2011-12-31"             ) -eq (Get-Date -Date "2011-12-31 00:00:00"    ));
+  Assert ((DateTimeFromStringIso "2011-12-31_23_59"       ) -eq (Get-Date -Date "2011-12-31 23:59:00"    ));
+  Assert ((DateTimeFromStringIso "2011-12-31_23_59_59"    ) -eq (Get-Date -Date "2011-12-31 23:59:59"    ));
+  Assert ((DateTimeFromStringIso "2011-12-31_23_59_59."   ) -eq (Get-Date -Date "2011-12-31 23:59:59."   ));
+  Assert ((DateTimeFromStringIso "2011-12-31_23_59_59.0"  ) -eq (Get-Date -Date "2011-12-31 23:59:59.0"  ));
+  Assert ((DateTimeFromStringIso "2011-12-31_23_59_59.9"  ) -eq (Get-Date -Date "2011-12-31 23:59:59.9"  ));
+  Assert ((DateTimeFromStringIso "2011-12-31_23_59_59.99" ) -eq (Get-Date -Date "2011-12-31 23:59:59.99" ));
+  Assert ((DateTimeFromStringIso "2011-12-31_23_59_59.999") -eq (Get-Date -Date "2011-12-31 23:59:59.999"));
   Assert (("abc" -split ",").Count -eq 1 -and "abc,".Split(",").Count -eq 2 -and ",abc".Split(",").Count -eq 2);
   Assert ((ByteArraysAreEqual @()               @()              ) -eq $true  );
   Assert ((ByteArraysAreEqual @(0x00,0x01,0xFF) @(0x00,0x01,0xFF)) -eq $true  );

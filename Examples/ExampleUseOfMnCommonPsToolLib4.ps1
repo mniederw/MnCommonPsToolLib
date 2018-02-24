@@ -9,16 +9,16 @@ function TestAssertions{
   Assert ((2 + 3) -eq 5);
   Assert ([Math]::Min(-5,-9) -eq -9);
   Assert ("xyz".substring(1,0) -eq "");
-  Assert ((DateTimeFromStringAsFormat "2011-12-31"         ) -eq (Get-Date -Date "2011-12-31 00:00:00"));
-  Assert ((DateTimeFromStringAsFormat "2011-12-31_23_59"   ) -eq (Get-Date -Date "2011-12-31 23:59:00"));
-  Assert ((DateTimeFromStringAsFormat "2011-12-31_23_59_59") -eq (Get-Date -Date "2011-12-31 23:59:59"));
+  Assert ((DateTimeFromStringIso "2011-12-31"             ) -eq (Get-Date -Date "2011-12-31 00:00:00"    ));
+  Assert ((DateTimeFromStringIso "2011-12-31_23_59"       ) -eq (Get-Date -Date "2011-12-31 23:59:00"    ));
+  Assert ((DateTimeFromStringIso "2011-12-31_23_59_59"    ) -eq (Get-Date -Date "2011-12-31 23:59:59"    ));
   Assert (("abc" -split ",").Count -eq 1 -and "abc,".Split(",").Count -eq 2 -and ",abc".Split(",").Count -eq 2);
   OutProgress "Ok, done.";
 }
 
 function TestCommon(){
   [DateTime] $oldestDate = Get-Date -Date "0001-01-01 00:00:00.000";
-  OutProgress "Today in ISO format: $(DateTimeAsStringIsoDate)";
+  OutProgress "Today in ISO format: $(DateTimeNowAsStringIsoDate)";
   OutProgress "Oldest date is: $(DateTimeAsStringIso $oldestDate)";
 }
 
