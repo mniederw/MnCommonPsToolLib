@@ -49,7 +49,7 @@
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for bugfixes.
 [String] $MnCommonPsToolLibVersion = "1.13";
 
-# 2018-02-23  V1.13  renamed deprecated DateTime* functions, new FsEntryGetLastModified, improve PsDownload
+# 2018-02-23  V1.13  renamed deprecated DateTime* functions, new FsEntryGetLastModified, improve PsDownload, fixed DateTimeAsStringIso
 # 2018-02-14  V1.12  new function StdInAskForBoolean. DirExistsAssert is deprecated, use DirAssertExists instead.
 # 2018-02-06  V1.11  extend functions, fix FsEntryGetFileName.
 # 2018-01-18  V1.10  HelpListOfAllModules, version var, improve ForEachParallel, improve log file names. 
@@ -1442,7 +1442,7 @@ function PsDownloadFile                       ( [String] $url, [String] $tarFile
                                                   # ex: The request was aborted: Could not create SSL/TLS secure channel.
                                                   throw [Exception] "WebClient.DownloadFile(url=$url,tar=$tarFile) failed because $($_.Exception.Message)"; 
                                                 }
-                                                <#
+                                                <# alternative
                                                 FileAppendLineWithTs $logf "Invoke-WebRequest -Uri $url -OutFile $tarFile";
                                                 if( $us -ne "" ){
                                                   [System.Management.Automation.PSCredential] $cred = (CredentialReadFromParamOrInput $us $pw);
@@ -1895,7 +1895,7 @@ function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url
                                                     # ex: "svn: E200030: sqlite[S10]: disk I/O error, executing statement 'VACUUM '"
                                                     # ex: "svn: E205000: Try 'svn help checkout' for more information"
                                                     [String] $m = $_.Exception.Message;
-                                                    [String] $msg = "$(ScriptGetCurrentFunc)(dir=`"$workDir`",url=$url,$user) failed because $m. Logfile='$svnLogFile'.";
+                                                    [String] $msg = "$(ScriptGetCurrentFunc)(dir=`"$workDir`",url=$url,user=$user) failed because $m. Logfile='$svnLogFile'.";
                                                     FileAppendLineWithTs $svnLogFile $msg;
                                                     [Boolean] $isKnownProblemToSolveWithRetry = $m.Contains(" E120106:") -or $m.Contains(" E155037:") -or $m.Contains(" E155004:") -or $m.Contains(" E175002:") -or $m.Contains(" E200030:");
                                                     if( -not $isKnownProblemToSolveWithRetry -or $nrOfTries -ge $maxNrOfTries ){ throw [Exception] $msg; }
