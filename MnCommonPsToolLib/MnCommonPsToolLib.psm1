@@ -47,8 +47,9 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for bugfixes.
-[String] $MnCommonPsToolLibVersion = "1.13";
+[String] $MnCommonPsToolLibVersion = "1.14";
 
+# 2018-03-26  V1.14  ToolTailFile, FsEntryDeleteToRecycleBin
 # 2018-02-23  V1.13  renamed deprecated DateTime* functions, new FsEntryGetLastModified, improve PsDownload, fixed DateTimeAsStringIso
 # 2018-02-14  V1.12  new function StdInAskForBoolean. DirExistsAssert is deprecated, use DirAssertExists instead.
 # 2018-02-06  V1.11  extend functions, fix FsEntryGetFileName.
@@ -625,6 +626,13 @@ function FsEntryListAsStringArray             ( [String] $fsEntryPattern, [Boole
                                                   ForEach-Object{ $_.FullName+$(switch($_.PSIsContainer){True{"\"}default{""}}) })); }
 function FsEntryDelete                        ( [String] $fsEntry ){ 
                                                 if( $fsEntry.EndsWith("\") ){ DirDelete $fsEntry; }else{ FileDelete $fsEntry; } }
+function FsEntryDeleteToRecycleBin            ( [String] $fsEntry ){
+                                                Add-Type -AssemblyName Microsoft.VisualBasic;
+                                                [String] $e = FsEntryGetAbsolutePath $fsEntry;
+                                                OutProgress "FsEntryDeleteToRecycleBin '$e'";
+                                                FsEntryAssertExists $e "Not exists: '$e'";
+                                                if( FsEntryIsDir $e ){ [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory($e,'OnlyErrorDialogs','SendToRecycleBin');
+                                                }else{                 [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($e,'OnlyErrorDialogs','SendToRecycleBin'); } }
 function FsEntryRename                        ( [String] $fsEntryFrom, [String] $fsEntryTo ){ 
                                                 OutProgress "FsEntryRename '$fsEntryFrom' '$fsEntryTo'"; 
                                                 FsEntryAssertExists $fsEntryFrom; FsEntryAssertNotExists $fsEntryTo; 
@@ -787,7 +795,7 @@ function FileNotExists                        ( [String] $file ){
                                                 return [Boolean] -not (FileExists $file); }
 function FileAssertExists                     ( [String] $file ){ 
                                                 if( (FileNotExists $file) ){ throw [Exception] "File not exists: '$file'."; } }
-function FileExistsAndIsNewer                 ( [String] $ftar, [String] $fsrc ){ 
+function FileExistsAndIsNewer                 ( [String] $ftar, [String] $fsrc ){
                                                 FileAssertExists $fsrc; return [Boolean] ((FileExists $ftar) -and ((FsEntryGetLastModified $ftar) -ge (FsEntryGetLastModified $fsrc))); }
 function FileNotExistsOrIsOlder               ( [String] $ftar, [String] $fsrc ){ 
                                                 return [Boolean] -not (FileExistsAndIsNewer $ftar $fsrc); }
@@ -2165,6 +2173,7 @@ function JuniperNcEstablishVpnConnAndRdp      ( [String] $rdpfile, [String] $url
                                                 [String] $secureCredentialFile = "$rdpfile.vpn-uspw.$ComputerName.txt";
                                                 JuniperNcEstablishVpnConn $secureCredentialFile $url $realm;
                                                 RdpConnect $rdpfile; }
+function ToolTailFile                         ( [String] $file ){ OutProgress "Show tail of file until ctrl-c is entered"; Get-Content -Wait $file; }
 function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $url, [Boolean] $requireElevatedAdminMode, [Boolean] $doWaitIfFailed = $false, [String] $additionalOkUpdMsg = "" ){
                                                 # Assert the correct installed environment by requiring that the file to be update previously exists.
                                                 # Assert the network is prepared by checking if host is reachable.
