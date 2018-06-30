@@ -47,8 +47,9 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for bugfixes.
-[String] $MnCommonPsToolLibVersion = "1.13";
+[String] $MnCommonPsToolLibVersion = "1.14";
 
+# 2018-04-23  V1.14  doc overwriting
 # 2018-02-23  V1.13  renamed deprecated DateTime* functions, new FsEntryGetLastModified, improve PsDownload, fixed DateTimeAsStringIso
 # 2018-02-14  V1.12  new function StdInAskForBoolean. DirExistsAssert is deprecated, use DirAssertExists instead.
 # 2018-02-06  V1.11  extend functions, fix FsEntryGetFileName.
@@ -266,9 +267,9 @@ function StreamToHtmlListStrings              (){ $input | ConvertTo-Html -Title
 function StreamToListString                   (){ $input | Format-List -ShowError | StreamToStringDelEmptyLeadAndTrLines; }
 function StreamToFirstPropMultiColumnString   (){ $input | Format-Wide -AutoSize -ShowError | StreamToStringDelEmptyLeadAndTrLines; }
 function StreamToCsvFile                      ( [String] $file, [Boolean] $overwrite = $false, [String] $encoding = "UTF8" ){
-                                                $input | Export-Csv -Force:$overwrite -NoClobber:$(-not $overwrite) -NoTypeInformation -Encoding $encoding -Path (FsEntryEsc $file); }
+                                                $input | Export-Csv -Force:$overwrite -NoClobber:$(-not $overwrite) -NoTypeInformation -Encoding $encoding -Path (FsEntryEsc $file); } # nothing done if target already exists
 function StreamToXmlFile                      ( [String] $file, [Boolean] $overwrite = $false, [String] $encoding = "UTF8" ){
-                                                $input | Export-Clixml -Force:$overwrite -NoClobber:$(-not $overwrite) -Depth 999999999 -Encoding $encoding -Path (FsEntryEsc $file);}
+                                                $input | Export-Clixml -Force:$overwrite -NoClobber:$(-not $overwrite) -Depth 999999999 -Encoding $encoding -Path (FsEntryEsc $file);} # nothing done if target already exists
 function StreamToDataRowsString               ( [String[]] $propertyNames ){ if( $propertyNames -eq $null -or $propertyNames.Count -eq 0 ){ $propertyNames = @("*"); } 
                                                 $input | Format-Table -Wrap -Force -autosize -HideTableHeaders $propertyNames | StreamToStringDelEmptyLeadAndTrLines; }
 function StreamToTableString                  ( [String[]] $propertyNames ){ if( $propertyNames -eq $null -or $propertyNames.Count -eq 0 ){ $propertyNames = @("*"); } 
@@ -856,10 +857,10 @@ function FileDelete                           ( [String] $file, [Boolean] $ignor
                                                 if( (FileExists $file) ){ OutProgress "FileDelete$(switch($ignoreReadonly){$true{''}default{'CareReadonly'}}) '$file'"; 
                                                   Remove-Item -Force:$ignoreReadonly -LiteralPath $file; } }
 function FileCopy                             ( [String] $srcFile, [String] $tarFile, [Boolean] $overwrite = $false ){ 
-                                                OutProgress "FileCopy(Overwrite=$overwrite) '$srcFile' to '$tarFile'"; 
+                                                OutProgress "FileCopy(Overwrite=$overwrite) '$srcFile' to '$tarFile' $(switch($(FileExists $(FsEntryEsc $tarFile))){$true{'(Target exists so ignored)'}default{''}})"; 
                                                 FsEntryCreateParentDir $tarFile; Copy-Item -Force:$overwrite (FsEntryEsc $srcFile) (FsEntryEsc $tarFile); }
 function FileMove                             ( [String] $srcFile, [String] $tarFile, [Boolean] $overwrite = $false ){ 
-                                                OutProgress "FileMove(Overwrite=$overwrite) '$srcFile' to '$tarFile'"; 
+                                                OutProgress "FileMove(Overwrite=$overwrite) '$srcFile' to '$tarFile' $(switch($(FileExists $(FsEntryEsc $tarFile))){$true{'(Target exists so ignored)'}default{''}})"; 
                                                 FsEntryCreateParentDir $tarFile; Move-Item -Force:$overwrite -LiteralPath $srcFile -Destination $tarFile; }
 function FileGetHexStringOfHash128BitsMd5     ( [String] $srcFile ){ return [String] (get-filehash -Algorithm "MD5"    $srcFile).Hash; }
 function FileGetHexStringOfHash256BitsSha2    ( [String] $srcFile ){ return [String] (get-filehash -Algorithm "SHA256" $srcFile).Hash; } # 2017-11 ps standard is SHA256, available are: SHA1;SHA256;SHA384;SHA512;MACTripleDES;MD5;RIPEMD160
