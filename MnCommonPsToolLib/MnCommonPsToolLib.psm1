@@ -47,15 +47,17 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for bugfixes.
-[String] $MnCommonPsToolLibVersion = "1.14";
+[String] $MnCommonPsToolLibVersion = "1.16";
 
-# 2018-03-26  V1.14  ToolTailFile, FsEntryDeleteToRecycleBin
-# 2018-02-23  V1.13  renamed deprecated DateTime* functions, new FsEntryGetLastModified, improve PsDownload, fixed DateTimeAsStringIso
-# 2018-02-14  V1.12  new function StdInAskForBoolean. DirExistsAssert is deprecated, use DirAssertExists instead.
+# 2018-07-26  V1.16  improve createLnk, ads functions, add doc.
+# 2018-05-15  V1.15  improve handling of git.
+# 2018-03-26  V1.14  add ToolTailFile, FsEntryDeleteToRecycleBin.
+# 2018-02-23  V1.13  renamed deprecated DateTime* functions, new FsEntryGetLastModified, improve PsDownload, fixed DateTimeAsStringIso.
+# 2018-02-14  V1.12  add StdInAskForBoolean. DirExistsAssert is deprecated, use DirAssertExists instead.
 # 2018-02-06  V1.11  extend functions, fix FsEntryGetFileName.
-# 2018-01-18  V1.10  HelpListOfAllModules, version var, improve ForEachParallel, improve log file names. 
-# 2018-01-09  V1.9   unify error messages, improved elevation, PsDownloadFile
-# 2017-12-30  V1.8   improve RemoveSmb, renamed SvnCheckout to SvnCheckoutAndUpdate and implement retry
+# 2018-01-18  V1.10  add HelpListOfAllModules, version var, improve ForEachParallel, improve log file names. 
+# 2018-01-09  V1.9   unify error messages, improved elevation, PsDownloadFile.
+# 2017-12-30  V1.8   improve RemoveSmb, renamed SvnCheckout to SvnCheckoutAndUpdate and implement retry.
 # 2017-12-16  V1.7   fix WgetDownloadSite
 # 2017-12-02  V1.6   improved self-update hash handling, improve touch.
 # 2017-11-22  V1.5   extend functions, improved self-update by hash.
@@ -116,26 +118,31 @@ function ForEachParallel {
       $pool = [Runspacefactory]::CreateRunspacePool(1,$maxthreads,$iss,$host); $pool.open();
       $threads = @();
       $ScriptBlock = $ExecutionContext.InvokeCommand.NewScriptBlock("param(`$_)`r`n"+$Scriptblock.ToString());
-    }catch{ $Host.UI.WriteErrorLine("ForEachParallel-BEGIN: $($_)");  }
+    }catch{ $Host.UI.WriteErrorLine("ForEachParallel-BEGIN: $($_)"); }
   }PROCESS{
     try{
       $powershell = [powershell]::Create().addscript($scriptblock).addargument($InputObject); 
       $powershell.runspacepool = $pool;
       $threads += @{ instance = $powershell; handle = $powershell.begininvoke(); };
-    }catch{ $Host.UI.WriteErrorLine("ForEachParallel-PROCESS: $($_)");  }
+    }catch{ $Host.UI.WriteErrorLine("ForEachParallel-PROCESS: $($_)"); }
   }END{
     try{
-      [Boolean] $notdone = $true; while( $notdone ){ $notdone = $false; [System.Threading.Thread]::Sleep(200); # in msec
+      [Boolean] $notdone = $true; while( $notdone ){ $notdone = $false;
+        [System.Threading.Thread]::Sleep(250); # polling interval in msec
         for( [Int32] $i = 0; $i -lt $threads.count; $i++ ){
           if( $threads[$i].handle ){
-            if( $threads[$i].handle.iscompleted ){ 
-              $threads[$i].instance.endinvoke($threads[$i].handle); $threads[$i].instance.dispose(); 
-              $threads[$i].handle = $null; [gc]::Collect();
+            if( $threads[$i].handle.iscompleted ){
+              try{
+                $threads[$i].instance.endinvoke($threads[$i].handle);
+              }catch{ Write-Host -ForegroundColor DarkGray "ForEachParallel-endinvoke: Ignoring $($_)"; $error.clear(); }
+              $threads[$i].instance.dispose(); 
+              $threads[$i].handle = $null; 
+              [gc]::Collect();
             }else{ $notdone = $true; }
           }
         }
       }
-    }catch{ $Host.UI.WriteErrorLine("ForEachParallel-END: $($_)");  }
+    }catch{ $Host.UI.WriteErrorLine("ForEachParallel-END: $($_)"); } # ex: 2018-07: Exception calling "EndInvoke" with "1" argument(s)
   }
 }
 
@@ -172,7 +179,7 @@ function StringReplaceNewlinesBySpaces        ( [String] $s ){ return [String] (
 function StringArrayInsertIndent              ( [String[]] $lines, [Int32] $nrOfBlanks ){ if( $lines -eq $null ){ return [String[]] $null; } return [String[]] ($lines | %{ ((" "*$nrOfBlanks)+$_); }); }
 function StringArrayDistinct                  ( [String[]] $lines ){ return [String[]] ($lines | Select-Object -Unique); }
 function StringPadRight                       ( [String] $s, [Int32] $len, [Boolean] $doQuote = $false  ){ [String] $r = $s; if( $doQuote ){ $r = '"'+$r+'"'; } return [String] $r.PadRight($len); }
-function StringSplitToArray                   ( [String] $sep, [String] $s, [Boolean] $removeEmptyEntries = $true ){ return [String[]] (@()+$s.Split($sep,$(switch($removeEmptyEntries){$true{[System.StringSplitOptions]::RemoveEmptyEntries}default{[System.StringSplitOptions]::None}}))); }
+function StringSplitToArray                   ( [String] $sepChars, [String] $s, [Boolean] $removeEmptyEntries = $true ){ return [String[]] (@()+$s.Split($sepChars,$(switch($removeEmptyEntries){$true{[System.StringSplitOptions]::RemoveEmptyEntries}default{[System.StringSplitOptions]::None}}))); }
 function StringReplaceEmptyByTwoQuotes        ( [String] $str ){ return [String] $(switch((StringIsNullOrEmpty $str)){$true{"`"`""}default{$str}}); }
 function StringFromException                  ( [Exception] $ex ){ return [String] "$($ex.GetType().Name): $($ex.Message -replace `"`r`n`",`" `") $($ex.Data|ForEach-Object{`"`r`n Data: $($_.Values)]`"})`r`n StackTrace:`r`n$($ex.StackTrace)"; } # use this if $_.Exception.Message is not enough. note: .Data is never null.
 function DateTimeAsStringIso                  ( [DateTime] $ts, [String] $fmt = "yyyy-MM-dd HH:mm:ss" ){ return [String] $ts.ToString($fmt); }
@@ -227,12 +234,9 @@ function Assert                               ( [Boolean] $cond, [String] $msg =
 function AssertRcIsOk                         ( [String[]] $linesToOutProgress = $null, [Boolean] $useLinesAsExcMessage = $false ){
                                                 # can also be called with a single string; only nonempty progress lines are given out
                                                 [Int32] $rc = ScriptGetAndClearLastRc; if( $rc -ne 0 ){
-                                                  [String] $msg = "Last operation failed [rc=$rc]. ";
-                                                  if( $useLinesAsExcMessage ){
-                                                    [String] $out = ([String]$linesToOutProgress).Trim();
-                                                    if( $rc -eq 1 -and $out -ne "" ){ $msg = ""; }
-                                                    $msg += $out;
-                                                  }else{ $linesToOutProgress | Where-Object{ -not [String]::IsNullOrWhiteSpace($_) } | ForEach-Object{ OutProgress $_ }; }
+                                                  if( -not $useLinesAsExcMessage ){ $linesToOutProgress | Where-Object{ -not [String]::IsNullOrWhiteSpace($_) } | ForEach-Object{ OutProgress $_ }; }
+                                                  [String] $msg = "Last operation failed [rc=$rc]. "; 
+                                                  if( $useLinesAsExcMessage ){ $msg = $(switch($rc -eq 1 -and $out -ne ""){$true{""}$false{$msg}}) + ([String]$linesToOutProgress).Trim(); }
                                                   throw [Exception] $msg; } }
 function ScriptGetCurrentFunc                 (){ return [String] ((Get-Variable MyInvocation -Scope 1).Value.MyCommand.Name); }
 function ScriptGetAndClearLastRc              (){ [Int32] $rc = 0; if( ($LASTEXITCODE -ne $null -and $LASTEXITCODE -ne 0) -or -not $? ){ $rc = $LASTEXITCODE; ScriptResetRc; } return [Int32] $rc; } # if no windows command was done then $LASTEXITCODE is null
@@ -241,8 +245,8 @@ function ScriptNrOfScopes                     (){ [Int32] $i = 1; while($true){
                                                 try{ Get-Variable null -Scope $i -ValueOnly -ErrorAction SilentlyContinue | Out-Null; $i++; 
                                                 }catch{ <# ex: System.Management.Automation.PSArgumentOutOfRangeException #> return [Int32] ($i-1); } } }
 function ScriptGetProcessCommandLine          (){ return [String] ([environment]::commandline); } # ex: "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" "& \"C:\myscript.ps1\"";
-function ScriptGetDirOfLibModule              (){ return [String] $PSScriptRoot ; } # get dir       of the script file of this function or empty if not from a script; alternative: (Split-Path -Parent -Path ($script:MyInvocation.MyCommand.Path))
-function ScriptGetFileOfLibModule             (){ return [String] $PSCommandPath; } # get full path of the script file of this function or empty if not from a script. alternative1: try{ return [String] (Get-Variable MyInvocation -Scope 1 -ValueOnly).MyCommand.Path; }catch{ return [String] ""; }  alternative2: $script:MyInvocation.MyCommand.Path
+function ScriptGetDirOfLibModule              (){ return [String] $PSScriptRoot ; } # get dir       of this script file of this function or empty if not from a script; alternative: (Split-Path -Parent -Path ($script:MyInvocation.MyCommand.Path))
+function ScriptGetFileOfLibModule             (){ return [String] $PSCommandPath; } # get full path of this script file of this function or empty if not from a script. alternative1: try{ return [String] (Get-Variable MyInvocation -Scope 1 -ValueOnly).MyCommand.Path; }catch{ return [String] ""; }  alternative2: $script:MyInvocation.MyCommand.Path
 function ScriptGetCallerOfLibModule           (){ return [String] $MyInvocation.PSCommandPath; } # return can be empty or implicit module if called interactive. alternative for dir: $MyInvocation.PSScriptRoot
 function ScriptGetTopCaller                   (){ [String] $f = $global:MyInvocation.MyCommand.Definition.Trim(); # return can be empty or implicit module if called interactive. usage ex: "&'C:\Temp\A.ps1'" or '&"C:\Temp\A.ps1"' or on ISE '"C:\Temp\A.ps1"'
                                                 if( $f -eq "" -or $f -eq "ScriptGetTopCaller" ){ return ""; }
@@ -287,7 +291,8 @@ function ProcessIsRunningInElevatedAdminMode  (){ return [Boolean] ([Security.Pr
 function ProcessAssertInElevatedAdminMode     (){ if( -not (ProcessIsRunningInElevatedAdminMode) ){ throw [Exception] "Assertion failed because requires to be in elevated admin mode"; } }
 function ProcessRestartInElevatedAdminMode    (){ if( -not (ProcessIsRunningInElevatedAdminMode) ){
                                                 [String[]] $topCallerArguments = @(); # currently it supports no arguments because we do not know how to access them (something like $global:args would be nice)
-                                                [String[]] $cmd = @( (ScriptGetTopCaller) ) + $topCallerArguments + $Global:ArgsForRestartInElevatedAdminMode; # ex: "C:\myscr.ps1" or if interactive then statement name ex: "ProcessRestartInElevatedAdminMode"
+                                                # ex: "C:\myscr.ps1" or if interactive then statement name ex: "ProcessRestartInElevatedAdminMode"
+                                                [String[]] $cmd = @( (ScriptGetTopCaller) ) + $topCallerArguments + $Global:ArgsForRestartInElevatedAdminMode;
                                                 if( $Global:ModeDisallowInteractions -or $Global:ModeDisallowElevation ){ 
                                                   [String] $msg = "Script is currently not in elevated admin mode but the proceeding statements would require it. "
                                                   $msg += "The calling script=`"$cmd`" has the modes ModeDisallowInteractions=$Global:ModeDisallowInteractions and ModeDisallowElevation=$Global:ModeDisallowElevation, ";
@@ -427,7 +432,7 @@ function RegistryKeyGetHkey                   ( [String] $key ){
                                                 elseif( $key.StartsWith("HKU:" ) ){ return [Microsoft.Win32.Registry]::Users; }
                                                 else{ throw [Exception] "$(ScriptGetCurrentFunc): Unknown HKey in: '$key'"; } }
 function RegistryKeyGetSubkey                 ( [String] $key ){ 
-                                                return [String] $key.Split(":",2)[1]; }
+                                                return [String] ($key -split ":",2)[1]; }
 function RegistryPrivRuleCreate               ( [System.Security.Principal.IdentityReference] $account, [String] $regRight = "" ){
                                                 # ex: "FullControl", "ReadKey". available enums: https://msdn.microsoft.com/en-us/library/system.security.accesscontrol.registryrights(v=vs.110).aspx 
                                                 if( $regRight -eq "" ){ return [System.Security.AccessControl.AccessControlSections]::None; }
@@ -882,6 +887,10 @@ function FileUpdateItsHashSha2FileIfNessessary( [String] $srcFile ){
                                                   Out-File -Encoding UTF8 -LiteralPath $hashTarFile -Inputobject $hashSrc;
                                                   OutProgress "Created '$hashTarFile'."; 
                                                 } }
+function FileNtfsAlternativeDataStreamAdd     ( [String] $srcFile, [String] $adsName, [String] $val ){ Add-Content -Path $srcFile -Value $val -Stream $adsName; }
+function FileNtfsAlternativeDataStreamDel     ( [String] $srcFile, [String] $adsName ){ Clear-Content -Path $srcFile -Stream $adsName; }
+function FileAdsDownloadedFromInternetAdd     ( [String] $srcFile ){ FileNtfsAlternativeDataStreamAdd $srcFile 'Zone.Identifier' "[ZoneTransfer]`nZoneId=3"; }
+function FileAdsDownloadedFromInternetDel     ( [String] $srcFile ){ FileNtfsAlternativeDataStreamDel $srcFile 'Zone.Identifier'; } # alternative: Unblock-File -LiteralPath $file
 function DriveMapTypeToString                 ( [UInt32] $driveType ){
                                                 return [String] $(switch($driveType){ 1{"NoRootDir"} 2{"RemovableDisk"} 3{"LocalDisk"} 4{"NetworkDrive"} 5{"CompactDisk"} 6{"RamDisk"} default{"UnknownDriveType=driveType"}}); }
 function DriveList                            (){
@@ -914,7 +923,7 @@ function CredentialReadFromParamOrInput       ( [String] $username = "", [String
                                                 return (New-Object System.Management.Automation.PSCredential((CredentialStandardizeUserWithDomain $us), $pwSecure)); }
 function CredentialStandardizeUserWithDomain  ( [String] $username ){
                                                 # allowed username as input: "", "u0", "u0@domain", "@domain\u0", "domain\u0"   #> <# used because for unknown reasons sometimes a username like user@domain does not work, it requires domain\user.
-                                                if( $username.Contains("\") -or -not $username.Contains("@") ){ return $username; } return [String] ($username.Split("@",2)[1]+"\"+$username.Split("@",2)[0]); }
+                                                if( $username.Contains("\") -or -not $username.Contains("@") ){ return $username; } [String[]] $u = $username -split "@",2; return [String] ($u[1]+"\"+$u[0]); }
 function CredentialGetAndStoreIfNotExists     ( [String] $secureCredentialFile, [String] $username = "", [String] $password = "", [String] $requestMessage = "Enter username: " ){
                                                 # if username or password is empty then they are asked from std input.
                                                 # if file exists then it takes credentials from it.
@@ -1156,9 +1165,12 @@ function ToolCreate7zip                       ( [String] $srcDirOrFile, [String]
                                                 [Array] $arguments = "-t7z", "-mx=9", "-ms=4g", "-mmt=4", "-w", $recursiveOption, "a", "$tar7zipFile", $src;
                                                 OutProgress "$Prog7ZipExe $arguments";
                                                 [String] $out = & $Prog7ZipExe $arguments; AssertRcIsOk $out; }
-function ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [String] $workDir, [String] $lnkFile, [String] $srcFile, [String[]] $arguments, [Boolean] $runElevated = $false ){
+function ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [String] $workDir, [String] $lnkFile, [String] $srcFile, [String[]] $arguments, [Boolean] $runElevated = $false, [Boolean] $ignoreIfSrcFileNotExists = $false ){
                                                 # usually if target lnkfile already exists it does nothing.
                                                 [String] $descr = $srcFile;
+                                                if( $ignoreIfSrcFileNotExists -and (FileNotExists $srcFile) ){
+                                                  OutVerbose "NotCreatedBecauseSourceFileNotExists: $lnkFile"; return;
+                                                }
                                                 FileAssertExists $srcFile;
                                                 if( $forceRecreate ){ FileDelete $lnkFile; }
                                                 if( (FileExists $lnkFile) ){
@@ -1197,29 +1209,32 @@ function ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [Strin
                                                     $bytes[0x15] = $bytes[0x15] -bor 0x20; # set byte 21 (0x15) bit 6 (0x20) ON
                                                     [IO.File]::WriteAllBytes($lnkFile,$bytes);
                                                   } } }
-function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [String] $sourceDir, [String] $srcMenuLinkFileExtension = ".menulink.txt"){
+function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [String] $sourceDir, [String] $srcFileExtMenuLink = ".menulink.txt", [String] $srcFileExtMenuLinkOpt = ".menulinkoptional.txt" ){
                                                 # Create menu entries based on files below a dir.
                                                 # ex: ToolCreateMenuLinksByMenuItemRefFile "$env:APPDATA\Microsoft\Windows\Start Menu\MyPortableProg" "D:\MyPortableProgs" ".menulink.txt";
                                                 # Find all files below sourceDir with the extension (ex: ".menulink.txt"), which we call them menu-item-reference-file.
                                                 # For each of these files it will create a menu item below the target menu root dir (ex: "$env:APPDATA\Microsoft\Windows\Start Menu\MyPortableProg").
-                                                # The name of the target menu item (ex: "Manufactor ProgramName V1 en 2016") will be taken 
-                                                # from the name of the menu-item-reference-file (...\Manufactor ProgramName V1 en 2016.menulink.txt) without the extension (ex: ".menulink.txt")
+                                                # The name of the target menu item (ex: "Manufactor ProgramName V1") will be taken 
+                                                # from the name of the menu-item-reference-file (...\Manufactor ProgramName V1.menulink.txt) without the extension (ex: ".menulink.txt")
                                                 # and the sub menu folder will be taken from the relative location of the menu-item-reference-file below the sourceDir.
                                                 # The command for the target menu will be taken from the first line (ex: "D:\MyPortableProgs\Manufactor ProgramName\AnyProgram.exe")
                                                 # of the content of the menu-item-reference-file. If target lnkfile already exists it does nothing.
                                                 [String] $m = FsEntryGetAbsolutePath $targetMenuRootDir; # ex: "C:\Users\u1\AppData\Roaming\Microsoft\Windows\Start Menu\MyPortableProg"
                                                 [String] $sdir = FsEntryGetAbsolutePath $sourceDir; # ex: "D:\MyPortableProgs"
-                                                OutProgress "Create menu links to '$m' from '$sdir\*$srcMenuLinkFileExtension' files";
-                                                Assert ($srcMenuLinkFileExtension -ne "" -or (-not $srcMenuLinkFileExtension.EndsWith("\"))) "srcMenuLinkFileExtension is empty or has trailing backslash";
+                                                OutProgress "Create menu links to '$m' from files below '$sdir' with extension '$srcFileExtMenuLink' or '$srcFileExtMenuLinkOpt' files";
+                                                Assert ($srcFileExtMenuLink    -ne "" -or (-not $srcFileExtMenuLink.EndsWith("\")   )) "srcMenuLinkFileExt='$srcFileExtMenuLink' is empty or has trailing backslash";
+                                                Assert ($srcFileExtMenuLinkOpt -ne "" -or (-not $srcFileExtMenuLinkOpt.EndsWith("\"))) "srcMenuLinkOptFileExt='$srcFileExtMenuLinkOpt' is empty or has trailing backslash";
                                                 if( -not (DirExists $sdir) ){ OutWarning "Ignoring dir not exists: '$sdir'"; }
-                                                [String[]] $menuLinkFiles = FsEntryListAsStringArray "$sdir\*$srcMenuLinkFileExtension" $true $false | Sort-Object;
+                                                [String[]] $menuLinkFiles =  (FsEntryListAsStringArray "$sdir\*$srcFileExtMenuLink"    $true $false);
+                                                           $menuLinkFiles += (FsEntryListAsStringArray "$sdir\*$srcFileExtMenuLinkOpt" $true $false);
+                                                           $menuLinkFiles = $menuLinkFiles | Sort-Object;
                                                 foreach( $f in $menuLinkFiles ){
                                                   [String] $d = FsEntryGetParentDir $f; # ex: "D:\MyPortableProgs\Appl\Graphic"
                                                   if( -not $d.StartsWith($sdir)){ throw [Exception] "Expected '$d' below '$sdir'"; }
                                                   [String] $relBelowSrcDir = $d.Substring($sdir.Length); # ex: "\Appl\Graphic"
                                                   [String] $workDir = "";
                                                   # ex: "C:\Users\u1\AppData\Roaming\Microsoft\Windows\Start Menu\MyPortableProg\Appl\Graphic\Manufactor ProgramName V1 en 2016.lnk"
-                                                  [String] $lnkFile = "$($m)$($relBelowSrcDir)\$((FsEntryGetFileName $f).TrimEnd($srcMenuLinkFileExtension).TrimEnd()).lnk";
+                                                  [String] $lnkFile = "$($m)$($relBelowSrcDir)\$((FsEntryGetFileName $f).TrimEnd($srcFileExtMenuLink).TrimEnd()).lnk";
                                                   [String] $cmdLine = FileReadContentAsLines $f | Select-Object -First 1;
                                                   [String[]] $ar = StringCommandLineToArray $cmdLine;
                                                   if( $ar.Length -eq 0 ){ throw [Exception] "Missing a command line at first line in file='$f' cmdline=$cmdLine"; }
@@ -1227,10 +1242,11 @@ function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [St
                                                   [String] $srcFile = FsEntryMakeAbsolutePath $d $ar[0]; # ex: "D:\MyPortableProgs\Manufactor ProgramName\AnyProgram.exe"
                                                   [String[]] $arguments = $ar | Select-Object -Skip 1;
                                                   [Boolean] $forceRecreate = FileNotExistsOrIsOlder $lnkFile $f;
+                                                  [Boolean] $ignoreIfSrcFileNotExists = $srcFile.EndsWith($srcFileExtMenuLinkOpt); 
                                                   try{
-                                                    ToolCreateLnkIfNotExists $forceRecreate $workDir $lnkFile $srcFile $arguments;
+                                                    ToolCreateLnkIfNotExists $forceRecreate $workDir $lnkFile $srcFile $arguments $false $ignoreIfSrcFileNotExists;
                                                   }catch{
-                                                    OutWarning "Create menulink by reading file `"$f`", taking first line as cmdLine ($cmdLine) and calling (ToolCreateLnkIfNotExists $forceRecreate `"$workDir`" `"$lnkFile`" `"$srcFile`" `"$arguments`") failed because $($_.Exception.Message).$(switch(-not $cmdLine.StartsWith('`"')){$true{' Maybe first file of content in menulink file should be quoted.'}default{''}})";
+                                                    OutWarning "Create menulink by reading file `"$f`", taking first line as cmdLine ($cmdLine) and calling (ToolCreateLnkIfNotExists $forceRecreate `"$workDir`" `"$lnkFile`" `"$srcFile`" `"$arguments`" $false $ignoreIfSrcFileNotExists) failed because $($_.Exception.Message).$(switch(-not $cmdLine.StartsWith('`"')){$true{' Maybe first file of content in menulink file should be quoted.'}default{' Maybe if first file not exists you may use file extension menulinkoptional instead of menulink.'}})";
                                                   } } }
 function InfoAboutComputerOverview            (){ 
                                                 return [String[]] @( "InfoAboutComputerOverview:", "", "ComputerName   : $ComputerName", "UserName       : $env:UserName", 
@@ -1259,8 +1275,15 @@ function InfoAboutExistingShares              (){
                                                 return [String[]] $result; }
 function InfoAboutSystemInfo                  (){
                                                 [String[]] $out = & "systeminfo.exe"; AssertRcIsOk $out;
+                                                # get default associations for file extensions to programs for windows 10, this can be used later for imports.
+                                                # configuring: Control Panel->Default Programs-> Set Default Program.  Choos program and "set this program as default."
+                                                # View:        Control Panel->Programs-> Default Programs-> Set Association.
+                                                # Edit:        for imports the xml file can be edited and stripped for your needs.
+                                                # import cmd:  dism.exe /online /Import-DefaultAppAssociations:"mydefaultapps.xml"
+                                                # removing:    dism.exe /Online /Remove-DefaultAppAssociations
                                                 [String] $f = "$env:TEMP\EnvGetInfoAboutSystemInfo_DefaultFileExtensionToAppAssociations.xml";
                                                 & "Dism.exe" "/QUIET" "/Online" "/Export-DefaultAppAssociations:$f"; AssertRcIsOk;
+                                                #
                                                 [String[]] $result = @( "InfoAboutSystemInfo:", "" );
                                                 $result += $out;
                                                 $result += "OS-SerialNumber: "+(Get-WmiObject Win32_OperatingSystem|Select-Object -ExpandProperty SerialNumber);
@@ -1274,12 +1297,8 @@ function InfoAboutSystemInfo                  (){
                                                 # - Get-ScheduledTask | where{ $_.settings.waketorun }
                                                 # - change:
                                                 #   - Dism /online /Enable-Feature /FeatureName:TFTP /All
-                                                #   - cmd /c assoc .jpg=IrfanView.jpg
-                                                #   - cmd /c ftype IrfanView.jpg="C:\Prg\Appl\Graphic\Irfan-Skiljan IrfanView\i_view32.exe" "%1"
                                                 #   - import:   ev.:  Dism.exe /Image:C:\test\offline /Import-DefaultAppAssociations:\\Server\Share\AppAssoc.xml
                                                 #     remove:  Dism.exe /Image:C:\test\offline /Remove-DefaultAppAssociations
-                                                #     more:    https://msdn.microsoft.com/en-us/windows/hardware/commercialize/manufacture/desktop/export-or-import-default-application-associations
-                                                #     moee:    http://www.ghacks.net/2016/02/16/how-to-make-any-program-the-default-on-windows-10/
                                                 return [String[]] $result; }
 function InfoAboutRunningProcessesAndServices (){
                                                 return [String[]] @( "Info about processes:", ""
@@ -1727,7 +1746,7 @@ function SvnEnvInfoGet                        ( [String] $workDir ){
                                                 if( (StringIsNullOrEmpty $result.Url     ) ){ throw [Exception] "missing URL tag in svn info"; }
                                                 if( (StringIsNullOrEmpty $result.Path    ) ){ throw [Exception] "missing Path tag in svn info"; }
                                                 if( (StringIsNullOrEmpty $result.Revision) ){ throw [Exception] "missing Revision tag in svn info"; }
-                                                $result.RealmPattern = ($result.Url -Split "/svn/")[0] + $(switch($result.Url.Split("/")[0]){ "https:"{":443"} "http:"{":80"} default{""} });
+                                                $result.RealmPattern = ($result.Url -Split "/svn/")[0] + $(switch(($result.Url -split "/")[0]){ "https:"{":443"} "http:"{":80"} default{""} });
                                                 $result.CachedAuthorizationFile = "";
                                                 $result.CachedAuthorizationUser = "";
                                                 # svn can cache more than one server connection option,
@@ -1981,30 +2000,41 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                 if( @("Clone","Fetch","Pull") -notcontains $cmd ){ throw [Exception] "Expected one of (Clone,Fetch,Pull) instead of: $cmd"; }
                                                 [Boolean] $doChangeDir = @("Fetch","Pull") -contains $cmd;
                                                 [String] $dir = FsEntryGetAbsolutePath (GitBuildLocalDirFromUrl $tarRootDir $url);
+                                                [String[]] $out = $null;
                                                 try{
-                                                  if( $doChangeDir ){ Push-Location -Path $dir; } # required depending on repo config
+                                                  if( $doChangeDir ){
+                                                    OutProgressText "cd '$dir'; ";
+                                                    Push-Location -Path $dir; # required depending on repo config
+                                                  } 
+                                                  $Global:ErrorActionPreference         = "Continue";
                                                   # ex: remote: Counting objects: 123, done. \n Receiving objects: 56% (33/123)  0 (delta 0), pack-reused ... \n Receiving objects: 100% (123/123), 205.12 KiB | 0 bytes/s, done. \n Resolving deltas: 100% (123/123), done.
-                                                  [String[]] $out = $null;
                                                   if( $cmd -eq "Clone" ){
-                                                    OutProgressText "git clone --quiet '$url' '$dir' ";
-                                                    $out = & "git" "clone" "--quiet" $url $dir 2>&1;
+                                                    OutProgress  "git clone --quiet --no-stat '$url' '$dir'; ";
+                                                    $out = & "git" "clone" "--quiet" "--no-stat" $url $dir 2>&1;
                                                   }elseif( $cmd -eq "Fetch" ){
-                                                    OutProgressText "git --git-dir='$dir\.git' fetch --quiet '$url' ";
-                                                    $out = & "git" "--git-dir=$dir\.git" "fetch" "--quiet" $url 2>&1;
+                                                    OutProgress "git --git-dir='$dir\.git' fetch --quiet --no-stat '$url'; ";
+                                                    $out = & "git" "--git-dir=$dir\.git" "fetch" "--quiet" "--no-stat" $url 2>&1;
                                                   }elseif( $cmd -eq "Pull" ){
-                                                    OutProgressText "cd dir; git --git-dir='$dir\.git' pull --quiet '$url' "; # defaults: "--no-rebase" "origin"
-                                                    $out = & "git" "--git-dir=$dir\.git" "pull" "--quiet" $url 2>&1;
-                                                  }
+                                                    OutProgress "git --git-dir='$dir\.git' pull --quiet --no-stat '$url'; "; # defaults: "--no-rebase" "origin"
+                                                    # $out = & "git" "--git-dir=$dir\.git" "pull" "--quiet" "--no-stat" $url 2>&1;
+                                                    ScriptResetRc;
+                                                    [System.Diagnostics.Process] $pr = Start-Process -PassThru -FilePath "git" -ArgumentList @( "--git-dir=$dir\.git", "pull", "--quiet", "--no-stat", $url ) -NoNewWindow -Wait;
+                                                    # -RedirectStandardError -RedirectStandardOutput  $process.ExitCode
+                                                    if( $pr.ExitCode -ne 0 ){ throw [Exception] ""; }
+                                                  }else{ throw [Exception] "Unknown git cmd='$cmd'"; }
                                                   AssertRcIsOk $out $true;
-                                                  OutSuccess "Ok $out";
+                                                  OutSuccess "  Ok. $out";
                                                 }catch{
+                                                  # ex: fatal: AggregateException encountered.
                                                   # ex: Logon failed, use ctrl+c to cancel basic credential prompt.
                                                   # ex: remote: Repository not found. fatal: repository 'https://github.com/mniederw/UnknownRepo/' not found
                                                   # ex: fatal: Not a git repository: 'D:\WorkGit\mniederw\UnknownRepo\.git'
                                                   # ex: error: Your local changes to the following files would be overwritten by merge:
-                                                  [String] $msg = "$(ScriptGetCurrentFunc)($cmd,$tarRootDir,$url) failed because $($_.Exception.Message)";
+                                                  # ex: error: unknown option `anyUnknownOption'
+                                                  # ex: Checking out files:  98% (75/76)
+                                                  [String] $msg = "$(ScriptGetCurrentFunc)($cmd,$tarRootDir,$url) failed because $($_.Exception.Message).";
                                                   if( -not $errorAsWarning ){ throw [Exception] $msg; }
-                                                  OutWarning $msg;
+                                                  OutWarning "Ignore: $msg";
                                                   ScriptResetRc;
                                                 }finally{
                                                   if( $doChangeDir ){ Pop-Location; }
