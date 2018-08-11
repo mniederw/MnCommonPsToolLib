@@ -41,14 +41,19 @@
 #      StdOutBegMsgCareInteractiveMode "NoRequestAtBegin, NoWaitAtEnd"; # will nothing write
 #      OutProgress "Working";
 #      StdOutEndMsgCareInteractiveMode; # will write: "Ok, done. Ending in 1 second(s)."
+# or
+#      [CmdletBinding()] Param( [parameter(Mandatory=$true)] [String] $p1, [parameter(Mandatory=$true)] [String] $p2 )
+#      OutInfo "Parameters: p1=$p1 p2=$p2";
+#
 
 # Do not change the following line, it is a powershell statement and not a comment! Note: if it would be run interactively then it would throw: RuntimeException: Error on creating the pipeline.
 #Requires -Version 3.0
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for bugfixes.
-[String] $MnCommonPsToolLibVersion = "1.15";
+[String] $MnCommonPsToolLibVersion = "1.16";
 
+# 2018-08-07  V1.16  add tool for sign assemblies, DirCreateTemp
 # 2018-07-26  V1.15  improve handling of git, improve createLnk, ads functions, add doc.
 # 2018-03-26  V1.14  add ToolTailFile, FsEntryDeleteToRecycleBin.
 # 2018-02-23  V1.13  renamed deprecated DateTime* functions, new FsEntryGetLastModified, improve PsDownload, fixed DateTimeAsStringIso.
@@ -173,6 +178,9 @@ function GlobalSetModeEnableAutoLoadingPref   ( [Boolean] $val = $true ){ $Globa
 function StringIsNullOrEmpty                  ( [String] $s ){ return [Boolean] [String]::IsNullOrEmpty($s); }
 function StringIsNotEmpty                     ( [String] $s ){ return [Boolean] (-not [String]::IsNullOrEmpty($s)); }
 function StringIsNullOrWhiteSpace             ( [String] $s ){ return [Boolean] (-not [String]::IsNullOrWhiteSpace($s)); }
+function StringLeft                           ( [String] $s, [Int32] $len ){ return [String] $s.Substring(0,(Int32Clip $len 0 $s.Length)); }
+function StringRight                          ( [String] $s, [Int32] $len ){ return [String] $s.Substring($s.Length-(Int32Clip $len 0 $s.Length)); }
+function StringRemoveRightNr                  ( [String] $s, [Int32] $len ){ return StringLeft $s ($s.Length-$len); }
 function StringSplitIntoLines                 ( [String] $s ){ return [String[]] (($s -replace "`r`n", "`n") -split "`n"); } # for empty string it returns an array with one item.
 function StringReplaceNewlinesBySpaces        ( [String] $s ){ return [String] ($s -replace "`r`n", "`n" -replace "`r", "" -replace "`n", " "); }
 function StringArrayInsertIndent              ( [String[]] $lines, [Int32] $nrOfBlanks ){ if( $lines -eq $null ){ return [String[]] $null; } return [String[]] ($lines | %{ ((" "*$nrOfBlanks)+$_); }); }
@@ -180,12 +188,14 @@ function StringArrayDistinct                  ( [String[]] $lines ){ return [Str
 function StringPadRight                       ( [String] $s, [Int32] $len, [Boolean] $doQuote = $false  ){ [String] $r = $s; if( $doQuote ){ $r = '"'+$r+'"'; } return [String] $r.PadRight($len); }
 function StringSplitToArray                   ( [String] $sepChars, [String] $s, [Boolean] $removeEmptyEntries = $true ){ return [String[]] (@()+$s.Split($sepChars,$(switch($removeEmptyEntries){$true{[System.StringSplitOptions]::RemoveEmptyEntries}default{[System.StringSplitOptions]::None}}))); }
 function StringReplaceEmptyByTwoQuotes        ( [String] $str ){ return [String] $(switch((StringIsNullOrEmpty $str)){$true{"`"`""}default{$str}}); }
-function StringFromException                  ( [Exception] $ex ){ return [String] "$($ex.GetType().Name): $($ex.Message -replace `"`r`n`",`" `") $($ex.Data|ForEach-Object{`"`r`n Data: $($_.Values)]`"})`r`n StackTrace:`r`n$($ex.StackTrace)"; } # use this if $_.Exception.Message is not enough. note: .Data is never null.
+function StringRemoveRight                    ( [String] $str, [String] $strRight, [Boolean] $ignoreCase = $true ){ [String] $r = StringRight $str $strRight.Length; return [String] $(switch(($ignoreCase -and $r -eq $strRight) -or $r -ceq $strRight){$true{StringRemoveRightNr $str $strRight.Length}default{$str}}); }
+function StringFromException                  ( [Exception] $ex ){ return [String] "$($ex.GetType().Name): $($ex.Message -replace `"`r`n`",`" `") $($ex.Data|ForEach-Object{`"`r`n Data: [$($_.Values)]`"})`r`n StackTrace:`r`n$($ex.StackTrace)"; } # use this if $_.Exception.Message is not enough. note: .Data is never null.
 function DateTimeAsStringIso                  ( [DateTime] $ts, [String] $fmt = "yyyy-MM-dd HH:mm:ss" ){ return [String] $ts.ToString($fmt); }
 function DateTimeNowAsStringIso               ( [String] $fmt = "yyyy-MM-dd HH:mm:ss" ){ return [String] (Get-Date -format $fmt); }
 function DateTimeNowAsStringIsoDate           (){ return [String] (DateTimeNowAsStringIso "yyyy-MM-dd"); }
 function DateTimeFromStringIso                ( [String] $s ){ [String] $fmt = "yyyy-MM-dd_HH_mm_ss.fff"; if( $s.Length -le 10 ){ $fmt = "yyyy-MM-dd"; }elseif( $s.Length -le 16 ){ $fmt = "yyyy-MM-dd_HH_mm"; }elseif( $s.Length -le 19 ){ $fmt = "yyyy-MM-dd_HH_mm_ss"; }elseif( $s.Length -le 20 ){ $fmt = "yyyy-MM-dd_HH_mm_ss."; }elseif( $s.Length -le 21 ){ $fmt = "yyyy-MM-dd_HH_mm_ss.f"; }elseif( $s.Length -le 22 ){ $fmt = "yyyy-MM-dd_HH_mm_ss.ff"; } return [DateTime] [datetime]::ParseExact($s,$fmt,$null); }
 function ByteArraysAreEqual                   ( [Byte[]] $a1, [Byte[]] $a2 ){ if( $a1.LongLength -ne $a2.LongLength ){ return $false; } for( [Int64] $i = 0; $i -lt $a1.LongLength; $i++ ){ if( $a1[$i] -ne $a2[$i] ){ return $false; } } return $true; }
+function Int32Clip                            ( [Int32] $i, [Int32] $lo, [Int32] $hi ){ if( $i -lt $lo ){ return $lo; } elseif( $i -gt $hi ){ return $hi; }else{ return $i; } } 
 function ConsoleHide                          (){ [Object] $p = [Console.Window]::GetConsoleWindow(); $b = [Console.Window]::ShowWindow($p,0); } #0 hide (also by PowerShell.exe -WindowStyle Hidden)
 function ConsoleShow                          (){ [Object] $p = [Console.Window]::GetConsoleWindow(); $b = [Console.Window]::ShowWindow($p,5); } #5 nohide
 function ConsoleRestore                       (){ [Object] $p = [Console.Window]::GetConsoleWindow(); $b = [Console.Window]::ShowWindow($p,1); } #1 show
@@ -217,7 +227,17 @@ function StdErrHandleExc                      ( [System.Management.Automation.Er
                                                 $msg += "`r`n ErrorDetails: $(switch($er.ErrorDetails -ne $null){$true{$er.ErrorDetails.ToString()}default{''}})";
                                                 $msg += "`r`n PSMessageDetails: $($er.PSMessageDetails)";
                                                 StdOutRedLine $msg;
-                                                if( $global:ModeDisallowInteractions ){ if( $delayInSec -gt 0 ){ StdOutLine "Waiting for $delayInSec seconds."; } ProcessSleepSec $delayInSec; }else{ StdOutRedLine "Press enter to exit"; Read-Host; } }
+                                                if( -not $global:ModeDisallowInteractions ){ 
+                                                StdOutRedLine "Press enter to exit"; 
+                                                  try{
+                                                    Read-Host; return;
+                                                  }catch{ # ex: PSInvalidOperationException:  Read-Host : Windows PowerShell is in NonInteractive mode. Read and Prompt functionality is not available.
+                                                    StdOutRedLine "Note: Cannot Read-Host because $($_.Exception.Message)"; 
+                                                  }
+                                                }
+                                                if( $delayInSec -gt 0 ){ StdOutLine "Waiting for $delayInSec seconds."; }
+                                                ProcessSleepSec $delayInSec; 
+                                                }
 function StdPipelineErrorWriteMsg             ( [String] $msg ){ Write-Error $msg; } # does not work in powershell-ise, so in general do not use it, use throw
 function StdOutBegMsgCareInteractiveMode      ( [String] $mode = "DoRequestAtBegin" ){ # available mode: "DoRequestAtBegin", "NoRequestAtBegin", "NoWaitAtEnd", "MinimizeConsole". Usually this is the first statement in a script after an info line. So you can give your scripts a standard styling.
                                                 ScriptResetRc; [String[]] $modes = @()+($mode -split "," | ForEach-Object{ $_.Trim() });
@@ -230,12 +250,14 @@ function StdInAskForAnswerWhenInInteractMode  ( [String] $line, [String] $expect
 function StdOutEndMsgCareInteractiveMode      ( [Int32] $delayInSec = 1 ){ if( $global:ModeDisallowInteractions -or $global:ModeNoWaitForEnterAtEnd ){ 
                                                 OutSuccess "Ok, done. Ending in $delayInSec second(s)."; ProcessSleepSec $delayInSec; }else{ OutSuccess "Ok, done. Press Enter to Exit;"; StdInReadLine; } }
 function Assert                               ( [Boolean] $cond, [String] $msg = "" ){ if( -not $cond ){ throw [Exception] "Assertion failed $msg"; } }
-function AssertRcIsOk                         ( [String[]] $linesToOutProgress = $null, [Boolean] $useLinesAsExcMessage = $false ){
+function AssertRcIsOk                         ( [String[]] $linesToOutProgress = $null, [Boolean] $useLinesAsExcMessage = $false, [String] $logFileToOutProgressIfFailed = "" ){
                                                 # can also be called with a single string; only nonempty progress lines are given out
-                                                [Int32] $rc = ScriptGetAndClearLastRc; if( $rc -ne 0 ){
+                                                [Int32] $rc = ScriptGetAndClearLastRc; 
+                                                if( $rc -ne 0 ){
                                                   if( -not $useLinesAsExcMessage ){ $linesToOutProgress | Where-Object{ -not [String]::IsNullOrWhiteSpace($_) } | ForEach-Object{ OutProgress $_ }; }
                                                   [String] $msg = "Last operation failed [rc=$rc]. "; 
                                                   if( $useLinesAsExcMessage ){ $msg = $(switch($rc -eq 1 -and $out -ne ""){$true{""}$false{$msg}}) + ([String]$linesToOutProgress).Trim(); }
+                                                  try{ OutProgress "Dump of $($logFileToOutProgressIfFailed):"; FileReadContentAsLines $logFileToOutProgressIfFailed | ForEach-Object { OutProgress "  $_"; } }catch{}                                               
                                                   throw [Exception] $msg; } }
 function ScriptGetCurrentFunc                 (){ return [String] ((Get-Variable MyInvocation -Scope 1).Value.MyCommand.Name); }
 function ScriptGetAndClearLastRc              (){ [Int32] $rc = 0; if( ($LASTEXITCODE -ne $null -and $LASTEXITCODE -ne 0) -or -not $? ){ $rc = $LASTEXITCODE; ScriptResetRc; } return [Int32] $rc; } # if no windows command was done then $LASTEXITCODE is null
@@ -423,12 +445,12 @@ function RegistryImportFile                   ( [String] $regFile ){
 function RegistryKeyGetAcl                    ( [String] $key ){
                                                 return [System.Security.AccessControl.RegistrySecurity] (Get-Acl -Path $key); } # must be called with shortkey form
 function RegistryKeyGetHkey                   ( [String] $key ){
-                                                if    ( $key.StartsWith("HKLM:") ){ return [Microsoft.Win32.Registry]::LocalMachine; }  # Note: we must return result immediatly because we had problems if it would be stored in a variable
-                                                elseif( $key.StartsWith("HKCU:") ){ return [Microsoft.Win32.Registry]::CurrentUser; }
-                                                elseif( $key.StartsWith("HKCR:") ){ return [Microsoft.Win32.Registry]::ClassesRoot; }
-                                                elseif( $key.StartsWith("HKCC:") ){ return [Microsoft.Win32.Registry]::CurrentConfig; }
-                                                elseif( $key.StartsWith("HKPD:") ){ return [Microsoft.Win32.Registry]::PerformanceData; }
-                                                elseif( $key.StartsWith("HKU:" ) ){ return [Microsoft.Win32.Registry]::Users; }
+                                                if    ( $key.StartsWith("HKLM:","CurrentCultureIgnoreCase") ){ return [Microsoft.Win32.Registry]::LocalMachine; }  # Note: we must return result immediatly because we had problems if it would be stored in a variable
+                                                elseif( $key.StartsWith("HKCU:","CurrentCultureIgnoreCase") ){ return [Microsoft.Win32.Registry]::CurrentUser; }
+                                                elseif( $key.StartsWith("HKCR:","CurrentCultureIgnoreCase") ){ return [Microsoft.Win32.Registry]::ClassesRoot; }
+                                                elseif( $key.StartsWith("HKCC:","CurrentCultureIgnoreCase") ){ return [Microsoft.Win32.Registry]::CurrentConfig; }
+                                                elseif( $key.StartsWith("HKPD:","CurrentCultureIgnoreCase") ){ return [Microsoft.Win32.Registry]::PerformanceData; }
+                                                elseif( $key.StartsWith("HKU:","CurrentCultureIgnoreCase")  ){ return [Microsoft.Win32.Registry]::Users; }
                                                 else{ throw [Exception] "$(ScriptGetCurrentFunc): Unknown HKey in: '$key'"; } }
 function RegistryKeyGetSubkey                 ( [String] $key ){ 
                                                 return [String] ($key -split ":",2)[1]; }
@@ -544,6 +566,12 @@ function FsEntryEsc                           ( [String] $fsentry ){
                                                 if( $fsentry -eq "" ){ throw [Exception] "Empty file name not allowed"; } # escaping is not nessessary if a command supports -LiteralPath.
                                                 return [String] [Management.Automation.WildcardPattern]::Escape($fsentry); } # important for chars as [,], etc.
 function FsEntryMakeValidFileName             ( [string] $str ){ [System.IO.Path]::GetInvalidFileNameChars() | ForEach-Object{ $str = $str.Replace($_,'_') }; return [String] $str; }
+function FsEntryMakeRelative                  ( [String] $fsEntry, [String] $belowDir ){ # trailing backslash not nessessary. ex: "Dir1\Dir2" -eq (FsEntryMakeRelative "C:\MyDir\Dir1\Dir2" "C:\MyDir")
+                                                 Assert ($belowDir -ne "") "belowDir is empty.";
+                                                 $belowDir = FsEntryMakeTrailingBackslash $belowDir;
+                                                 Assert ($fsEntry.StartsWith($belowDir,"CurrentCultureIgnoreCase")) "Expected '$fsEntry' starts with '$belowDir'";
+                                                 return [String] $fsEntry.Substring($belowDir.Length);
+                                                 }                                                
 function FsEntryGetAbsolutePath               ( [String] $fsEntry ){ 
                                                 return [String] ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($fsEntry)); }
                                                 # note: we cannot use (Resolve-Path -LiteralPath $fsEntry) because it will throw if path not exists, see http://stackoverflow.com/questions/3038337/powershell-resolve-path-that-might-not-exist
@@ -595,7 +623,7 @@ function FsEntryListAsFileSystemInfo          ( [String] $fsEntryPattern, [Boole
                                                 # It works with absolute or relative paths. A leading ".\" for relative paths is optional.
                                                 # If recursive is specified then it applies pattern matching of last specified part (.\*.tmp;.\Bin\) in each sub dir.
                                                 # Wildcards on parent dir parts are also allowed ("dir*\*.tmp","*\*.tmp").
-                                              # It work as intuitive as possible, but here are more detail specifications:
+                                                # It work as intuitive as possible, but here are more detail specifications:
                                                 #   If no wildcards are used then behaviour is the following: 
                                                 #     In non-recursive mode and if pattern matches a file (".\f.txt") then it is listed, and if pattern matches a dir (".\dir") its content is listed flat.
                                                 #     In recursive mode the last backslash separated part of the pattern ("f.txt" or "dir") is searched in two steps,
@@ -660,9 +688,9 @@ function FsEntryMoveByPatternToDir            ( [String] $fsEntryPattern, [Strin
                                                 OutProgress "FsEntryMoveByPatternToDir '$fsEntryPattern' to '$targetDir'"; DirAssertExists $targetDir;
                                                 FsEntryListAsStringArray $fsEntryPattern | Sort-Object | 
                                                   ForEach-Object{ if( $showProgressFiles ){ OutProgress "Source: $_"; }; Move-Item -Force -Path $_ -Destination (FsEntryEsc $targetDir); }; }
-function FsEntryCopyByPatternByOverwrite      ( [String] $fsEntryPattern, [String] $targetDir, [Boolean] $continueOnErr = $false ){ 
-                                                OutProgress "FsEntryCopyByPatternByOverwrite '$fsEntryPattern' to '$targetDir' continueOnErr=$continueOnErr"; 
-                                                DirCreate $targetDir; Copy-Item -ErrorAction SilentlyContinue -Recurse -Force -Path $fsEntryPattern -Destination (FsEntryEsc $targetDir); 
+function FsEntryCopyByPatternByOverwrite      ( [String] $fsEntryPattern, [String] $targetDir, [Boolean] $continueOnErr = $false ){
+                                                OutProgress "FsEntryCopyByPatternByOverwrite '$fsEntryPattern' to '$targetDir' continueOnErr=$continueOnErr";
+                                                DirCreate $targetDir; Copy-Item -ErrorAction SilentlyContinue -Recurse -Force -Path $fsEntryPattern -Destination (FsEntryEsc $targetDir);
                                                 if( -not $? ){ if( ! $continueOnErr ){ AssertRcIsOk; }else{ OutWarning "CopyFiles '$fsEntryPattern' to '$targetDir' failed, will continue"; } } }
 function FsEntryFindNotExistingVersionedName  ( [String] $fsEntry, [String] $ext = ".bck", [Int32] $maxNr = 9999 ){ # return ex: "C:\Dir\MyName.001.bck"
                                                 $fsEntry = (FsEntryGetAbsolutePath $fsEntry);
@@ -766,8 +794,11 @@ function DirExists                            ( [String] $dir ){
                                                 try{ return [Boolean] (Test-Path -PathType Container -LiteralPath $dir); }catch{ throw [Exception] "$(ScriptGetCurrentFunc)($dir) failed because $($_.Exception.Message)"; } }
 function DirAssertExists                      ( [String] $dir ){ 
                                                 if( -not (DirExists $dir) ){ throw [Exception] "Dir not exists: '$dir'."; } }
-function DirCreate                            ( [String] $dir ){ 
+function DirCreate                            ( [String] $dir ){
                                                 New-Item -type directory -Force (FsEntryEsc $dir) | Out-Null; } # create dir if it not yet exists,;we do not call OutProgress because is not an important change.
+function DirCreateTemp                        ( [String] $prefix = "" ){ while($true){
+                                               [String] $d = Join-Path ([System.IO.Path]::GetTempPath()) ($prefix + [System.IO.Path]::GetRandomFileName().Replace(".",""));
+                                               if( FsEntryNotExists $d ){ DirCreate $d; return $d; } } }
 function DirDelete                            ( [String] $dir, [Boolean] $ignoreReadonly = $true ){
                                                 # remove dir recursively if it exists, be careful when using this.
                                                 if( (DirExists $dir) ){ 
@@ -817,7 +848,7 @@ function FileWriteFromString                  ( [String] $file, [String] $conten
                                                 # alternative: Set-Content -Encoding $encoding -Path (FsEntryEsc $file) -Value $content; but this would lock file, and see http://stackoverflow.com/questions/10655788/powershell-set-content-and-out-file-what-is-the-difference
 function FileWriteFromLines                   ( [String] $file, [String[]] $lines, [Boolean] $overwrite = $false, [String] $encoding = "UTF8" ){ 
                                                 OutProgress "WriteFile $file"; FsEntryCreateParentDir $file; $lines | Out-File -Force -NoClobber:$(-not $overwrite) -Encoding $encoding -LiteralPath $file; }
-function FileCreateEmpty                      ( [String] $file, [Boolean] $overwrite = $false ){ if( $overwrite ){ OutProgress "FileCreateEmpty-ByOverwrite $file"; } FsEntryCreateParentDir $file; Out-File -Force -NoClobber:$(-not $overwrite) -Encoding ASCII -LiteralPath $file; }
+function FileCreateEmpty                      ( [String] $file, [Boolean] $overwrite = $false, [Boolean] $quiet = $false ){ if( -not $quiet -and $overwrite ){ OutProgress "FileCreateEmpty-ByOverwrite $file"; } FsEntryCreateParentDir $file; Out-File -Force -NoClobber:$(-not $overwrite) -Encoding ASCII -LiteralPath $file; }
 function FileAppendLineWithTs                 ( [String] $file, [String] $line ){ FileAppendLine $file "$(DateTimeNowAsStringIso "yyyy-MM-dd HH:mm") $line"; }
 function FileAppendLine                       ( [String] $file, [String] $line, [Boolean] $tsPrefix = $false ){ 
                                                 FsEntryCreateParentDir $file; Out-File -Encoding Default -Append -LiteralPath $file -InputObject $line; }
@@ -868,10 +899,10 @@ function FileDelete                           ( [String] $file, [Boolean] $ignor
                                                 if( (FileExists $file) ){ OutProgress "FileDelete$(switch($ignoreReadonly){$true{''}default{'CareReadonly'}}) '$file'"; 
                                                   Remove-Item -Force:$ignoreReadonly -LiteralPath $file; } }
 function FileCopy                             ( [String] $srcFile, [String] $tarFile, [Boolean] $overwrite = $false ){ 
-                                                OutProgress "FileCopy(Overwrite=$overwrite) '$srcFile' to '$tarFile' $(switch($(FileExists $(FsEntryEsc $tarFile))){$true{'(Target exists so ignored)'}default{''}})"; 
+                                                OutProgress "FileCopy(Overwrite=$overwrite) '$srcFile' to '$tarFile' $(switch($(FileExists $(FsEntryEsc $tarFile))){$true{'(Target exists)'}default{''}})"; 
                                                 FsEntryCreateParentDir $tarFile; Copy-Item -Force:$overwrite (FsEntryEsc $srcFile) (FsEntryEsc $tarFile); }
 function FileMove                             ( [String] $srcFile, [String] $tarFile, [Boolean] $overwrite = $false ){ 
-                                                OutProgress "FileMove(Overwrite=$overwrite) '$srcFile' to '$tarFile' $(switch($(FileExists $(FsEntryEsc $tarFile))){$true{'(Target exists so ignored)'}default{''}})"; 
+                                                OutProgress "FileMove(Overwrite=$overwrite) '$srcFile' to '$tarFile' $(switch($(FileExists $(FsEntryEsc $tarFile))){$true{'(Target exists)'}default{''}})"; 
                                                 FsEntryCreateParentDir $tarFile; Move-Item -Force:$overwrite -LiteralPath $srcFile -Destination $tarFile; }
 function FileGetHexStringOfHash128BitsMd5     ( [String] $srcFile ){ return [String] (get-filehash -Algorithm "MD5"    $srcFile).Hash; }
 function FileGetHexStringOfHash256BitsSha2    ( [String] $srcFile ){ return [String] (get-filehash -Algorithm "SHA256" $srcFile).Hash; } # 2017-11 ps standard is SHA256, available are: SHA1;SHA256;SHA384;SHA512;MACTripleDES;MD5;RIPEMD160
@@ -1228,12 +1259,11 @@ function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [St
                                                            $menuLinkFiles += (FsEntryListAsStringArray "$sdir\*$srcFileExtMenuLinkOpt" $true $false);
                                                            $menuLinkFiles = $menuLinkFiles | Sort-Object;
                                                 foreach( $f in $menuLinkFiles ){
-                                                  [String] $d = FsEntryGetParentDir $f; # ex: "D:\MyPortableProgs\Appl\Graphic"
-                                                  if( -not $d.StartsWith($sdir)){ throw [Exception] "Expected '$d' below '$sdir'"; }
-                                                  [String] $relBelowSrcDir = $d.Substring($sdir.Length); # ex: "\Appl\Graphic"
+                                                  [String] $d = FsEntryGetParentDir $f; # ex: "D:\MyPortableProgs\Appl\Graphic"                                                  
+                                                  [String] $relBelowSrcDir = FsEntryMakeRelative $d $sdir; # ex: "Appl\Graphic"
                                                   [String] $workDir = "";
                                                   # ex: "C:\Users\u1\AppData\Roaming\Microsoft\Windows\Start Menu\MyPortableProg\Appl\Graphic\Manufactor ProgramName V1 en 2016.lnk"
-                                                  [String] $lnkFile = "$($m)$($relBelowSrcDir)\$((FsEntryGetFileName $f).TrimEnd($srcFileExtMenuLink).TrimEnd()).lnk";
+                                                  [String] $lnkFile = "$($m)\$($relBelowSrcDir)\$((FsEntryGetFileName $f).TrimEnd($srcFileExtMenuLink).TrimEnd()).lnk";
                                                   [String] $cmdLine = FileReadContentAsLines $f | Select-Object -First 1;
                                                   [String[]] $ar = StringCommandLineToArray $cmdLine;
                                                   if( $ar.Length -eq 0 ){ throw [Exception] "Missing a command line at first line in file='$f' cmdline=$cmdLine"; }
@@ -1662,7 +1692,7 @@ function CurlDownloadFile                     ( [String] $url, [String] $tarFile
                                                 DirCreate $tarDir;
                                                 FileAppendLineWithTs $logf "$curlExe $opt --url $url";
                                                 OutProgress "Logfile: `"$logf`"";
-                                                [String] $out = & $curlExe $opt "--url" $url;
+                                                [String[]] $out = & $curlExe $opt "--url" $url;
                                                 if( $LASTEXITCODE -eq 60 ){
                                                   # curl: (60) SSL certificate problem: unable to get local issuer certificate. More details here: http://curl.haxx.se/docs/sslcerts.html
                                                   # curl performs SSL certificate verification by default, using a "bundle" of Certificate Authority (CA) public keys (CA certs). 
@@ -2203,6 +2233,28 @@ function JuniperNcEstablishVpnConnAndRdp      ( [String] $rdpfile, [String] $url
                                                 JuniperNcEstablishVpnConn $secureCredentialFile $url $realm;
                                                 RdpConnect $rdpfile; }
 function ToolTailFile                         ( [String] $file ){ OutProgress "Show tail of file until ctrl-c is entered"; Get-Content -Wait $file; }
+function ToolSignDotNetAssembly               ( [String] $keySnk, [String] $srcDllOrExe, [String] $tarDllOrExe, [Boolean] $overwrite = $false ){
+                                                # note: generate a key: sn.exe -k mykey.snk
+                                                OutInfo "Sign dot-net assembly: keySnk='$keySnk' srcDllOrExe='$srcDllOrExe' tarDllOrExe='$tarDllOrExe' overwrite=$overwrite ";
+                                                [Boolean] $isDllNotExe = $srcDllOrExe.ToLower().EndsWith(".dll");
+                                                if( -not $isDllNotExe -and -not $srcDllOrExe.ToLower().EndsWith(".exe") ){ throw [Exception] "Expected ends with .dll or .exe, srcDllOrExe='$srcDllOrExe'"; }
+                                                if( -not $overwrite -and (FileExists $tarDllOrExe) ){ OutProgress "Ok, target already exists: $tarDllOrExe"; return; }
+                                                FsEntryCreateParentDir  $tarDllOrExe;
+                                                [String] $n = FsEntryGetFileName $tarDllOrExe;
+                                                [String] $d = DirCreateTemp "SignAssembly_";
+                                                OutProgress "ildasm.exe -NOBAR -all `"$srcDllOrExe`" `"-out=$d\$n.il`"";
+                                                & "ildasm.exe" -TEXT -all $srcDllOrExe "-out=$d\$n.il"; AssertRcIsOk;
+                                                OutProgress "ilasm.exe -QUIET -DLL -PDB `"-KEY=$keySnk`" `"$d\$n.il`" `"-RESOURCE=$d\$n.res`" `"-OUTPUT=$tarDllOrExe`"";
+                                                & "ilasm.exe" -QUIET -DLL -PDB "-KEY=$keySnk" "$d\$n.il" "-RESOURCE=$d\$n.res" "-OUTPUT=$tarDllOrExe"; AssertRcIsOk;
+                                                DirDelete $d;
+                                                # disabled because if we would take the pdb of unsigned assembly then ilmerge failes because pdb is outdated.
+                                                #   [String] $srcPdb = (StringRemoveRightNr $srcDllOrExe 4) + ".pdb";
+                                                #   [String] $tarPdb = (StringRemoveRightNr $tarDllOrExe 4) + ".pdb";
+                                                #   if( FileExists $srcPdb ){ FileCopy $srcPdb $tarPdb $true; }
+                                                [String] $srcXml = (StringRemoveRightNr $srcDllOrExe 4) + ".xml";
+                                                [String] $tarXml = (StringRemoveRightNr $tarDllOrExe 4) + ".xml";
+                                                if( FileExists $srcXml ){ FileCopy $srcXml $tarXml $true; }
+                                                }
 function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $url, [Boolean] $requireElevatedAdminMode, [Boolean] $doWaitIfFailed = $false, [String] $additionalOkUpdMsg = "" ){
                                                 # Assert the correct installed environment by requiring that the file to be update previously exists.
                                                 # Assert the network is prepared by checking if host is reachable.
@@ -2266,13 +2318,7 @@ function DirExistsAssert                      ( [String] $dir ){ OutWarning "Dir
 function DateTimeFromStringAsFormat           ( [String] $s   ){ OutWarning "DateTimeFromStringAsFormat is deprecated, use DateTimeFromStringIso instead, will be removed in next major version"; return (DateTimeFromStringIso $s); }
 function DateTimeAsStringForFileName          (               ){ OutWarning "DateTimeAsStringForFileName is deprecated, use (DateTimeNowAsStringIso yyyy-MM-dd_HH_mm_ss) instead, will be removed in next major version"; return (DateTimeNowAsStringIso yyyy-MM-dd_HH_mm_ss); }
 
-# ----------------------------------------------------------------------------------------------------
-
-Export-ModuleMember -function *; # export all functions from this script which are above this line (types are implicit usable)
-
-trap [Exception] { StdErrHandleExc $_; break; }
-
-function MnLibCommonSelfTest{ # perform some tests
+function MnLibCommonSelfTest(){ # perform some tests
   Assert ((2 + 3) -eq 5);
   Assert ([Math]::Min(-5,-9) -eq -9);
   Assert ("xyz".substring(1,0) -eq "");
@@ -2289,7 +2335,18 @@ function MnLibCommonSelfTest{ # perform some tests
   Assert ((ByteArraysAreEqual @(0x00,0x01,0xFF) @(0x00,0x01,0xFF)) -eq $true  );
   Assert ((ByteArraysAreEqual @(0x00,0x01,0xFF) @(0x00,0x02,0xFF)) -eq $false );
   Assert ((ByteArraysAreEqual @(0x00,0x01,0xFF) @(0x00,0x01     )) -eq $false );
+  Assert ((FsEntryMakeRelative "C:\MyDir\Dir1\Dir2" "C:\MyDir") -eq "Dir1\Dir2");
+  Assert ((Int32Clip -5 0 9) -eq 0 -and (Int32Clip 5 0 9) -eq 5 -and (Int32Clip 15 0 9) -eq 9);
+  Assert ((StringRemoveRight "abc" "c") -eq "ab");
+  Assert ((StringLeft          "abc" 5) -eq "abc" -and (StringLeft          "abc" 2) -eq "ab");
+  Assert ((StringRight         "abc" 5) -eq "abc" -and (StringRight         "abc" 2) -eq "bc");
+  Assert ((StringRemoveRightNr "abc" 5) -eq ""    -and (StringRemoveRightNr "abc" 1) -eq "ab");
+  OutSuccess "Ok";
 } # MnLibCommonSelfTest; # is deactivated because we know it works :-)
+
+# ----------------------------------------------------------------------------------------------------
+
+Export-ModuleMember -function *; # export all functions from this script which are above this line (types are implicit usable)
 
 # Powershell useful additional documentation
 # ==========================================
