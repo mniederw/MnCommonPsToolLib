@@ -566,8 +566,9 @@ function FsEntryEsc                           ( [String] $fsentry ){
                                                 if( $fsentry -eq "" ){ throw [Exception] "Empty file name not allowed"; } # escaping is not nessessary if a command supports -LiteralPath.
                                                 return [String] [Management.Automation.WildcardPattern]::Escape($fsentry); } # important for chars as [,], etc.
 function FsEntryMakeValidFileName             ( [string] $str ){ [System.IO.Path]::GetInvalidFileNameChars() | ForEach-Object{ $str = $str.Replace($_,'_') }; return [String] $str; }
-function FsEntryMakeRelative                  ( [String] $fsEntry, [String] $belowDir ){ # trailing backslash not nessessary. ex: "Dir1\Dir2" -eq (FsEntryMakeRelative "C:\MyDir\Dir1\Dir2" "C:\MyDir")
+function FsEntryMakeRelative                  ( [String] $fsEntry, [String] $belowDir ){ # trailing backslash not nessessary. ex: "Dir1\Dir2" -eq (FsEntryMakeRelative "C:\MyDir\Dir1\Dir2" "C:\MyDir"); ex2: ""
                                                  Assert ($belowDir -ne "") "belowDir is empty.";
+                                                 $fsEntry = FsEntryMakeTrailingBackslash $fsEntry;
                                                  $belowDir = FsEntryMakeTrailingBackslash $belowDir;
                                                  Assert ($fsEntry.StartsWith($belowDir,"CurrentCultureIgnoreCase")) "Expected '$fsEntry' starts with '$belowDir'";
                                                  return [String] $fsEntry.Substring($belowDir.Length);
@@ -1255,12 +1256,13 @@ function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [St
                                                 Assert ($srcFileExtMenuLink    -ne "" -or (-not $srcFileExtMenuLink.EndsWith("\")   )) "srcMenuLinkFileExt='$srcFileExtMenuLink' is empty or has trailing backslash";
                                                 Assert ($srcFileExtMenuLinkOpt -ne "" -or (-not $srcFileExtMenuLinkOpt.EndsWith("\"))) "srcMenuLinkOptFileExt='$srcFileExtMenuLinkOpt' is empty or has trailing backslash";
                                                 if( -not (DirExists $sdir) ){ OutWarning "Ignoring dir not exists: '$sdir'"; }
+
                                                 [String[]] $menuLinkFiles =  (FsEntryListAsStringArray "$sdir\*$srcFileExtMenuLink"    $true $false);
                                                            $menuLinkFiles += (FsEntryListAsStringArray "$sdir\*$srcFileExtMenuLinkOpt" $true $false);
                                                            $menuLinkFiles = $menuLinkFiles | Sort-Object;
                                                 foreach( $f in $menuLinkFiles ){
-                                                  [String] $d = FsEntryGetParentDir $f; # ex: "D:\MyPortableProgs\Appl\Graphic"                                                  
-                                                  [String] $relBelowSrcDir = FsEntryMakeRelative $d $sdir; # ex: "Appl\Graphic"
+                                                  [String] $d = FsEntryGetParentDir $f; # ex: "D:\MyPortableProgs\Appl\Graphic"  
+                                                  [String] $relBelowSrcDir = FsEntryMakeRelative $d $sdir; # ex: "Appl\Graphic" or ""
                                                   [String] $workDir = "";
                                                   # ex: "C:\Users\u1\AppData\Roaming\Microsoft\Windows\Start Menu\MyPortableProg\Appl\Graphic\Manufactor ProgramName V1 en 2016.lnk"
                                                   [String] $lnkFile = "$($m)\$($relBelowSrcDir)\$((FsEntryGetFileName $f).TrimEnd($srcFileExtMenuLink).TrimEnd()).lnk";
@@ -2336,6 +2338,7 @@ function MnLibCommonSelfTest(){ # perform some tests
   Assert ((ByteArraysAreEqual @(0x00,0x01,0xFF) @(0x00,0x02,0xFF)) -eq $false );
   Assert ((ByteArraysAreEqual @(0x00,0x01,0xFF) @(0x00,0x01     )) -eq $false );
   Assert ((FsEntryMakeRelative "C:\MyDir\Dir1\Dir2" "C:\MyDir") -eq "Dir1\Dir2");
+  Assert ((FsEntryMakeRelative "C:\MyDir" "C:\MyDir\") -eq "");
   Assert ((Int32Clip -5 0 9) -eq 0 -and (Int32Clip 5 0 9) -eq 5 -and (Int32Clip 15 0 9) -eq 9);
   Assert ((StringRemoveRight "abc" "c") -eq "ab");
   Assert ((StringLeft          "abc" 5) -eq "abc" -and (StringLeft          "abc" 2) -eq "ab");
