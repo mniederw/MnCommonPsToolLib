@@ -51,8 +51,9 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for bugfixes.
-[String] $MnCommonPsToolLibVersion = "1.16";
+[String] $MnCommonPsToolLibVersion = "1.17";
 
+# 2018-08-14  V1.17  fix git err msg
 # 2018-08-07  V1.16  add tool for sign assemblies, DirCreateTemp
 # 2018-07-26  V1.15  improve handling of git, improve createLnk, ads functions, add doc.
 # 2018-03-26  V1.14  add ToolTailFile, FsEntryDeleteToRecycleBin.
@@ -2062,10 +2063,15 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   # ex: fatal: Not a git repository: 'D:\WorkGit\mniederw\UnknownRepo\.git'
                                                   # ex: error: Your local changes to the following files would be overwritten by merge:
                                                   # ex: error: unknown option `anyUnknownOption'
-                                                  # ex: Checking out files:  98% (75/76)
-                                                  [String] $msg = "$(ScriptGetCurrentFunc)($cmd,$tarRootDir,$url) failed because $($_.Exception.Message).";
-                                                  if( -not $errorAsWarning ){ throw [Exception] $msg; }
-                                                  OutWarning "Ignore: $msg";
+                                                  # ex: Checking out files:  47% (219/463)
+                                                  [String] $msg = $_.Exception.Message;
+                                                  if( $msg.StartsWith("Checking out files:") ){
+                                                    OutInfo $msg;
+                                                  }else{
+                                                    $msg = "$(ScriptGetCurrentFunc)($cmd,$tarRootDir,$url) failed because $msg";
+                                                    if( -not $errorAsWarning ){ throw [Exception] $msg; }
+                                                    OutWarning $msg;
+                                                  }
                                                   ScriptResetRc;
                                                 }finally{
                                                   if( $doChangeDir ){ Pop-Location; }
