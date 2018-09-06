@@ -51,10 +51,11 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for bugfixes.
-[String] $MnCommonPsToolLibVersion = "1.17";
+[String] $MnCommonPsToolLibVersion = "1.18";
 
-# 2018-08-14  V1.17  fix git err msg
-# 2018-08-07  V1.16  add tool for sign assemblies, DirCreateTemp
+# 2018-09-06  V1.18  add ConsoleSetGuiProperties, GetExtension.
+# 2018-08-14  V1.17  fix git err msg.
+# 2018-08-07  V1.16  add tool for sign assemblies, DirCreateTemp.
 # 2018-07-26  V1.15  improve handling of git, improve createLnk, ads functions, add doc.
 # 2018-03-26  V1.14  add ToolTailFile, FsEntryDeleteToRecycleBin.
 # 2018-02-23  V1.13  renamed deprecated DateTime* functions, new FsEntryGetLastModified, improve PsDownload, fixed DateTimeAsStringIso.
@@ -63,7 +64,7 @@
 # 2018-01-18  V1.10  add HelpListOfAllModules, version var, improve ForEachParallel, improve log file names. 
 # 2018-01-09  V1.9   unify error messages, improved elevation, PsDownloadFile.
 # 2017-12-30  V1.8   improve RemoveSmb, renamed SvnCheckout to SvnCheckoutAndUpdate and implement retry.
-# 2017-12-16  V1.7   fix WgetDownloadSite
+# 2017-12-16  V1.7   fix WgetDownloadSite.
 # 2017-12-02  V1.6   improved self-update hash handling, improve touch.
 # 2017-11-22  V1.5   extend functions, improved self-update by hash.
 # 2017-10-22  V1.4   extend functions, improve FileContentsAreEqual, self-update.
@@ -201,6 +202,10 @@ function ConsoleHide                          (){ [Object] $p = [Console.Window]
 function ConsoleShow                          (){ [Object] $p = [Console.Window]::GetConsoleWindow(); $b = [Console.Window]::ShowWindow($p,5); } #5 nohide
 function ConsoleRestore                       (){ [Object] $p = [Console.Window]::GetConsoleWindow(); $b = [Console.Window]::ShowWindow($p,1); } #1 show
 function ConsoleMinimize                      (){ [Object] $p = [Console.Window]::GetConsoleWindow(); $b = [Console.Window]::ShowWindow($p,6); } #6 minimize
+function ConsoleSetGuiProperties              (){ [Object] $pshost = get-host; 
+                                                  [Object] $w = $pshost.ui.rawui; $w.windowtitle = "$PSCommandPath"; $w.foregroundcolor = "Gray"; $w.backgroundcolor ="DarkBlue"; 
+                                                  [Object] $n = $w.buffersize; $n.height = 9999; $n.width = 260; $w.buffersize = $n; 
+                                                  $n = $w.windowsize; $n.height = 50; $n.width = 150; $w.windowsize = $n; }
 function StdInAssertAllowInteractions         (){ if( $global:ModeDisallowInteractions ){ throw [Exception] "Cannot read for input because all interactions are disallowed, either caller should make sure variable ModeDisallowInteractions is false or he should not call an input method."; } }
 function StdInReadLine                        ( [String] $line ){ Write-Host -ForegroundColor Cyan -nonewline $line; StdInAssertAllowInteractions; return [String] (Read-Host); }
 function StdInReadLinePw                      ( [String] $line ){ Write-Host -ForegroundColor Cyan -nonewline $line; StdInAssertAllowInteractions; return [System.Security.SecureString] (Read-Host -AsSecureString); }
@@ -592,6 +597,8 @@ function FsEntryGetFileNameWithoutExt         ( [String] $fsEntry ){
                                                 return [String] [System.IO.Path]::GetFileNameWithoutExtension((FsEntryRemoveTrailingBackslash $fsEntry)); }
 function FsEntryGetFileName                   ( [String] $fsEntry ){ 
                                                 return [String] [System.IO.Path]::GetFileName((FsEntryRemoveTrailingBackslash $fsEntry)); }
+function FsEntryGetFileExtension              ( [String] $fsEntry ){ 
+                                                return [String] [System.IO.Path]::GetExtension((FsEntryRemoveTrailingBackslash $fsEntry)); }
 function FsEntryMakeAbsolutePath              ( [String] $dirWhenFsEntryIsRelative, [String] $fsEntryRelativeOrAbsolute ){ 
                                                 return [String] (FsEntryGetAbsolutePath ([System.IO.Path]::Combine($dirWhenFsEntryIsRelative,$fsEntryRelativeOrAbsolute))); }
 function FsEntryGetDrive                      ( [String] $fsEntry ){ # ex: "C:"
