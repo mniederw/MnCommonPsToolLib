@@ -10,8 +10,12 @@ function TestAssertions{
   Assert ([Math]::Min(-5,-9) -eq -9);
   Assert ("xyz".substring(1,0) -eq "");
   Assert ((DateTimeFromStringIso "2011-12-31"             ) -eq (Get-Date -Date "2011-12-31 00:00:00"    ));
-  Assert ((DateTimeFromStringIso "2011-12-31_23_59"       ) -eq (Get-Date -Date "2011-12-31 23:59:00"    ));
-  Assert ((DateTimeFromStringIso "2011-12-31_23_59_59"    ) -eq (Get-Date -Date "2011-12-31 23:59:59"    ));
+  Assert ((DateTimeFromStringIso "2011-12-31 23:59"       ) -eq (Get-Date -Date "2011-12-31 23:59:00"    ));
+  Assert ((DateTimeFromStringIso "2011-12-31 23:59:59"    ) -eq (Get-Date -Date "2011-12-31 23:59:59"    ));
+  Assert ((DateTimeFromStringIso "2011-12-31 23:59:59."   ) -eq (Get-Date -Date "2011-12-31 23:59:59"    ));
+  Assert ((DateTimeFromStringIso "2011-12-31 23:59:59.9"  ) -eq (Get-Date -Date "2011-12-31 23:59:59.9"  ));
+  Assert ((DateTimeFromStringIso "2011-12-31 23:59:59.999") -eq (Get-Date -Date "2011-12-31 23:59:59.999"));
+  Assert ((DateTimeFromStringIso "2011-12-31T23:59:59.999") -eq (Get-Date -Date "2011-12-31 23:59:59.999"));
   Assert (("abc" -split ",").Count -eq 1 -and "abc,".Split(",").Count -eq 2 -and ",abc".Split(",").Count -eq 2);
   OutProgress "Ok, done.";
 }

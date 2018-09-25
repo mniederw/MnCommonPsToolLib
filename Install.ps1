@@ -34,7 +34,7 @@ function InstallDir                           ( [String] $srcDir, [String] $tarP
 function InstallSrcPathToPsModulePathIfNotInst( [String] $srcDir ){ OutProgress "Change environment system variable $envVar by appending '$srcDir'. "; 
                                                 if( (PsModulePathContains $srcDir) ){ OutProgress "Already installed so environment variable not changed."; }else{ ProcessRestartInElevatedAdminMode; PsModulePathAdd $srcDir; } }
 function OutCurrentInstallState               ( [String] $srcRootDir, [String] $moduleTarDir, [String] $color = "White" ){ [Boolean] $srcRootDirIsInPath = PsModulePathContains $srcRootDir; [Boolean] $moduleTarDirExists = DirExists $moduleTarDir; 
-                                                [String] $installedText = switch($srcRootDirIsInPath){ $true{"Installed-for-Developers. "} default{switch($moduleTarDirExists){ $true{"Installed-in-Standard-Mode. "} default{"Not-Installed. "}}}}; 
+                                                [String] $installedText = switch($srcRootDirIsInPath){ ($true){"Installed-for-Developers. "} default{switch($moduleTarDirExists){ ($true){"Installed-in-Standard-Mode. "} default{"Not-Installed. "}}}}; 
                                                 OutProgressText "Current installation state: "; Write-Host -ForegroundColor $color $installedText; }
 
 
