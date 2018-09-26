@@ -51,7 +51,8 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for bugfixes.
-[String] $MnCommonPsToolLibVersion = "1.21";
+[String] $MnCommonPsToolLibVersion = "1.22";
+  # 2018-09-26  V1.22  improved logging of SqlPerformFile
   # 2018-09-26  V1.21  improved FsEntryMakeRelative
   # 2018-09-26  V1.20  add: ScriptImportModuleIfNotDone, SqlPerformFile;
   # 2018-09-07  V1.19  remove deprecated: DirExistsAssert (use DirAssertExists instead), DateTimeFromStringAsFormat (use DateTimeFromStringIso instead), DateTimeAsStringForFileName (use DateTimeNowAsStringIso instead), fix DateTimeFromStringIso formats. Added FsEntryFsInfoFullNameDirWithBackSlash, FsEntryResetTs. Ignore Import err. Use ps module sqlserver instead sqlps and now with connectstring.
@@ -1188,7 +1189,7 @@ function SqlPerformFile                       ( [String] $connectionString, [Str
                                                 # connectString example: "Server=myInstance;Database=TempDB;Integrated Security=True;"  queryTimeoutInSec: 1..65535,0=endless;  
                                                 ScriptImportModuleIfNotDone "sqlserver";
                                                 [String] $currentUser = "$env:USERDOMAIN\$env:USERNAME";
-                                                [String] $traceInfo = "SqlPerformCmd(connectionString='$connectionString' sqlFile='$sqlFile' showPrint=$showPrint queryTimeoutInSec=$queryTimeoutInSec,currentUser=$currentUser)";
+                                                [String] $traceInfo = "SqlPerformCmd(connectionString='$connectionString',sqlFile='$sqlFile',queryTimeoutInSec=$queryTimeoutInSec,showPrint=$showPrint,showRows=$showRows,currentUser=$currentUser)";
                                                 OutProgress $traceInfo;
                                                 if( $logFileToAppend -ne "" ){ FileAppendLineWithTs $logFile $traceInfo; }
                                                 try{
