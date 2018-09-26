@@ -51,8 +51,9 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for bugfixes.
-[String] $MnCommonPsToolLibVersion = "1.19";
+[String] $MnCommonPsToolLibVersion = "1.20";
 
+# 2018-09-26  V1.20  add: ScriptImportModuleIfNotDone, SqlPerformFile;
 # 2018-09-07  V1.19  remove deprecated: DirExistsAssert (use DirAssertExists instead), DateTimeFromStringAsFormat (use DateTimeFromStringIso instead), DateTimeAsStringForFileName (use DateTimeNowAsStringIso instead), fix DateTimeFromStringIso formats. Added FsEntryFsInfoFullNameDirWithBackSlash, FsEntryResetTs. Ignore Import err. Use ps module sqlserver instead sqlps and now with connectstring.
 # 2018-09-06  V1.18  add ConsoleSetGuiProperties, GetExtension.
 # 2018-08-14  V1.17  fix git err msg.
@@ -272,6 +273,7 @@ function AssertRcIsOk                         ( [String[]] $linesToOutProgress =
                                                   if( $useLinesAsExcMessage ){ $msg = $(switch($rc -eq 1 -and $out -ne ""){($true){""}default{$msg}}) + ([String]$linesToOutProgress).Trim(); }
                                                   try{ OutProgress "Dump of $($logFileToOutProgressIfFailed):"; FileReadContentAsLines $logFileToOutProgressIfFailed | ForEach-Object { OutProgress "  $_"; } }catch{}                                               
                                                   throw [Exception] $msg; } }
+function ScriptImportModuleIfNotDone          ( [String] $moduleName ){ if( -not (Get-Module $moduleName) ){ OutProgress "Import module $moduleName (can take some seconds on first call)"; Import-Module -NoClobber $moduleName -DisableNameChecking; } }
 function ScriptGetCurrentFunc                 (){ return [String] ((Get-Variable MyInvocation -Scope 1).Value.MyCommand.Name); }
 function ScriptGetAndClearLastRc              (){ [Int32] $rc = 0; if( ($LASTEXITCODE -ne $null -and $LASTEXITCODE -ne 0) -or -not $? ){ $rc = $LASTEXITCODE; ScriptResetRc; } return [Int32] $rc; } # if no windows command was done then $LASTEXITCODE is null
 function ScriptResetRc                        (){ $error.clear(); & "cmd.exe" "/C" "EXIT 0"; $error.clear(); AssertRcIsOk; } # reset ERRORLEVEL to 0
@@ -1179,13 +1181,25 @@ function SqlRunScriptFile                     ( [String] $sqlserver, [String] $s
                                                 & $sqlcmd "-b" "-S" $sqlserver "-i" $sqlfile "-o" $outfile;
                                                 if( -not $? ){ if( ! $continueOnErr ){ AssertRcIsOk; }else{ OutWarning "Ignore: SqlRunScriptFile '$sqlfile' on '$sqlserver' failed with rc=$(ScriptGetAndClearLastRc), more see outfile, will continue"; } }
                                                 FileAssertExists $outfile; }
+function SqlPerformFile                       ( [String] $connectionString, [String] $sqlFile, [String] $logFileToAppend = "", [Int32] $queryTimeoutInSec = 0, [Boolean] $showPrint = $true, [Boolean] $showRows = $true){
+                                                # print are given out in yellow by internal verbose option; rows are currently given out only in a simple csv style without headers.
+                                                # connectString example: "Server=myInstance;Database=TempDB;Integrated Security=True;"  queryTimeoutInSec: 1..65535,0=endless;  
+                                                ScriptImportModuleIfNotDone "sqlserver";
+                                                [String] $currentUser = "$env:USERDOMAIN\$env:USERNAME";
+                                                [String] $traceInfo = "SqlPerformCmd(connectionString='$connectionString' sqlFile='$sqlFile' showPrint=$showPrint queryTimeoutInSec=$queryTimeoutInSec,currentUser=$currentUser)";
+                                                OutProgress $traceInfo;
+                                                if( $logFileToAppend -ne "" ){ FileAppendLineWithTs $logFile $traceInfo; }
+                                                try{
+                                                  Invoke-Sqlcmd -ConnectionString $connectionString -AbortOnError -Verbose:$showPrint -OutputSqlErrors $true -QueryTimeout $queryTimeoutInSec -InputFile $sqlFile |
+                                                    ForEach-Object { 
+                                                      [String] $line = $_;
+                                                      if( $_.GetType() -eq [System.Data.DataRow] ){ $line = ""; if( $showRows ){ $_.ItemArray | ForEach-Object { $line += '"'+$_.ToString()+'",'; } } }
+                                                      if( $line -ne "" ){ OutProgress $line; } if( $logFileToAppend -ne "" ){ FileAppendLineWithTs $logFile $line; } }
+                                                }catch{ [String] $msg = "$traceInfo failed because $($_.Exception.Message)"; if( $logFileToAppend -ne "" ){ FileAppendLineWithTs $logFile $msg; } throw [Exception] $msg; } }
 function SqlPerformCmd                        ( [String] $connectionString, [String] $cmd, [Boolean] $showPrint = $false, [Int32] $queryTimeoutInSec = 0 ){
-                                                # connectString example: "Server=myInstance;Database=MyDb;Integrated Security=True;"  queryTimeoutInSec: 1..65535, 0=endless;  
+                                                # connectString example: "Server=myInstance;Database=TempDB;Integrated Security=True;"  queryTimeoutInSec: 1..65535, 0=endless;  
                                                 # cmd: semicolon separated commands, do not use GO, escape doublequotation marks, use bracketed identifiers [MyTable] instead of doublequotes.
-                                                if( -not (Get-Module "sqlserver") ){
-                                                  OutProgress "Import module sqlserver (needs 15 sec on first call)";
-                                                  Import-Module -NoClobber "sqlserver" -DisableNameChecking;
-                                                }
+                                                ScriptImportModuleIfNotDone "sqlserver";
                                                 OutProgress "SqlPerformCmd connectionString='$connectionString' cmd='$cmd' showPrint=$showPrint queryTimeoutInSec=$queryTimeoutInSec";
                                                 # Note: -EncryptConnection produced: Invoke-Sqlcmd : Es konnte eine Verbindung mit dem Server hergestellt werden, doch während des Anmeldevorgangs trat ein Fehler auf. (provider: SSL Provider, error: 0 - Die Zertifikatkette wurde von einer nicht vertrauenswürdigen Zertifizierungsstelle ausgestellt.)
                                                 # for future use: -ConnectionTimeout inSec 0..65534,0=endless
