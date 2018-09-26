@@ -51,7 +51,8 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for bugfixes.
-[String] $MnCommonPsToolLibVersion = "1.22";
+[String] $MnCommonPsToolLibVersion = "1.23";
+  # 2018-09-26  V1.23  fix logfile of SqlPerformFile
   # 2018-09-26  V1.22  improved logging of SqlPerformFile
   # 2018-09-26  V1.21  improved FsEntryMakeRelative
   # 2018-09-26  V1.20  add: ScriptImportModuleIfNotDone, SqlPerformFile;
@@ -1191,14 +1192,14 @@ function SqlPerformFile                       ( [String] $connectionString, [Str
                                                 [String] $currentUser = "$env:USERDOMAIN\$env:USERNAME";
                                                 [String] $traceInfo = "SqlPerformCmd(connectionString='$connectionString',sqlFile='$sqlFile',queryTimeoutInSec=$queryTimeoutInSec,showPrint=$showPrint,showRows=$showRows,currentUser=$currentUser)";
                                                 OutProgress $traceInfo;
-                                                if( $logFileToAppend -ne "" ){ FileAppendLineWithTs $logFile $traceInfo; }
+                                                if( $logFileToAppend -ne "" ){ FileAppendLineWithTs $logFileToAppend $traceInfo; }
                                                 try{
                                                   Invoke-Sqlcmd -ConnectionString $connectionString -AbortOnError -Verbose:$showPrint -OutputSqlErrors $true -QueryTimeout $queryTimeoutInSec -InputFile $sqlFile |
                                                     ForEach-Object { 
                                                       [String] $line = $_;
                                                       if( $_.GetType() -eq [System.Data.DataRow] ){ $line = ""; if( $showRows ){ $_.ItemArray | ForEach-Object { $line += '"'+$_.ToString()+'",'; } } }
-                                                      if( $line -ne "" ){ OutProgress $line; } if( $logFileToAppend -ne "" ){ FileAppendLineWithTs $logFile $line; } }
-                                                }catch{ [String] $msg = "$traceInfo failed because $($_.Exception.Message)"; if( $logFileToAppend -ne "" ){ FileAppendLineWithTs $logFile $msg; } throw [Exception] $msg; } }
+                                                      if( $line -ne "" ){ OutProgress $line; } if( $logFileToAppend -ne "" ){ FileAppendLineWithTs $logFileToAppend $line; } }
+                                                }catch{ [String] $msg = "$traceInfo failed because $($_.Exception.Message)"; if( $logFileToAppend -ne "" ){ FileAppendLineWithTs $logFileToAppend $msg; } throw [Exception] $msg; } }
 function SqlPerformCmd                        ( [String] $connectionString, [String] $cmd, [Boolean] $showPrint = $false, [Int32] $queryTimeoutInSec = 0 ){
                                                 # connectString example: "Server=myInstance;Database=TempDB;Integrated Security=True;"  queryTimeoutInSec: 1..65535, 0=endless;  
                                                 # cmd: semicolon separated commands, do not use GO, escape doublequotation marks, use bracketed identifiers [MyTable] instead of doublequotes.
