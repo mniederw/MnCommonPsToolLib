@@ -51,29 +51,29 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for bugfixes.
-[String] $MnCommonPsToolLibVersion = "1.20";
-
-# 2018-09-26  V1.20  add: ScriptImportModuleIfNotDone, SqlPerformFile;
-# 2018-09-07  V1.19  remove deprecated: DirExistsAssert (use DirAssertExists instead), DateTimeFromStringAsFormat (use DateTimeFromStringIso instead), DateTimeAsStringForFileName (use DateTimeNowAsStringIso instead), fix DateTimeFromStringIso formats. Added FsEntryFsInfoFullNameDirWithBackSlash, FsEntryResetTs. Ignore Import err. Use ps module sqlserver instead sqlps and now with connectstring.
-# 2018-09-06  V1.18  add ConsoleSetGuiProperties, GetExtension.
-# 2018-08-14  V1.17  fix git err msg.
-# 2018-08-07  V1.16  add tool for sign assemblies, DirCreateTemp.
-# 2018-07-26  V1.15  improve handling of git, improve createLnk, ads functions, add doc.
-# 2018-03-26  V1.14  add ToolTailFile, FsEntryDeleteToRecycleBin.
-# 2018-02-23  V1.13  renamed deprecated DateTime* functions, new FsEntryGetLastModified, improve PsDownload, fixed DateTimeAsStringIso.
-# 2018-02-14  V1.12  add StdInAskForBoolean. DirExistsAssert is deprecated, use DirAssertExists instead.
-# 2018-02-06  V1.11  extend functions, fix FsEntryGetFileName.
-# 2018-01-18  V1.10  add HelpListOfAllModules, version var, improve ForEachParallel, improve log file names. 
-# 2018-01-09  V1.9   unify error messages, improved elevation, PsDownloadFile.
-# 2017-12-30  V1.8   improve RemoveSmb, renamed SvnCheckout to SvnCheckoutAndUpdate and implement retry.
-# 2017-12-16  V1.7   fix WgetDownloadSite.
-# 2017-12-02  V1.6   improved self-update hash handling, improve touch.
-# 2017-11-22  V1.5   extend functions, improved self-update by hash.
-# 2017-10-22  V1.4   extend functions, improve FileContentsAreEqual, self-update.
-# 2017-10-10  V1.3   extend functions.
-# 2017-09-08  V1.2   extend by jobs, parallel.
-# 2017-08-11  V1.1   update.
-# 2017-06-25  V1.0   published as open source to github.
+[String] $MnCommonPsToolLibVersion = "1.21";
+  # 2018-09-26  V1.21  improved FsEntryMakeRelative
+  # 2018-09-26  V1.20  add: ScriptImportModuleIfNotDone, SqlPerformFile;
+  # 2018-09-07  V1.19  remove deprecated: DirExistsAssert (use DirAssertExists instead), DateTimeFromStringAsFormat (use DateTimeFromStringIso instead), DateTimeAsStringForFileName (use DateTimeNowAsStringIso instead), fix DateTimeFromStringIso formats. Added FsEntryFsInfoFullNameDirWithBackSlash, FsEntryResetTs. Ignore Import err. Use ps module sqlserver instead sqlps and now with connectstring.
+  # 2018-09-06  V1.18  add ConsoleSetGuiProperties, GetExtension.
+  # 2018-08-14  V1.17  fix git err msg.
+  # 2018-08-07  V1.16  add tool for sign assemblies, DirCreateTemp.
+  # 2018-07-26  V1.15  improve handling of git, improve createLnk, ads functions, add doc.
+  # 2018-03-26  V1.14  add ToolTailFile, FsEntryDeleteToRecycleBin.
+  # 2018-02-23  V1.13  renamed deprecated DateTime* functions, new FsEntryGetLastModified, improve PsDownload, fixed DateTimeAsStringIso.
+  # 2018-02-14  V1.12  add StdInAskForBoolean. DirExistsAssert is deprecated, use DirAssertExists instead.
+  # 2018-02-06  V1.11  extend functions, fix FsEntryGetFileName.
+  # 2018-01-18  V1.10  add HelpListOfAllModules, version var, improve ForEachParallel, improve log file names. 
+  # 2018-01-09  V1.9   unify error messages, improved elevation, PsDownloadFile.
+  # 2017-12-30  V1.8   improve RemoveSmb, renamed SvnCheckout to SvnCheckoutAndUpdate and implement retry.
+  # 2017-12-16  V1.7   fix WgetDownloadSite.
+  # 2017-12-02  V1.6   improved self-update hash handling, improve touch.
+  # 2017-11-22  V1.5   extend functions, improved self-update by hash.
+  # 2017-10-22  V1.4   extend functions, improve FileContentsAreEqual, self-update.
+  # 2017-10-10  V1.3   extend functions.
+  # 2017-09-08  V1.2   extend by jobs, parallel.
+  # 2017-08-11  V1.1   update.
+  # 2017-06-25  V1.0   published as open source to github.
 
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 trap [Exception] { $Host.UI.WriteErrorLine($_); break; } # ensure really no exc can continue! Is not called if a catch block is used! It is recommended for client code to use catch blocks for handling exceptions.
@@ -581,14 +581,16 @@ function FsEntryEsc                           ( [String] $fsentry ){
                                                 if( $fsentry -eq "" ){ throw [Exception] "Empty file name not allowed"; } # escaping is not nessessary if a command supports -LiteralPath.
                                                 return [String] [Management.Automation.WildcardPattern]::Escape($fsentry); } # important for chars as [,], etc.
 function FsEntryMakeValidFileName             ( [string] $str ){ [System.IO.Path]::GetInvalidFileNameChars() | ForEach-Object{ $str = $str.Replace($_,'_') }; return [String] $str; }
-function FsEntryMakeRelative                  ( [String] $fsEntry, [String] $belowDir ){ # trailing backslash not nessessary. ex: "Dir1\Dir2" -eq (FsEntryMakeRelative "C:\MyDir\Dir1\Dir2" "C:\MyDir"); ex2: ""
-                                                 Assert ($belowDir -ne "") "belowDir is empty.";
-                                                 $fsEntry = FsEntryMakeTrailingBackslash $fsEntry;
-                                                 $belowDir = FsEntryMakeTrailingBackslash $belowDir;
-                                                 Assert ($fsEntry.StartsWith($belowDir,"CurrentCultureIgnoreCase")) "Expected '$fsEntry' starts with '$belowDir'";
-                                                 return [String] $fsEntry.Substring($belowDir.Length);
-                                                 }                                                
-function FsEntryGetAbsolutePath               ( [String] $fsEntry ){ 
+function FsEntryMakeRelative                  ( [String] $fsEntry, [String] $belowDir, [Boolean] $prefixWithDotDir = $false ){
+                                                # works without IO to file system; if $fsEntry is not below dir then it throws, so the dir itself is not allowed;
+                                                # a trailing backslash of the fs entry is not changed;
+                                                # trailing backslashes for belowDir are not nessessary. ex: "Dir1\Dir2" -eq (FsEntryMakeRelative "C:\MyDir\Dir1\Dir2" "C:\MyDir");
+                                                Assert ($belowDir -ne "") "belowDir is empty.";
+                                                $fsEntry = FsEntryGetAbsolutePath $fsEntry;
+                                                $belowDir = FsEntryMakeTrailingBackslash (FsEntryGetAbsolutePath $belowDir);
+                                                Assert ($fsEntry.StartsWith($belowDir,"CurrentCultureIgnoreCase")) "Expected '$fsEntry' is below '$belowDir'";
+                                                return [String] ($(switch($prefixWithDotDir){($true){".\"}default{""}})+$fsEntry.Substring($belowDir.Length)); }
+function FsEntryGetAbsolutePath               ( [String] $fsEntry ){ # works without IO, so no check to file system; does not change a trailing backslash
                                                 return [String] ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($fsEntry)); }
                                                 # note: we cannot use (Resolve-Path -LiteralPath $fsEntry) because it will throw if path not exists, see http://stackoverflow.com/questions/3038337/powershell-resolve-path-that-might-not-exist
 function FsEntryHasTrailingBackslash          ( [String] $fsEntry ){ return [Boolean] $fsEntry.EndsWith("\"); }
