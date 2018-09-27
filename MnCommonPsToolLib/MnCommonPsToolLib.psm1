@@ -51,7 +51,8 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for bugfixes.
-[String] $MnCommonPsToolLibVersion = "1.23";
+[String] $MnCommonPsToolLibVersion = "1.24";
+  # 2018-09-27  V1.24  fix FsEntryMakeRelative for equal dirs
   # 2018-09-26  V1.23  fix logfile of SqlPerformFile
   # 2018-09-26  V1.22  improved logging of SqlPerformFile
   # 2018-09-26  V1.21  improved FsEntryMakeRelative
@@ -584,12 +585,14 @@ function FsEntryEsc                           ( [String] $fsentry ){
                                                 return [String] [Management.Automation.WildcardPattern]::Escape($fsentry); } # important for chars as [,], etc.
 function FsEntryMakeValidFileName             ( [string] $str ){ [System.IO.Path]::GetInvalidFileNameChars() | ForEach-Object{ $str = $str.Replace($_,'_') }; return [String] $str; }
 function FsEntryMakeRelative                  ( [String] $fsEntry, [String] $belowDir, [Boolean] $prefixWithDotDir = $false ){
-                                                # works without IO to file system; if $fsEntry is not below dir then it throws, so the dir itself is not allowed;
+                                                # works without IO to file system; if $fsEntry is not equal or below dir then it throws;
+                                                # if fs-entry is equal the below-dir then it returns a dot;
                                                 # a trailing backslash of the fs entry is not changed;
                                                 # trailing backslashes for belowDir are not nessessary. ex: "Dir1\Dir2" -eq (FsEntryMakeRelative "C:\MyDir\Dir1\Dir2" "C:\MyDir");
                                                 Assert ($belowDir -ne "") "belowDir is empty.";
-                                                $fsEntry = FsEntryGetAbsolutePath $fsEntry;
                                                 $belowDir = FsEntryMakeTrailingBackslash (FsEntryGetAbsolutePath $belowDir);
+                                                $fsEntry = FsEntryGetAbsolutePath $fsEntry;
+                                                if( (FsEntryMakeTrailingBackslash $fsEntry) -eq $belowDir ){ $fsEntry += "\."; }
                                                 Assert ($fsEntry.StartsWith($belowDir,"CurrentCultureIgnoreCase")) "Expected '$fsEntry' is below '$belowDir'";
                                                 return [String] ($(switch($prefixWithDotDir){($true){".\"}default{""}})+$fsEntry.Substring($belowDir.Length)); }
 function FsEntryGetAbsolutePath               ( [String] $fsEntry ){ # works without IO, so no check to file system; does not change a trailing backslash
@@ -1320,7 +1323,7 @@ function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [St
                                                            $menuLinkFiles = $menuLinkFiles | Sort-Object;
                                                 foreach( $f in $menuLinkFiles ){
                                                   [String] $d = FsEntryGetParentDir $f; # ex: "D:\MyPortableProgs\Appl\Graphic"  
-                                                  [String] $relBelowSrcDir = FsEntryMakeRelative $d $sdir; # ex: "Appl\Graphic" or ""
+                                                  [String] $relBelowSrcDir = FsEntryMakeRelative $d $sdir; # ex: "Appl\Graphic" or "."
                                                   [String] $workDir = "";
                                                   # ex: "C:\Users\u1\AppData\Roaming\Microsoft\Windows\Start Menu\MyPortableProg\Appl\Graphic\Manufactor ProgramName V1 en 2016.lnk"
                                                   [String] $lnkFile = "$($m)\$($relBelowSrcDir)\$((FsEntryGetFileName $f).TrimEnd($srcFileExtMenuLink).TrimEnd()).lnk";
@@ -2397,7 +2400,7 @@ function MnLibCommonSelfTest(){ # perform some tests
   Assert ((ByteArraysAreEqual @(0x00,0x01,0xFF) @(0x00,0x02,0xFF)) -eq $false);
   Assert ((ByteArraysAreEqual @(0x00,0x01,0xFF) @(0x00,0x01     )) -eq $false);
   Assert ((FsEntryMakeRelative "C:\MyDir\Dir1\Dir2" "C:\MyDir") -eq "Dir1\Dir2\");
-  Assert ((FsEntryMakeRelative "C:\MyDir" "C:\MyDir\") -eq "");
+  Assert ((FsEntryMakeRelative "C:\MyDir" "C:\MyDir\") -eq ".");
   Assert ((Int32Clip -5 0 9) -eq 0 -and (Int32Clip 5 0 9) -eq 5 -and (Int32Clip 15 0 9) -eq 9);
   Assert ((StringRemoveRight "abc" "c") -eq "ab");
   Assert ((StringLeft          "abc" 5) -eq "abc" -and (StringLeft          "abc" 2) -eq "ab");
