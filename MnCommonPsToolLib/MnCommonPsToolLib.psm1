@@ -51,7 +51,8 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for bugfixes.
-[String] $MnCommonPsToolLibVersion = "1.24";
+[String] $MnCommonPsToolLibVersion = "1.25";
+  # 2018-10-08  V1.25  improve git logging, add ProcessStart
   # 2018-09-27  V1.24  fix FsEntryMakeRelative for equal dirs
   # 2018-09-26  V1.23  fix logfile of SqlPerformFile
   # 2018-09-26  V1.22  improved logging of SqlPerformFile
@@ -278,7 +279,7 @@ function AssertRcIsOk                         ( [String[]] $linesToOutProgress =
                                                   throw [Exception] $msg; } }
 function ScriptImportModuleIfNotDone          ( [String] $moduleName ){ if( -not (Get-Module $moduleName) ){ OutProgress "Import module $moduleName (can take some seconds on first call)"; Import-Module -NoClobber $moduleName -DisableNameChecking; } }
 function ScriptGetCurrentFunc                 (){ return [String] ((Get-Variable MyInvocation -Scope 1).Value.MyCommand.Name); }
-function ScriptGetAndClearLastRc              (){ [Int32] $rc = 0; if( ($LASTEXITCODE -ne $null -and $LASTEXITCODE -ne 0) -or -not $? ){ $rc = $LASTEXITCODE; ScriptResetRc; } return [Int32] $rc; } # if no windows command was done then $LASTEXITCODE is null
+function ScriptGetAndClearLastRc              (){ [Int32] $rc = 0; if( ((test-path "variable:LASTEXITCODE") -and $LASTEXITCODE -ne $null -and $LASTEXITCODE -ne 0) -or -not $? ){ $rc = $LASTEXITCODE; ScriptResetRc; } return [Int32] $rc; } # if no windows command was done then $LASTEXITCODE is null
 function ScriptResetRc                        (){ $error.clear(); & "cmd.exe" "/C" "EXIT 0"; $error.clear(); AssertRcIsOk; } # reset ERRORLEVEL to 0
 function ScriptNrOfScopes                     (){ [Int32] $i = 1; while($true){ 
                                                 try{ Get-Variable null -Scope $i -ValueOnly -ErrorAction SilentlyContinue | Out-Null; $i++; 
@@ -360,6 +361,29 @@ function ProcessGetCommandInEnvPathOrAltPaths ( [String] $commandNameOptionalWit
                                                 if( $cmd -ne $null ){ return [String] $cmd.Path; }
                                                 foreach( $d in $alternativePaths ){ [String] $f = (Join-Path $d $commandNameOptionalWithExtension); if( (FileExists $f) ){ return $f; } }
                                                 throw [Exception] "$(ScriptGetCurrentFunc): commandName='$commandNameOptionalWithExtension' was wether found in env-path='$env:PATH' nor in alternativePaths='$alternativePaths'. $downloadHintMsg"; }
+function ProcessStart                         ( [String] $cmd, [String[]] $cmdArgs = @(), [Boolean] $outToProgress = $true, [Boolean] $careStdErrAsOut = $false ){ 
+                                                # return output as string array. if stderr is not empty then it throws its text. But if ErrorActionPreference is Continue then stderr is simply appended to output. 
+                                                # stores internally stdout and stderr to variables an not files.
+                                                # available opt: "", ""
+                                                AssertRcIsOk;
+                                                [String] $traceInfo = "`"$cmd`""; $cmdArgs | Where-Object { $_ -ne $null } | ForEach-Object{ $traceInfo += " `"$_`""; };
+                                                OutProgress $traceInfo; 
+                                                $prInfo = New-Object System.Diagnostics.ProcessStartInfo; 
+                                                $prInfo.FileName = (Get-Command $cmd).Path; $prInfo.Arguments = $cmdArgs; $prInfo.CreateNoWindow = $true; $prInfo.WindowStyle = "Normal";
+                                                $prInfo.UseShellExecute = $false; <# nessessary for redirect io #> $prInfo.RedirectStandardError = $true; $prInfo.RedirectStandardOutput = $true;
+                                                $pr = New-Object System.Diagnostics.Process; $pr.StartInfo = $prInfo; 
+                                                [void]$pr.Start(); $pr.WaitForExit();
+                                                [String[]] $out = (StringSplitIntoLines $pr.StandardOutput.ReadToEnd()) | Where-Object{ -not [String]::IsNullOrWhiteSpace($_) };
+                                                [String] $err = $pr.StandardError.ReadToEnd().Trim();
+                                                if( $careStdErrAsOut -or $Global:ErrorActionPreference -eq "Continue" ){ $out += $err; $err = ""; }
+                                                if( $Global:ErrorActionPreference -ne "Continue" ){
+                                                  if( $pr.ExitCode -ne 0 -or $err -ne "" ){
+                                                    if( $out -ne "" ){ OutProgress $out; }
+                                                    throw [Exception] "ProcessStart($traceInfo) failed with rc=$($pr.ExitCode) $err.";
+                                                  }
+                                                }
+                                                if( $outToProgress ){ $out | Where-Object{ $_ -ne $null } | ForEach-Object{ OutProgress $_; }; }
+                                                return [String[]] $out; }
 function JobStart                             ( [ScriptBlock] $scr, [Object[]] $scrArgs = $null, [String] $name = "Job" ){ # return job object of type PSRemotingJob, the returned object of the script block can later be requested
                                                 return [System.Management.Automation.Job] (Start-Job -name $name -ScriptBlock $scr -ArgumentList $scrArgs); }
 function JobGet                               ( [String] $id ){ return [System.Management.Automation.Job] (Get-Job -Id $id); } # return job object
@@ -1334,7 +1358,7 @@ function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [St
                                                   [String] $srcFile = FsEntryMakeAbsolutePath $d $ar[0]; # ex: "D:\MyPortableProgs\Manufactor ProgramName\AnyProgram.exe"
                                                   [String[]] $arguments = $ar | Select-Object -Skip 1;
                                                   [Boolean] $forceRecreate = FileNotExistsOrIsOlder $lnkFile $f;
-                                                  [Boolean] $ignoreIfSrcFileNotExists = $srcFile.EndsWith($srcFileExtMenuLinkOpt); 
+                                                  [Boolean] $ignoreIfSrcFileNotExists = $srcFile.EndsWith($srcFileExtMenuLinkOpt);
                                                   try{
                                                     ToolCreateLnkIfNotExists $forceRecreate $workDir $lnkFile $srcFile $arguments $false $ignoreIfSrcFileNotExists;
                                                   }catch{
@@ -1976,7 +2000,7 @@ function SvnRevert                            ( [String] $workDir, [String[]] $r
 function SvnCommit                            ( [String] $workDir ){
                                                 FileAppendLineWithTs $svnLogFile "SvnCommit(`"$workDir`") call checkin dialog";
                                                 [String] $tortoiseExe = (RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseSVN" "Directory") + ".\bin\TortoiseProc.exe";
-                                                Start-Process -NoNewWindow -Wait "$tortoiseExe" @("/closeonend:2","/command:commit","/path:`"$workDir`""); AssertRcIsOk; }
+                                                Start-Process -NoNewWindow -Wait -FilePath "$tortoiseExe" -ArgumentList @("/closeonend:2","/command:commit","/path:`"$workDir`""); AssertRcIsOk; }
 function SvnUpdate                            ( [String] $workDir, [String] $user ){ SvnCheckoutAndUpdate $workDir "" $user $true; }
 function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url, [String] $user, [Boolean] $doUpdateOnly = $false ){
                                                 # init working copy and get (init and update) last changes. 
@@ -2098,23 +2122,14 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                     OutProgressText "cd '$dir'; ";
                                                     Push-Location -Path $dir; # required depending on repo config
                                                   } 
-                                                  $Global:ErrorActionPreference         = "Continue";
                                                   # ex: remote: Counting objects: 123, done. \n Receiving objects: 56% (33/123)  0 (delta 0), pack-reused ... \n Receiving objects: 100% (123/123), 205.12 KiB | 0 bytes/s, done. \n Resolving deltas: 100% (123/123), done.
                                                   if( $cmd -eq "Clone" ){
-                                                    OutProgress  "git clone --quiet --no-stat '$url' '$dir'; ";
-                                                    $out = & "git" "clone" "--quiet" "--no-stat" $url $dir 2>&1;
+                                                    $out = ProcessStart "git" @( "--git-dir=$dir\.git", "clone", "--quiet", $url, $dir) $false $true; # writes to stderr: Cloning into 'c:\temp\test'...
                                                   }elseif( $cmd -eq "Fetch" ){
-                                                    OutProgress "git --git-dir='$dir\.git' fetch --quiet --no-stat '$url'; ";
-                                                    $out = & "git" "--git-dir=$dir\.git" "fetch" "--quiet" "--no-stat" $url 2>&1;
+                                                    $out = ProcessStart "git" @( "--git-dir=$dir\.git", "fetch", "--quiet", $url) $false $true; # writes to stderr: From https://github.com/myrepo  * branch  HEAD  -> FETCH_HEAD.
                                                   }elseif( $cmd -eq "Pull" ){
-                                                    OutProgress "git --git-dir='$dir\.git' pull --quiet --no-stat '$url'; "; # defaults: "--no-rebase" "origin"
-                                                    # $out = & "git" "--git-dir=$dir\.git" "pull" "--quiet" "--no-stat" $url 2>&1;
-                                                    ScriptResetRc;
-                                                    [System.Diagnostics.Process] $pr = Start-Process -PassThru -FilePath "git" -ArgumentList @( "--git-dir=$dir\.git", "pull", "--quiet", "--no-stat", $url ) -NoNewWindow -Wait;
-                                                    # -RedirectStandardError -RedirectStandardOutput  $process.ExitCode
-                                                    if( $pr.ExitCode -ne 0 ){ throw [Exception] ""; }
+                                                    $out = ProcessStart "git" @( "--git-dir=$dir\.git", "pull", "--quiet", "--no-stat", $url) $false; # defaults: "--no-rebase" "origin"; writes to stderr: Checking out files:  47% (219/463)  Already up to date. From https://github.com/myrepo  * branch  HEAD  -> FETCH_HEAD
                                                   }else{ throw [Exception] "Unknown git cmd='$cmd'"; }
-                                                  AssertRcIsOk $out $true;
                                                   OutSuccess "  Ok. $out";
                                                 }catch{
                                                   # ex: fatal: AggregateException encountered.
@@ -2123,16 +2138,10 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   # ex: fatal: Not a git repository: 'D:\WorkGit\mniederw\UnknownRepo\.git'
                                                   # ex: error: Your local changes to the following files would be overwritten by merge:
                                                   # ex: error: unknown option `anyUnknownOption'
-                                                  # ex: Checking out files:  47% (219/463)
-                                                  [String] $msg = $_.Exception.Message;
-                                                  if( $msg.StartsWith("Checking out files:") ){
-                                                    OutInfo $msg;
-                                                  }else{
-                                                    $msg = "$(ScriptGetCurrentFunc)($cmd,$tarRootDir,$url) failed because $msg";
-                                                    if( -not $errorAsWarning ){ throw [Exception] $msg; }
-                                                    OutWarning $msg;
-                                                  }
+                                                  $msg = "$(ScriptGetCurrentFunc)($cmd,$tarRootDir,$url) failed because $($_.Exception.Message)";
                                                   ScriptResetRc;
+                                                  if( -not $errorAsWarning ){ throw [Exception] $msg; }
+                                                  OutWarning $msg;
                                                 }finally{
                                                   if( $doChangeDir ){ Pop-Location; }
                                                 } }
@@ -2523,14 +2532,14 @@ Export-ModuleMember -function *; # export all functions from this script which a
 #   - Invoke the (provider-specific) default action on an item (like double click). For example open pdf viewer for a .pdf file.
 #       Invoke-Item ./myfile.xls
 #   - Start a process waiting for end or not.
-#       Start-Process myfile.exe myargs
-#     Examples: start-process notepad.exe Test.txt; 
+#       Start-Process -FilePath myfile.exe -ArgumentList myargs
+#     Examples: start-process -FilePath notepad.exe -ArgumentList Test.txt; 
 #       [Diagnostics.Process]::Start("notepad.exe","test.txt");
-#       start-process -filepath C:\batch\demo.cmd -verb runas;
-#       start-process notepad -wait -windowstyle Maximized
-#       start-process Sort.exe -RedirectStandardInput C:\Demo\Testsort.txt -RedirectStandardOutput C:\Demo\Sorted.txt -RedirectStandardError C:\Demo\SortError.txt
+#       start-process -FilePath  C:\batch\demo.cmd -verb runas;
+#       start-process -FilePath notepad -wait -windowstyle Maximized
+#       start-process -FilePath Sort.exe -RedirectStandardInput C:\Demo\Testsort.txt -RedirectStandardOutput C:\Demo\Sorted.txt -RedirectStandardError C:\Demo\SortError.txt
 #       $pclass = [wmiclass]'root\cimv2:Win32_Process'; $new_pid = $pclass.Create('notepad.exe', '.', $null).ProcessId;
-#     Run powershell with elevated rights: Start-Process powershell.exe -Verb runAs
+#     Run powershell with elevated rights: Start-Process -FilePath powershell.exe -Verb runAs
 # - Call module with arguments: ex:  Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1" -ArgumentList $myinvocation.mycommand.Path;
 # - FsEntries: -LiteralPath means no interpretation of wildcards
 # - Extensions and libraries: https://www.powershellgallery.com/  http://ss64.com/links/pslinks.html
