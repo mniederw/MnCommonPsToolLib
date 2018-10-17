@@ -2083,7 +2083,7 @@ function SvnCommitAndGet                      ( [String] $workDir, [String] $svn
                                                     $r = SvnEnvInfoGet $workDir;
                                                   }
                                                   if( $r.CachedAuthorizationUser -eq "" ){ throw [Exception] "This script asserts that configured SvnUser='$svnUser' matches last accessed user because it requires stored credentials, but last user was not saved, please call svn-repo-browser, login, save authentication and then retry."; }
-                                                  if( $svnUser -ne $r.CachedAuthorizationUser ){ throw [Exception] "Configured SvnUser='$svnUser' does not match last accessed user='$lastUser', please call svn-settings, clear cached authentication-data, call svn-repo-browser, login, save authentication and then retry."; }
+                                                  if( $svnUser -ne $r.CachedAuthorizationUser ){ throw [Exception] "Configured SvnUser='$svnUser' does not match last accessed user='$($r.CachedAuthorizationUser)', please call svn-settings, clear cached authentication-data, call svn-repo-browser, login, save authentication and then retry."; }
                                                   #
                                                   [String] $host = NetExtractHostName $svnUrl;
                                                   if( $ignoreIfHostNotReachable -and -not (NetPingHostIsConnectable $host) ){
