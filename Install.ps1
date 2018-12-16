@@ -72,7 +72,7 @@ OutProgress     "    CommonPsModuleFolderForAllUsers = '$tarRootDir' ";
 OutProgressText "    "; OutCurrentInstallState $srcRootDir $moduleTarDir "White";
 OutInfo         "";
 OutInfo         "  I = Install or reinstall in standard mode. ";
-OutInfo         "  A = Alternative installation for developers to change and test the module. ";
+OutInfo         "  A = Alternative installation for developers which uses module at current location to change and test the module. ";
 OutInfo         "  N = Uninstall. ";
 OutInfo         "  U = When installed (*) in standard mode do update from web. ";
 if( $isDev ){ OutInfo "  H = For developer and when installed (*): actualize sha2 hash file of library. "; }

@@ -51,8 +51,9 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for bugfixes.
-[String] $MnCommonPsToolLibVersion = "1.26";
-  # 2018-11-14  V1.26  suppress import-module warnings
+[String] $MnCommonPsToolLibVersion = "1.27";
+  # 2018-12-16  V1.27  suppress import-module warnings, improve ToolCreateLnkIfNotExists
+  # 2018-12-16  V1.26  doc
   # 2018-10-08  V1.25  improve git logging, add ProcessStart
   # 2018-09-27  V1.24  fix FsEntryMakeRelative for equal dirs
   # 2018-09-26  V1.23  fix logfile of SqlPerformFile
@@ -69,16 +70,16 @@
   # 2018-02-14  V1.12  add StdInAskForBoolean. DirExistsAssert is deprecated, use DirAssertExists instead.
   # 2018-02-06  V1.11  extend functions, fix FsEntryGetFileName.
   # 2018-01-18  V1.10  add HelpListOfAllModules, version var, improve ForEachParallel, improve log file names. 
-  # 2018-01-09  V1.9   unify error messages, improved elevation, PsDownloadFile.
-  # 2017-12-30  V1.8   improve RemoveSmb, renamed SvnCheckout to SvnCheckoutAndUpdate and implement retry.
-  # 2017-12-16  V1.7   fix WgetDownloadSite.
-  # 2017-12-02  V1.6   improved self-update hash handling, improve touch.
-  # 2017-11-22  V1.5   extend functions, improved self-update by hash.
-  # 2017-10-22  V1.4   extend functions, improve FileContentsAreEqual, self-update.
-  # 2017-10-10  V1.3   extend functions.
-  # 2017-09-08  V1.2   extend by jobs, parallel.
-  # 2017-08-11  V1.1   update.
-  # 2017-06-25  V1.0   published as open source to github.
+  # 2018-01-09  V1.09  unify error messages, improved elevation, PsDownloadFile.
+  # 2017-12-30  V1.08  improve RemoveSmb, renamed SvnCheckout to SvnCheckoutAndUpdate and implement retry.
+  # 2017-12-16  V1.07  fix WgetDownloadSite.
+  # 2017-12-02  V1.06  improved self-update hash handling, improve touch.
+  # 2017-11-22  V1.05  extend functions, improved self-update by hash.
+  # 2017-10-22  V1.04  extend functions, improve FileContentsAreEqual, self-update.
+  # 2017-10-10  V1.03  extend functions.
+  # 2017-09-08  V1.02  extend by jobs, parallel.
+  # 2017-08-11  V1.01  update.
+  # 2017-06-25  V1.00  published as open source to github.
 
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 trap [Exception] { $Host.UI.WriteErrorLine($_); break; } # ensure really no exc can continue! Is not called if a catch block is used! It is recommended for client code to use catch blocks for handling exceptions.
@@ -1283,8 +1284,10 @@ function ToolCreate7zip                       ( [String] $srcDirOrFile, [String]
                                                 [Array] $arguments = "-t7z", "-mx=9", "-ms=4g", "-mmt=4", "-w", $recursiveOption, "a", "$tar7zipFile", $src;
                                                 OutProgress "$Prog7ZipExe $arguments";
                                                 [String] $out = & $Prog7ZipExe $arguments; AssertRcIsOk $out; }
-function ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [String] $workDir, [String] $lnkFile, [String] $srcFile, [String[]] $arguments, [Boolean] $runElevated = $false, [Boolean] $ignoreIfSrcFileNotExists = $false ){
-                                                # usually if target lnkfile already exists it does nothing.
+function ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [String] $workDir, [String] $lnkFile, [String] $srcFile, [String[]] $arguments = @(), [Boolean] $runElevated = $false, [Boolean] $ignoreIfSrcFileNotExists = $false ){
+                                                # ex: ToolCreateLnkIfNotExists $false "" "$env:USERPROFILE\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\LinkToNotepad.lnk" "C:\Windows\notepad.exe";
+                                                # ex: ToolCreateLnkIfNotExists $false "" "$env:USERPROFILE\AppData\Roaming\Microsoft\Internet Explorer\Quick Launch\LinkToNotepad.lnk" "C:\Windows\notepad.exe";
+                                                # if $forceRecreate is false and target lnkfile already exists then it does nothing.
                                                 [String] $descr = $srcFile;
                                                 if( $ignoreIfSrcFileNotExists -and (FileNotExists $srcFile) ){
                                                   OutVerbose "NotCreatedBecauseSourceFileNotExists: $lnkFile"; return;
@@ -1294,11 +1297,10 @@ function ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [Strin
                                                 if( (FileExists $lnkFile) ){
                                                   OutVerbose "Unchanged: $lnkFile";
                                                 }else{
-                                                  function ByWshShell(){
-                                                    [String] $argLine = $arguments;
+                                                    [String] $argLine = $arguments; # array to string
                                                     if( $workDir -eq "" ){ $workDir = FsEntryGetParentDir $srcFile; }
                                                     OutProgress "CreateShortcut '$lnkFile'";
-                                                    # OutVerbose "WScript.Shell.CreateShortcut '$workDir' '$lnkFile' '$srcFile' '$argLine' '$descr'";
+                                                    OutVerbose "WScript.Shell.CreateShortcut '$workDir' '$lnkFile' '$srcFile' '$argLine' '$descr'";
                                                     try{
                                                       FsEntryCreateParentDir $lnkFile;
                                                       [Object] $wshShell = New-Object -comObject WScript.Shell;
@@ -1311,21 +1313,12 @@ function ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [Strin
                                                       # $s.Hotkey = "CTRL+SHIFT+F"; # requires restart explorer
                                                       # $s.IconLocation = "myprog.exe, 0"; $s.IconLocation = "myprog.ico";
                                                       # $s.RelativePath = ...
-                                                      $s.Save(); # does overwrite; ex: ToolRecreateShortcut "C:\tmp.lnk" "C:\Windows\notepad.exe" "a.tmp" "Call Notepad";
+                                                      $s.Save(); # does overwrite
                                                     }catch{
                                                       throw [Exception] "$(ScriptGetCurrentFunc)('$workDir','$lnkFile','$srcFile','$argLine','$descr') failed because $($_.Exception.Message)";
                                                     }
-                                                  }
-                                                  # alternative:
-                                                  # function ByProgram(){
-                                                  #   OutProgress   "& `"MnCreateLnk.exe`" -Workdir `"$workDir`" `"$lnkFile`" `"$srcFile`" $arguments"; #alternative $($arguments|ForEach-Object{'`"'+$_+'`"'})
-                                                  #   [String] $out = & "MnCreateLnk.exe" "-Workdir" (StringReplaceEmptyByTwoQuotes $workDir) $lnkFile $srcFile $arguments; AssertRcIsOk $out;
-                                                  # } ByProgram;
-                                                  ByWshShell;
                                                   if( $runElevated ){ 
-                                                    [Byte[]] $bytes = [IO.File]::ReadAllBytes($lnkFile);
-                                                    $bytes[0x15] = $bytes[0x15] -bor 0x20; # set byte 21 (0x15) bit 6 (0x20) ON
-                                                    [IO.File]::WriteAllBytes($lnkFile,$bytes);
+                                                    [Byte[]] $bytes = [IO.File]::ReadAllBytes($lnkFile); $bytes[0x15] = $bytes[0x15] -bor 0x20; [IO.File]::WriteAllBytes($lnkFile,$bytes);  # set bit 6 of byte nr 21
                                                   } } }
 function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [String] $sourceDir, [String] $srcFileExtMenuLink = ".menulink.txt", [String] $srcFileExtMenuLinkOpt = ".menulinkoptional.txt" ){
                                                 # Create menu entries based on files below a dir.
@@ -2004,29 +1997,32 @@ function SvnCommit                            ( [String] $workDir ){
                                                 [String] $tortoiseExe = (RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseSVN" "Directory") + ".\bin\TortoiseProc.exe";
                                                 Start-Process -NoNewWindow -Wait -FilePath "$tortoiseExe" -ArgumentList @("/closeonend:2","/command:commit","/path:`"$workDir`""); AssertRcIsOk; }
 function SvnUpdate                            ( [String] $workDir, [String] $user ){ SvnCheckoutAndUpdate $workDir "" $user $true; }
-function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url, [String] $user, [Boolean] $doUpdateOnly = $false ){
-                                                # init working copy and get (init and update) last changes. 
-                                                # If specified update only then no url is nessessary but if given then it verifies it.
+function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url, [String] $user, [Boolean] $doUpdateOnly = $false, [String] $pw = "" ){
+                                                # init working copy and get (init and update) last changes. If pw is empty then it uses svn-credential-cache.
+                                                # If specified update-only then no url is nessessary but if given then it verifies it.
                                                 # note: we do not use svn-update because svn-checkout does the same (the difference is only the use of an url).
-                                                # note: for some known svn network problems as often after 5-20 GB received it will automatically cleanup, 30 sec wait and retry (max 100 times).
+                                                # note: sometimes often after 5-20 GB received there is network problem which aborts svn-checkout,
+                                                #   if it is recognised as a known exception then it will automatically cleanup, 30 sec wait and retry (max 100 times).
                                                 if( $doUpdateOnly ){ 
                                                   Assert ((DirExists $workDir) -and (SvnGetDotSvnDir $workDir)) "Missing work dir or it is not a svn repo: '$workDir'";
                                                   [String] $repoUrl = (SvnEnvInfoGet $workDir).Url;
                                                   if( $url -eq "" ){ $url = $repoUrl; }else{ Assert ($url -eq $repoUrl) "Given url=$url does not match url in repository: $repoUrl"; }
                                                 }
                                                 [String] $tmp = (FileGetTempFile);
-                                                [Int32] $maxNrOfTries = 100; [Int32] $nrOfTries = 0; while($true){ $nrOfTries++;
+                                                [Int32] $maxNrOfTries = 100; [Int32] $nrOfTries = 0;
+                                                while($true){ $nrOfTries++;
+                                                  OutProgress "SvnCheckoutAndUpdate: get all changes from $url to '$workDir' $(switch($doUpdateOnly){($true){''}default{'and if it not exists and then init working copy first'}}).";
+                                                  FileAppendLineWithTs $svnLogFile "SvnCheckoutAndUpdate(`"$workDir`",$url,$user)";
+                                                  # for future alternative option: --trust-server-cert-failures unknown-ca,cn-mismatch,expired,not-yet-valid,other
+                                                  # for future alternative option: --quite
+                                                  [String[]] $opt = @( "--non-interactive", "--ignore-externals" );
+                                                  if( $user -ne "" ){ $opt += @( "--username", $user ); }
+                                                  if( $pw -ne "" ){ $opt += @( "--password", $pw, "--no-auth-cache" ); } # is visible in process list.
+                                                  # alternative for checkout: tortoiseExe /closeonend:2 /command:checkout /path:$workDir /url:$url
+                                                  if( $doUpdateOnly ){ $opt = @( "update"  ) + $opt + @(       $workDir ); }
+                                                  else               { $opt = @( "checkout") + $opt + @( $url, $workDir ); }
+                                                  FileAppendLineWithTs $svnLogFile "`"$(SvnExe)`" $opt";
                                                   try{
-                                                    OutProgress "SvnCheckoutAndUpdate: get all changes from $url to '$workDir' $(switch($doUpdateOnly){($true){''}default{'and if it not exists and then init working copy first'}}).";
-                                                    FileAppendLineWithTs $svnLogFile "SvnCheckoutAndUpdate(`"$workDir`",$url,$user)";
-                                                    # for future alternative option: --trust-server-cert-failures unknown-ca,cn-mismatch,expired,not-yet-valid,other
-                                                    # for future alternative option: --quite
-                                                    [String[]] $opt = @( "--non-interactive", "--ignore-externals" );
-                                                    if( $user -ne "" ){ $opt += @( "--username", $user ); }
-                                                    # alternative for checkout: tortoiseExe /closeonend:2 /command:checkout /path:$workDir /url:$url
-                                                    if( $doUpdateOnly ){ $opt += @( "update"  ) + $opt + @(       $workDir ); }
-                                                    else               { $opt += @( "checkout") + $opt + @( $url, $workDir ); }
-                                                    FileAppendLineWithTs $svnLogFile "`"$(SvnExe)`" $opt";
                                                     & (SvnExe) $opt 2> $tmp | %{ FileAppendLineWithTs $svnLogFile ("  "+$_); OutProgress $_ 2; };
                                                     AssertRcIsOk (FileReadContentAsLines $tmp) $true;
                                                     # ex: svn: E170013: Unable to connect to a repository at URL 'https://mycomp/svn/Work/mydir'
