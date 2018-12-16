@@ -51,7 +51,8 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for bugfixes.
-[String] $MnCommonPsToolLibVersion = "1.25";
+[String] $MnCommonPsToolLibVersion = "1.26";
+  # 2018-11-14  V1.26  suppress import-module warnings
   # 2018-10-08  V1.25  improve git logging, add ProcessStart
   # 2018-09-27  V1.24  fix FsEntryMakeRelative for equal dirs
   # 2018-09-26  V1.23  fix logfile of SqlPerformFile
@@ -111,10 +112,11 @@ $Global:OutputEncoding                = [Console]::OutputEncoding ; # for pipe t
   # alternatives: [System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::GetCultureInfo('en-US'); Set-Culture en-US;
 
 # import some modules
-# note: on "Windows Server 2008 R2" we currently ignore (but displays red lines):
+# note: for example on "Windows Server 2008 R2" we currently missing these modules but we ignore the errors:
 #   The specified module 'ScheduledTasks'/'SmbShare' was not loaded because no valid module file was found in any module directory.
-Import-Module -NoClobber -Name "ScheduledTasks" -ErrorAction Continue;
-Import-Module -NoClobber -Name "SmbShare"       -ErrorAction Continue;
+if( (Import-Module -NoClobber -Name "ScheduledTasks" -ErrorAction Continue 2>&1) -ne $null ){ $error.clear(); Write-Host -ForegroundColor Yellow "Ignored failing of Import-Module ScheduledTasks."; }
+if( (Import-Module -NoClobber -Name "SmbShare"       -ErrorAction Continue 2>&1) -ne $null ){ $error.clear(); Write-Host -ForegroundColor Yellow "Ignored failing of Import-Module SmbShare."; }
+
 # for later usage: Import-Module -NoClobber -Name "SmbWitness";
 Add-Type -Name Window -Namespace Console -MemberDefinition '[DllImport("Kernel32.dll")] public static extern IntPtr GetConsoleWindow(); [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, Int32 nCmdShow);';
 
