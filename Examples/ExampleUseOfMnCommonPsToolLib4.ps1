@@ -65,11 +65,17 @@ function TestAsynchronousJob {
   Assert ($res -eq "my argument");
 }
 
+function TestTools {
+  OutInfo "List all public repos of github-org arduino";
+  ToolGithubApiListOrgRepos "arduino" | Select-Object html_url, archived, language, default_branch, LicName | StreamToTableString;
+}
+
 OutInfo "hello world";
 TestAssertions;
 TestFsEntries;
 TestAsynchronousJob;
 TestParallelScripts1;
 TestParallelScripts2;
+TestTools;
 OutSuccess "Ok, done.";
 StdInReadLine "Press enter to exit.";

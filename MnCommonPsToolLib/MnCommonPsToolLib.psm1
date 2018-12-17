@@ -51,7 +51,8 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for bugfixes.
-[String] $MnCommonPsToolLibVersion = "1.27";
+[String] $MnCommonPsToolLibVersion = "1.28";
+  # 2018-12-30  V1.28  improve download exc, add encoding as param for FileReadContent functions, renamed from CredentialGetPasswordTextFromCred to CredentialGetPassword, new CredentialGetUsername, rename CredentialReadFromParamOrInput to CredentialCreate
   # 2018-12-16  V1.27  suppress import-module warnings, improve ToolCreateLnkIfNotExists
   # 2018-12-16  V1.26  doc
   # 2018-10-08  V1.25  improve git logging, add ProcessStart
@@ -151,7 +152,7 @@ function ForEachParallel {
             if( $threads[$i].handle.iscompleted ){
               try{
                 $threads[$i].instance.endinvoke($threads[$i].handle);
-              }catch{ Write-Host -ForegroundColor DarkGray "ForEachParallel-endinvoke: Ignoring $($_)"; $error.clear(); }
+              }catch{ [String] $msg = $_; $error.clear(); Write-Host -ForegroundColor DarkGray "ForEachParallel-endinvoke: Ignoring $msg"; }
               $threads[$i].instance.dispose(); 
               $threads[$i].handle = $null; 
               [gc]::Collect();
@@ -159,9 +160,13 @@ function ForEachParallel {
           }
         }
       }
-    }catch{ $Host.UI.WriteErrorLine("ForEachParallel-END: $($_)"); } # ex: 2018-07: Exception calling "EndInvoke" with "1" argument(s)
+    }catch{
+      $Host.UI.WriteErrorLine("ForEachParallel-END: $($_)"); # ex: 2018-07: Exception calling "EndInvoke" with "1" argument(s) "Der ausgeführte Befehl wurde beendet, da die Einstellungsvariable "ErrorActionPreference" oder ein allgemeiner Parameter auf "Stop" festgelegt ist: Es ist ein allgemeiner Fehler aufgetreten, für den kein spezifischerer Fehlercode verfügbar ist.."
+    } 
+    $error.clear();
   }
 }
+
 
 # set some self defined constant global variables
 if( (Get-Variable -Scope global -ErrorAction SilentlyContinue -Name ComputerName) -eq $null ){ # check wether last variable already exists because reload safe
@@ -271,14 +276,14 @@ function StdInAskForAnswerWhenInInteractMode  ( [String] $line, [String] $expect
 function StdOutEndMsgCareInteractiveMode      ( [Int32] $delayInSec = 1 ){ if( $global:ModeDisallowInteractions -or $global:ModeNoWaitForEnterAtEnd ){ 
                                                 OutSuccess "Ok, done. Ending in $delayInSec second(s)."; ProcessSleepSec $delayInSec; }else{ OutSuccess "Ok, done. Press Enter to Exit;"; StdInReadLine; } }
 function Assert                               ( [Boolean] $cond, [String] $msg = "" ){ if( -not $cond ){ throw [Exception] "Assertion failed $msg"; } }
-function AssertRcIsOk                         ( [String[]] $linesToOutProgress = $null, [Boolean] $useLinesAsExcMessage = $false, [String] $logFileToOutProgressIfFailed = "" ){
+function AssertRcIsOk                         ( [String[]] $linesToOutProgress = $null, [Boolean] $useLinesAsExcMessage = $false, [String] $logFileToOutProgressIfFailed = "", [String] $encodingIfNoBom = "Default" ){
                                                 # can also be called with a single string; only nonempty progress lines are given out
                                                 [Int32] $rc = ScriptGetAndClearLastRc; 
                                                 if( $rc -ne 0 ){
                                                   if( -not $useLinesAsExcMessage ){ $linesToOutProgress | Where-Object{ -not [String]::IsNullOrWhiteSpace($_) } | ForEach-Object{ OutProgress $_ }; }
                                                   [String] $msg = "Last operation failed [rc=$rc]. "; 
                                                   if( $useLinesAsExcMessage ){ $msg = $(switch($rc -eq 1 -and $out -ne ""){($true){""}default{$msg}}) + ([String]$linesToOutProgress).Trim(); }
-                                                  try{ OutProgress "Dump of $($logFileToOutProgressIfFailed):"; FileReadContentAsLines $logFileToOutProgressIfFailed | ForEach-Object { OutProgress "  $_"; } }catch{}                                               
+                                                  try{ OutProgress "Dump of $($logFileToOutProgressIfFailed):"; FileReadContentAsLines $logFileToOutProgressIfFailed $encodingIfNoBom | ForEach-Object { OutProgress "  $_"; } }catch{}                                               
                                                   throw [Exception] $msg; } }
 function ScriptImportModuleIfNotDone          ( [String] $moduleName ){ if( -not (Get-Module $moduleName) ){ OutProgress "Import module $moduleName (can take some seconds on first call)"; Import-Module -NoClobber $moduleName -DisableNameChecking; } }
 function ScriptGetCurrentFunc                 (){ return [String] ((Get-Variable MyInvocation -Scope 1).Value.MyCommand.Name); }
@@ -359,8 +364,8 @@ function ProcessKill                          ( [String] $processName ){ [Object
                                                 if( $p -ne $null ){ OutProgress "ProcessKill $processName"; ProcessRestartInElevatedAdminMode; $p.Kill(); } }
 function ProcessSleepSec                      ( [Int32] $sec ){ Start-Sleep -s $sec; }
 function ProcessListInstalledAppx             (){ return [String[]] (Get-AppxPackage | Select-Object PackageFullName | Sort PackageFullName); }
-function ProcessGetCommandInEnvPathOrAltPaths ( [String] $commandNameOptionalWithExtension, [String[]] $alternativePaths = @(), [String] $downloadHintMsg ){
-                                                [System.Management.Automation.CommandInfo] $cmd = Get-Command -CommandType Application -Name $commandNameOptionalWithExtension -ErrorAction SilentlyContinue;
+function ProcessGetCommandInEnvPathOrAltPaths ( [String] $commandNameOptionalWithExtension, [String[]] $alternativePaths = @(), [String] $downloadHintMsg = ""){
+                                                [System.Management.Automation.CommandInfo] $cmd = Get-Command -CommandType Application -Name $commandNameOptionalWithExtension -ErrorAction SilentlyContinue | Select-Object -First 1;
                                                 if( $cmd -ne $null ){ return [String] $cmd.Path; }
                                                 foreach( $d in $alternativePaths ){ [String] $f = (Join-Path $d $commandNameOptionalWithExtension); if( (FileExists $f) ){ return $f; } }
                                                 throw [Exception] "$(ScriptGetCurrentFunc): commandName='$commandNameOptionalWithExtension' was wether found in env-path='$env:PATH' nor in alternativePaths='$alternativePaths'. $downloadHintMsg"; }
@@ -610,7 +615,7 @@ function TaskDisable                          ( [String] $taskPathAndName ){
 function FsEntryEsc                           ( [String] $fsentry ){ 
                                                 if( $fsentry -eq "" ){ throw [Exception] "Empty file name not allowed"; } # escaping is not nessessary if a command supports -LiteralPath.
                                                 return [String] [Management.Automation.WildcardPattern]::Escape($fsentry); } # important for chars as [,], etc.
-function FsEntryMakeValidFileName             ( [string] $str ){ [System.IO.Path]::GetInvalidFileNameChars() | ForEach-Object{ $str = $str.Replace($_,'_') }; return [String] $str; }
+function FsEntryMakeValidFileName             ( [String] $str ){ [System.IO.Path]::GetInvalidFileNameChars() | ForEach-Object{ $str = $str.Replace($_,'_') }; return [String] $str; }
 function FsEntryMakeRelative                  ( [String] $fsEntry, [String] $belowDir, [Boolean] $prefixWithDotDir = $false ){
                                                 # works without IO to file system; if $fsEntry is not equal or below dir then it throws;
                                                 # if fs-entry is equal the below-dir then it returns a dot;
@@ -903,11 +908,11 @@ function FileExistsAndIsNewer                 ( [String] $ftar, [String] $fsrc )
                                                 FileAssertExists $fsrc; return [Boolean] ((FileExists $ftar) -and ((FsEntryGetLastModified $ftar) -ge (FsEntryGetLastModified $fsrc))); }
 function FileNotExistsOrIsOlder               ( [String] $ftar, [String] $fsrc ){ 
                                                 return [Boolean] -not (FileExistsAndIsNewer $ftar $fsrc); }
-function FileReadContentAsString              ( [String] $file ){ 
-                                                return [String] (FileReadContentAsLines $file | Out-String -Width ([Int32]::MaxValue)); }
-function FileReadContentAsLines               ( [String] $file ){ 
-                                                # Note: if BOM exists then this is interpreted.
-                                                OutVerbose "FileRead $file"; return [String[]] (Get-Content -Encoding Default -LiteralPath $file); }
+function FileReadContentAsString              ( [String] $file, [String] $encodingIfNoBom = "Default" ){ 
+                                                return [String] (FileReadContentAsLines $file $encodingIfNoBom | Out-String -Width ([Int32]::MaxValue)); }
+function FileReadContentAsLines               ( [String] $file, [String] $encodingIfNoBom = "Default" ){ 
+                                                # Note: if BOM exists then this is taken. Otherwise often use "UTF8".
+                                                OutVerbose "FileRead $file"; return [String[]] (Get-Content -Encoding $encodingIfNoBom -LiteralPath $file); }
 function FileReadJsonAsObject                 ( [String] $jsonFile ){ 
                                                 Get-Content -Raw -Path $jsonFile | ConvertFrom-Json; }
 function FileWriteFromString                  ( [String] $file, [String] $content, [Boolean] $overwrite = $true, [String] $encoding = "UTF8" ){
@@ -979,7 +984,7 @@ function FileGetHexStringOfHash512BitsSha2    ( [String] $srcFile ){ return [Str
 function FileUpdateItsHashSha2FileIfNessessary( [String] $srcFile ){
                                                 [String] $hashTarFile = "$srcFile.sha2"; 
                                                 [String] $hashSrc = FileGetHexStringOfHash512BitsSha2 $srcFile;
-                                                [String] $hashTar = $(switch((FileNotExists $hashTarFile) -or (FileGetSize $hashTarFile) -gt 8200){($true){""}default{(FileReadContentAsString $hashTarFile).TrimEnd()}})  ;
+                                                [String] $hashTar = $(switch((FileNotExists $hashTarFile) -or (FileGetSize $hashTarFile) -gt 8200){($true){""}default{(FileReadContentAsString $hashTarFile "Default").TrimEnd()}})  ;
                                                 if( $hashSrc -eq $hashTar ){
                                                   OutProgress "File is up to date, nothing done with '$hashTarFile'.";
                                                 }else{
@@ -994,6 +999,9 @@ function DriveMapTypeToString                 ( [UInt32] $driveType ){
                                                 return [String] $(switch($driveType){ 1{"NoRootDir"} 2{"RemovableDisk"} 3{"LocalDisk"} 4{"NetworkDrive"} 5{"CompactDisk"} 6{"RamDisk"} default{"UnknownDriveType=driveType"}}); }
 function DriveList                            (){
                                                 return [Object[]] (Get-WmiObject "Win32_LogicalDisk" | Select-Object DeviceID, FileSystem, Size, FreeSpace, VolumeName, DriveType, @{Name="DriveTypeName";Expression={(DriveMapTypeToString $_.DriveType)}}, ProviderName); }
+function CredentialStandardizeUserWithDomain  ( [String] $username ){
+                                                # allowed username as input: "", "u0", "u0@domain", "@domain\u0", "domain\u0"   #> <# used because for unknown reasons sometimes a username like user@domain does not work, it requires domain\user.
+                                                if( $username.Contains("\") -or -not $username.Contains("@") ){ return $username; } [String[]] $u = $username -split "@",2; return [String] ($u[1]+"\"+$u[0]); }
 function CredentialGetSecureStrFromHexString  ( [String] $text ){ 
                                                 return [System.Security.SecureString] (ConvertTo-SecureString $text); } # will throw if it is not an encrypted string
 function CredentialGetSecureStrFromText       ( [String] $text ){ 
@@ -1002,36 +1010,37 @@ function CredentialGetHexStrFromSecureString  ( [System.Security.SecureString] $
                                                 return [String] (ConvertFrom-SecureString $code); } # ex: "ea32f9d30de3d3dc7fcd86a6a8f587ed9"
 function CredentialGetTextFromSecureString    ( [System.Security.SecureString] $code ){ 
                                                 [Object] $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($code); return [String] [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr); }
-function CredentialGetPasswordTextFromCred    ( [System.Management.Automation.PSCredential] $cred ){ 
-                                                return [String] $cred.GetNetworkCredential().Password; }
-function CredentialWriteToFile                ( [System.Management.Automation.PSCredential] $cred, [String] $file ){ 
-                                                FileWriteFromString $file ($cred.UserName+"`r`n"+(CredentialGetHexStrFromSecureString $cred.Password)); }
-function CredentialRemoveFile                 ( [String] $file ){ 
-                                                OutProgress "CredentialRemoveFile '$file'"; FileDelete $file; }
-function CredentialReadFromFile               ( [String] $file ){ 
-                                                [String[]] $s = StringSplitIntoLines (FileReadContentAsString $secureCredentialFile); 
+function CredentialGetUsername                ( [System.Management.Automation.PSCredential] $cred = $null, [Boolean] $onNullCredGetCurrentUserInsteadOfEmpty = $false ){
+                                                return [String] $(switch($cred -eq $null){ ($true){$(switch($onNullCredGetCurrentUserInsteadOfEmpty){($true){$env:USERNAME}default{""}})} default{$cred.UserName}}); }
+function CredentialGetPassword                ( [System.Management.Automation.PSCredential] $cred = $null ){ # $cred.GetNetworkCredential().Password is the same as (CredentialGetTextFromSecureString $cred.Password)
+                                                return [String] $(switch($cred -eq $null){ ($true){""} default{$cred.GetNetworkCredential().Password}}); }
+function CredentialWriteToFile                ( [System.Management.Automation.PSCredential] $cred, [String] $secureCredentialFile ){ 
+                                                FileWriteFromString $secureCredentialFile ($cred.UserName+"`r`n"+(CredentialGetHexStrFromSecureString $cred.Password)); }
+function CredentialRemoveFile                 ( [String] $secureCredentialFile ){ 
+                                                OutProgress "CredentialRemoveFile '$secureCredentialFile'"; FileDelete $secureCredentialFile; }
+function CredentialReadFromFile               ( [String] $secureCredentialFile ){
+                                                [String[]] $s = StringSplitIntoLines (FileReadContentAsString $secureCredentialFile "Default");
                                                 try{ [String] $us = $s[0]; [System.Security.SecureString] $pwSecure = CredentialGetSecureStrFromHexString $s[1];
-                                                  # alternative: New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $User, (Get-Content -Encoding Default -LiteralPath $File | ConvertTo-SecureString)
+                                                  # alternative: New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $User, (Get-Content -Encoding Default -LiteralPath $secureCredentialFile | ConvertTo-SecureString)
                                                   return (New-Object System.Management.Automation.PSCredential((CredentialStandardizeUserWithDomain $us), $pwSecure));
                                                 }catch{ throw [Exception] "Credential file '$secureCredentialFile' has not expected format for credentials, you may remove it and retry"; } }
-function CredentialReadFromParamOrInput       ( [String] $username = "", [String] $password = "", [String] $requestMessage = "Enter username: " ){ 
+function CredentialCreate                     ( [String] $username = "", [String] $password = "", [String] $accessShortDescription = "" ){ 
                                                 [String] $us = $username; 
-                                                while( $us -eq "" ){ $us = StdInReadLine $requestMessage; } 
+                                                while( $us -eq "" ){ $us = StdInReadLine "Enter username$(switch($accessShortDescription -eq ''){($true){''}default{(' for '+$accessShortDescription)}}): "; } 
                                                 [System.Security.SecureString] $pwSecure = $null; 
-                                                if( $password -eq "" ){ $pwSecure = StdInReadLinePw "Enter password for username=$($us): "; }else{ $pwSecure = CredentialGetSecureStrFromText $password; }
+                                                if( $password -eq "" ){ $pwSecure = StdInReadLinePw "Enter password for username=$($us): "; }
+                                                else{ $pwSecure = CredentialGetSecureStrFromText $password; }
                                                 return (New-Object System.Management.Automation.PSCredential((CredentialStandardizeUserWithDomain $us), $pwSecure)); }
-function CredentialStandardizeUserWithDomain  ( [String] $username ){
-                                                # allowed username as input: "", "u0", "u0@domain", "@domain\u0", "domain\u0"   #> <# used because for unknown reasons sometimes a username like user@domain does not work, it requires domain\user.
-                                                if( $username.Contains("\") -or -not $username.Contains("@") ){ return $username; } [String[]] $u = $username -split "@",2; return [String] ($u[1]+"\"+$u[0]); }
-function CredentialGetAndStoreIfNotExists     ( [String] $secureCredentialFile, [String] $username = "", [String] $password = "", [String] $requestMessage = "Enter username: " ){
+function CredentialGetAndStoreIfNotExists     ( [String] $secureCredentialFile, [String] $username = "", [String] $password = "", [String] $accessShortDescription = ""){
                                                 # if username or password is empty then they are asked from std input.
                                                 # if file exists then it takes credentials from it.
                                                 # if file not exists then it is written by given credentials.
+                                                # For access description enter a message hint which is added to request for user as "login host xy", "mountpoint xy", etc.
                                                 [System.Management.Automation.PSCredential] $cred = $null;
                                                 if( $secureCredentialFile -ne "" -and (FileExists $secureCredentialFile) ){
                                                   $cred = CredentialReadFromFile $secureCredentialFile;
                                                 }else{
-                                                  $cred = CredentialReadFromParamOrInput $username $password $requestMessage;
+                                                  $cred = CredentialCreate $username $password $accessShortDescription;
                                                 }
                                                 if( $secureCredentialFile -ne "" -and (FileNotExists $secureCredentialFile) ){
                                                   CredentialWriteToFile $cred $secureCredentialFile;
@@ -1141,8 +1150,8 @@ function MountPointRemove                     ( [String] $drive, [String] $mount
                                                 } }                                                
 function MountPointCreate                     ( [String] $drive, [String] $mountPoint, [System.Management.Automation.PSCredential] $cred = $null, [Boolean] $errorAsWarning = $false, [Boolean] $noPreLogMsg = $false ){
                                                 if( -not $drive.EndsWith(":") ){ throw [Exception] "Expected drive='$drive' with trailing colon"; }
-                                                [String] $us = switch($cred -eq $null){ ($true){"CurrentUser($env:USERNAME)"} default{$cred.UserName}};
-                                                [String] $pw = switch($cred -eq $null){ ($true){""} default{(CredentialGetPasswordTextFromCred $cred)}};
+                                                [String] $us = CredentialGetUsername $cred $true;
+                                                [String] $pw = CredentialGetPassword $cred;
                                                 [String] $traceInfo = "MountPointCreate drive=$drive mountPoint=$($mountPoint.PadRight(22)) us=$($us.PadRight(12)) pw=*** state=";
                                                 if( $noPreLogMsg ){ }else{ OutProgressText $traceInfo; }
                                                 [Object] $smbMap = MountPointGetByDrive $drive;
@@ -1183,8 +1192,8 @@ function PsDriveListAll                       (){
 function PsDriveCreate                        ( [String] $drive, [String] $mountPoint, [System.Management.Automation.PSCredential] $cred = $null ){
                                                 if( -not $drive.EndsWith(":") ){ throw [Exception] "Expected drive='$drive' with trailing colon"; }
                                                 MountPointRemove $drive $mountPoint;
-                                                [String] $us = switch($cred -eq $null){ ($true){"CurrentUser($env:USERNAME)"} default{$cred.UserName}};
-                                                OutProgress "MountPointCreate drive=$drive mountPoint=$mountPoint cred.username=$us";
+                                                [String] $us = CredentialGetUsername $cred $true;
+                                                OutProgress "MountPointCreate drive=$drive mountPoint=$mountPoint username=$us";
                                                 try{
                                                   $obj = New-PSDrive -Name ($drive -replace ":","") -Root $mountPoint -PSProvider "FileSystem" -Scope Global -Persist -Description "$mountPoint($drive)" -Credential $cred;
                                                 }catch{
@@ -1346,7 +1355,8 @@ function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [St
                                                   [String] $workDir = "";
                                                   # ex: "C:\Users\u1\AppData\Roaming\Microsoft\Windows\Start Menu\MyPortableProg\Appl\Graphic\Manufactor ProgramName V1 en 2016.lnk"
                                                   [String] $lnkFile = "$($m)\$($relBelowSrcDir)\$((FsEntryGetFileName $f).TrimEnd($srcFileExtMenuLink).TrimEnd()).lnk";
-                                                  [String] $cmdLine = FileReadContentAsLines $f | Select-Object -First 1;
+                                                  [String] $encodingIfNoBom = "Default";
+                                                  [String] $cmdLine = FileReadContentAsLines $f $encodingIfNoBom | Select-Object -First 1;
                                                   [String[]] $ar = StringCommandLineToArray $cmdLine;
                                                   if( $ar.Length -eq 0 ){ throw [Exception] "Missing a command line at first line in file='$f' cmdline=$cmdLine"; }
                                                   if( ($ar.Length-1) -gt 999 ){ throw [Exception] "Command line has more than the allowed 999 arguments at first line infile='$f' nrOfArgs=$($ar.Length) cmdline='$cmdLine'"; }
@@ -1400,7 +1410,7 @@ function InfoAboutSystemInfo                  (){
                                                 $result += "OS-SerialNumber: "+(Get-WmiObject Win32_OperatingSystem|Select-Object -ExpandProperty SerialNumber);
                                                 $result += @( "", "", "List of associations of fileextensions to a filetypes:"   , (& "cmd.exe" "/c" "ASSOC") );
                                                 $result += @( "", "", "List of associations of filetypes to executable programs:", (& "cmd.exe" "/c" "FTYPE") );
-                                                $result += @( "", "", "List of DefaultAppAssociations:"                          , (FileReadContentAsString $f) );
+                                                $result += @( "", "", "List of DefaultAppAssociations:"                          , (FileReadContentAsString $f "Default") );
                                                 $result += @( "", "", "List of windows feature enabling states:"                 , (& "Dism.exe" "/online" "/Get-Features") );
                                                 # for future use:
                                                 # - powercfg /lastwake
@@ -1541,10 +1551,10 @@ function PsWebRequestLastModifiedFailSafe     ( [String] $url ){ # return DateTi
                                                   return [DateTime] $resp.LastModified;
                                                 }catch{ return [DateTime]::MaxValue; }finally{ if( $resp -ne $null ){ $resp.Dispose(); } } }
 function PsDownloadFile                       ( [String] $url, [String] $tarFile, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Boolean] $onlyIfNewer = $false ){
-                                                # powershell internal implementation of curl or wget which works for http, https and ftp only. Cares 3xx for auto redirections.
+                                                # download a single file by overwrite it (as CurlDownloadFile), powershell internal implementation of curl or wget which works for http, https and ftp only. Cares http response code 3xx for auto redirections.
                                                 if( $url -eq "" ){ throw [Exception] "Wrong file url: '$url'"; } # alternative check: -or $url.EndsWith("/") 
                                                 if( $us -ne "" -and $pw -eq "" ){ throw [Exception] "Missing password for username=$us"; }
-                                                OutInfo "PsDownloadFile $url to '$tarFile'";
+                                                OutInfo "PsDownloadFile(onlyIfNewer=$onlyIfNewer) $url to '$tarFile' ";
                                                 if( $ignoreSslCheck ){
                                                   # note: this alternative is now obsolete (see https://msdn.microsoft.com/en-us/library/system.net.servicepointmanager.certificatepolicy(v=vs.110).aspx):
                                                   #   Add-Type -TypeDefinition " using System.Net; using System.Security.Cryptography.X509Certificates; public class TrustAllCertsPolicy : ICertificatePolicy { public bool CheckValidationResult( ServicePoint srvPoint, X509Certificate certificate, WebRequest request, int certificateProblem){ return true; } } ";
@@ -1555,50 +1565,64 @@ function PsDownloadFile                       ( [String] $url, [String] $tarFile
                                                 }
                                                 [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Ssl3 -bor [System.Net.SecurityProtocolType]::Tls -bor [System.Net.SecurityProtocolType]::Tls12; # default is: Ssl3, Tls.
                                                 if( $onlyIfNewer -and (FileExists $tarFile) ){
-                                                  [DateTime] $webTs = (PsWebRequestLastModifiedFailSafe $url);
+                                                  [DateTime] $srcTs = (PsWebRequestLastModifiedFailSafe $url);
                                                   [DateTime] $fileTs = (FsEntryGetLastModified $tarFile);
-                                                  if( $webTs -le $fileTs ){
-                                                    OutProgress "Ok, download not nessessary because WebFileLastChange=$(DateTimeAsStringIso $webTs) is older than TarFileLastChange=$(DateTimeAsStringIso $fileTs).";
+                                                  if( $srcTs -le $fileTs ){
+                                                    OutProgress "Ok, download not nessessary because timestamp of src $(DateTimeAsStringIso $srcTs) is older than target $(DateTimeAsStringIso $fileTs).";
                                                     return;
                                                   }
                                                   # old: throw [Exception] "PsDownloadFile with onlyIfNewer is not yet implemented"; 
                                                 }
-                                                #[String] $userAgent = "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:40.0) Gecko/20100101 Firefox/40.1";
+                                                [String] $userAgent = "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:40.0) Gecko/20100101 Firefox/40.1"; # some servers as api.github.com requires at least a string as "Mozilla/5.0"
                                                 [String] $tarDir = FsEntryGetParentDir $tarFile;
                                                 [String] $logf = "$LogDir\Download.$CurrentMonthIsoString.$($PID)_$(ProcessGetCurrentThreadId).log";
                                                 DirCreate $tarDir;
                                                 OutProgress "Logfile: `"$logf`"";
                                                 FileAppendLineWithTs $logf "WebClient.DownloadFile(url=$url,tar=$tarFile)";
                                                 $webclient = new-object System.Net.WebClient;
+                                                # defaults: AllowAutoRedirect is true.
+                                                $webclient.Headers.Add("User-Agent",$userAgent);
+                                                # for future use: $webclient.Headers.Add("Content-Type","application/x-www-form-urlencoded");
+                                                # not relevant because getting byte array: $webclient.Encoding = "Default"; "UTF8";
+                                                [System.Management.Automation.PSCredential] $cred = $(switch($us -eq ""){ ($true){$null} default{(CredentialCreate $us $pw)} });
                                                 if( $us -ne "" ){
-                                                  [System.Management.Automation.PSCredential] $cred = (CredentialReadFromParamOrInput $us $pw);
                                                   $webclient.Credentials = $cred;
                                                 }
                                                 try{
-                                                  $webclient.DownloadFile($url,$tarFile);
+                                                  [Boolean] $useWebclient = $false; # we use now Invoke-WebRequest
+                                                  if( $useWebclient ){
+                                                    $webclient.DownloadFile($url,$tarFile);
+                                                  }else{
+                                                    if( $us -ne "" ){
+                                                      $base64 = [System.Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes("${us}:$pw"));
+                                                      $headers = @{ Authorization = "Basic $base64" };
+                                                      # Note: on api.github.com the $cred were ignored, so it requires the basic auth in header, but we also add $cred maybe for other servers. By the way curl -u works.
+                                                      Invoke-WebRequest -Uri $url -OutFile $tarFile -MaximumRedirection 2 -TimeoutSec 70 -UserAgent $userAgent -Headers $headers -Credential $cred;
+                                                    }else{
+                                                      Invoke-WebRequest -Uri $url -OutFile $tarFile -MaximumRedirection 2 -TimeoutSec 70 -UserAgent $userAgent;
+                                                    }
+                                                  }
                                                 }catch{ 
                                                   # ex: The request was aborted: Could not create SSL/TLS secure channel.
-                                                  throw [Exception] "WebClient.DownloadFile(url=$url,tar=$tarFile) failed because $($_.Exception.Message)"; 
+                                                  # ex: Ausnahme beim Aufrufen von "DownloadFile" mit 2 Argument(en):  "The server committed a protocol violation. Section=ResponseStatusLine"
+                                                  [String] $msg = $_.Exception.Message;
+                                                  if( $msg.Contains("Section=ResponseStatusLine") ){ $msg = "Server returned not a valid HTTP response. "+$msg; }
+                                                  throw [Exception] "PsDownloadFile(url=$url,tar=$tarFile,us=$us) failed because $msg"; 
                                                 }
                                                 <# alternative
                                                 FileAppendLineWithTs $logf "Invoke-WebRequest -Uri $url -OutFile $tarFile";
-                                                if( $us -ne "" ){
-                                                  [System.Management.Automation.PSCredential] $cred = (CredentialReadFromParamOrInput $us $pw);
-                                                  Invoke-WebRequest -Uri $url -OutFile $tarFile -MaximumRedirection 2 -TimeoutSec 70 -UserAgent $userAgent -Credential $cred;
-                                                }else{
-                                                  Invoke-WebRequest -Uri $url -OutFile $tarFile -MaximumRedirection 2 -TimeoutSec 70 -UserAgent $userAgent;
-                                                }
                                                 # for future use: -UseDefaultCredentials, -Headers, -MaximumRedirection, -Method, -Body, -ContentType, -TransferEncoding, -InFile
                                                 #>
                                                 [String] $stateMsg = "Ok, downloaded $(FileGetSize $tarFile) bytes.";
                                                 FileAppendLineWithTs $logf $stateMsg;
                                                 OutProgress $stateMsg; }
 function CurlDownloadFile                     ( [String] $url, [String] $tarFile, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Boolean] $onlyIfNewer = $false ){
-                                                # download a single file by overwrite it, requires curl.exe in path, timestamps are also taken, logging info is stored in a global logfile, 
+                                                # download a single file by overwrite it (as PsDownloadFile), requires curl.exe in path, timestamps are also taken, logging info is stored in a global logfile, 
                                                 #   for user agent info a relative new mozilla firefox is set, if file curl-ca-bundle.crt exists next to curl.exe then this is taken.
                                                 # Supported protocols: DICT, FILE, FTP, FTPS, Gopher, HTTP, HTTPS, IMAP, IMAPS, LDAP, LDAPS, POP3, POP3S, RTMP, RTSP, SCP, SFTP, SMB, SMTP, SMTPS, Telnet and TFTP. 
                                                 # Supported features:  SSL certificates, HTTP POST, HTTP PUT, FTP uploading, HTTP form based upload, proxies, HTTP/2, cookies, 
                                                 #                      user+password authentication (Basic, Plain, Digest, CRAM-MD5, NTLM, Negotiate and Kerberos), file transfer resume, proxy tunneling and more. 
+                                                # ex: curl.exe --show-error --output $tarFile --silent --create-dirs --connect-timeout 70 --retry 2 --retry-delay 5 --remote-time --stderr - --user "$($us):$pw" $url;
                                                 if( $url -eq "" ){ throw [Exception] "Wrong file url: '$url'"; } # alternative check: -or $url.EndsWith("/") 
                                                 if( $us -ne "" -and $pw -eq "" ){ throw [Exception] "Missing password for username=$us"; }
                                                 [String[]] $opt = @( # see https://curl.haxx.se/docs/manpage.html
@@ -1795,12 +1819,12 @@ function CurlDownloadFile                     ( [String] $url, [String] $tarFile
                                                 FileAppendLineWithTs $logf $stateMsg;
                                                 OutProgress $stateMsg;
                                                 AssertRcIsOk; }
-function CurlDownloadToString                 ( [String] $url, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Boolean] $onlyIfNewer = $false ){
+function CurlDownloadToString                 ( [String] $url, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Boolean] $onlyIfNewer = $false, [String] $encodingIfNoBom = "UTF8" ){
                                                 [String] $tmp = (FileGetTempFile); CurlDownloadFile $url $tmp $us $pw $ignoreSslCheck $onlyIfNewer;
-                                                [String] $result = (FileReadContentAsString $tmp); FileDelTempFile $tmp; return [String] $result; }
-function PSDownloadToString                   ( [String] $url, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Boolean] $onlyIfNewer = $false ){
+                                                [String] $result = (FileReadContentAsString $tmp $encodingIfNoBom); FileDelTempFile $tmp; return [String] $result; }
+function PSDownloadToString                   ( [String] $url, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Boolean] $onlyIfNewer = $false, [String] $encodingIfNoBom = "UTF8" ){
                                                 [String] $tmp = (FileGetTempFile); PsDownloadFile $url $tmp $us $pw $ignoreSslCheck $onlyIfNewer;
-                                                [String] $result = (FileReadContentAsString $tmp); FileDelTempFile $tmp; return [String] $result; }
+                                                [String] $result = (FileReadContentAsString $tmp $encodingIfNoBom); FileDelTempFile $tmp; return [String] $result; }
 <# Type: SvnEnvInfo #>                        Add-Type -TypeDefinition "public struct SvnEnvInfo {public string Url; public string Path; public string RealmPattern; public string CachedAuthorizationFile; public string CachedAuthorizationUser; public string Revision; }";
                                                 # ex: Url="https://myhost/svn/Work"; Path="D:\Work"; RealmPattern="https://myhost:443"; CachedAuthorizationFile="$env:APPDATA\Subversion\auth\svn.simple\25ff84926a354d51b4e93754a00064d6"; CachedAuthorizationUser="myuser"; Revision="1234"
 function SvnExe                               (){ 
@@ -1866,8 +1890,9 @@ function SvnEnvInfoGet                        ( [String] $workDir ){
                                                 # care only file names like "25ff84926a354d51b4e93754a00064d6"
                                                 [String[]] $files = FsEntryListAsStringArray "$svnCachedAuthorizationDir\*" $false $false | 
                                                     Where-Object{ (FsEntryGetFileName $_) -match "^[0-9a-f]{32}$" } | Sort-Object;
+                                                [String] $encodingIfNoBom = "Default";
                                                 foreach( $f in $files ){
-                                                  [String[]] $lines = FileReadContentAsLines $f;
+                                                  [String[]] $lines = FileReadContentAsLines $f $encodingIfNoBom;
                                                   # filecontent example:
                                                   #   K 8
                                                   #   passtype
@@ -2024,7 +2049,8 @@ function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url
                                                   FileAppendLineWithTs $svnLogFile "`"$(SvnExe)`" $opt";
                                                   try{
                                                     & (SvnExe) $opt 2> $tmp | %{ FileAppendLineWithTs $svnLogFile ("  "+$_); OutProgress $_ 2; };
-                                                    AssertRcIsOk (FileReadContentAsLines $tmp) $true;
+                                                    [String] $encodingIfNoBom = "Default";
+                                                    AssertRcIsOk (FileReadContentAsLines $tmp $encodingIfNoBom) $true;
                                                     # ex: svn: E170013: Unable to connect to a repository at URL 'https://mycomp/svn/Work/mydir'
                                                     #     svn: E230001: Server SSL certificate verification failed: issuer is not trusted   Exception: Last operation failed [rc=1].
                                                     break;
@@ -2033,12 +2059,13 @@ function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url
                                                     # ex: "svn: E155037: Previous operation has not finished; run 'cleanup' if it was interrupted"
                                                     # ex: "svn: E155004: Run 'svn cleanup' to remove locks (type 'svn help cleanup' for details)"
                                                     # ex: "svn: E175002: REPORT request on '/svn/Work/!svn/me' failed"
+                                                    # ex: "svn: E170013: Unable to connect to a repository at URL 'https://myserver/svn/myrepo'."
                                                     # ex: "svn: E200030: sqlite[S10]: disk I/O error, executing statement 'VACUUM '"
                                                     # ex: "svn: E205000: Try 'svn help checkout' for more information"
                                                     [String] $m = $_.Exception.Message;
                                                     [String] $msg = "$(ScriptGetCurrentFunc)(dir=`"$workDir`",url=$url,user=$user) failed because $m. Logfile='$svnLogFile'.";
                                                     FileAppendLineWithTs $svnLogFile $msg;
-                                                    [Boolean] $isKnownProblemToSolveWithRetry = $m.Contains(" E120106:") -or $m.Contains(" E155037:") -or $m.Contains(" E155004:") -or $m.Contains(" E175002:") -or $m.Contains(" E200030:");
+                                                    [Boolean] $isKnownProblemToSolveWithRetry = $m.Contains(" E120106:") -or $m.Contains(" E155037:") -or $m.Contains(" E155004:") -or $m.Contains(" E170013:") -or $m.Contains(" E175002:") -or $m.Contains(" E200030:");
                                                     if( -not $isKnownProblemToSolveWithRetry -or $nrOfTries -ge $maxNrOfTries ){ throw [Exception] $msg; }
                                                     [String] $msg2 = "Is try nr $nrOfTries of $maxNrOfTries, will do cleanup, wait 30 sec and if not reached max then retry.";
                                                     OutWarning "$msg $msg2";
@@ -2112,22 +2139,24 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                 # $cmd == "Fetch": target dir must exist.
                                                 # $cmd == "Pull" : target dir must exist. [git pull] is the same as [git fetch] and then [git merge FETCH_HEAD]. [git pull -rebase] runs [git rebase] instead of [git merge].
                                                 if( @("Clone","Fetch","Pull") -notcontains $cmd ){ throw [Exception] "Expected one of (Clone,Fetch,Pull) instead of: $cmd"; }
-                                                [Boolean] $doChangeDir = @("Fetch","Pull") -contains $cmd;
                                                 [String] $dir = FsEntryGetAbsolutePath (GitBuildLocalDirFromUrl $tarRootDir $url);
                                                 [String[]] $out = $null;
                                                 try{
-                                                  if( $doChangeDir ){
-                                                    OutProgressText "cd '$dir'; ";
-                                                    Push-Location -Path $dir; # required depending on repo config
-                                                  } 
+                                                  # old: if( $doChangeDir ){ OutProgressText "cd '$dir'; "; Push-Location -Path $dir; } # required depending on repo config
                                                   # ex: remote: Counting objects: 123, done. \n Receiving objects: 56% (33/123)  0 (delta 0), pack-reused ... \n Receiving objects: 100% (123/123), 205.12 KiB | 0 bytes/s, done. \n Resolving deltas: 100% (123/123), done.
+                                                  [String[]] $gitArgs = @(); 
                                                   if( $cmd -eq "Clone" ){
-                                                    $out = ProcessStart "git" @( "--git-dir=$dir\.git", "clone", "--quiet", $url, $dir) $false $true; # writes to stderr: Cloning into 'c:\temp\test'...
+                                                    # writes to stderr: Cloning into 'c:\temp\test'...
+                                                    $gitArgs = @( "--git-dir=$dir/.git", "clone", "--quiet", $url, $dir);
                                                   }elseif( $cmd -eq "Fetch" ){
-                                                    $out = ProcessStart "git" @( "--git-dir=$dir\.git", "fetch", "--quiet", $url) $false $true; # writes to stderr: From https://github.com/myrepo  * branch  HEAD  -> FETCH_HEAD.
+                                                     # writes to stderr: From https://github.com/myrepo  * branch  HEAD  -> FETCH_HEAD.
+                                                    $gitArgs = @( "-C", $dir, "--git-dir=.git", "fetch", "--quiet", $url);
                                                   }elseif( $cmd -eq "Pull" ){
-                                                    $out = ProcessStart "git" @( "--git-dir=$dir\.git", "pull", "--quiet", "--no-stat", $url) $false; # defaults: "--no-rebase" "origin"; writes to stderr: Checking out files:  47% (219/463)  Already up to date. From https://github.com/myrepo  * branch  HEAD  -> FETCH_HEAD
+                                                    # defaults: "--no-rebase" "origin"; 
+                                                    # writes to stderr: Checking out files:  47% (219/463)  Already up to date. From https://github.com/myrepo  * branch  HEAD  -> FETCH_HEAD
+                                                    $gitArgs = @( "-C", $dir, "--git-dir=.git", "pull", "--quiet", "--no-stat", $url);
                                                   }else{ throw [Exception] "Unknown git cmd='$cmd'"; }
+                                                  $out = ProcessStart "git" $gitArgs $false $true;
                                                   OutSuccess "  Ok. $out";
                                                 }catch{
                                                   # ex: fatal: AggregateException encountered.
@@ -2140,8 +2169,6 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   ScriptResetRc;
                                                   if( -not $errorAsWarning ){ throw [Exception] $msg; }
                                                   OutWarning $msg;
-                                                }finally{
-                                                  if( $doChangeDir ){ Pop-Location; }
                                                 } }
 function GitCloneOrFetchOrPull                ( [String] $tarRootDir, [String] $url, [Boolean] $usePullNotFetch = $false, [Boolean] $errorAsWarning = $false ){
                                                 # extracts path of url below host as relative dir, uses this path below target root dir to create or update git; 
@@ -2279,11 +2306,11 @@ function JuniperNcEstablishVpnConn            ( [String] $secureCredentialFile, 
                                                   for ($i = 1; $i -le $maxPwTries; $i += 1){
                                                     OutVerbose "Read last saved encrypted username and password: '$secureCredentialFile'";
                                                     [System.Management.Automation.PSCredential] $cred = CredentialGetAndStoreIfNotExists $secureCredentialFile;
-                                                    [String] $username = $cred.UserName;
-                                                    [String] $password = CredentialGetTextFromSecureString $cred.Password;
-                                                    OutDebug "UserName='$username'  Password='$password'";
-                                                    OutProgress "Call: $vpnProg -url $url -u $username -r $realm -t 75 -p *** ";
-                                                    [String] $out = & $vpnProg "-url" $url "-u" $username "-r" $realm "-t" "75" "-p" $password; ScriptResetRc;
+                                                    [String] $us = CredentialGetUsername $cred;
+                                                    [String] $pw = CredentialGetPassword $cred;
+                                                    OutDebug "UserName='$us'  Password='$pw'";
+                                                    OutProgress "Call: $vpnProg -url $url -u $us -r $realm -t 75 -p *** ";
+                                                    [String] $out = & $vpnProg "-url" $url "-u" $us "-r" $realm "-t" "75" "-p" $pw; ScriptResetRc;
                                                     ProcessSleepSec 2; # required to make ready to use rdp
                                                     if( $out -eq "The specified credentials do not authenticate." -or $out -eq "Die Authentifizierung ist mit den angegebenen Anmeldeinformationen nicht m÷glich." ){
                                                       # on some machines we got german messages
@@ -2330,6 +2357,26 @@ function ToolSignDotNetAssembly               ( [String] $keySnk, [String] $srcD
                                                 [String] $tarXml = (StringRemoveRightNr $tarDllOrExe 4) + ".xml";
                                                 if( FileExists $srcXml ){ FileCopy $srcXml $tarXml $true; }
                                                 }
+function ToolGithubApiListOrgRepos            ( [String] $org, [System.Management.Automation.PSCredential] $cred ){
+                                                # list all repos which an org has on github, if user is specified then not only public but also private repos are listed.
+                                                [String] $us = CredentialGetUsername $cred;
+                                                [String] $pw = CredentialGetPassword $cred;
+                                                OutInfo "List all github repos from $org with user=$us.";
+                                                [Array] $result = @();
+                                                for( [Int32] $i = 1; $i -lt 100; $i++ ){
+                                                  # REST API doc: https://developer.github.com/v3/repos/
+                                                  # maximum 100 items per page
+                                                  # ex: https://api.github.com/orgs/arduino/repos?type=all&sort=id&per_page=100&page=2&affiliation=owner,collaborator,organization_member
+                                                  [String] $url = "https://api.github.com/orgs/$org/repos?per_page=100&page=$i";
+                                                  [Object] $json = PSDownloadToString $url $us $pw | ConvertFrom-Json;
+                                                  [Array] $a = $json | Select-Object @{N='Url';E={$_.html_url}}, archived, private, fork, forks, language, 
+                                                    @{N='CreatedAt';E={$_.created_at.SubString(0,10)}}, @{N='UpdatedAt';E={$_.updated_at.SubString(0,10)}}, 
+                                                    @{N='PermAdm';E={$_.permissions.admin}}, @{N='PermPush';E={$_.permissions.push}}, @{N='PermPull';E={$_.permissions.pull}},
+                                                    default_branch, @{N='LicName';E={$_.license.name}},
+                                                    @{N='Description';E={$_.description.SubString(0,200)}};
+                                                  if( $a -eq $null -or $a.Count -eq 0 ){ break; }
+                                                  $result +=$a;
+                                                } return $result | Sort-Object archived, html_url; }
 function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $url, [Boolean] $requireElevatedAdminMode, [Boolean] $doWaitIfFailed = $false, [String] $additionalOkUpdMsg = "" ){
                                                 # Assert the correct installed environment by requiring that the file to be update previously exists.
                                                 # Assert the network is prepared by checking if host is reachable.
