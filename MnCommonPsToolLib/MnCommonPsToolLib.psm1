@@ -52,7 +52,7 @@
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for bugfixes.
 [String] $MnCommonPsToolLibVersion = "1.27";
-  # 2018-12-16  V1.27  suppress import-module warnings, improve ToolCreateLnkIfNotExists
+  # 2018-12-16  V1.27  suppress import-module warnings, improve ToolCreateLnkIfNotExists, rename FsEntryPrivAclAsString to PrivAclAsString, rename PrivFsSecurityHasFullControl to PrivAclHasFullControl, new: FsEntryCreateSymLink, FsEntryCreateHardLink, CredentialReadUserFromFile; 
   # 2018-12-16  V1.26  doc
   # 2018-10-08  V1.25  improve git logging, add ProcessStart
   # 2018-09-27  V1.24  fix FsEntryMakeRelative for equal dirs
@@ -92,7 +92,7 @@ if( -not [String] (Get-Variable ModeNoWaitForEnterAtEnd           -Scope Global 
 if( -not [String] (Get-Variable ArgsForRestartInElevatedAdminMode -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ArgsForRestartInElevatedAdminMode -value @()   ; }
 
 # set some powershell predefined global variables:
-$Global:ErrorActionPreference         = "Stop"                    ; # abort if a called exe will write to stderr, default is 'Continue'.
+$Global:ErrorActionPreference         = "Stop"                    ; # abort if a called exe will write to stderr, default is 'Continue'. Can be overridden in each command by [-ErrorAction actionPreference]
 $Global:ReportErrorShowExceptionClass = $true                     ; # on trap more detail exception info
 $Global:ReportErrorShowInnerException = $true                     ; # on trap more detail exception info
 $Global:ReportErrorShowStackTrace     = $true                     ; # on trap more detail exception info
@@ -104,7 +104,7 @@ $Global:OutputEncoding                = [Console]::OutputEncoding ; # for pipe t
 #   $Global:VerbosePreference       SilentlyContinue   # Available: Stop, Inquire, Continue(=show verbose and continue), SilentlyContinue(=default=no verbose).
 #   $Global:DebugPreference         SilentlyContinue   # Available: Stop, Inquire, Continue, SilentlyContinue.
 #   $Global:ProgressPreference      Continue           # Available: Stop, Inquire, Continue, SilentlyContinue.
-#   $Global:WarningPreference       Continue           # Available: Stop, Inquire, Continue, SilentlyContinue.
+#   $Global:WarningPreference       Continue           # Available: Stop, Inquire, Continue, SilentlyContinue. Can be overridden in each command by [-WarningAction actionPreference]
 #   $Global:ConfirmPreference       High               # Available: None, Low, Medium, High.
 #   $Global:WhatIfPreference        False              # Available: False, True.
 
@@ -112,11 +112,11 @@ $Global:OutputEncoding                = [Console]::OutputEncoding ; # for pipe t
 [System.Threading.Thread]::CurrentThread.CurrentUICulture = [System.Globalization.CultureInfo]::GetCultureInfo('en-US');
   # alternatives: [System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::GetCultureInfo('en-US'); Set-Culture en-US;
 
-# import some modules
-# note: for example on "Windows Server 2008 R2" we currently missing these modules but we ignore the errors:
+# import some modules (because it is more performant to do it once than doing this in each function using methods of this module)
+# note: for example on "Windows Server 2008 R2" we currently are missing these modules but we ignore the errors because it its enough if the functions which uses these modules will fail.
 #   The specified module 'ScheduledTasks'/'SmbShare' was not loaded because no valid module file was found in any module directory.
-if( (Import-Module -NoClobber -Name "ScheduledTasks" -ErrorAction Continue 2>&1) -ne $null ){ $error.clear(); Write-Host -ForegroundColor Yellow "Ignored failing of Import-Module ScheduledTasks."; }
-if( (Import-Module -NoClobber -Name "SmbShare"       -ErrorAction Continue 2>&1) -ne $null ){ $error.clear(); Write-Host -ForegroundColor Yellow "Ignored failing of Import-Module SmbShare."; }
+if( (Import-Module -NoClobber -Name "ScheduledTasks" -ErrorAction Continue 2>&1) -ne $null ){ $error.clear(); Write-Host -ForegroundColor Yellow "Ignored failing of Import-Module ScheduledTasks because it will fail later if a function is used from it."; }
+if( (Import-Module -NoClobber -Name "SmbShare"       -ErrorAction Continue 2>&1) -ne $null ){ $error.clear(); Write-Host -ForegroundColor Yellow "Ignored failing of Import-Module SmbShare       because it will fail later if a function is used from it."; }
 
 # for later usage: Import-Module -NoClobber -Name "SmbWitness";
 Add-Type -Name Window -Namespace Console -MemberDefinition '[DllImport("Kernel32.dll")] public static extern IntPtr GetConsoleWindow(); [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, Int32 nCmdShow);';
@@ -415,7 +415,7 @@ function PrivGetUserTrustedInstaller          (){ return [System.Security.Princi
 function PrivFsRuleAsString                   ( [System.Security.AccessControl.FileSystemAccessRule] $rule ){
                                                 return [String] "($($rule.IdentityReference);$(($rule.FileSystemRights) -replace ' ','');$($rule.InheritanceFlags -replace ' ','');$($rule.PropagationFlags -replace ' ','');$($rule.AccessControlType);IsInherited=$($rule.IsInherited))";
                                                 } # for later: CentralAccessPolicyId, CentralAccessPolicyName, Sddl="O:BAG:SYD:PAI(A;OICI;FA;;;SY)(A;;FA;;;BA)"
-function FsEntryPrivAclAsString               ( [System.Security.AccessControl.FileSystemSecurity] $acl ){
+function PrivAclAsString                      ( [System.Security.AccessControl.FileSystemSecurity] $acl ){
                                                 [String] $s = "Owner=$($acl.Owner);Group=$($acl.Group);Acls="; foreach( $a in $acl.Access){ $s += PrivFsRuleAsString $a; } return [String] $s; }
 function PrivAclSetProtection                 ( [Object] $acl, [Boolean] $accessRuleProtection, [Boolean] $auditRuleProtection ){ $acl.SetAccessRuleProtection($accessRuleProtection, $auditRuleProtection); }
 function PrivFsRuleCreate                     ( [System.Security.Principal.IdentityReference] $account, [System.Security.AccessControl.FileSystemRights] $rights,
@@ -439,7 +439,7 @@ function PrivFileSecurityCreateOwner          ( [System.Security.Principal.Ident
                                                 [System.Security.AccessControl.FileSecurity] $result = New-Object System.Security.AccessControl.FileSecurity;
                                                 $result.SetOwner($account);
                                                 return [System.Security.AccessControl.FileSecurity] $result; }
-function PrivFsSecurityHasFullControl         ( [System.Security.AccessControl.FileSystemSecurity] $acl, [System.Security.Principal.IdentityReference] $account, [Boolean] $isDir ){
+function PrivAclHasFullControl                ( [System.Security.AccessControl.FileSystemSecurity] $acl, [System.Security.Principal.IdentityReference] $account, [Boolean] $isDir ){
                                                 $a = $acl.Access | Where-Object{ $_.IdentityReference -eq $account } |
                                                    Where-Object{ $_.FileSystemRights -eq "FullControl" -and $_.AccessControlType -eq "Allow" } |
                                                    Where-Object{ -not $isDir -or ($_.InheritanceFlags.HasFlag([System.Security.AccessControl.InheritanceFlags]::ContainerInherit) -and $_.InheritanceFlags.HasFlag([System.Security.AccessControl.InheritanceFlags]::ObjectInherit)) };
@@ -725,7 +725,11 @@ function FsEntryRename                        ( [String] $fsEntryFrom, [String] 
                                                 OutProgress "FsEntryRename '$fsEntryFrom' '$fsEntryTo'"; 
                                                 FsEntryAssertExists $fsEntryFrom; FsEntryAssertNotExists $fsEntryTo; 
                                                 Rename-Item -Path (FsEntryGetAbsolutePath (FsEntryRemoveTrailingBackslash $fsEntryFrom)) -newName (FsEntryGetAbsolutePath (FsEntryRemoveTrailingBackslash $fsEntryTo)) -force; }
-function FsEntryCreateDirSymLink              ( [String] $symLinkDir, [String] $symLinkOriginDir ){
+function FsEntryCreateSymLink                 ( [String] $newSymLink, [String] $fsEntryOrigin ){ # for files or dirs, relative or absolute origin must exists, its stupid but it requires elevated rights (junctions (=~symlinksToDirs) do not) (https://superuser.com/questions/104845/permission-to-make-symbolic-links-in-windows-7/105381).
+                                                New-Item -ItemType SymbolicLink -Name (FsEntryEsc $newSymLink) -Value (FsEntryEsc $fsEntryOrigin); }
+function FsEntryCreateHardLink                ( [String] $newHardLink, [String] $fsEntryOrigin ){ # for files or dirs, origin must exists, it requires elevated rights.
+                                                New-Item -ItemType HardLink -Name (FsEntryEsc $newHardLink) -Value (FsEntryEsc $fsEntryOrigin); }
+function FsEntryCreateDirSymLink              ( [String] $symLinkDir, [String] $symLinkOriginDir ){ # creates junctions which are symlinks to dirs with some slightly other behaviour around privileges and local/remote usage
                                                 if( !(DirExists $symLinkOriginDir)  ){ throw [Exception] "Cannot create dir sym link because original directory not exists: '$symLinkOriginDir'"; }
                                                 FsEntryAssertNotExists $symLinkDir "Cannot create dir sym link";
                                                 [String] $cd = Get-Location;
@@ -815,7 +819,7 @@ function FsEntryTrySetOwnerAndAclsIfNotSet    ( [String] $fsEntry, [System.Secur
                                                 }
                                                 [Boolean] $isDir = FsEntryIsDir $fsEntry;
                                                 $rule = (PrivFsRuleCreateFullControl $account $isDir);
-                                                if( -not (PrivFsSecurityHasFullControl $acl $account $isDir) ){
+                                                if( -not (PrivAclHasFullControl $acl $account $isDir) ){
                                                   FsEntryAclRuleWrite Set $fsEntry $rule $false;
                                                 }
                                                 if( $recursive -and $isDir ){
@@ -1008,6 +1012,9 @@ function CredentialWriteToFile                ( [System.Management.Automation.PS
                                                 FileWriteFromString $file ($cred.UserName+"`r`n"+(CredentialGetHexStrFromSecureString $cred.Password)); }
 function CredentialRemoveFile                 ( [String] $file ){ 
                                                 OutProgress "CredentialRemoveFile '$file'"; FileDelete $file; }
+function CredentialReadUserFromFile           ( [String] $file ){ # return empty if credential file not exists
+                                                if( FileNotExists $file ){ return [String]""; }
+                                                [System.Management.Automation.PSCredential] $cred = CredentialReadFromFile $file; return $cred.UserName; }
 function CredentialReadFromFile               ( [String] $file ){ 
                                                 [String[]] $s = StringSplitIntoLines (FileReadContentAsString $secureCredentialFile); 
                                                 try{ [String] $us = $s[0]; [System.Security.SecureString] $pwSecure = CredentialGetSecureStrFromHexString $s[1];
@@ -1385,6 +1392,7 @@ function InfoAboutExistingShares              (){
                                                 }
                                                 return [String[]] $result; }
 function InfoAboutSystemInfo                  (){
+                                                ProcessAssertInElevatedAdminMode; # because DISM.exe
                                                 [String[]] $out = & "systeminfo.exe"; AssertRcIsOk $out;
                                                 # get default associations for file extensions to programs for windows 10, this can be used later for imports.
                                                 # configuring: Control Panel->Default Programs-> Set Default Program.  Choos program and "set this program as default."
