@@ -51,7 +51,8 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for bugfixes.
-[String] $MnCommonPsToolLibVersion = "1.28";
+[String] $MnCommonPsToolLibVersion = "1.29";
+  # 2019-01-01  V1.29  doc.
   # 2018-12-30  V1.28  improve download exc, add encoding as param for FileReadContent functions, renamed from CredentialGetPasswordTextFromCred to CredentialGetPassword, new CredentialGetUsername, rename CredentialReadFromParamOrInput to CredentialCreate
   # 2018-12-16  V1.27  suppress import-module warnings, improve ToolCreateLnkIfNotExists, rename FsEntryPrivAclAsString to PrivAclAsString, rename PrivFsSecurityHasFullControl to PrivAclHasFullControl, new: FsEntryCreateSymLink, FsEntryCreateHardLink, CredentialReadUserFromFile; 
   # 2018-12-16  V1.26  doc
@@ -83,16 +84,22 @@
   # 2017-06-25  V1.00  published as open source to github.
 
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
-trap [Exception] { $Host.UI.WriteErrorLine($_); break; } # ensure really no exc can continue! Is not called if a catch block is used! It is recommended for client code to use catch blocks for handling exceptions.
 
-# define global variables if they are not yet defined; caller of this script can anytime set or change these variables to control the specified behaviour.
+# Assert that the following executed statements from here to end of this script (not the functions) are not ignored.
+# The functions which are called by a caller are not affected by this trap statement.
+# Trap statement are not cared if a catch block is used!
+# It is strongly recommended that caller places after the import-module statement the following trap statement for unhandeled exceptions:   trap [Exception] { StdErrHandleExc $_; break; }
+# It is also strongy recommended for client code to use catch blocks for handling exceptions.
+trap [Exception] { $Host.UI.WriteErrorLine($_); break; }
+
+# Define global variables if they are not yet defined; caller of this script can anytime set or change these variables to control the specified behaviour.
 if( -not [Boolean](Get-Variable ModeHideOutProgress               -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeHideOutProgress               -value $false; }
 if( -not [Boolean](Get-Variable ModeDisallowInteractions          -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeDisallowInteractions          -value $false; }
 if( -not [Boolean](Get-Variable ModeDisallowElevation             -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeDisallowElevation             -value $false; }
 if( -not [String] (Get-Variable ModeNoWaitForEnterAtEnd           -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeNoWaitForEnterAtEnd           -value $false; }
 if( -not [String] (Get-Variable ArgsForRestartInElevatedAdminMode -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ArgsForRestartInElevatedAdminMode -value @()   ; }
 
-# set some powershell predefined global variables:
+# Set some powershell predefined global variables:
 $Global:ErrorActionPreference         = "Stop"                    ; # abort if a called exe will write to stderr, default is 'Continue'. Can be overridden in each command by [-ErrorAction actionPreference]
 $Global:ReportErrorShowExceptionClass = $true                     ; # on trap more detail exception info
 $Global:ReportErrorShowInnerException = $true                     ; # on trap more detail exception info
@@ -100,7 +107,7 @@ $Global:ReportErrorShowStackTrace     = $true                     ; # on trap mo
 $Global:FormatEnumerationLimit        = 999                       ; # used for Format-Table, but seams not to work, default is 4
 $Global:OutputEncoding                = [Console]::OutputEncoding ; # for pipe to native applications use the same as current console, default is 'System.Text.ASCIIEncoding'
 
-# leave the following global variables on their default values, is here written just for documentation:
+# Leave the following global variables on their default values, is here written just for documentation:
 #   $Global:InformationPreference   SilentlyContinue   # Available: Stop, Inquire, Continue, SilentlyContinue.
 #   $Global:VerbosePreference       SilentlyContinue   # Available: Stop, Inquire, Continue(=show verbose and continue), SilentlyContinue(=default=no verbose).
 #   $Global:DebugPreference         SilentlyContinue   # Available: Stop, Inquire, Continue, SilentlyContinue.
@@ -109,11 +116,11 @@ $Global:OutputEncoding                = [Console]::OutputEncoding ; # for pipe t
 #   $Global:ConfirmPreference       High               # Available: None, Low, Medium, High.
 #   $Global:WhatIfPreference        False              # Available: False, True.
 
-# we like english error messages
+# We like english error messages
 [System.Threading.Thread]::CurrentThread.CurrentUICulture = [System.Globalization.CultureInfo]::GetCultureInfo('en-US');
   # alternatives: [System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::GetCultureInfo('en-US'); Set-Culture en-US;
 
-# import some modules (because it is more performant to do it once than doing this in each function using methods of this module)
+# Import some modules (because it is more performant to do it once than doing this in each function using methods of this module).
 # note: for example on "Windows Server 2008 R2" we currently are missing these modules but we ignore the errors because it its enough if the functions which uses these modules will fail.
 #   The specified module 'ScheduledTasks'/'SmbShare' was not loaded because no valid module file was found in any module directory.
 if( (Import-Module -NoClobber -Name "ScheduledTasks" -ErrorAction Continue 2>&1) -ne $null ){ $error.clear(); Write-Host -ForegroundColor Yellow "Ignored failing of Import-Module ScheduledTasks because it will fail later if a function is used from it."; }
@@ -254,7 +261,7 @@ function StdErrHandleExc                      ( [System.Management.Automation.Er
                                                 $msg += "`r`n PSMessageDetails: $($er.PSMessageDetails)";
                                                 StdOutRedLine $msg;
                                                 if( -not $global:ModeDisallowInteractions ){ 
-                                                StdOutRedLine "Press enter to exit"; 
+                                                  StdOutRedLine "Press enter to exit"; 
                                                   try{
                                                     Read-Host; return;
                                                   }catch{ # ex: PSInvalidOperationException:  Read-Host : Windows PowerShell is in NonInteractive mode. Read and Prompt functionality is not available.
@@ -262,11 +269,12 @@ function StdErrHandleExc                      ( [System.Management.Automation.Er
                                                   }
                                                 }
                                                 if( $delayInSec -gt 0 ){ StdOutLine "Waiting for $delayInSec seconds."; }
-                                                ProcessSleepSec $delayInSec; 
-                                                }
+                                                ProcessSleepSec $delayInSec; }
 function StdPipelineErrorWriteMsg             ( [String] $msg ){ Write-Error $msg; } # does not work in powershell-ise, so in general do not use it, use throw
-function StdOutBegMsgCareInteractiveMode      ( [String] $mode = "DoRequestAtBegin" ){ # available mode: "DoRequestAtBegin", "NoRequestAtBegin", "NoWaitAtEnd", "MinimizeConsole". Usually this is the first statement in a script after an info line. So you can give your scripts a standard styling.
+function StdOutBegMsgCareInteractiveMode      ( [String] $mode = "" ){ # available mode: ""="DoRequestAtBegin", "NoRequestAtBegin", "NoWaitAtEnd", "MinimizeConsole". 
+                                                # Usually this is the first statement in a script after an info line. So you can give your scripts a standard styling.
                                                 ScriptResetRc; [String[]] $modes = @()+($mode -split "," | ForEach-Object{ $_.Trim() });
+                                                if( $mode -eq "" ){ $mode = "DoRequestAtBegin"; }
                                                 Assert ((@()+($modes | Where-Object{ $_ -ne "DoRequestAtBegin" -and $_ -ne "NoRequestAtBegin" -and $_ -ne "NoWaitAtEnd" -and $_ -ne "MinimizeConsole"})).Count -eq 0 ) "StdOutBegMsgCareInteractiveMode was called with unknown mode='$mode'";
                                                 GlobalSetModeNoWaitForEnterAtEnd ($modes -contains "NoWaitAtEnd");
                                                 if( -not $global:ModeDisallowInteractions -and $modes -notcontains "NoRequestAtBegin" ){ StdInAskForAnswerWhenInInteractMode "Are you sure (y/n)? "; }
@@ -1361,17 +1369,19 @@ function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [St
                                                   [String] $lnkFile = "$($m)\$($relBelowSrcDir)\$((FsEntryGetFileName $f).TrimEnd($srcFileExtMenuLink).TrimEnd()).lnk";
                                                   [String] $encodingIfNoBom = "Default";
                                                   [String] $cmdLine = FileReadContentAsLines $f $encodingIfNoBom | Select-Object -First 1;
-                                                  [String[]] $ar = StringCommandLineToArray $cmdLine;
-                                                  if( $ar.Length -eq 0 ){ throw [Exception] "Missing a command line at first line in file='$f' cmdline=$cmdLine"; }
-                                                  if( ($ar.Length-1) -gt 999 ){ throw [Exception] "Command line has more than the allowed 999 arguments at first line infile='$f' nrOfArgs=$($ar.Length) cmdline='$cmdLine'"; }
-                                                  [String] $srcFile = FsEntryMakeAbsolutePath $d $ar[0]; # ex: "D:\MyPortableProgs\Manufactor ProgramName\AnyProgram.exe"
-                                                  [String[]] $arguments = $ar | Select-Object -Skip 1;
-                                                  [Boolean] $forceRecreate = FileNotExistsOrIsOlder $lnkFile $f;
-                                                  [Boolean] $ignoreIfSrcFileNotExists = $srcFile.EndsWith($srcFileExtMenuLinkOpt);
+                                                  [String] $addTraceInfo = "";
                                                   try{
+                                                    [String[]] $ar = StringCommandLineToArray $cmdLine; # can throw: Expected blank or tab char or end of string but got char=';' after doublequote at pos=38 in cmdline='"rundll32.exe keymgr.dll,KRShowKeyMgr";'
+                                                    if( $ar.Length -eq 0 ){ throw [Exception] "Missing a command line at first line in file='$f' cmdline=$cmdLine"; }
+                                                    if( ($ar.Length-1) -gt 999 ){ throw [Exception] "Command line has more than the allowed 999 arguments at first line infile='$f' nrOfArgs=$($ar.Length) cmdline='$cmdLine'"; }
+                                                    [String] $srcFile = FsEntryMakeAbsolutePath $d $ar[0]; # ex: "D:\MyPortableProgs\Manufactor ProgramName\AnyProgram.exe"
+                                                    [String[]] $arguments = $ar | Select-Object -Skip 1;
+                                                    [Boolean] $forceRecreate = FileNotExistsOrIsOlder $lnkFile $f;
+                                                    [Boolean] $ignoreIfSrcFileNotExists = $srcFile.EndsWith($srcFileExtMenuLinkOpt);
+                                                    $addTraceInfo = "and calling (ToolCreateLnkIfNotExists $forceRecreate `"$workDir`" `"$lnkFile`" `"$srcFile`" `"$arguments`" $false $ignoreIfSrcFileNotExists) ";
                                                     ToolCreateLnkIfNotExists $forceRecreate $workDir $lnkFile $srcFile $arguments $false $ignoreIfSrcFileNotExists;
                                                   }catch{
-                                                    OutWarning "Create menulink by reading file `"$f`", taking first line as cmdLine ($cmdLine) and calling (ToolCreateLnkIfNotExists $forceRecreate `"$workDir`" `"$lnkFile`" `"$srcFile`" `"$arguments`" $false $ignoreIfSrcFileNotExists) failed because $($_.Exception.Message).$(switch(-not $cmdLine.StartsWith('`"')){($true){' Maybe first file of content in menulink file should be quoted.'}default{' Maybe if first file not exists you may use file extension menulinkoptional instead of menulink.'}})";
+                                                    OutWarning "Create menulink by reading file `"$f`", taking first line as cmdLine ($cmdLine) $addTraceInfo failed because $($_.Exception.Message).$(switch(-not $cmdLine.StartsWith('`"')){($true){' Maybe first file of content in menulink file should be quoted.'}default{' Maybe if first file not exists you may use file extension menulinkoptional instead of menulink.'}})";
                                                   } } }
 function InfoAboutComputerOverview            (){ 
                                                 return [String[]] @( "InfoAboutComputerOverview:", "", "ComputerName   : $ComputerName", "UserName       : $env:UserName", 
@@ -1466,7 +1476,7 @@ function StringCommandLineToArray             ( [String] $commandLine ){
                                                       $i = $q+1;
                                                       if( $i -ge $line.Length -or $line[$i] -eq ' ' -or $line[$i] -eq [Char]9 ){ break; }
                                                       if( $line[$i] -eq '"' ){ $s += '"'; }
-                                                      else{ throw [Exception] "Expected blank or tab char or end of string but got char=$($line[$i]) after doublequote at pos=$i in cmdline='$line'"; }
+                                                      else{ throw [Exception] "Expected blank or tab char or end of string but got char='$($line[$i])' after doublequote at pos=$i in cmdline='$line'"; }
                                                     }
                                                     $result += $s;
                                                   }else{
