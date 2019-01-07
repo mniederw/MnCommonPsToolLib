@@ -11,31 +11,52 @@ function OutInfo                              ( [String] $line ){ Write-Host -Fo
 function OutProgress                          ( [String] $line ){ Write-Host -ForegroundColor DarkGray            $line; }
 function OutProgressText                      ( [String] $line ){ Write-Host -ForegroundColor DarkGray -NoNewLine $line; }
 function OutQuestion                          ( [String] $line ){ Write-Host -ForegroundColor Cyan     -NoNewline $line; }
-function FsEntryMakeTrailingBackslash         ( [String] $fsEntry ){ [String] $result = $fsEntry; if( -not $result.EndsWith("\") ){ $result += "\"; } return [String] $result; }
-function FsEntryRemoveTrailingBackslash       ( [String] $fsEntry ){ [String] $result = $fsEntry; if( $result -ne "" ){ while( $result.EndsWith("\") ){ $result = $result.Remove($result.Length-1); } if( $result -eq "" ){ $result = $fsEntry; } } return [String] $result; } # leading backslashes are not removed.
+function FsEntryMakeTrailingBackslash         ( [String] $fsEntry ){ [String] $result = $fsEntry; 
+                                                if( -not $result.EndsWith("\") ){ $result += "\"; } return [String] $result; }
+function FsEntryRemoveTrailingBackslash       ( [String] $fsEntry ){ [String] $result = $fsEntry; 
+                                                while( $result.Length -gt 1 -and $result.EndsWith("\") ){ $result = $result.Remove($result.Length-1); } 
+                                                return [String] $result; }
 function FsEntryGetAbsolutePath               ( [String] $fsEntry ){ return [String] ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($fsEntry)); }
-function PsModulePathList                     (){ return [String[]] ([Environment]::GetEnvironmentVariable($envVar, "Machine").Split(";",[System.StringSplitOptions]::RemoveEmptyEntries)); }
-function PsModulePathContains                 ( [String] $d ){ return [Boolean] ((PsModulePathList | ForEach-Object { FsEntryRemoveTrailingBackslash $_ }) -contains (FsEntryRemoveTrailingBackslash $d)); }
-function PsModulePathAdd                      ( [String] $d ){ if( PsModulePathContains $d ){ return; } PsModulePathSet ((PsModulePathList)+@( (FsEntryMakeTrailingBackslash $d) )); }
-function PsModulePathDel                      ( [String] $d ){ PsModulePathSet (PsModulePathList | Where-Object{ (FsEntryRemoveTrailingBackslash $_) -ne (FsEntryRemoveTrailingBackslash $d) }); }
+function PsModulePathList                     (){ return [String[]] ([Environment]::GetEnvironmentVariable($envVar, "Machine").
+                                                  Split(";",[System.StringSplitOptions]::RemoveEmptyEntries)); }
+function PsModulePathContains                 ( [String] $d ){ [String[]] $a = (PsModulePathList | ForEach-Object { FsEntryRemoveTrailingBackslash $_ });
+                                                return [Boolean] ($a -contains (FsEntryRemoveTrailingBackslash $d)); }
+function PsModulePathAdd                      ( [String] $d ){ if( PsModulePathContains $d ){ return; }
+                                                PsModulePathSet ((PsModulePathList)+@( (FsEntryRemoveTrailingBackslash $d) )); }
+function PsModulePathDel                      ( [String] $d ){ PsModulePathSet (PsModulePathList | 
+                                                Where-Object{ (FsEntryRemoveTrailingBackslash $_) -ne (FsEntryRemoveTrailingBackslash $d) }); }
 function PsModulePathSet                      ( [String[]] $a ){ [Environment]::SetEnvironmentVariable($envVar, ($a -join ";"), "Machine"); }
-function DirExists                            ( [String] $dir ){ try{ return [Boolean] (Test-Path -PathType Container -LiteralPath $dir ); }catch{ throw [Exception] "DirExists($dir) failed because $($_.Exception.Message)"; } }
+function DirExists                            ( [String] $dir ){ try{ return [Boolean] (Test-Path -PathType Container -LiteralPath $dir ); }
+                                                catch{ throw [Exception] "DirExists($dir) failed because $($_.Exception.Message)"; } }
 function DirListDirs                          ( [String] $d ){ return [String[]] (@()+(Get-ChildItem -Force -Directory -Path $d | ForEach-Object{ $_.FullName })); }
-function DirHasFiles                          ( [String] $d, [String] $filePattern ){ return [Boolean] ((Get-ChildItem -Force -Recurse -File -ErrorAction SilentlyContinue -Path "$d\$filePattern") -ne $null); }
-function ScriptGetTopCaller                   (){ [String] $f = $global:MyInvocation.MyCommand.Definition.Trim(); if( $f -eq "" -or $f -eq "ScriptGetTopCaller" ){ return ""; } if( $f.StartsWith("&") ){ $f = $f.Substring(1,$f.Length-1).Trim(); } if( ($f -match "^\'.+\'$") -or ($f -match "^\`".+\`"$") ){ $f = $f.Substring(1,$f.Length-2); } return [String] $f; } # return empty if called interactive.
-function ProcessIsRunningInElevatedAdminMode  (){ return [Boolean] ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"); }
+function DirHasFiles                          ( [String] $d, [String] $filePattern ){ 
+                                                return [Boolean] ((Get-ChildItem -Force -Recurse -File -ErrorAction SilentlyContinue -Path "$d\$filePattern") -ne $null); }
+function ScriptGetTopCaller                   (){ [String] $f = $global:MyInvocation.MyCommand.Definition.Trim(); 
+                                                if( $f -eq "" -or $f -eq "ScriptGetTopCaller" ){ return ""; } 
+                                                if( $f.StartsWith("&") ){ $f = $f.Substring(1,$f.Length-1).Trim(); } 
+                                                if( ($f -match "^\'.+\'$") -or ($f -match "^\`".+\`"$") ){ $f = $f.Substring(1,$f.Length-2); } 
+                                                return [String] $f; } # return empty if called interactive.
+function ProcessIsRunningInElevatedAdminMode  (){ return [Boolean] ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).
+                                                  IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"); }
 function ProcessRestartInElevatedAdminMode    (){ if( -not (ProcessIsRunningInElevatedAdminMode) ){ 
-                                                  [String[]] $cmd = @( (ScriptGetTopCaller) ) + $sel; 
-                                                  OutProgress "Not running in elevated administrator mode so elevate current script and exit: `n  $cmd"; 
-                                                  Start-Process -Verb "RunAs" -FilePath "powershell.exe" -ArgumentList "& `"$cmd`" "; 
-                                                  [Environment]::Exit("0"); throw [Exception] "Exit done, but it did not work, so it throws now an exception."; } }
-function UninstallDir                         ( [String] $d ){ OutProgress "RemoveDir '$d'. "; if( DirExists $d ){ ProcessRestartInElevatedAdminMode; Remove-Item -Force -Recurse -LiteralPath $d; } }
-function UninstallSrcPath                     ( [String] $d ){ OutProgress "UninstallSrcPath '$d'. "; if( (PsModulePathContains $d) ){ ProcessRestartInElevatedAdminMode; PsModulePathDel $d; } }
-function InstallDir                           ( [String] $srcDir, [String] $tarParDir ){ OutProgress "Copy '$srcDir' `n  to '$tarParDir'. "; ProcessRestartInElevatedAdminMode; Copy-Item -Force -Recurse -LiteralPath $srcDir -Destination $tarParDir; }
+                                                [String[]] $cmd = @( (ScriptGetTopCaller) ) + $sel; 
+                                                OutProgress "Not running in elevated administrator mode so elevate current script and exit: `n  $cmd"; 
+                                                Start-Process -Verb "RunAs" -FilePath "powershell.exe" -ArgumentList "& `"$cmd`" "; 
+                                                [Environment]::Exit("0"); throw [Exception] "Exit done, but it did not work, so it throws now an exception."; } }
+function UninstallDir                         ( [String] $d ){ OutProgress "RemoveDir '$d'. "; 
+                                                if( DirExists $d ){ ProcessRestartInElevatedAdminMode; Remove-Item -Force -Recurse -LiteralPath $d; } }
+function UninstallSrcPath                     ( [String] $d ){ OutProgress "UninstallSrcPath '$d'. "; 
+                                                if( (PsModulePathContains $d) ){ ProcessRestartInElevatedAdminMode; PsModulePathDel $d; } }
+function InstallDir                           ( [String] $srcDir, [String] $tarParDir ){ OutProgress "Copy '$srcDir' `n  to '$tarParDir'. "; 
+                                                ProcessRestartInElevatedAdminMode; Copy-Item -Force -Recurse -LiteralPath $srcDir -Destination $tarParDir; }
 function InstallSrcPathToPsModulePathIfNotInst( [String] $srcDir ){ OutProgress "Change environment system variable $envVar by appending '$srcDir'. "; 
-                                                if( (PsModulePathContains $srcDir) ){ OutProgress "Already installed so environment variable not changed."; }else{ ProcessRestartInElevatedAdminMode; PsModulePathAdd $srcDir; } }
-function OutCurrentInstallState               ( [String] $srcRootDir, [String] $moduleTarDir, [String] $color = "White" ){ [Boolean] $srcRootDirIsInPath = PsModulePathContains $srcRootDir; [Boolean] $moduleTarDirExists = DirExists $moduleTarDir; 
-                                                [String] $installedText = switch($srcRootDirIsInPath){ ($true){"Installed-for-Developers. "} default{switch($moduleTarDirExists){ ($true){"Installed-in-Standard-Mode. "} default{"Not-Installed. "}}}}; 
+                                                if( (PsModulePathContains $srcDir) ){ OutProgress "Already installed so environment variable not changed."; }
+                                                else{ ProcessRestartInElevatedAdminMode; PsModulePathAdd $srcDir; } }
+function OutCurrentInstallState               ( [String] $srcRootDir, [String] $moduleTarDir, [String] $color = "White" ){
+                                                [Boolean] $srcRootDirIsInPath = PsModulePathContains $srcRootDir;
+                                                [Boolean] $moduleTarDirExists = DirExists $moduleTarDir; 
+                                                [String] $installedText = switch($srcRootDirIsInPath){ ($true){"Installed-for-Developers. "} 
+                                                  default{switch($moduleTarDirExists){ ($true){"Installed-in-Standard-Mode. "} default{"Not-Installed. "}}}}; 
                                                 OutProgressText "Current installation mode: "; Write-Host -ForegroundColor $color $installedText; }
 function SelfUpdate                           (){ $PSModuleAutoLoadingPreference = "All";
                                                 try{ Import-Module "MnCommonPsToolLib.psm1"; MnCommonPsToolLib\MnCommonPsToolLibSelfUpdate; }
