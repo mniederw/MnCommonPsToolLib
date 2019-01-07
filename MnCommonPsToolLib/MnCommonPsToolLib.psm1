@@ -51,7 +51,8 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for bugfixes.
-[String] $MnCommonPsToolLibVersion = "1.29";
+[String] $MnCommonPsToolLibVersion = "1.30";
+  # 2019-01-07  V1.30  care gitstderr as out.
   # 2019-01-06  V1.29  doc, InfoGetInstalledDotNetVersion, rename SvnCommitAndGet to SvnTortoiseCommitAndUpdate, rename SvnCommit to SvnTortoiseCommit, improve ProcessStart, rename RdpConnect to ToolRdpConnect, rename WgetDownloadSite to NetDownloadSite, rename PsWebRequestLastModifiedFailSafe to NetWebRequestLastModifiedFailSafe, rename PsDownloadFile to NetDownloadFile, rename PsDownloadToString to NetDownloadToString, rename CurlDownloadFile to NetDownloadFileByCurl, rename CurlDownloadToString to NetDownloadToStringByCurl.
   # 2018-12-30  V1.28  improve download exc, add encoding as param for FileReadContent functions, renamed from CredentialGetPasswordTextFromCred to CredentialGetPassword, new CredentialGetUsername, rename CredentialReadFromParamOrInput to CredentialCreate
   # 2018-12-16  V1.27  suppress import-module warnings, improve ToolCreateLnkIfNotExists, rename FsEntryPrivAclAsString to PrivAclAsString, rename PrivFsSecurityHasFullControl to PrivAclHasFullControl, new: FsEntryCreateSymLink, FsEntryCreateHardLink, CredentialReadUserFromFile; 
@@ -1730,7 +1731,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                     # Writes to stderr: Checking out files:  47% (219/463)  Already up to date. From https://github.com/myrepo  * branch  HEAD  -> FETCH_HEAD
                                                     $gitArgs = @( "-C", $dir, "--git-dir=.git", "pull", "--quiet", "--no-stat", $url);
                                                   }else{ throw [Exception] "Unknown git cmd='$cmd'"; }
-                                                  $out = ProcessStart "git" $gitArgs $false $false;
+                                                  $out = ProcessStart "git" $gitArgs $false $true; # care stderr as stdout
                                                   OutSuccess "  Ok. $out";
                                                 }catch{
                                                   # ex: fatal: AggregateException encountered.
