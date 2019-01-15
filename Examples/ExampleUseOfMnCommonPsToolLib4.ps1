@@ -1,8 +1,6 @@
 # Test module MnCommonPsToolLib
 
-Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; 
-Set-StrictMode -Version Latest; 
-trap [Exception] { StdErrHandleExc $_; break; }
+Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 
 function TestAssertions{
   OutInfo "Test assertions";

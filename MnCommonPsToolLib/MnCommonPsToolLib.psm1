@@ -20,23 +20,20 @@
 #
 # Example usages of this module for a .ps1 script:
 #      # Simple example for using MnCommonPsToolLib 
-#      Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1";
-#      Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
+#      Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 #      OutInfo "Hello world";
 #      OutProgress "Working";
 #      StdInReadLine "Press enter to exit.";
 # or
 #      # Simple example for using MnCommonPsToolLib with standard interactive mode
-#      Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1";
-#      Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
+#      Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 #      OutInfo "Simple example for using MnCommonPsToolLib with standard interactive mode";
 #      StdOutBegMsgCareInteractiveMode; # will ask: if you are sure (y/n)
 #      OutProgress "Working";
 #      StdOutEndMsgCareInteractiveMode; # will write: Ok, done. Press Enter to Exit
 # or
 #      # Simple example for using MnCommonPsToolLib with standard interactive mode without request or waiting
-#      Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1";
-#      Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
+#      Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 #      OutInfo "Simple example for using MnCommonPsToolLib with standard interactive mode without request or waiting";
 #      StdOutBegMsgCareInteractiveMode "NoRequestAtBegin, NoWaitAtEnd"; # will nothing write
 #      OutProgress "Working";
@@ -51,7 +48,8 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for bugfixes.
-[String] $MnCommonPsToolLibVersion = "1.30";
+[String] $MnCommonPsToolLibVersion = "1.31";
+  # 2019-01-15  V1.31  add check
   # 2019-01-07  V1.30  care gitstderr as out.
   # 2019-01-06  V1.29  doc, InfoGetInstalledDotNetVersion, rename SvnCommitAndGet to SvnTortoiseCommitAndUpdate, rename SvnCommit to SvnTortoiseCommit, improve ProcessStart, rename RdpConnect to ToolRdpConnect, rename WgetDownloadSite to NetDownloadSite, rename PsWebRequestLastModifiedFailSafe to NetWebRequestLastModifiedFailSafe, rename PsDownloadFile to NetDownloadFile, rename PsDownloadToString to NetDownloadToString, rename CurlDownloadFile to NetDownloadFileByCurl, rename CurlDownloadToString to NetDownloadToStringByCurl.
   # 2018-12-30  V1.28  improve download exc, add encoding as param for FileReadContent functions, renamed from CredentialGetPasswordTextFromCred to CredentialGetPassword, new CredentialGetUsername, rename CredentialReadFromParamOrInput to CredentialCreate
@@ -89,7 +87,8 @@ Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including unin
 # Assert that the following executed statements from here to end of this script (not the functions) are not ignored.
 # The functions which are called by a caller are not affected by this trap statement.
 # Trap statement are not cared if a catch block is used!
-# It is strongly recommended that caller places after the import-module statement the following trap statement for unhandeled exceptions:   trap [Exception] { StdErrHandleExc $_; break; }
+# It is strongly recommended that caller places after the import-module statement the following set and trap statement 
+#   for unhandeled exceptions:   Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 # It is also strongy recommended for client code to use catch blocks for handling exceptions.
 trap [Exception] { $Host.UI.WriteErrorLine($_); break; }
 
@@ -1184,13 +1183,14 @@ function CredentialGetAndStoreIfNotExists     ( [String] $secureCredentialFile, 
                                                 # If file not exists then it is written by given credentials.
                                                 # For access description enter a message hint which is added to request for user as "login host xy", "mountpoint xy", etc.
                                                 # For secureCredentialFile usually use: "$env:LOCALAPPDATA\MyNameOrCompany\MyOperation.secureCredentials.txt";
+                                                Assert ($secureCredentialFile -ne "") "Missing secureCredentialFile.";
                                                 [System.Management.Automation.PSCredential] $cred = $null;
-                                                if( $secureCredentialFile -ne "" -and (FileExists $secureCredentialFile) ){
+                                                if( FileExists $secureCredentialFile ){
                                                   $cred = CredentialReadFromFile $secureCredentialFile;
                                                 }else{
                                                   $cred = CredentialCreate $username $password $accessShortDescription;
                                                 }
-                                                if( $secureCredentialFile -ne "" -and (FileNotExists $secureCredentialFile) ){
+                                                if( FileNotExists $secureCredentialFile ){
                                                   CredentialWriteToFile $cred $secureCredentialFile;
                                                 }
                                                 return $cred; }
@@ -1740,6 +1740,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   # ex: fatal: Not a git repository: 'D:\WorkGit\mniederw\UnknownRepo\.git'
                                                   # ex: error: Your local changes to the following files would be overwritten by merge:
                                                   # ex: error: unknown option `anyUnknownOption'
+                                                  # ex: fatal: refusing to merge unrelated histories
                                                   $msg = "$(ScriptGetCurrentFunc)($cmd,$tarRootDir,$url) failed because $($_.Exception.Message)";
                                                   ScriptResetRc;
                                                   if( -not $errorAsWarning ){ throw [Exception] $msg; }
