@@ -2177,7 +2177,7 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                 [System.Reflection.Assembly]::LoadWithPartialName("Microsoft.SqlServer.SMO") | Out-Null;
                                                 [System.Reflection.Assembly]::LoadWithPartialName("System.Data") | Out-Null;
                                                 [Microsoft.SqlServer.Management.Smo.Server] $srv = new-object "Microsoft.SqlServer.Management.SMO.Server" $dbInstanceServerName;
-                                                # ex: $srv.Name = "sql-04\dev"; $srv.State = "Existing"; $srv.ConnectionContext = "Data Source=sql-04/dev;Integrated Security=True;MultipleActiveResultSets=False;Encrypt=False;TrustServerCertificate=False;Application Name=`"SQL Management`""
+                                                # ex: $srv.Name = "MySqlInstance"; $srv.State = "Existing"; $srv.ConnectionContext = "Data Source=MySqlInstance;Integrated Security=True;MultipleActiveResultSets=False;Encrypt=False;TrustServerCertificate=False;Application Name=`"SQL Management`""
                                                 $srv.SetDefaultInitFields([Microsoft.SqlServer.Management.SMO.View], "IsSystemObject");
                                                 [Microsoft.SqlServer.Management.Smo.Scripter] $scr = New-Object "Microsoft.SqlServer.Management.Smo.Scripter";
                                                 $scr.Server = $srv;
@@ -2208,19 +2208,19 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                 OutProgress "Write: $fileDbInfo";
                                                 [String[]] $fileDbInfoContent = @( 
                                                     "DbInfo: $dbName (current-user=$env:USERDOMAIN\$env:USERNAME)"
-                                                    ,"  Parent                   : $($db.Parent                                                  )" # ex: [sql-04\dev]
+                                                    ,"  Parent                   : $($db.Parent                                                  )" # ex: [MySqlInstance]
                                                     ,"  Collation                : $($db.Collation                                               )" # ex: Latin1_General_CI_AS
                                                     ,"  CompatibilityLevel       : $($db.CompatibilityLevel                                      )" # ex: Version100
-                                                    ,"  DataSpaceUsageInMB       : $([Math]::Ceiling($db.DataSpaceUsage  / 1000000)              )" # ex: 85
-                                                    ,"  IndexSpaceUsageInMB      : $([Math]::Ceiling($db.IndexSpaceUsage / 1000000)              )" # ex: 88
-                                                    ,"  SpaceAvailableInMB       : $([Math]::Ceiling($db.SpaceAvailable  / 1000000)              )" # ex: 14
+                                                    ,"  DataSpaceUsageInMB       : $([Math]::Ceiling($db.DataSpaceUsage  / 1000000)              )" # ex: 40
+                                                    ,"  IndexSpaceUsageInMB      : $([Math]::Ceiling($db.IndexSpaceUsage / 1000000)              )" # ex: 12
+                                                    ,"  SpaceAvailableInMB       : $([Math]::Ceiling($db.SpaceAvailable  / 1000000)              )" # ex: 11
                                                     ,"  DefaultSchema            : $($db.DefaultSchema                                           )" # ex: dbo
-                                                    ,"  NrOfTables               : $($db.Tables.Count                                            )" # ex: 
-                                                    ,"  NrOfViews                : $($db.Views.Count                                             )" # ex: 
-                                                    ,"  NrOfStoredProcedures     : $($db.StoredProcedures.Count                                  )" # ex: 
-                                                    ,"  NrOfUserDefinedFunctions : $($db.UserDefinedFunctions.Count                              )" # ex: 
-                                                    ,"  NrOfDbTriggers           : $($db.Triggers.Count                                          )" # ex: 
-                                                    ,"  NrOfTableTriggers        : $((@()+($db.Tables|Where-Object{$_.triggers -ne $null})).Count)" # ex: 20
+                                                    ,"  NrOfTables               : $($db.Tables.Count                                            )" # ex: 2
+                                                    ,"  NrOfViews                : $($db.Views.Count                                             )" # ex: 2
+                                                    ,"  NrOfStoredProcedures     : $($db.StoredProcedures.Count                                  )" # ex: 2
+                                                    ,"  NrOfUserDefinedFunctions : $($db.UserDefinedFunctions.Count                              )" # ex: 2
+                                                    ,"  NrOfDbTriggers           : $($db.Triggers.Count                                          )" # ex: 2
+                                                    ,"  NrOfTableTriggers        : $((@()+($db.Tables|Where-Object{$_.triggers -ne $null})).Count)" # ex: 2
                                                 );
                                                 OutProgress ("DbInfo: $dbName Collation=$($db.Collation) CompatibilityLevel=$($db.CompatibilityLevel) " + 
                                                   "UsedInMB=$([Math]::Ceiling(($db.DataSpaceUsage + $db.IndexSpaceUsage) / 1000000)); " +
