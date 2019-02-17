@@ -1733,6 +1733,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                     $gitArgs = @( "-C", $dir, "--git-dir=.git", "pull", "--quiet", "--no-stat", $url);
                                                   }else{ throw [Exception] "Unknown git cmd='$cmd'"; }
                                                   $out = ProcessStart "git" $gitArgs $false $true; # care stderr as stdout
+                                                  if( $out.Contains("fatal: HttpRequestException encountered.") -or $out.Contains("Fehler beim Senden der Anforderung.") ){ throw [Exception] $out; }
                                                   OutSuccess "  Ok. $out";
                                                 }catch{
                                                   # ex: fatal: AggregateException encountered.
@@ -1778,6 +1779,7 @@ function GitListCommitComments                ( [String] $tarDir, [String] $loca
                                                     try{
                                                       $out = & "git" $options 2>&1; AssertRcIsOk $out;
                                                     }catch{
+                                                      # ex: "warning: inexact rename detection was skipped due to too many files."
                                                       if( $_.Exception.Message -eq "fatal: your current branch 'master' does not have any commits yet" ){ # Last operation failed [rc=128]
                                                         $out += "Info: your current branch 'master' does not have any commits yet.";
                                                         OutProgressText "Info: empty master.";
@@ -2169,9 +2171,9 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                 # This includes tables, views, stored procedures, functions, roles, schemas, db-triggers and table-Triggers. TODO: indexes.
                                                 # It creates "DbInfo.dbname.out" with some db infos. 
                                                 # In case db not exists it writes a file "DbInfo.dbname.notexists", in case of an error it writes "DbInfo.dbname.err".
-                                                # ex: GenerateFullDbSchemaFiles "MyLogicEnvironment" "MySqlInstance" "MyDbName" "$env:TEMP\DumpFullDbSchemas"
+                                                # ex: SqlGenerateFullDbSchemaFiles "MyLogicEnvironment" "MySqlInstance" "MyDbName" "$env:TEMP\DumpFullDbSchemas"
                                                 [String] $currentUser = "$env:USERDOMAIN\$env:USERNAME";
-                                                [String] $traceInfo = "GenerateFullDbSchemaFiles(logicalEnv=$logicalEnv,dbInstanceServerName=$dbInstanceServerName,dbname=$dbName,targetRootDir=$targetRootDir,currentUser=$currentUser)";
+                                                [String] $traceInfo = "SqlGenerateFullDbSchemaFiles(logicalEnv=$logicalEnv,dbInstanceServerName=$dbInstanceServerName,dbname=$dbName,targetRootDir=$targetRootDir,currentUser=$currentUser)";
                                                 OutInfo $traceInfo;
                                                 [String] $tarDir = "$targetRootDir\$(Get-Date -Format yyyy-MM-dd)\$logicalEnv\$dbName";
                                                 [System.Reflection.Assembly]::LoadWithPartialName("Microsoft.SqlServer.SMO") | Out-Null;
@@ -2307,6 +2309,7 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                     OutSuccess "ok, done. Written files below: `"$tarDir`"";
                                                 }catch{
                                                     # ex: "The given path's format is not supported."
+                                                    # ex: "Illegal characters in path."  (if table name contains double quotes)
                                                     [String] $msg = $traceInfo + " failed because $($_.Exception)";
                                                     FileWriteFromLines "$tarDir\DbInfo.$dbName.err" $msg;
                                                     OutWarning $msg;
