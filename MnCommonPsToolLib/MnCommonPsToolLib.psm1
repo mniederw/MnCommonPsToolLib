@@ -48,7 +48,8 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for bugfixes.
-[String] $MnCommonPsToolLibVersion = "1.32";
+[String] $MnCommonPsToolLibVersion = "1.33";
+  # 2019-02-11  V1.33  replace var CurrentMonthIsoString by function DateTimeNowAsStringIsoMonth(), new ConsoleSetPos
   # 2019-01-16  V1.32  add SqlGenerateFullDbSchemaFiles
   # 2019-01-15  V1.31  add check
   # 2019-01-07  V1.30  care gitstderr as out.
@@ -94,11 +95,11 @@ Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including unin
 trap [Exception] { $Host.UI.WriteErrorLine($_); break; }
 
 # Define global variables if they are not yet defined; caller of this script can anytime set or change these variables to control the specified behaviour.
-if( -not [Boolean](Get-Variable ModeHideOutProgress               -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeHideOutProgress               -value $false; }
-if( -not [Boolean](Get-Variable ModeDisallowInteractions          -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeDisallowInteractions          -value $false; }
-if( -not [Boolean](Get-Variable ModeDisallowElevation             -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeDisallowElevation             -value $false; }
-if( -not [String] (Get-Variable ModeNoWaitForEnterAtEnd           -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeNoWaitForEnterAtEnd           -value $false; }
-if( -not [String] (Get-Variable ArgsForRestartInElevatedAdminMode -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ArgsForRestartInElevatedAdminMode -value @()   ; }
+if( -not [Boolean] (Get-Variable ModeHideOutProgress               -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeHideOutProgress               -value $false; }
+if( -not [Boolean] (Get-Variable ModeDisallowInteractions          -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeDisallowInteractions          -value $false; }
+if( -not [Boolean] (Get-Variable ModeDisallowElevation             -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeDisallowElevation             -value $false; }
+if( -not [String]  (Get-Variable ModeNoWaitForEnterAtEnd           -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeNoWaitForEnterAtEnd           -value $false; }
+if( -not [String[]](Get-Variable ArgsForRestartInElevatedAdminMode -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ArgsForRestartInElevatedAdminMode -value @()   ; }
 
 # Set some powershell predefined global variables:
 $Global:ErrorActionPreference         = "Stop"                    ; # abort if a called exe will write to stderr, default is 'Continue'. Can be overridden in each command by [-ErrorAction actionPreference]
@@ -126,9 +127,11 @@ $Global:OutputEncoding                = [Console]::OutputEncoding ; # for pipe t
 #   The specified module 'ScheduledTasks'/'SmbShare' was not loaded because no valid module file was found in any module directory.
 if( (Import-Module -NoClobber -Name "ScheduledTasks" -ErrorAction Continue 2>&1) -ne $null ){ $error.clear(); Write-Host -ForegroundColor Yellow "Ignored failing of Import-Module ScheduledTasks because it will fail later if a function is used from it."; }
 if( (Import-Module -NoClobber -Name "SmbShare"       -ErrorAction Continue 2>&1) -ne $null ){ $error.clear(); Write-Host -ForegroundColor Yellow "Ignored failing of Import-Module SmbShare       because it will fail later if a function is used from it."; }
-
 # For later usage: Import-Module -NoClobber -Name "SmbWitness";
+
+# types
 Add-Type -Name Window -Namespace Console -MemberDefinition '[DllImport("Kernel32.dll")] public static extern IntPtr GetConsoleWindow(); [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, Int32 nCmdShow);';
+Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class Window { [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect); [DllImport("User32.dll")] public extern static bool MoveWindow(IntPtr handle, int x, int y, int width, int height, bool redraw); } public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }';
 
 # Statement extensions
 function ForEachParallel {
@@ -178,7 +181,6 @@ function ForEachParallel {
 
 # Set some self defined constant global variables
 if( (Get-Variable -Scope global -ErrorAction SilentlyContinue -Name ComputerName) -eq $null ){ # check wether last variable already exists because reload safe
-  New-Variable -option Constant -scope global -name CurrentMonthIsoString        -value ([String](Get-Date -format yyyy-MM)); # alternative: yyyy-MM-dd_HH_mm
   New-Variable -option Constant -scope global -name CurrentMonthAndWeekIsoString -value ([String]((Get-Date -format "yyyy-MM-")+(Get-Date -uformat "W%V")));
   New-Variable -option Constant -scope global -name UserQuickLaunchDir           -value ([String]"$env:APPDATA\Microsoft\Internet Explorer\Quick Launch");
   New-Variable -option Constant -scope global -name UserSendToDir                -value ([String]"$env:APPDATA\Microsoft\Windows\SendTo");
@@ -246,7 +248,9 @@ function StringCommandLineToArray             ( [String] $commandLine ){
                                                 return [String[]] $result; }
 function DateTimeAsStringIso                  ( [DateTime] $ts, [String] $fmt = "yyyy-MM-dd HH:mm:ss" ){ return [String] $ts.ToString($fmt); }
 function DateTimeNowAsStringIso               ( [String] $fmt = "yyyy-MM-dd HH:mm:ss" ){ return [String] (Get-Date -format $fmt); }
-function DateTimeNowAsStringIsoDate           (){ return [String] (DateTimeNowAsStringIso "yyyy-MM-dd"); }
+function DateTimeNowAsStringIsoDate           (){ return [String] (Get-Date -format "yyyy-MM-dd"); }
+function DateTimeNowAsStringIsoMonth          (){ return [String] (Get-Date -format "yyyy-MM"); }
+function DateTimeNowAsStringIsoInMinutes      (){ return [String] (Get-Date -format "yyyy-MM-dd HH:mm"); }
 function DateTimeFromStringIso                ( [String] $s ){ # "yyyy-MM-dd HH:mm:ss.fff" or "yyyy-MM-ddTHH:mm:ss.fff".
                                                 [String] $fmt = "yyyy-MM-dd HH:mm:ss.fff"; if( $s.Length -le 10 ){ $fmt = "yyyy-MM-dd"; }elseif( $s.Length -le 16 ){ $fmt = "yyyy-MM-dd HH:mm"; }elseif( $s.Length -le 19 ){ $fmt = "yyyy-MM-dd HH:mm:ss"; }
                                                 elseif( $s.Length -le 20 ){ $fmt = "yyyy-MM-dd HH:mm:ss."; }elseif( $s.Length -le 21 ){ $fmt = "yyyy-MM-dd HH:mm:ss.f"; }elseif( $s.Length -le 22 ){ $fmt = "yyyy-MM-dd HH:mm:ss.ff"; }
@@ -260,11 +264,19 @@ function ConsoleHide                          (){ [Object] $p = [Console.Window]
 function ConsoleShow                          (){ [Object] $p = [Console.Window]::GetConsoleWindow(); $b = [Console.Window]::ShowWindow($p,5); } #5 nohide
 function ConsoleRestore                       (){ [Object] $p = [Console.Window]::GetConsoleWindow(); $b = [Console.Window]::ShowWindow($p,1); } #1 show
 function ConsoleMinimize                      (){ [Object] $p = [Console.Window]::GetConsoleWindow(); $b = [Console.Window]::ShowWindow($p,6); } #6 minimize
-function ConsoleSetGuiProperties              (){ [Object] $pshost = get-host; 
+Function ConsoleSetPos                        ( [Int32] $x, [Int32] $y ){
+                                                [RECT] $r = New-Object RECT; [Object] $hd = (Get-Process -ID $PID).MainWindowHandle;
+                                                [Object] $t = [Window]::GetWindowRect($hd,[ref]$r);
+                                                [Int32] $w = $r.Right - $r.Left; [Int32] $h = $r.Bottom - $r.Top;
+                                                If( $t ){ [Window]::MoveWindow($hd, $x, $y, $w, $h, $true); } }
+function ConsoleSetGuiProperties              (){ # set standard sizes which makes sense, display-hight 46 lines for HD with 125% zoom.
+                                                  [Object] $pshost = get-host; 
                                                   [Object] $w = $pshost.ui.rawui; $w.windowtitle = "$PSCommandPath"; $w.foregroundcolor = "Gray"; 
                                                   $w.backgroundcolor = switch(ProcessIsRunningInElevatedAdminMode){($true){"DarkMagenta"}default{"DarkBlue";}}; 
-                                                  [Object] $n = $w.buffersize; $n.height = 9999; $n.width = 260; $w.buffersize = $n; 
-                                                  $n = $w.windowsize; $n.height = 50; $n.width = 150; $w.windowsize = $n; }
+                                                  # for future use: $ = $host.PrivateData; $.VerboseForegroundColor = "white"; $.VerboseBackgroundColor = "blue"; $.WarningForegroundColor = "yellow"; $.WarningBackgroundColor = "darkgreen"; $.ErrorForegroundColor = "white"; $.ErrorBackgroundColor = "red";
+                                                  [Object] $n = $w.buffersize; $n.height = 9999; $n.width = 300; $w.buffersize = $n;
+                                                  if( $w.WindowSize -ne $null ){ # is null in case of powershell-ISE
+                                                    [Object] $m = $w.windowsize; $m.height =   48; $m.width = 150; $w.windowsize = $m; ConsoleSetPos 40 40; } }
 function StdInAssertAllowInteractions         (){ if( $global:ModeDisallowInteractions ){ throw [Exception] "Cannot read for input because all interactions are disallowed, either caller should make sure variable ModeDisallowInteractions is false or he should not call an input method."; } }
 function StdInReadLine                        ( [String] $line ){ Write-Host -ForegroundColor Cyan -nonewline $line; StdInAssertAllowInteractions; return [String] (Read-Host); }
 function StdInReadLinePw                      ( [String] $line ){ Write-Host -ForegroundColor Cyan -nonewline $line; StdInAssertAllowInteractions; return [System.Security.SecureString] (Read-Host -AsSecureString); }
@@ -323,7 +335,8 @@ function AssertRcIsOk                         ( [String[]] $linesToOutProgress =
                                                   if( -not $useLinesAsExcMessage ){ $linesToOutProgress | Where-Object{ -not [String]::IsNullOrWhiteSpace($_) } | ForEach-Object{ OutProgress $_ }; }
                                                   [String] $msg = "Last operation failed [rc=$rc]. "; 
                                                   if( $useLinesAsExcMessage ){ $msg = $(switch($rc -eq 1 -and $out -ne ""){($true){""}default{$msg}}) + ([String]$linesToOutProgress).Trim(); }
-                                                  try{ OutProgress "Dump of $($logFileToOutProgressIfFailed):"; FileReadContentAsLines $logFileToOutProgressIfFailed $encodingIfNoBom | ForEach-Object { OutProgress "  $_"; } }catch{}                                               
+                                                  try{ OutProgress "Dump of logfile=$($logFileToOutProgressIfFailed):"; 
+                                                    FileReadContentAsLines $logFileToOutProgressIfFailed $encodingIfNoBom | ForEach-Object { OutProgress "  $_"; } }catch{}                                               
                                                   throw [Exception] $msg; } }
 function ScriptImportModuleIfNotDone          ( [String] $moduleName ){ if( -not (Get-Module $moduleName) ){ OutProgress "Import module $moduleName (can take some seconds on first call)"; Import-Module -NoClobber $moduleName -DisableNameChecking; } }
 function ScriptGetCurrentFunc                 (){ return [String] ((Get-Variable MyInvocation -Scope 1).Value.MyCommand.Name); }
@@ -401,8 +414,9 @@ function ProcessGetCurrentThreadId            (){ return [Int32] [Threading.Thre
 function ProcessListRunnings                  (){ return (Get-Process * | Where-Object{ $_.Id -ne 0 } | Sort-Object ProcessName); }
 function ProcessListRunningsAsStringArray     (){ return (ProcessListRunnings | Format-Table -auto -HideTableHeaders " ",ProcessName,ProductVersion,Company | StreamToStringDelEmptyLeadAndTrLines); }
 function ProcessIsRunning                     ( [String] $processName ){ return [Boolean] ((Get-Process -ErrorAction SilentlyContinue ($processName -replace ".exe","")) -ne $null); }
-function ProcessKill                          ( [String] $processName ){ [Object] $p = Get-Process ($processName -replace ".exe","") -ErrorAction SilentlyContinue; 
-                                                if( $p -ne $null ){ OutProgress "ProcessKill $processName"; ProcessRestartInElevatedAdminMode; $p.Kill(); } }
+function ProcessKill                          ( [String] $processName ){ # kill all with the specified name, note if processes are not from owner then it requires to previously call ProcessRestartInElevatedAdminMode
+                                                [System.Diagnostics.Process[]] $p = Get-Process ($processName -replace ".exe","") -ErrorAction SilentlyContinue; 
+                                                if( $p -ne $null ){ OutProgress "ProcessKill $processName"; $p.Kill(); } }
 function ProcessSleepSec                      ( [Int32] $sec ){ Start-Sleep -s $sec; }
 function ProcessListInstalledAppx             (){ return [String[]] (Get-AppxPackage | Select-Object PackageFullName | Sort PackageFullName); }
 function ProcessGetCommandInEnvPathOrAltPaths ( [String] $commandNameOptionalWithExtension, [String[]] $alternativePaths = @(), [String] $downloadHintMsg = ""){
@@ -502,7 +516,7 @@ function PrivFileSecurityCreateOwner          ( [System.Security.Principal.Ident
                                                 $result.SetOwner($account);
                                                 return [System.Security.AccessControl.FileSecurity] $result; }
 function PrivAclHasFullControl                ( [System.Security.AccessControl.FileSystemSecurity] $acl, [System.Security.Principal.IdentityReference] $account, [Boolean] $isDir ){
-                                                $a = $acl.Access | Where-Object{ $_.IdentityReference -eq $account } |
+                                                [Object] $a = $acl.Access | Where-Object{ $_.IdentityReference -eq $account } |
                                                    Where-Object{ $_.FileSystemRights -eq "FullControl" -and $_.AccessControlType -eq "Allow" } |
                                                    Where-Object{ -not $isDir -or ($_.InheritanceFlags.HasFlag([System.Security.AccessControl.InheritanceFlags]::ContainerInherit) -and $_.InheritanceFlags.HasFlag([System.Security.AccessControl.InheritanceFlags]::ObjectInherit)) };
                                                    Where-Object{ -not $isDir -or $_.PropagationFlags -eq [System.Security.AccessControl.PropagationFlags]::None }
@@ -1379,7 +1393,7 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                 OutProgress "NetDownloadFile(onlyIfNewer=$onlyIfNewer) $url to '$tarFile' ";
                                                 if( $ignoreSslCheck ){
                                                   # Note: This alternative is now obsolete (see https://msdn.microsoft.com/en-us/library/system.net.servicepointmanager.certificatepolicy(v=vs.110).aspx):
-                                                  #   Add-Type -TypeDefinition " using System.Net; using System.Security.Cryptography.X509Certificates; public class TrustAllCertsPolicy : ICertificatePolicy { public bool CheckValidationResult( ServicePoint srvPoint, X509Certificate certificate, WebRequest request, int certificateProblem){ return true; } } ";
+                                                  #   Add-Type -TypeDefinition "using System.Net; using System.Security.Cryptography.X509Certificates; public class TrustAllCertsPolicy : ICertificatePolicy { public bool CheckValidationResult( ServicePoint srvPoint, X509Certificate certificate, WebRequest request, int certificateProblem){ return true; } } ";
                                                   #   [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy;
                                                   [ServerCertificateValidationCallback]::Ignore();
                                                   # Known Bug: We currently do not restore this option so it will influence all following calls.
@@ -1396,7 +1410,7 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                 }
                                                 [String] $userAgent = "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:40.0) Gecko/20100101 Firefox/40.1"; # some servers as api.github.com requires at least a string as "Mozilla/5.0"
                                                 [String] $tarDir = FsEntryGetParentDir $tarFile;
-                                                [String] $logf = "$LogDir\Download.$CurrentMonthIsoString.$($PID)_$(ProcessGetCurrentThreadId).log";
+                                                [String] $logf = "$LogDir\Download.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
                                                 DirCreate $tarDir;
                                                 OutProgress "Logfile: `"$logf`"";
                                                 FileAppendLineWithTs $logf "WebClient.DownloadFile(url=$url,tar=$tarFile)";
@@ -1613,7 +1627,7 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                 if( -not $url.StartsWith("http:") -and (FileExists $curlCaCert) ){ $opt += @( "--cacert", $curlCaCert); }
                                                 OutProgress "NetDownloadFileByCurl $url to '$tarFile'";
                                                 [String] $tarDir = FsEntryGetParentDir $tarFile;
-                                                [String] $logf = "$LogDir\Download.$CurrentMonthIsoString.$($PID)_$(ProcessGetCurrentThreadId).log";
+                                                [String] $logf = "$LogDir\Download.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
                                                 DirCreate $tarDir;
                                                 FileAppendLineWithTs $logf "$curlExe $opt --url $url";
                                                 OutProgress "Logfile: `"$logf`"";
@@ -1646,7 +1660,7 @@ function NetDownloadToStringByCurl            ( [String] $url, [String] $us = ""
 function NetDownloadSite                      ( [String] $url, [String] $tarDir, [Int32] $level = 999, [Int32] $maxBytes = ([Int32]::MaxValue), [String] $us = "", 
                                                   [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Int32] $limitRateBytesPerSec = ([Int32]::MaxValue), [Boolean] $alsoRetrieveToParentOfUrl = $false ){
                                                 # Mirror site to dir; wget: HTTP, HTTPS, FTP. Logfile is written into target dir.
-                                                [String] $logf = "$tarDir\.Download.$CurrentMonthIsoString.log";
+                                                [String] $logf = "$tarDir\.Download.$(DateTimeNowAsStringIsoMonth).log";
                                                 OutProgress "NetDownloadSite from $url to '$tarDir' (only newer files, logfile=`"$logf`")";
                                                 [String[]] $opt = @(
                                                    "--directory-prefix=$tarDir"
@@ -1803,7 +1817,7 @@ function GitBuildLocalDirFromUrl              ( [String] $tarRootDir, [String] $
                                                 # CachedAuthorizationFile="$env:APPDATA\Subversion\auth\svn.simple\25ff84926a354d51b4e93754a00064d6"; CachedAuthorizationUser="myuser"; Revision="1234"
 function SvnExe                               (){ 
                                                 return [String] ((RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseSVN" "Directory") + ".\bin\svn.exe"); }
-<# Script local variable: svnLogFile #>       [String] $script:svnLogFile = "$script:LogDir\Svn.$CurrentMonthIsoString.$($PID)_$(ProcessGetCurrentThreadId).log";
+<# Script local variable: svnLogFile #>       [String] $script:svnLogFile = "$script:LogDir\Svn.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
 function SvnEnvInfoGet                        ( [String] $workDir ){
                                                 # Return SvnEnvInfo; no param is null.
                                                 OutProgress "SvnEnvInfo - Get svn environment info";
@@ -2438,10 +2452,10 @@ function InfoAboutNetConfig                   (){
 function InfoGetInstalledDotNetVersion        ( [Boolean] $alsoOutInstalledClrAndRunningProc = $false ){ # Requires clrver.exe in path, for example "C:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.7.1 Tools\x64\clrver.exe"
                                                 if( $alsoOutInstalledClrAndRunningProc ){
                                                   [String[]] $a = @();
-                                                  $a += "List Installed DotNet CLRs:"; 
+                                                  $a += "List Installed DotNet CLRs (clrver.exe):"; 
                                                   $a += . "clrver.exe"        | Where-Object { $_.Trim() -ne "" -and -not $_.StartsWith("Copyright (c) Microsoft Corporation.  All rights reserved.") -and 
                                                     -not $_.StartsWith("Microsoft (R) .NET CLR Version Tool") -and -not $_.StartsWith("Versions installed on the machine:") } | ForEach-Object { "  Installed CLRs: $_" };
-                                                  $a += "List running DotNet Processes:";
+                                                  $a += "List running DotNet Processes (clrver.exe -all):";
                                                   $a += . "clrver.exe" "-all" | Where-Object { $_.Trim() -ne "" -and -not $_.StartsWith("Copyright (c) Microsoft Corporation.  All rights reserved.") -and 
                                                     -not $_.StartsWith("Microsoft (R) .NET CLR Version Tool") -and -not $_.StartsWith("Versions installed on the machine:") } | ForEach-Object { "  Running Processes and its CLR: $_" };
                                                   $a | Foreach-Object { OutProgress $_; };
@@ -2831,5 +2845,5 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 # - Extensions and libraries: https://www.powershellgallery.com/  http://ss64.com/links/pslinks.html
 # - Important to know:
 #   - Alternative for Split-Path has problems: [System.IO.Path]::GetDirectoryName("c:\") -eq $null; [System.IO.Path]::GetDirectoryName("\\mymach\myshare\") -eq "\\mymach\myshare\";
-#   - Split(): $a = "".Split(";",[System.StringSplitOptions]::RemoveEmptyEntries); # returns correctly an empty array and not null: $a.Count -eq 0;
+#   - Split(): [String[]] $a = "".Split(";",[System.StringSplitOptions]::RemoveEmptyEntries); # returns correctly an empty array and not null: $a.Count -eq 0;
 #     Usually Split is used with the option RemoveEmptyEntries.

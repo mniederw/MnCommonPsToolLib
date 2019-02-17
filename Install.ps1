@@ -108,7 +108,7 @@ while( @("I","A","N","U","Q") -notcontains $sel ){
   OutQuestion "Enter selection case insensitive and press enter: ";
   $sel = (Read-Host);
 }
-$Global:ArgsForRestartInElevatedAdminMode = $sel; 
+$Global:ArgsForRestartInElevatedAdminMode = @( $sel ); 
 if( $sel -eq "N" ){ UninstallDir $moduleTarDir; UninstallSrcPath $srcRootDir;                                       OutCurrentInstallState $srcRootDir $moduleTarDir "Green"; }
 if( $sel -eq "I" ){ UninstallDir $moduleTarDir; UninstallSrcPath $srcRootDir; InstallDir $moduleSrcDir $tarRootDir; OutCurrentInstallState $srcRootDir $moduleTarDir "Green"; }
 if( $sel -eq "A" ){ UninstallDir $moduleTarDir; InstallSrcPathToPsModulePathIfNotInst $srcRootDir;                  OutCurrentInstallState $srcRootDir $moduleTarDir "Green"; }
