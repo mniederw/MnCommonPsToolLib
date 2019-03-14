@@ -20,4 +20,6 @@ Files:
 
 - LICENSE_GPL3.txt : Standard License file.
 
-- Examples\*.ps1 : examples to show usage of library.
+- Releasenotes.txt : Releasenotes for last and previously released versions.
+
+- Examples\*.ps1 : examples to show usage of this library.

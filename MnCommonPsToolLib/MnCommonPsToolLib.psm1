@@ -1,5 +1,5 @@
 # Common powershell tool library
-# 2013-2018 produced by Marc Niederwieser, Switzerland. Licensed under GPL3. This is freeware.
+# 2013-2019 produced by Marc Niederwieser, Switzerland. Licensed under GPL3. This is freeware.
 # Published at: https://github.com/mniederw/MnCommonPsToolLib
 #
 # This library encapsulates many common commands for the purpose of:
@@ -47,42 +47,8 @@
 #Requires -Version 3.0
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
-#   Major version changes will reflect breaking changes and minor identifies extensions and third number are for bugfixes.
-[String] $MnCommonPsToolLibVersion = "1.33";
-  # 2019-02-11  V1.33  replace var CurrentMonthIsoString by function DateTimeNowAsStringIsoMonth(), new ConsoleSetPos
-  # 2019-01-16  V1.32  add SqlGenerateFullDbSchemaFiles
-  # 2019-01-15  V1.31  add check
-  # 2019-01-07  V1.30  care gitstderr as out.
-  # 2019-01-06  V1.29  doc, InfoGetInstalledDotNetVersion, rename SvnCommitAndGet to SvnTortoiseCommitAndUpdate, rename SvnCommit to SvnTortoiseCommit, improve ProcessStart, rename RdpConnect to ToolRdpConnect, rename WgetDownloadSite to NetDownloadSite, rename PsWebRequestLastModifiedFailSafe to NetWebRequestLastModifiedFailSafe, rename PsDownloadFile to NetDownloadFile, rename PsDownloadToString to NetDownloadToString, rename CurlDownloadFile to NetDownloadFileByCurl, rename CurlDownloadToString to NetDownloadToStringByCurl.
-  # 2018-12-30  V1.28  improve download exc, add encoding as param for FileReadContent functions, renamed from CredentialGetPasswordTextFromCred to CredentialGetPassword, new CredentialGetUsername, rename CredentialReadFromParamOrInput to CredentialCreate
-  # 2018-12-16  V1.27  suppress import-module warnings, improve ToolCreateLnkIfNotExists, rename FsEntryPrivAclAsString to PrivAclAsString, rename PrivFsSecurityHasFullControl to PrivAclHasFullControl, new: FsEntryCreateSymLink, FsEntryCreateHardLink, CredentialReadUserFromFile; 
-  # 2018-12-16  V1.26  doc
-  # 2018-10-08  V1.25  improve git logging, add ProcessStart
-  # 2018-09-27  V1.24  fix FsEntryMakeRelative for equal dirs
-  # 2018-09-26  V1.23  fix logfile of SqlPerformFile
-  # 2018-09-26  V1.22  improved logging of SqlPerformFile
-  # 2018-09-26  V1.21  improved FsEntryMakeRelative
-  # 2018-09-26  V1.20  add: ScriptImportModuleIfNotDone, SqlPerformFile;
-  # 2018-09-07  V1.19  remove deprecated: DirExistsAssert (use DirAssertExists instead), DateTimeFromStringAsFormat (use DateTimeFromStringIso instead), DateTimeAsStringForFileName (use DateTimeNowAsStringIso instead), fix DateTimeFromStringIso formats. Added FsEntryFsInfoFullNameDirWithBackSlash, FsEntryResetTs. Ignore Import err. Use ps module sqlserver instead sqlps and now with connectstring.
-  # 2018-09-06  V1.18  add ConsoleSetGuiProperties, GetExtension.
-  # 2018-08-14  V1.17  fix git err msg.
-  # 2018-08-07  V1.16  add tool for sign assemblies, DirCreateTemp.
-  # 2018-07-26  V1.15  improve handling of git, improve createLnk, ads functions, add doc.
-  # 2018-03-26  V1.14  add ToolTailFile, FsEntryDeleteToRecycleBin.
-  # 2018-02-23  V1.13  renamed deprecated DateTime* functions, new FsEntryGetLastModified, improve PsDownload, fixed DateTimeAsStringIso.
-  # 2018-02-14  V1.12  add StdInAskForBoolean. DirExistsAssert is deprecated, use DirAssertExists instead.
-  # 2018-02-06  V1.11  extend functions, fix FsEntryGetFileName.
-  # 2018-01-18  V1.10  add HelpListOfAllModules, version var, improve ForEachParallel, improve log file names. 
-  # 2018-01-09  V1.09  unify error messages, improved elevation, PsDownloadFile.
-  # 2017-12-30  V1.08  improve RemoveSmb, renamed SvnCheckout to SvnCheckoutAndUpdate and implement retry.
-  # 2017-12-16  V1.07  fix WgetDownloadSite.
-  # 2017-12-02  V1.06  improved self-update hash handling, improve touch.
-  # 2017-11-22  V1.05  extend functions, improved self-update by hash.
-  # 2017-10-22  V1.04  extend functions, improve FileContentsAreEqual, self-update.
-  # 2017-10-10  V1.03  extend functions.
-  # 2017-09-08  V1.02  extend by jobs, parallel.
-  # 2017-08-11  V1.01  update.
-  # 2017-06-25  V1.00  published as open source to github.
+#   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
+[String] $MnCommonPsToolLibVersion = "2.0"; # more see Releasenotes.txt
 
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 
@@ -95,11 +61,19 @@ Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including unin
 trap [Exception] { $Host.UI.WriteErrorLine($_); break; }
 
 # Define global variables if they are not yet defined; caller of this script can anytime set or change these variables to control the specified behaviour.
+
 if( -not [Boolean] (Get-Variable ModeHideOutProgress               -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeHideOutProgress               -value $false; }
+                                                                    # If true then OutProgress does nothing.
 if( -not [Boolean] (Get-Variable ModeDisallowInteractions          -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeDisallowInteractions          -value $false; }
-if( -not [Boolean] (Get-Variable ModeDisallowElevation             -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeDisallowElevation             -value $false; }
+                                                                    # If true then any call to a known read-from-input function will throw. For example 
+                                                                    # it will not restart script for entering elevated admin mode which must be acknowledged by the user 
+                                                                    # and after any unhandled exception it does not wait for a key (uses a delay of 1 sec instead). 
+                                                                    # So it can be more assured that a script works unattended.
+                                                                    # The effect is comparable to that if the stdin pipe would be closed.
 if( -not [String]  (Get-Variable ModeNoWaitForEnterAtEnd           -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeNoWaitForEnterAtEnd           -value $false; }
+                                                                    # if true then it will not wait for enter in StdOutBegMsgCareInteractiveMode.
 if( -not [String[]](Get-Variable ArgsForRestartInElevatedAdminMode -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ArgsForRestartInElevatedAdminMode -value @()   ; }
+                                                                    # if restarted for entering elevated admin mode then it additionally adds these parameters.
 
 # Set some powershell predefined global variables:
 $Global:ErrorActionPreference         = "Stop"                    ; # abort if a called exe will write to stderr, default is 'Continue'. Can be overridden in each command by [-ErrorAction actionPreference]
@@ -197,10 +171,9 @@ if( (Get-Variable -Scope global -ErrorAction SilentlyContinue -Name ComputerName
 # ----- exported tools and types -----
 
 function GlobalSetModeVerboseEnable           ( [Boolean] $val = $true ){ $Global:VerbosePreference = $(switch($val){($true){"Continue"}default{"SilentlyContinue"}}); }
-function GlobalSetModeHideOutProgress         ( [Boolean] $val = $true ){ $Global:ModeHideOutProgress      = $val; } # if true then OutProgress does nothing
-function GlobalSetModeDisallowInteractions    ( [Boolean] $val = $true ){ $Global:ModeDisallowInteractions = $val; } # if true then any call to read from input will throw, it will not restart script for entering elevated admin mode and after any unhandled exception it does not wait for a key
-function GlobalSetModeDisallowElevation       ( [Boolean] $val = $true ){ $Global:ModeDisallowElevation    = $val; } # if true then it will not restart script for entering elevated admin mode
-function GlobalSetModeNoWaitForEnterAtEnd     ( [Boolean] $val = $true ){ $Global:ModeNoWaitForEnterAtEnd  = $val; } # if true then it will not wait for enter in StdOutBegMsgCareInteractiveMode
+function GlobalSetModeHideOutProgress         ( [Boolean] $val = $true ){ $Global:ModeHideOutProgress      = $val; }
+function GlobalSetModeDisallowInteractions    ( [Boolean] $val = $true ){ $Global:ModeDisallowInteractions = $val; }
+function GlobalSetModeNoWaitForEnterAtEnd     ( [Boolean] $val = $true ){ $Global:ModeNoWaitForEnterAtEnd  = $val; }
 function GlobalSetModeEnableAutoLoadingPref   ( [Boolean] $val = $true ){ $Global:PSModuleAutoLoadingPreference = $(switch($val){($true){$null}default{"none"}}); } # enable or disable autoloading modules, available internal values: All (=default), ModuleQualified, None.
 
 function StringIsNullOrEmpty                  ( [String] $s ){ return [Boolean] [String]::IsNullOrEmpty($s); }
@@ -320,7 +293,7 @@ function StdOutBegMsgCareInteractiveMode      ( [String] $mode = "" ){ # Availab
                                                 if( $mode -eq "" ){ $mode = "DoRequestAtBegin"; }
                                                 ScriptResetRc; [String[]] $modes = @()+($mode -split "," | ForEach-Object{ $_.Trim() });
                                                 Assert ((@()+($modes | Where-Object{ $_ -ne "DoRequestAtBegin" -and $_ -ne "NoRequestAtBegin" -and $_ -ne "NoWaitAtEnd" -and $_ -ne "MinimizeConsole"})).Count -eq 0 ) "StdOutBegMsgCareInteractiveMode was called with unknown mode='$mode'";
-                                                GlobalSetModeNoWaitForEnterAtEnd ($modes -contains "NoWaitAtEnd");
+                                                $Global:ModeNoWaitForEnterAtEnd = $modes -contains "NoWaitAtEnd";
                                                 if( -not $global:ModeDisallowInteractions -and $modes -notcontains "NoRequestAtBegin" ){ StdInAskForAnswerWhenInInteractMode "Are you sure (y/n)? "; }
                                                 if( $modes -contains "MinimizeConsole" ){ OutProgress "Minimize console"; ProcessSleepSec 0; ConsoleMinimize; } }
 function StdInAskForAnswerWhenInInteractMode  ( [String] $line, [String] $expectedAnswer = "y" ){
@@ -395,11 +368,10 @@ function ProcessRestartInElevatedAdminMode    (){ if( -not (ProcessIsRunningInEl
                                                 [String[]] $topCallerArguments = @(); # Currently it supports no arguments because we do not know how to access them (something like $global:args would be nice).
                                                 # ex: "C:\myscr.ps1" or if interactive then statement name ex: "ProcessRestartInElevatedAdminMode"
                                                 [String[]] $cmd = @( (ScriptGetTopCaller) ) + $topCallerArguments + $Global:ArgsForRestartInElevatedAdminMode;
-                                                if( $Global:ModeDisallowInteractions -or $Global:ModeDisallowElevation ){ 
-                                                  [String] $msg = "Script is currently not in elevated admin mode but the proceeding statements would require it. "
-                                                  $msg += "The calling script=`"$cmd`" has the modes ModeDisallowInteractions=$Global:ModeDisallowInteractions and ModeDisallowElevation=$Global:ModeDisallowElevation, ";
-                                                  $msg += "if both of them would be reset then it would try to restart script here to enter the elevated admin mode. ";
-                                                  $msg += "Now it will continue but it will probably fail."; 
+                                                if( $Global:ModeDisallowInteractions ){ 
+                                                  [String] $msg = "Script `"$cmd`" is currently not in elevated admin mode and function ProcessRestartInElevatedAdminMode was called ";
+                                                  $msg += "but currently the mode ModeDisallowInteractions=$Global:ModeDisallowInteractions, ";
+                                                  $msg += "and so restart will not be performed. Now it will continue but it probably will fail."; 
                                                   OutWarning $msg;
                                                 }else{
                                                   $cmd = @("&", "`"$cmd`"" );
@@ -1363,8 +1335,9 @@ function NetAdapterGetConnectionStatusName    ( [Int32] $netConnectionStatusNr )
                                                   10{"Authentication failed"} 11{"Invalid address"} 12{"Credentials required"} default{"unknownNr=$netConnectionStatusNr"} }); }
 function NetAdapterListAll                    (){ 
                                                 return (Get-WmiObject -Class win32_networkadapter | Select-Object Name,NetConnectionID,MACAddress,Speed,@{Name="Status";Expression={(NetAdapterGetConnectionStatusName $_.NetConnectionStatus)}}); }
-function NetPingHostIsConnectable             ( [String] $hostName ){
+function NetPingHostIsConnectable             ( [String] $hostName, [Boolean] $doRetryWithFlushDns = $false ){
                                                 if( (Test-Connection -Cn $hostName -BufferSize 16 -Count 1 -ea 0 -quiet) ){ return $true; }
+                                                if( -not $doRetryWithFlushDns ){ return $false; }
                                                 OutVerbose "Host $hostName not reachable, so flush dns, nslookup and retry";
                                                 & "ipconfig.exe" "/flushdns" | out-null; # note option /registerdns would require more privs
                                                 try{ [System.Net.Dns]::GetHostByName($hostName); }catch{}
@@ -2634,22 +2607,21 @@ function ToolGithubApiListOrgRepos            ( [String] $org, [System.Managemen
                                                 } return $result | Sort-Object archived, html_url; }
 function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $url, [Boolean] $requireElevatedAdminMode, [Boolean] $doWaitIfFailed = $false, [String] $additionalOkUpdMsg = "" ){
                                                 # Assert the correct installed environment by requiring that the file to be update previously exists.
-                                                # Assert the network is prepared by checking if host is reachable.
-                                                # Then it downloads the hash file and checks it with the current installed file.
+                                                # Assert the network is prepared by checking if host is reachable by ping.
                                                 # If there is any change then it requests for running as admin, it downloads the module and verifies it with the previously downloaded hash file.
                                                 # Then the current module is actualized by overwriting its file and a success message is given out.
                                                 # Otherwise if it failed it will output a warning message and optionally wait for pressing enter key.
                                                 # It returns true if the file is now actualized.
                                                 try{
-                                                  [String] $hash512BitsSha2Url = "$url.sha2";
                                                   OutInfo "Check for update of $targetFile `n  from $url";
                                                   if( (FileNotExists $targetFile) ){ 
                                                     throw [Exception] "Unexpected environment, for updating it is required that target file previously exists but it does not: '$targetFile'";
                                                   }
                                                   [String] $host = (NetExtractHostName $url);
-                                                  if( -not (Test-Connection -Cn $host -BufferSize 16 -Count 1 -ea 0 -Quiet) ){ 
+                                                  if( -not (NetPingHostIsConnectable) ){ 
                                                     throw [Exception] "Host '$host' is not pingable."; 
                                                   }
+                                                  [String] $hash512BitsSha2Url = "$url.sha2";
                                                   [String] $hash = (PsDownloadToString $hash512BitsSha2Url).TrimEnd();
                                                   [String] $hash2 = FileGetHexStringOfHash512BitsSha2 $targetFile;
                                                   if( $hash -eq $hash2 ){
@@ -2662,12 +2634,8 @@ function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $
                                                     [String] $tmp = (FileGetTempFile); NetDownloadFile $url $tmp;
                                                     [String] $hash3 = (FileGetHexStringOfHash512BitsSha2 $tmp);
                                                     if( $hash -ne $hash3 ){
-                                                      throw [Exception] ("The hash of the downloaded file from $url`n"`
-                                                        +"  (=$hash3)"`
-                                                        +"  does not match the content of $hash512BitsSha2Url.`n"`
-                                                        +"  (=$hash)"`
-                                                        +"  Probably author did not update hash after updating source, then you must manually get source or wait until author updates hash."`
-                                                        +"  "); 
+                                                      throw [Exception] ("The hash of the downloaded file from $url`n  (=$hash3)  does not match the content of $hash512BitsSha2Url.`n  (=$hash)"`
+                                                        +"  Probably author did not update hash after updating source, then you must manually get source or wait until author updates hash.  "); 
                                                     }
                                                     FileMove $tmp $targetFile $true;
                                                     OutSuccess "Ok, updated '$targetFile'. $additionalOkUpdMsg";
@@ -2689,6 +2657,146 @@ function MnCommonPsToolLibSelfUpdate          ( [Boolean] $doWaitForEnterKeyIfFa
                                                 [String] $additionalOkUpdMsg = "`n  Please restart all processes which may have an old version of the modified env-vars before using functions of this library.";
                                                 [Boolean] $dummyResult = ToolPerformFileUpdateAndIsActualized $moduleFile $url $true $doWaitForEnterKeyIfFailed $additionalOkUpdMsg;
                                               }
+
+<#
+
+PS C:\Users\u4> . curl.exe -silent https://api.github.com/repos/mniederw/MnCommonPsToolLib/releases/latest
+HTTP/1.1 200 OK
+Server: GitHub.com
+Date: Fri, 22 Feb 2019 14:01:13 GMT
+Content-Type: application/json; charset=utf-8
+Content-Length: 1939
+Status: 200 OK
+X-RateLimit-Limit: 60
+X-RateLimit-Remaining: 59
+X-RateLimit-Reset: 1550847673
+Cache-Control: public, max-age=60, s-maxage=60
+Vary: Accept
+ETag: "eb3e2bc4bf23611ca481f2804d68c10d"
+Last-Modified: Thu, 17 Jan 2019 00:21:59 GMT
+X-GitHub-Media-Type: github.v3; format=json
+Access-Control-Expose-Headers: ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type
+Access-Control-Allow-Origin: *
+Strict-Transport-Security: max-age=31536000; includeSubdomains; preload
+X-Frame-Options: deny
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 1; mode=block
+Referrer-Policy: origin-when-cross-origin, strict-origin-when-cross-origin
+Content-Security-Policy: default-src 'none'
+X-GitHub-Request-Id: D5F6:0A71:105FC13:22E5D96:5C7000A8
+
+{
+  "url": "https://api.github.com/repos/mniederw/MnCommonPsToolLib/releases/15020068",
+  "assets_url": "https://api.github.com/repos/mniederw/MnCommonPsToolLib/releases/15020068/assets",
+  "upload_url": "https://uploads.github.com/repos/mniederw/MnCommonPsToolLib/releases/15020068/assets{?name,label}",
+  "html_url": "https://github.com/mniederw/MnCommonPsToolLib/releases/tag/V1.32",
+  "id": 15020068,
+  "node_id": "MDc6UmVsZWFzZTE1MDIwMDY4",
+  "tag_name": "V1.32",
+  "target_commitish": "master",
+  "name": "OpenSource-GPL3 MnCommonPsToolLib V1.32 en 2019-01-17",
+  "draft": false,
+  "author": {
+    "login": "mniederw",
+    "id": 23030598,
+    "node_id": "MDQ6VXNlcjIzMDMwNTk4",
+    "avatar_url": "https://avatars1.githubusercontent.com/u/23030598?v=4",
+    "gravatar_id": "",
+    "url": "https://api.github.com/users/mniederw",
+    "html_url": "https://github.com/mniederw",
+    "followers_url": "https://api.github.com/users/mniederw/followers",
+    "following_url": "https://api.github.com/users/mniederw/following{/other_user}",
+    "gists_url": "https://api.github.com/users/mniederw/gists{/gist_id}",
+    "starred_url": "https://api.github.com/users/mniederw/starred{/owner}{/repo}",
+    "subscriptions_url": "https://api.github.com/users/mniederw/subscriptions",
+    "organizations_url": "https://api.github.com/users/mniederw/orgs",
+    "repos_url": "https://api.github.com/users/mniederw/repos",
+    "events_url": "https://api.github.com/users/mniederw/events{/privacy}",
+    "received_events_url": "https://api.github.com/users/mniederw/received_events",
+    "type": "User",
+    "site_admin": false
+  },
+  "prerelease": false,
+  "created_at": "2019-01-17T00:19:21Z",
+  "published_at": "2019-01-17T00:21:59Z",
+  "assets": [
+
+  ],
+  "tarball_url": "https://api.github.com/repos/mniederw/MnCommonPsToolLib/tarball/V1.32",
+  "zipball_url": "https://api.github.com/repos/mniederw/MnCommonPsToolLib/zipball/V1.32",
+  "body": ""
+}
+PS C:\Users\u4> . curl.exe -silent "https://github.com/mniederw/MnCommonPsToolLib/archive/V1.32.zip" $env:TEMP\update.zip
+HTTP/1.1 302 Found
+Server: GitHub.com
+Date: Fri, 22 Feb 2019 14:02:57 GMT
+Content-Type: text/html; charset=utf-8
+Transfer-Encoding: chunked
+Status: 302 Found
+Vary: X-PJAX
+Location: https://codeload.github.com/mniederw/MnCommonPsToolLib/zip/V1.32
+Cache-Control: max-age=0, private
+Set-Cookie: has_recent_activity=1; path=/; expires=Fri, 22 Feb 2019 15:02:56 -0000
+Set-Cookie: logged_in=no; domain=.github.com; path=/; expires=Tue, 22 Feb 2039 14:02:57 -0000; secure; HttpOnly
+Set-Cookie: _gh_sess=V1ZnM09SSW5rNlR2cjNRbHhBaFVjVjVXS0cvK0pCa290b1YrM2dFK0NqYWtIWWpJNzFMOFlCL2VIUDZJWVRLZm9kRm53ZXJIUjhWcHlWVlR4V0ZnT05FaVJpakI5ZXNFTk1lTzMyRWgyMHFOOTRvMUZxaVRPOVZtNC9vUHJPWTlpZmRUYjNTcjVOanM5YWM5VlY5V1E0QW9VZUZ3QTErdFh1c3RXU2k5ZEp0T0FzL0N2ajZTZWlOd2gxM09KUFZQQjJQQzFPOEFsMVBYUTFHZXRjbXF1Yks5NGtHUFJMUWplaU9CNDcyTXRXcz0tLS9acWdkUUlyYzBISWFJaC9lRk0rM1E9PQ%3D%3D--1291dc727d041248e78b4e27d660175cc0c2ebd4; path=/; secure; HttpOnly
+X-Request-Id: d22449df-cd6a-4918-ada3-42e206cde77d
+Strict-Transport-Security: max-age=31536000; includeSubdomains; preload
+X-Frame-Options: deny
+X-Content-Type-Options: nosniff
+X-XSS-Protection: 1; mode=block
+Expect-CT: max-age=2592000, report-uri="https://api.github.com/_private/browser/errors"
+Content-Security-Policy: default-src 'none'; base-uri 'self'; block-all-mixed-content; connect-src 'self' uploads.github.com www.githubstatus.com collector.githubapp.com api.github.com www.google-analytics.com github-cloud.s3.amazonaws.com github-production-repository-file-5c1aeb.s3.amazonaws.com github-production-upload-manifest-file-7fdce7.s3.amazonaws.com github-production-user-asset-6210df.s3.amazonaws.com wss://live.github.com; font-src github.githubassets.com; form-action 'self' github.com gist.github.com; frame-ancestors 'none'; frame-src render.githubusercontent.com; img-src 'self' data: github.githubassets.com identicons.github.com collector.githubapp.com github-cloud.s3.amazonaws.com *.githubusercontent.com; manifest-src 'self'; media-src 'none'; script-src github.githubassets.com; style-src 'unsafe-inline' github.githubassets.com
+X-GitHub-Request-Id: D662:1495:B7C8CC:15C0338:5C700110
+
+<html><body>You are being <a href="https://codeload.github.com/mniederw/MnCommonPsToolLib/zip/V1.32">redirected</a>.</body></html>
+PS C:\Users\u4>
+
+
+
+
+
+
+
+. curl.exe "https://github.com/mniederw/MnCommonPsToolLib/releases/latest"
+<html><body>You are being <a href="https://github.com/mniederw/MnCommonPsToolLib/releases/tag/V1.32">redirected</a>.</body></html>
+https://github.com/mniederw/MnCommonPsToolLib/archive/V1.32.zip
+
+
+. curl.exe -silent -L "https://github.com/mniederw/MnCommonPsToolLib/releases/latest" | grep archive | grep ".zip"
+<a href="/mniederw/MnCommonPsToolLib/archive/V1.32.zip" rel="nofollow" class="d-flex flex-items-center">
+
+
+. curl.exe -silent https://api.github.com/repos/mniederw/MnCommonPsToolLib/releases/latest
+
+
+
+    - If installed as dev then no warning:
+
+        Check for update of C:\Program Files\WindowsPowerShell\Modules\MnCommonPsToolLib\MnCommonPsToolLib.psm1
+        from https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/master/MnCommonPsToolLib/MnCommonPsToolLib.psm1
+        update failed because Unexpected environment,
+				for updating it is required that target file previously exists but it does not: 
+				'C:\Program Files\WindowsPowerShell\Modules\MnCommonPsToolLib\MnCommonPsToolLib.psm1'
+        Touch: "D:\Work\Device\Computer_puma\BackupOfImportantFiles\TouchUpdateMnCommonPsToolLib.puma.txt"
+
+
+
+
+
+
+
+. curl.exe -silent "https://github.com/mniederw/MnCommonPsToolLib/archive/V1.32.zip" $env:TEMP\update.zip
+
+steps:
+- api
+- check timestamps
+
+doc: https://developer.github.com/v3/repos/releases/
+
+
+#>
+
+
 
 function MnLibCommonSelfTest(){ # perform some tests
   Assert ((2 + 3) -eq 5);
