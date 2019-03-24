@@ -1717,10 +1717,10 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                     $gitArgs = @( "-C", $dir, "--git-dir=.git", "pull", "--quiet", "--no-stat", $url);
                                                   }else{ throw [Exception] "Unknown git cmd='$cmd'"; }
                                                   # ex: "git" "-C" "C:\Temp\mniederw\myrepo" "--git-dir=.git" "pull" "--quiet" "--no-stat" "https://github.com/mniederw/myrepo"
-                                                  $out = ProcessStart "git" $gitArgs $false $true; # care stderr as stdout
+                                                  $out = ProcessStart "git" $gitArgs $true; # care stderr as stdout
                                                   # Skip known unused strings which are written to stderr as:
                                                   #   "Checking out files:  47% (219/463)" or "Checking out files: 100% (463/463), done."
-                                                  #   for future use, care: "Already up to date."
+                                                  #   The string "Already up to date." is presumebly suppressed by quiet option.
                                                   $out = $out | Where-Object { -not ($_.StartsWith("Checking out files: ") -and ($_.EndsWith(")") -or $_.EndsWith(", done."))) };
                                                   OutSuccess "  Ok. $out";
                                                 }catch{
