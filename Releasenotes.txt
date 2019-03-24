@@ -4,6 +4,8 @@
 Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
 Current version can be requested by: $MnCommonPsToolLibVersion
 
+2019-03-23  V3.0   change ProcessStart return string instead of string array and remove outToProgress param, replace StringReplaceNewlinesBySpaces by StringReplaceNewlines(with space as default arg), improve git pull.
+
 2019-02-22  V2.0   remove unused var ModeDisallowElevation, replace var CurrentMonthIsoString by function DateTimeNowAsStringIsoMonth(), new ConsoleSetPos, refactor MnCommonPsToolLibSelfUpdate by using github release, removed ToolPerformFileUpdateAndIsActualized.
 
 2019-01-16  V1.32  add SqlGenerateFullDbSchemaFiles, add check, care gitstderr as out.

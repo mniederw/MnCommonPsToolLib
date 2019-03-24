@@ -48,7 +48,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $MnCommonPsToolLibVersion = "2.0"; # more see Releasenotes.txt
+[String] $MnCommonPsToolLibVersion = "3.0"; # more see Releasenotes.txt
 
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 
@@ -183,7 +183,7 @@ function StringLeft                           ( [String] $s, [Int32] $len ){ ret
 function StringRight                          ( [String] $s, [Int32] $len ){ return [String] $s.Substring($s.Length-(Int32Clip $len 0 $s.Length)); }
 function StringRemoveRightNr                  ( [String] $s, [Int32] $len ){ return StringLeft $s ($s.Length-$len); }
 function StringSplitIntoLines                 ( [String] $s ){ return [String[]] (($s -replace "`r`n", "`n") -split "`n"); } # for empty string it returns an array with one item.
-function StringReplaceNewlinesBySpaces        ( [String] $s ){ return [String] ($s -replace "`r`n", "`n" -replace "`r", "" -replace "`n", " "); }
+function StringReplaceNewlines                ( [String] $s, [String] $repl = " " ){ return [String] ($s -replace "`r`n", "`n" -replace "`r", "" -replace "`n", $repl); }
 function StringArrayInsertIndent              ( [String[]] $lines, [Int32] $nrOfBlanks ){ if( $lines -eq $null ){ return [String[]] $null; } return [String[]] ($lines | %{ ((" "*$nrOfBlanks)+$_); }); }
 function StringArrayDistinct                  ( [String[]] $lines ){ return [String[]] ($lines | Select-Object -Unique); }
 function StringPadRight                       ( [String] $s, [Int32] $len, [Boolean] $doQuote = $false  ){ [String] $r = $s; if( $doQuote ){ $r = '"'+$r+'"'; } return [String] $r.PadRight($len); }
@@ -396,9 +396,10 @@ function ProcessGetCommandInEnvPathOrAltPaths ( [String] $commandNameOptionalWit
                                                 if( $cmd -ne $null ){ return [String] $cmd.Path; }
                                                 foreach( $d in $alternativePaths ){ [String] $f = (Join-Path $d $commandNameOptionalWithExtension); if( (FileExists $f) ){ return $f; } }
                                                 throw [Exception] "$(ScriptGetCurrentFunc): commandName='$commandNameOptionalWithExtension' was wether found in env-path='$env:PATH' nor in alternativePaths='$alternativePaths'. $downloadHintMsg"; }
-function ProcessStart                         ( [String] $cmd, [String[]] $cmdArgs = @(), [Boolean] $outToProgress = $true, [Boolean] $careStdErrAsOut = $false ){ 
-                                                # Return output as string array. If stderr is not empty then it throws its text. 
+function ProcessStart                         ( [String] $cmd, [String[]] $cmdArgs = @(), [Boolean] $careStdErrAsOut = $false ){ 
+                                                # Return output as string. If stderr is not empty then it throws its text. 
                                                 # But if ErrorActionPreference is Continue or $careStdErrAsOut is true then stderr is simply appended to output.
+                                                # If it fails with an error then it will OutProgress the non empty lines of output before throwing.
                                                 AssertRcIsOk;
                                                 [String] $traceInfo = "`"$cmd`""; $cmdArgs | Where-Object { $_ -ne $null } | ForEach-Object{ $traceInfo += " `"$_`""; };
                                                 OutProgress $traceInfo; 
@@ -425,15 +426,15 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 $pr.WaitForExit();
                                                 Unregister-Event -SourceIdentifier $eventStdOut.Name; $eventStdOut.Dispose();
                                                 Unregister-Event -SourceIdentifier $eventStdErr.Name; $eventStdErr.Dispose();
-                                                [String[]] $out = StringSplitIntoLines $bufStdOut.ToString() | Where-Object{ -not [String]::IsNullOrWhiteSpace($_) };
+                                                [String[]] $out = $bufStdOut.ToString();
                                                 [String] $err = $bufStdErr.ToString().Trim();
-                                                if( $careStdErrAsOut -or $Global:ErrorActionPreference -eq "Continue" ){ $out += $err; $err = ""; }
-                                                if( $Global:ErrorActionPreference -ne "Continue" -and ($pr.ExitCode -ne 0 -or $err -ne "") ){
-                                                  if( $out -ne "" ){ OutProgress $out; }
+                                                [Boolean] $hasStdErrToThrow = $err -ne ""; if( $careStdErrAsOut -or $Global:ErrorActionPreference -eq "Continue" ){ $hasStdErrToThrow = $false; }
+                                                if( $Global:ErrorActionPreference -ne "Continue" -and ($pr.ExitCode -ne 0 -or $hasStdErrToThrow) ){
+                                                  if( $out -ne "" ){ StringSplitIntoLines $out | Where-Object{ -not [String]::IsNullOrWhiteSpace($_) } | ForEach-Object{ OutProgress $_; }; }
                                                   throw [Exception] "ProcessStart($traceInfo) failed with rc=$($pr.ExitCode) $err";
                                                 }
+                                                if( $err -ne "" ){ $out += $err; }
                                                 $pr.Dispose();
-                                                if( $outToProgress ){ $out | Where-Object{ $_ -ne $null } | ForEach-Object{ OutProgress $_; }; }
                                                 return [String[]] $out; }
 function JobStart                             ( [ScriptBlock] $scr, [Object[]] $scrArgs = $null, [String] $name = "Job" ){ # Return job object of type PSRemotingJob, the returned object of the script block can later be requested.
                                                 return [System.Management.Automation.Job] (Start-Job -name $name -ScriptBlock $scr -ArgumentList $scrArgs); }
@@ -1702,11 +1703,8 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                 # $cmd == "Pull" : target dir must exist. [git pull] is the same as [git fetch] and then [git merge FETCH_HEAD]. [git pull -rebase] runs [git rebase] instead of [git merge].
                                                 if( @("Clone","Fetch","Pull") -notcontains $cmd ){ throw [Exception] "Expected one of (Clone,Fetch,Pull) instead of: $cmd"; }
                                                 [String] $dir = FsEntryGetAbsolutePath (GitBuildLocalDirFromUrl $tarRootDir $url);
-                                                [String[]] $out = $null;
+                                                [String] $out = "";
                                                 try{
-                                                  # old: if( $doChangeDir ){ OutProgressText "cd '$dir'; "; Push-Location -Path $dir; } # required depending on repo config
-                                                  # ex: remote: Counting objects: 123, done. \n Receiving objects: 56% (33/123)  0 (delta 0), 
-                                                  #       pack-reused ... \n Receiving objects: 100% (123/123), 205.12 KiB | 0 bytes/s, done. \n Resolving deltas: 100% (123/123), done.
                                                   [String[]] $gitArgs = @(); 
                                                   if( $cmd -eq "Clone" ){
                                                     # Writes to stderr: Cloning into 'c:\temp\test'...
@@ -1716,13 +1714,18 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                     $gitArgs = @( "-C", $dir, "--git-dir=.git", "fetch", "--quiet", $url);
                                                   }elseif( $cmd -eq "Pull" ){
                                                     # Defaults: "--no-rebase" "origin"; 
-                                                    # Writes to stderr: Checking out files:  47% (219/463)  Already up to date. From https://github.com/myrepo  * branch  HEAD  -> FETCH_HEAD
                                                     $gitArgs = @( "-C", $dir, "--git-dir=.git", "pull", "--quiet", "--no-stat", $url);
                                                   }else{ throw [Exception] "Unknown git cmd='$cmd'"; }
+                                                  # ex: "git" "-C" "C:\Temp\mniederw\myrepo" "--git-dir=.git" "pull" "--quiet" "--no-stat" "https://github.com/mniederw/myrepo"
                                                   $out = ProcessStart "git" $gitArgs $false $true; # care stderr as stdout
-                                                  if( $out.Contains("fatal: HttpRequestException encountered.") -or $out.Contains("Fehler beim Senden der Anforderung.") ){ throw [Exception] $out; }
+                                                  # Skip known unused strings which are written to stderr as:
+                                                  #   "Checking out files:  47% (219/463)" or "Checking out files: 100% (463/463), done."
+                                                  #   for future use, care: "Already up to date."
+                                                  $out = $out | Where-Object { -not ($_.StartsWith("Checking out files: ") -and ($_.EndsWith(")") -or $_.EndsWith(", done."))) };
                                                   OutSuccess "  Ok. $out";
                                                 }catch{
+                                                  # ex: fatal: HttpRequestException encountered.
+                                                  # ex: Fehler beim Senden der Anforderung.
                                                   # ex: fatal: AggregateException encountered.
                                                   # ex: Logon failed, use ctrl+c to cancel basic credential prompt.
                                                   # ex: remote: Repository not found. fatal: repository 'https://github.com/mniederw/UnknownRepo/' not found
@@ -1730,8 +1733,15 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   # ex: error: Your local changes to the following files would be overwritten by merge:
                                                   # ex: error: unknown option `anyUnknownOption'
                                                   # ex: fatal: refusing to merge unrelated histories
-                                                  $msg = "$(ScriptGetCurrentFunc)($cmd,$tarRootDir,$url) failed because $($_.Exception.Message)";
+                                                  $msg = "$(ScriptGetCurrentFunc)($cmd,$tarRootDir,$url) failed because $(StringReplaceNewlines $_.Exception.Message ' - ')";
+                                                  # ex: "  error: Your local changes to the following files would be overwritten by merge:"
+                                                  #     "        ....file..."
+                                                  #     "Aborting"
+                                                  #     "Please commit your changes or stash them before you merge."
                                                   ScriptResetRc;
+                                                  if( $cmd -eq "Pull" -and $msg.Contains("error: Your local changes to the following files would be overwritten by merge:") ){
+                                                    OutProgress "Note: If you would like to ignore and reset all local changes then call:  git -C `"$dir`" --git-dir=.git reset --hard origin/master";
+                                                  }
                                                   if( -not $errorAsWarning ){ throw [Exception] $msg; }
                                                   OutWarning $msg;
                                                 } }
@@ -2657,146 +2667,6 @@ function MnCommonPsToolLibSelfUpdate          ( [Boolean] $doWaitForEnterKeyIfFa
                                                 [String] $additionalOkUpdMsg = "`n  Please restart all processes which may have an old version of the modified env-vars before using functions of this library.";
                                                 [Boolean] $dummyResult = ToolPerformFileUpdateAndIsActualized $moduleFile $url $true $doWaitForEnterKeyIfFailed $additionalOkUpdMsg;
                                               }
-
-<#
-
-PS C:\Users\u4> . curl.exe -silent https://api.github.com/repos/mniederw/MnCommonPsToolLib/releases/latest
-HTTP/1.1 200 OK
-Server: GitHub.com
-Date: Fri, 22 Feb 2019 14:01:13 GMT
-Content-Type: application/json; charset=utf-8
-Content-Length: 1939
-Status: 200 OK
-X-RateLimit-Limit: 60
-X-RateLimit-Remaining: 59
-X-RateLimit-Reset: 1550847673
-Cache-Control: public, max-age=60, s-maxage=60
-Vary: Accept
-ETag: "eb3e2bc4bf23611ca481f2804d68c10d"
-Last-Modified: Thu, 17 Jan 2019 00:21:59 GMT
-X-GitHub-Media-Type: github.v3; format=json
-Access-Control-Expose-Headers: ETag, Link, Location, Retry-After, X-GitHub-OTP, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-OAuth-Scopes, X-Accepted-OAuth-Scopes, X-Poll-Interval, X-GitHub-Media-Type
-Access-Control-Allow-Origin: *
-Strict-Transport-Security: max-age=31536000; includeSubdomains; preload
-X-Frame-Options: deny
-X-Content-Type-Options: nosniff
-X-XSS-Protection: 1; mode=block
-Referrer-Policy: origin-when-cross-origin, strict-origin-when-cross-origin
-Content-Security-Policy: default-src 'none'
-X-GitHub-Request-Id: D5F6:0A71:105FC13:22E5D96:5C7000A8
-
-{
-  "url": "https://api.github.com/repos/mniederw/MnCommonPsToolLib/releases/15020068",
-  "assets_url": "https://api.github.com/repos/mniederw/MnCommonPsToolLib/releases/15020068/assets",
-  "upload_url": "https://uploads.github.com/repos/mniederw/MnCommonPsToolLib/releases/15020068/assets{?name,label}",
-  "html_url": "https://github.com/mniederw/MnCommonPsToolLib/releases/tag/V1.32",
-  "id": 15020068,
-  "node_id": "MDc6UmVsZWFzZTE1MDIwMDY4",
-  "tag_name": "V1.32",
-  "target_commitish": "master",
-  "name": "OpenSource-GPL3 MnCommonPsToolLib V1.32 en 2019-01-17",
-  "draft": false,
-  "author": {
-    "login": "mniederw",
-    "id": 23030598,
-    "node_id": "MDQ6VXNlcjIzMDMwNTk4",
-    "avatar_url": "https://avatars1.githubusercontent.com/u/23030598?v=4",
-    "gravatar_id": "",
-    "url": "https://api.github.com/users/mniederw",
-    "html_url": "https://github.com/mniederw",
-    "followers_url": "https://api.github.com/users/mniederw/followers",
-    "following_url": "https://api.github.com/users/mniederw/following{/other_user}",
-    "gists_url": "https://api.github.com/users/mniederw/gists{/gist_id}",
-    "starred_url": "https://api.github.com/users/mniederw/starred{/owner}{/repo}",
-    "subscriptions_url": "https://api.github.com/users/mniederw/subscriptions",
-    "organizations_url": "https://api.github.com/users/mniederw/orgs",
-    "repos_url": "https://api.github.com/users/mniederw/repos",
-    "events_url": "https://api.github.com/users/mniederw/events{/privacy}",
-    "received_events_url": "https://api.github.com/users/mniederw/received_events",
-    "type": "User",
-    "site_admin": false
-  },
-  "prerelease": false,
-  "created_at": "2019-01-17T00:19:21Z",
-  "published_at": "2019-01-17T00:21:59Z",
-  "assets": [
-
-  ],
-  "tarball_url": "https://api.github.com/repos/mniederw/MnCommonPsToolLib/tarball/V1.32",
-  "zipball_url": "https://api.github.com/repos/mniederw/MnCommonPsToolLib/zipball/V1.32",
-  "body": ""
-}
-PS C:\Users\u4> . curl.exe -silent "https://github.com/mniederw/MnCommonPsToolLib/archive/V1.32.zip" $env:TEMP\update.zip
-HTTP/1.1 302 Found
-Server: GitHub.com
-Date: Fri, 22 Feb 2019 14:02:57 GMT
-Content-Type: text/html; charset=utf-8
-Transfer-Encoding: chunked
-Status: 302 Found
-Vary: X-PJAX
-Location: https://codeload.github.com/mniederw/MnCommonPsToolLib/zip/V1.32
-Cache-Control: max-age=0, private
-Set-Cookie: has_recent_activity=1; path=/; expires=Fri, 22 Feb 2019 15:02:56 -0000
-Set-Cookie: logged_in=no; domain=.github.com; path=/; expires=Tue, 22 Feb 2039 14:02:57 -0000; secure; HttpOnly
-Set-Cookie: _gh_sess=V1ZnM09SSW5rNlR2cjNRbHhBaFVjVjVXS0cvK0pCa290b1YrM2dFK0NqYWtIWWpJNzFMOFlCL2VIUDZJWVRLZm9kRm53ZXJIUjhWcHlWVlR4V0ZnT05FaVJpakI5ZXNFTk1lTzMyRWgyMHFOOTRvMUZxaVRPOVZtNC9vUHJPWTlpZmRUYjNTcjVOanM5YWM5VlY5V1E0QW9VZUZ3QTErdFh1c3RXU2k5ZEp0T0FzL0N2ajZTZWlOd2gxM09KUFZQQjJQQzFPOEFsMVBYUTFHZXRjbXF1Yks5NGtHUFJMUWplaU9CNDcyTXRXcz0tLS9acWdkUUlyYzBISWFJaC9lRk0rM1E9PQ%3D%3D--1291dc727d041248e78b4e27d660175cc0c2ebd4; path=/; secure; HttpOnly
-X-Request-Id: d22449df-cd6a-4918-ada3-42e206cde77d
-Strict-Transport-Security: max-age=31536000; includeSubdomains; preload
-X-Frame-Options: deny
-X-Content-Type-Options: nosniff
-X-XSS-Protection: 1; mode=block
-Expect-CT: max-age=2592000, report-uri="https://api.github.com/_private/browser/errors"
-Content-Security-Policy: default-src 'none'; base-uri 'self'; block-all-mixed-content; connect-src 'self' uploads.github.com www.githubstatus.com collector.githubapp.com api.github.com www.google-analytics.com github-cloud.s3.amazonaws.com github-production-repository-file-5c1aeb.s3.amazonaws.com github-production-upload-manifest-file-7fdce7.s3.amazonaws.com github-production-user-asset-6210df.s3.amazonaws.com wss://live.github.com; font-src github.githubassets.com; form-action 'self' github.com gist.github.com; frame-ancestors 'none'; frame-src render.githubusercontent.com; img-src 'self' data: github.githubassets.com identicons.github.com collector.githubapp.com github-cloud.s3.amazonaws.com *.githubusercontent.com; manifest-src 'self'; media-src 'none'; script-src github.githubassets.com; style-src 'unsafe-inline' github.githubassets.com
-X-GitHub-Request-Id: D662:1495:B7C8CC:15C0338:5C700110
-
-<html><body>You are being <a href="https://codeload.github.com/mniederw/MnCommonPsToolLib/zip/V1.32">redirected</a>.</body></html>
-PS C:\Users\u4>
-
-
-
-
-
-
-
-. curl.exe "https://github.com/mniederw/MnCommonPsToolLib/releases/latest"
-<html><body>You are being <a href="https://github.com/mniederw/MnCommonPsToolLib/releases/tag/V1.32">redirected</a>.</body></html>
-https://github.com/mniederw/MnCommonPsToolLib/archive/V1.32.zip
-
-
-. curl.exe -silent -L "https://github.com/mniederw/MnCommonPsToolLib/releases/latest" | grep archive | grep ".zip"
-<a href="/mniederw/MnCommonPsToolLib/archive/V1.32.zip" rel="nofollow" class="d-flex flex-items-center">
-
-
-. curl.exe -silent https://api.github.com/repos/mniederw/MnCommonPsToolLib/releases/latest
-
-
-
-    - If installed as dev then no warning:
-
-        Check for update of C:\Program Files\WindowsPowerShell\Modules\MnCommonPsToolLib\MnCommonPsToolLib.psm1
-        from https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/master/MnCommonPsToolLib/MnCommonPsToolLib.psm1
-        update failed because Unexpected environment,
-				for updating it is required that target file previously exists but it does not: 
-				'C:\Program Files\WindowsPowerShell\Modules\MnCommonPsToolLib\MnCommonPsToolLib.psm1'
-        Touch: "D:\Work\Device\Computer_puma\BackupOfImportantFiles\TouchUpdateMnCommonPsToolLib.puma.txt"
-
-
-
-
-
-
-
-. curl.exe -silent "https://github.com/mniederw/MnCommonPsToolLib/archive/V1.32.zip" $env:TEMP\update.zip
-
-steps:
-- api
-- check timestamps
-
-doc: https://developer.github.com/v3/repos/releases/
-
-
-#>
-
-
 
 function MnLibCommonSelfTest(){ # perform some tests
   Assert ((2 + 3) -eq 5);

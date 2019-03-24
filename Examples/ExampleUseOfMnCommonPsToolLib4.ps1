@@ -34,10 +34,10 @@ function TestFsEntries(){
   [String[]] $a2 = $a | Select-Object -First 2;
   [Object[]] $o2 = $a2 | Select-Object @{Name="FileName";Expression={($_)}};
   OutProgress "  $a2";
-  OutProgress "View these files in xml format: $(StringReplaceNewlinesBySpaces ($a2 | StreamToXmlString))";
-  OutProgress "View these files in json format: $(StringReplaceNewlinesBySpaces ($a2 | StreamToJsonString))";
+  OutProgress "View these files in xml format: $(StringReplaceNewlines ($a2 | StreamToXmlString))";
+  OutProgress "View these files in json format: $(StringReplaceNewlines ($a2 | StreamToJsonString))";
   OutProgress "View these files in csv format: $($o2 | StreamToCsvStrings)";
-  OutProgress "View these files in html format: $(StringReplaceNewlinesBySpaces ($o2 | StreamToHtmlTableStrings))";
+  OutProgress "View these files in html format: $(StringReplaceNewlines ($o2 | StreamToHtmlTableStrings))";
 }
 
 function TestParallelScripts1 {

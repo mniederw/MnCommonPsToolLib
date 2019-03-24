@@ -3,6 +3,7 @@
 *.tmp
 *.suo
 *.cache
+*.vs
 
 # OS generated files
 .DS_Store
