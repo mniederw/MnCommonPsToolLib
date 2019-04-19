@@ -843,11 +843,12 @@ function FsEntryDeleteToRecycleBin            ( [String] $fsEntry ){
                                                 FsEntryAssertExists $e "Not exists: '$e'";
                                                 if( FsEntryIsDir $e ){ [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory($e,'OnlyErrorDialogs','SendToRecycleBin');
                                                 }else{                 [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($e,'OnlyErrorDialogs','SendToRecycleBin'); } }
-function FsEntryRename                        ( [String] $fsEntryFrom, [String] $fsEntryTo ){ 
+function FsEntryRename                        ( [String] $fsEntryFrom, [String] $fsEntryTo ){
+                                                # for files or dirs, relative or absolute, origin must exists, directory parts must be identic.
                                                 OutProgress "FsEntryRename '$fsEntryFrom' '$fsEntryTo'"; 
                                                 FsEntryAssertExists $fsEntryFrom; FsEntryAssertNotExists $fsEntryTo; 
                                                 Rename-Item -Path (FsEntryGetAbsolutePath (FsEntryRemoveTrailingBackslash $fsEntryFrom)) -newName (FsEntryGetAbsolutePath (FsEntryRemoveTrailingBackslash $fsEntryTo)) -force; }
-function FsEntryCreateSymLink                 ( [String] $newSymLink, [String] $fsEntryOrigin ){ # for files or dirs, relative or absolute origin must exists, its stupid but it requires elevated rights 
+function FsEntryCreateSymLink                 ( [String] $newSymLink, [String] $fsEntryOrigin ){
                                                 # (junctions (=~symlinksToDirs) do not) (https://superuser.com/questions/104845/permission-to-make-symbolic-links-in-windows-7/105381).
                                                 New-Item -ItemType SymbolicLink -Name (FsEntryEsc $newSymLink) -Value (FsEntryEsc $fsEntryOrigin); }
 function FsEntryCreateHardLink                ( [String] $newHardLink, [String] $fsEntryOrigin ){ # for files or dirs, origin must exists, it requires elevated rights.
