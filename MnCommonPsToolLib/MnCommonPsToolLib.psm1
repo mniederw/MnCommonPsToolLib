@@ -1719,8 +1719,9 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   # ex: "git" "-C" "C:\Temp\mniederw\myrepo" "--git-dir=.git" "pull" "--quiet" "--no-stat" "https://github.com/mniederw/myrepo"
                                                   [String] $out = ProcessStart "git" $gitArgs $true; # care stderr as stdout
                                                   # Skip known unused strings which are written to stderr as:
-                                                  #   "Checking out files:  47% (219/463)" or "Checking out files: 100% (463/463), done."
-                                                  #   The string "Already up to date." is presumebly suppressed by quiet option.
+                                                  # - "Checking out files:  47% (219/463)" or "Checking out files: 100% (463/463), done."
+                                                  # - warning: You appear to have cloned an empty repository.
+                                                  # - The string "Already up to date." is presumebly suppressed by quiet option.
                                                   StringSplitIntoLines $out | Where-Object{ -not [String]::IsNullOrWhiteSpace($_) } |
                                                     Where-Object { -not ($_.StartsWith("Checking out files: ") -and ($_.EndsWith(")") -or $_.EndsWith(", done."))) } |
                                                     ForEach-Object{ OutProgress $_; }
@@ -1735,6 +1736,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   # ex: error: Your local changes to the following files would be overwritten by merge:
                                                   # ex: error: unknown option `anyUnknownOption'
                                                   # ex: fatal: refusing to merge unrelated histories
+                                                  # ex: "fatal: Couldn't find remote ref HEAD"  (in case the repo contains no content)
                                                   $msg = "$(ScriptGetCurrentFunc)($cmd,$tarRootDir,$url) failed because $(StringReplaceNewlines $_.Exception.Message ' - ')";
                                                   # ex: "  error: Your local changes to the following files would be overwritten by merge:"
                                                   #     "        ....file..."
