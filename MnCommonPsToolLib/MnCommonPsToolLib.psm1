@@ -1701,6 +1701,7 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                 [String] $state = "TargetDir: $(FsEntryReportMeasureInfo "$tarDir") (BeforeStart: $stateBefore)";
                                                 FileAppendLineWithTs $logf $state;
                                                 OutProgress $state; }
+<# Script local variable: gitLogFile #>       [String] $script:gitLogFile = "$script:LogDir\Git.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
 function GitCmd                               ( [String] $cmd, [String] $tarRootDir, [String] $url, [Boolean] $errorAsWarning = $false ){
                                                 # ex: GitCmd Clone "C:\WorkGit" "https://github.com/mniederw/MnCommonPsToolLib"
                                                 # $cmd == "Clone": target dir must not exist.
@@ -1721,6 +1722,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                     $gitArgs = @( "-C", $dir, "--git-dir=.git", "pull", "--quiet", "--no-stat", $url);
                                                   }else{ throw [Exception] "Unknown git cmd='$cmd'"; }
                                                   # ex: "git" "-C" "C:\Temp\mniederw\myrepo" "--git-dir=.git" "pull" "--quiet" "--no-stat" "https://github.com/mniederw/myrepo"
+                                                  FileAppendLineWithTs $gitLogFile "GitCmd(`"$tarRootDir`",$url) git $gitArgs";
                                                   [String] $out = ProcessStart "git" $gitArgs $true; # care stderr as stdout
                                                   # Skip known unused strings which are written to stderr as:
                                                   # - "Checking out files:  47% (219/463)" or "Checking out files: 100% (463/463), done."

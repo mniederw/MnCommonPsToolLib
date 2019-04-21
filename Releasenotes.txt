@@ -4,6 +4,8 @@
 Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
 Current version can be requested by: $MnCommonPsToolLibVersion
 
+2019-04-21  V3.1   add progress to reg functions, fix RegistrySetValue, fix createlnk for filenames with brackets, git-pull ok if repo hs no content, add log for git.
+
 2019-03-23  V3.0   change ProcessStart return string instead of string array and remove outToProgress param, replace StringReplaceNewlinesBySpaces by StringReplaceNewlines(with space as default arg), improve git pull.
 
 2019-02-22  V2.0   remove unused var ModeDisallowElevation, replace var CurrentMonthIsoString by function DateTimeNowAsStringIsoMonth(), new ConsoleSetPos, refactor MnCommonPsToolLibSelfUpdate by using github release, removed ToolPerformFileUpdateAndIsActualized.
