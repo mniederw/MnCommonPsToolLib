@@ -2214,6 +2214,10 @@ function TfsCheckinDirWhenNoConflict          ( [String] $wsdir, [String] $tfsPa
                                                 }finally{
                                                   Set-Location $cd;
                                                 } }
+function TfsUndoAllLocksInDir                 ( [String] $dir ){ # Undo all locks below dir to cleanup a previous failed operation as from merging.
+                                                [String] $tfExe = (TfsExe);
+                                                OutProgress "'$tfExe' undo /noprompt /recursive '$dir'";
+                                                . $tfExe undo /noprompt /recursive $dir; }
 function SqlGetCmdExe                         (){ # old style. It is recommended to use: SqlPerformFile
                                                 [String] $k1 = "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\130\Tools\ClientSetup"; # sql server 2016
                                                 [String] $k2 = "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\120\Tools\ClientSetup"; # sql server 2014
