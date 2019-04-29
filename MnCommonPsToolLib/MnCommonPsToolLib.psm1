@@ -48,7 +48,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $MnCommonPsToolLibVersion = "3.0"; # more see Releasenotes.txt
+[String] $MnCommonPsToolLibVersion = "3.1"; # more see Releasenotes.txt
 
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 
@@ -579,9 +579,9 @@ function RegistryExistsValue                  ( [String] $key, [String] $name = 
                                                 [Object] $k = Get-Item -Path $key -ErrorAction SilentlyContinue; 
                                                 return [Boolean] $k -and $k.GetValue($name, $null) -ne $null; }
 function RegistryCreateKey                    ( [String] $key ){  # creates key if not exists
-                                                RegistryAssertIsKey $key; if( ! (RegistryExistsKey $key) ){ RegistryRequiresElevatedAdminMode $key; New-Item -Force -Path $key | Out-Null; } }
-function RegistryGetValueAsObject             ( [String] $key, [String] $name = ""){ 
-                                                RegistryAssertIsKey $key; if( $name -eq "" ){ $name = "(default)"; } # Return null if value not exists.
+                                                RegistryAssertIsKey $key; if( ! (RegistryExistsKey $key) ){ RegistryRequiresElevatedAdminMode $key; OutProgress "RegistryCreateKey `"$key`""; New-Item -Force -Path $key | Out-Null; } }
+function RegistryGetValueAsObject             ( [String] $key, [String] $name = ""){ # Return null if value not exists.
+                                                RegistryAssertIsKey $key; if( $name -eq "" ){ $name = "(default)"; }
                                                 [Object] $v = Get-ItemProperty -Path $key -Name $name -ErrorAction SilentlyContinue;
                                                 if( $v -eq $null ){ return [Object] $null; }else{ return [Object] $v.$name; } }
 function RegistryGetValueAsString             ( [String] $key, [String] $name = "" ){ # return empty string if value not exists
@@ -589,21 +589,24 @@ function RegistryGetValueAsString             ( [String] $key, [String] $name = 
 function RegistryListValueNames               ( [String] $key ){ 
                                                 RegistryAssertIsKey $key; return [String[]] (Get-Item -Path $key).GetValueNames(); } # Throws if key not found, if (default) value is assigned then empty string is returned for it.
 function RegistryDelKey                       ( [String] $key ){ 
-                                                RegistryAssertIsKey $key; if( !(RegistryExistsKey $key) ){ return; } RegistryRequiresElevatedAdminMode; Remove-Item -Path "$key"; }
+                                                RegistryAssertIsKey $key; if( !(RegistryExistsKey $key) ){ return; } RegistryRequiresElevatedAdminMode; OutProgress "RegistryDelKey `"$key`""; Remove-Item -Path "$key"; }
 function RegistryDelValue                     ( [String] $key, [String] $name = "" ){ 
                                                 RegistryAssertIsKey $key; if( $name -eq "" ){ $name = "(default)"; } 
                                                 if( !(RegistryExistsValue $key $name) ){ return; } 
-                                                RegistryRequiresElevatedAdminMode; Remove-ItemProperty -Path $key -Name $name; }
+                                                RegistryRequiresElevatedAdminMode;  OutProgress "RegistryDelValue `"$key`" `"$name`""; Remove-ItemProperty -Path $key -Name $name; }
 function RegistrySetValue                     ( [String] $key, [String] $name, [String] $type, [Object] $val, [Boolean] $overwriteEvenIfStringValueIsEqual = $false ){
                                                 # Creates key-value if it not exists; value is changed only if it is not equal than previous value; available types: Binary, DWord, ExpandString, MultiString, None, QWord, String, Unknown.
                                                 RegistryAssertIsKey $key; if( $name -eq "" ){ $name = "(default)"; } RegistryCreateKey $key; if( !$overwriteEvenIfStringValueIsEqual ){ 
-                                                  [Object] $obj = RegistryGetValueAsObject $key $name; if( $obj -ne $null -and $val -ne $null -and $obj.GetType() -eq $val.GetType() -and $obj.ToString() -eq $obj.ToString() ){ return; }
+                                                  [Object] $obj = RegistryGetValueAsObject $key $name;
+                                                  if( $obj -ne $null -and $val -ne $null -and $obj.GetType() -eq $val.GetType() -and $obj.ToString() -eq $val.ToString() ){ return; }
                                                 } 
-                                                try{ Set-ItemProperty -Path $key -Name $name -Type $type -Value $val; 
+                                                try{
+                                                  OutProgress "RegistrySetValue `"$key`" `"$name`" `"$type`" `"$val`""; 
+                                                  Set-ItemProperty -Path $key -Name $name -Type $type -Value $val; 
                                                 }catch{ # ex: SecurityException: Requested registry access is not allowed.
                                                   throw [Exception] "$(ScriptGetCurrentFunc)($key,$name) failed because $($_.Exception.Message) (often it requires elevated mode)"; } }                                                
 function RegistryImportFile                   ( [String] $regFile ){
-                                                OutProgress "RegistryImportFile '$regFile'"; FileAssertExists $regFile; 
+                                                OutProgress "RegistryImportFile '$regFile'"; FileAssertExists $regFile; OutProgress "RegistryImportFile `"$regFile`""; 
                                                 try{ <# stupid, it writes success to stderr #> & "$env:SystemRoot\system32\reg.exe" "IMPORT" $regFile 2>&1 | Out-Null; AssertRcIsOk; 
                                                 }catch{ <# ignore always: System.Management.Automation.RemoteException Der Vorgang wurde erfolgreich beendet. #> [String] $expectedMsg = "Der Vorgang wurde erfolgreich beendet."; 
                                                   if( $_.Exception.Message -ne $expectedMsg ){ throw [Exception] "$(ScriptGetCurrentFunc)('$regFile') failed. We expected an exc but this must match '$expectedMsg' but we got: '$($_.Exception.Message)'"; } ScriptResetRc; } }
@@ -630,13 +633,13 @@ function RegistryKeySetOwner                  ( [String] $key, [System.Security.
                                                 [System.Security.AccessControl.RegistrySecurity] $acl = RegistryKeyGetAcl $key; 
                                                 if( $acl.Owner -ne $account.Value ){ OutProgress "RegistryKeySetOwner `"$key`" `"$($account.ToString())`""; $acl.SetOwner($account); Set-Acl -Path $key -AclObject $acl; } }
 function RegistryKeySetOwnerForced            ( [String] $key, [System.Security.Principal.IdentityReference] $account ){ # use this if object is protected by TrustedInstaller
-                                                ProcessRestartInElevatedAdminMode; PrivEnableTokenPrivilege SeTakeOwnershipPrivilege; PrivEnableTokenPrivilege SeRestorePrivilege;
+                                                ProcessRestartInElevatedAdminMode; OutProgress "RegistryKeySetOwnerForced `"$key`" `"$account`""; PrivEnableTokenPrivilege SeTakeOwnershipPrivilege; PrivEnableTokenPrivilege SeRestorePrivilege;
                                                 try{ [Object] $k = (RegistryKeyGetHkey $key).OpenSubKey((RegistryKeyGetSubkey $key),[Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,[System.Security.AccessControl.RegistryRights]::TakeOwnership);
                                                 [Object] $acl = $k.GetAccessControl();
                                                 $acl.SetOwner($account); $k.SetAccessControl($acl); $k.Close();
                                                 }catch{ throw [Exception] "$(ScriptGetCurrentFunc)($key,$account) failed because $($_.Exception.Message)"; } }
 function RegistryKeySetAccessRuleForced       ( [String] $key, [System.Security.AccessControl.RegistryAccessRule] $rule ){ # Use this if object is protected by TrustedInstaller.
-                                                ProcessRestartInElevatedAdminMode; PrivEnableTokenPrivilege SeTakeOwnershipPrivilege; PrivEnableTokenPrivilege SeRestorePrivilege;
+                                                ProcessRestartInElevatedAdminMode; OutProgress "RegistryKeySetAccessRuleForced `"$key`" `"$rule`""; PrivEnableTokenPrivilege SeTakeOwnershipPrivilege; PrivEnableTokenPrivilege SeRestorePrivilege;
                                                 try{ [Object] $k = (RegistryKeyGetHkey $key).OpenSubKey((RegistryKeyGetSubkey $key),[Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,[System.Security.AccessControl.RegistryRights]::TakeOwnership);
                                                   [Object] $acl = $k.GetAccessControl();
                                                   $acl.SetAccessRule($rule); <# alternative: AddAccessRule #> $k.SetAccessControl($acl); $k.Close(); 
@@ -1698,6 +1701,7 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                 [String] $state = "TargetDir: $(FsEntryReportMeasureInfo "$tarDir") (BeforeStart: $stateBefore)";
                                                 FileAppendLineWithTs $logf $state;
                                                 OutProgress $state; }
+<# Script local variable: gitLogFile #>       [String] $script:gitLogFile = "$script:LogDir\Git.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
 function GitCmd                               ( [String] $cmd, [String] $tarRootDir, [String] $url, [Boolean] $errorAsWarning = $false ){
                                                 # ex: GitCmd Clone "C:\WorkGit" "https://github.com/mniederw/MnCommonPsToolLib"
                                                 # $cmd == "Clone": target dir must not exist.
@@ -1718,10 +1722,12 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                     $gitArgs = @( "-C", $dir, "--git-dir=.git", "pull", "--quiet", "--no-stat", $url);
                                                   }else{ throw [Exception] "Unknown git cmd='$cmd'"; }
                                                   # ex: "git" "-C" "C:\Temp\mniederw\myrepo" "--git-dir=.git" "pull" "--quiet" "--no-stat" "https://github.com/mniederw/myrepo"
+                                                  FileAppendLineWithTs $gitLogFile "GitCmd(`"$tarRootDir`",$url) git $gitArgs";
                                                   [String] $out = ProcessStart "git" $gitArgs $true; # care stderr as stdout
                                                   # Skip known unused strings which are written to stderr as:
-                                                  #   "Checking out files:  47% (219/463)" or "Checking out files: 100% (463/463), done."
-                                                  #   The string "Already up to date." is presumebly suppressed by quiet option.
+                                                  # - "Checking out files:  47% (219/463)" or "Checking out files: 100% (463/463), done."
+                                                  # - warning: You appear to have cloned an empty repository.
+                                                  # - The string "Already up to date." is presumebly suppressed by quiet option.
                                                   StringSplitIntoLines $out | Where-Object{ -not [String]::IsNullOrWhiteSpace($_) } |
                                                     Where-Object { -not ($_.StartsWith("Checking out files: ") -and ($_.EndsWith(")") -or $_.EndsWith(", done."))) } |
                                                     ForEach-Object{ OutProgress $_; }
@@ -1736,6 +1742,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   # ex: error: Your local changes to the following files would be overwritten by merge:
                                                   # ex: error: unknown option `anyUnknownOption'
                                                   # ex: fatal: refusing to merge unrelated histories
+                                                  # ex: "fatal: Couldn't find remote ref HEAD"  (in case the repo contains no content)
                                                   $msg = "$(ScriptGetCurrentFunc)($cmd,$tarRootDir,$url) failed because $(StringReplaceNewlines $_.Exception.Message ' - ')";
                                                   # ex: "  error: Your local changes to the following files would be overwritten by merge:"
                                                   #     "        ....file..."
@@ -1744,6 +1751,9 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   ScriptResetRc;
                                                   if( $cmd -eq "Pull" -and $msg.Contains("error: Your local changes to the following files would be overwritten by merge:") ){
                                                     OutProgress "Note: If you would like to ignore and reset all local changes then call:  git -C `"$dir`" --git-dir=.git reset --hard origin/master";
+                                                  }
+                                                  if( $cmd -eq "Pull" -and $msg.Contains("fatal: Couldn't find remote ref HEAD") ){
+                                                    OutSuccess "  Ok, repository has no content."; return;
                                                   }
                                                   if( -not $errorAsWarning ){ throw [Exception] $msg; }
                                                   OutWarning $msg;
@@ -2612,7 +2622,7 @@ function ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [Strin
                                                     try{
                                                       FsEntryCreateParentDir $lnkFile;
                                                       [Object] $wshShell = New-Object -comObject WScript.Shell;
-                                                      [Object] $s = $wshShell.CreateShortcut((FsEntryEsc $lnkFile));
+                                                      [Object] $s = $wshShell.CreateShortcut($lnkFile); # do not use FsEntryEsc otherwise [ will be created as `[
                                                       $s.TargetPath = FsEntryEsc $srcFile;
                                                       $s.Arguments = $argLine; 
                                                       $s.WorkingDirectory = FsEntryEsc $workDir; 
@@ -2865,6 +2875,10 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #     if( $r -eq $null ){ write-host "never reached"; }   if( -not ($r -eq $null) ){ write-host "ok reached"; }
 #     if( $r -ne $null ){ write-host "never reached"; }   if( -not ($r -ne $null) ){ write-host "ok reached"; }
 #     Recommendation: Make sure an array variable is never null.
+#   - Variable name conflict: ... | ForEach-Object { [String[]] $a = $_; ... }; [Array] $a = ...;
+#     Can result in:  SessionStateUnauthorizedAccessException: Cannot overwrite variable a because the variable has been optimized. 
+#       Try using the New-Variable or Set-Variable cmdlet (without any aliases), or dot-source the command that you are using to set the variable.
+#     Recommendation: Rename one of the variables.
 # - Standard module paths:
 #   - %windir%\system32\WindowsPowerShell\v1.0\Modules    location for windows modules for all users
 #   - %ProgramW6432%\WindowsPowerShell\Modules\           location for any modules     for all users
