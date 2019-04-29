@@ -242,7 +242,7 @@ Function ConsoleSetPos                        ( [Int32] $x, [Int32] $y ){
                                                 [RECT] $r = New-Object RECT; [Object] $hd = (Get-Process -ID $PID).MainWindowHandle;
                                                 [Object] $t = [Window]::GetWindowRect($hd,[ref]$r);
                                                 [Int32] $w = $r.Right - $r.Left; [Int32] $h = $r.Bottom - $r.Top;
-                                                If( $t ){ [Window]::MoveWindow($hd, $x, $y, $w, $h, $true); } }
+                                                If( $t ){ [Boolean] $dummy = [Window]::MoveWindow($hd, $x, $y, $w, $h, $true); } }
 function ConsoleSetGuiProperties              (){ # set standard sizes which makes sense, display-hight 46 lines for HD with 125% zoom.
                                                   [Object] $pshost = get-host; 
                                                   [Object] $w = $pshost.ui.rawui; $w.windowtitle = "$PSCommandPath"; $w.foregroundcolor = "Gray"; 
