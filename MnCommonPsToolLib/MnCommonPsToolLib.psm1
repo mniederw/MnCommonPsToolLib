@@ -2108,7 +2108,103 @@ function SvnTortoiseCommitAndUpdate           ( [String] $workDir, [String] $svn
                                                   FileAppendLineWithTs $svnLogFile (StringFromException $_.Exception);
                                                   throw;
                                                 } }
-function SqlGetCmdExe                         (){
+function TfsExe                               (){ # return tfs executable
+                                                [String[]] $a = @(
+                                                  (FsEntryMakeAbsolutePath "$env:VS140COMNTOOLS\..\IDE\TF.exe"),
+                                                  (FsEntryMakeAbsolutePath "$env:VS120COMNTOOLS\..\IDE\TF.exe"),
+                                                  (FsEntryMakeAbsolutePath "$env:VS100COMNTOOLS\..\IDE\TF.exe") );
+                                                foreach( $i in $a ){ if( FileExists $i ) { return [String] $i; } }
+                                                throw [Exception] "Missing one of the files: $a"; }
+                                                # for future use: tf.exe checkout /lock:checkout /recursive file
+                                                # for future use: tf.exe merge /baseless /recursive /version:C234~C239 branchFrom branchTo
+                                                # for future use: tf.exe workfold /workspace:ws /cloak 
+<# Script local variable: tfsLogFile #>       [String] $script:tfsLogFile = "$script:LogDir\Tfs.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
+function TfsGetNewestNoOverwrite              ( [String] $wsdir, [String] $tfsPath ){ # ex: TfsGetNewestNoOverwrite C:\MyWorkspace\Src $/Src
+                                                [String] $tfExe = (TfsExe);
+                                                OutProgress "CD '$wsdir'; '$tfExe' get /noprompt /recursive /version:T '$tfsPath' ";
+                                                FileAppendLineWithTs $tfsLogFile "TfsGetNewestNoOverwrite(`"$wsdir`",`"$tfsPath`")";
+                                                [String] $cd = (Get-Location);
+                                                Set-Location $wsdir;
+                                                try{ [String[]] $a = @()+(& "$tfExe" get /noprompt /recursive /version:T $tfsPath); # Output: "Alle Dateien sind auf dem neuesten Stand."
+                                                  if( $a.Count -gt 0 ){ $a | ForEach-Object { OutProgress "  $_"; }; }
+                                                }finally{ Set-Location $cd; } }
+
+function TfsListOwnLocks                      ( [String] $wsdir, [String] $tfsPath ){
+                                                [String] $tfExe = (TfsExe);
+                                                OutProgress "CD '$wsdir'; '$tfExe' status /noprompt /recursive /format:brief '$tfsPath' ";
+                                                [String] $cd = (Get-Location);
+                                                Set-Location $wsdir;
+                                                try{
+                                                  [String[]] $a = @()+((& "$tfExe" status /noprompt /recursive /format:brief $tfsPath 2>&1 ) | Select-Object -Skip 2 | Where-Object { -not [String]::IsNullOrWhiteSpace($_) });
+                                                  # ex:
+                                                  #    Dateiname    Ändern     Lokaler Pfad
+                                                  #    ------------ ---------- -------------------------------------
+                                                  #    $/Src/MyBranch
+                                                  #    MyFile.txt   bearbeiten C:\MyWorkspace\Src\MyBranch\MyFile.txt
+                                                  #    
+                                                  #    1 Änderungen
+                                                  # ex: Es sind keine ausstehenden Änderungen vorhanden.
+                                                  return [String[]] $a;
+                                                }finally{
+                                                  Set-Location $cd;
+                                                } }
+function TfsAssertNoLocksInDir                ( [String] $wsdir, [String] $tfsPath ){ # ex: "C:\MyWorkspace" "$/Src";
+                                                [String[]] $allLocks = @()+(TfsListOwnLocks $wsdir $tfsPath);
+                                                if( $allLocks.Count -gt 0 ){
+                                                  $allLocks | Foreach { OutProgress "Found Lock: $_"; };
+                                                  throw [Exception] "Assertion failed because there exists pending locks under '$tfsPath'"; 
+                                                } }
+function TfsMergeDir                          ( [String] $wsdir, [String] $tfsPath, [String] $tfsTargetBranch ){
+                                                [String] $tfExe = (TfsExe);
+                                                OutProgress "CD '$wsdir'; '$tfExe' merge /noprompt /recursive /format:brief /version:T '$tfsPath' '$tfsTargetBranch' ";
+                                                [String] $cd = (Get-Location);
+                                                Set-Location $wsdir;
+                                                try{
+                                                  [String[]] $a = (& "$tfExe" merge /noprompt /recursive /format:brief /version:T "$tfsPath" "$tfsTargetBranch"); # later we would like to suppres stderr
+                                                  ScriptResetRc;
+                                                  # ex:
+                                                  #    Konflikt ("mergen, bearbeiten"): $/Src/MyBranch1/MyFile.txt;C123~C129 -> $/Src/MyBranch2/MyFile.txt;C121
+                                                  #    3 Konflikte. Geben Sie "/format:detailed" an, um die einzelnen Konflikte in der Zusammenfassung aufzulisten.
+                                                  #    mergen, bearbeiten: $/Src/MyBranch1/MyFile2.txt;C123~C129 -> $/Src/MyBranch2/MyFile2.txt;C121
+                                                  #    The item $/Src/MyBranch1/MyFile2.txt is locked for check-out by MyDomain\MyUser in workspace MYMACH.
+                                                  #    
+                                                  #    ---- Zusammenfassung: 31 Konflikte, 0 Warnungen, 0 Fehler ----
+                                                  # does not work: | Where-Object { $_ -contains "---- Zusammenfassung:*" }
+                                                  #
+                                                  #return [String[]] $a;
+                                                #}catch{ ScriptResetRc; OutProgress "Ignoring Error: $($_.Exception)";
+                                                }finally{
+                                                  Set-Location $cd;
+                                                } }
+function TfsResolveMergeConflict              ( [String] $wsdir, [String] $tfsPath, [Boolean] $keepTargetAndNotTakeSource ){
+                                                [String] $tfExe = (TfsExe);
+                                                [String] $resolveMode = switch( $keepTargetAndNotTakeSource ){ $true{"TakeTheirs"} $false{"AcceptYours"} };
+                                                OutProgress "CD '$wsdir'; '$tfExe' resolve /noprompt /recursive /auto:$resolveMode '$tfsPath' ";
+                                                [String] $cd = (Get-Location);
+                                                Set-Location $wsdir;
+                                                try{
+                                                  [String[]] $a = (& "$tfExe" resolve /noprompt /recursive /auto:$resolveMode "$tfsPath" );
+                                                #}catch{ ScriptResetRc; OutProgress "Ignoring Error: $($_.Exception)";
+                                                }finally{
+                                                  Set-Location $cd;
+                                                } }
+function TfsCheckinDirWhenNoConflict          ( [String] $wsdir, [String] $tfsPath, [String] $comment, [Boolean] $handleErrorsAsWarnings ){
+                                                [String] $tfExe = (TfsExe);
+                                                OutProgress "CD '$wsdir'; '$tfExe' checkin /noprompt /recursive /noautoresolve /comment:'$comment' $tfsPath ";
+                                                [String] $cd = (Get-Location);
+                                                Set-Location $wsdir;
+                                                try{
+                                                  # Note: sometimes it seem to write this to stderror:
+                                                  #  "Es sind keine ausstehenden Änderungen vorhanden, die mit den angegebenen Elementen übereinstimmen.\nEs wurden keine Dateien eingecheckt."
+                                                  [String[]] $a = (& "$tfExe" checkin /noprompt /recursive /noautoresolve /comment:"$comment" $tfsPath);
+                                                  ScriptResetRc;
+                                                }catch{
+                                                  if( -not $handleErrorsAsWarnings ){ throw; }
+                                                  OutWarning "Warning: Ignoring checkin problem which requires manually resolving: $($_.Exception.Message)";
+                                                }finally{
+                                                  Set-Location $cd;
+                                                } }
+function SqlGetCmdExe                         (){ # old style. It is recommended to use: SqlPerformFile
                                                 [String] $k1 = "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\130\Tools\ClientSetup"; # sql server 2016
                                                 [String] $k2 = "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\120\Tools\ClientSetup"; # sql server 2014
                                                 [String] $k3 = "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\110\Tools\ClientSetup"; # sql server 2012
@@ -2121,7 +2217,7 @@ function SqlGetCmdExe                         (){
                                                 else { throw [Exception] "Wether Sql Server 2016, 2014, 2012 nor 2008 is installed, so cannot find sqlcmd.exe"; }
                                                 [String] $sqlcmd = (RegistryGetValueAsString $k "Path") + "sqlcmd.EXE"; # "C:\Program Files\Microsoft SQL Server\130\Tools\Binn\sqlcmd.EXE"
                                                 return [String] $sqlcmd; }
-function SqlRunScriptFile                     ( [String] $sqlserver, [String] $sqlfile, [String] $outFile, [Boolean] $continueOnErr ){
+function SqlRunScriptFile                     ( [String] $sqlserver, [String] $sqlfile, [String] $outFile, [Boolean] $continueOnErr ){ # old style. It is recommended to use: SqlPerformFile
                                                 FileAssertExists $sqlfile;
                                                 OutProgress "SqlRunScriptFile sqlserver=$sqlserver sqlfile='$sqlfile' out='$outfile' contOnErr=$continueOnErr";
                                                 [String] $sqlcmd = SqlGetCmdExe;
