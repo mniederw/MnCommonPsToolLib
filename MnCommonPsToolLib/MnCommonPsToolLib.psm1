@@ -1733,7 +1733,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   # - warning: You appear to have cloned an empty repository.
                                                   # - The string "Already up to date." is presumebly suppressed by quiet option.
                                                   StringSplitIntoLines $out | Where-Object{ -not [String]::IsNullOrWhiteSpace($_) } |
-                                                    Where-Object { -not ($_.StartsWith(" Checking out files: ") -and ($_.EndsWith(")") -or $_.EndsWith(", done."))) } |
+                                                    Where-Object { -not ($_.StartsWith("Checking out files: ") -and ($_.EndsWith(")") -or $_.EndsWith(", done."))) } |
                                                     ForEach-Object{ OutProgress $_; }
                                                   OutSuccess "  Ok, usedTimeInSec=$([Int64]($usedTime.Elapsed.TotalSeconds+0.999)).";
                                                 }catch{
