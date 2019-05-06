@@ -247,10 +247,11 @@ function ConsoleSetGuiProperties              (){ # set standard sizes which mak
                                                   [Object] $pshost = get-host; 
                                                   [Object] $w = $pshost.ui.rawui; $w.windowtitle = "$PSCommandPath"; $w.foregroundcolor = "Gray"; 
                                                   $w.backgroundcolor = switch(ProcessIsRunningInElevatedAdminMode){($true){"DarkMagenta"}default{"DarkBlue";}}; 
-                                                  # for future use: $ = $host.PrivateData; $.VerboseForegroundColor = "white"; $.VerboseBackgroundColor = "blue"; $.WarningForegroundColor = "yellow"; $.WarningBackgroundColor = "darkgreen"; $.ErrorForegroundColor = "white"; $.ErrorBackgroundColor = "red";
-                                                  [Object] $n = $w.buffersize; $n.height = 9999; $n.width = 300; $w.buffersize = $n;
+                                                  # for future use: $ = $host.PrivateData; $.VerboseForegroundColor = "white"; $.VerboseBackgroundColor = "blue"; 
+												  #   $.WarningForegroundColor = "yellow"; $.WarningBackgroundColor = "darkgreen"; $.ErrorForegroundColor = "white"; $.ErrorBackgroundColor = "red";
                                                   if( $w.WindowSize -ne $null ){ # is null in case of powershell-ISE
-                                                    [Object] $m = $w.windowsize; $m.height =   48; $m.width = 150; $w.windowsize = $m; ConsoleSetPos 40 40; } }
+                                                    [Object] $m = $w.windowsize; $m.height =   48; $m.width = 150; $w.windowsize = $m; ConsoleSetPos 40 40; }
+                                                  [Object] $buf = $w.buffersize; $buf.height = 9999; $buf.width = 300; $w.buffersize = $buf; <# set buffer after setting window sizes #> }
 function StdInAssertAllowInteractions         (){ if( $global:ModeDisallowInteractions ){ throw [Exception] "Cannot read for input because all interactions are disallowed, either caller should make sure variable ModeDisallowInteractions is false or he should not call an input method."; } }
 function StdInReadLine                        ( [String] $line ){ Write-Host -ForegroundColor Cyan -nonewline $line; StdInAssertAllowInteractions; return [String] (Read-Host); }
 function StdInReadLinePw                      ( [String] $line ){ Write-Host -ForegroundColor Cyan -nonewline $line; StdInAssertAllowInteractions; return [System.Security.SecureString] (Read-Host -AsSecureString); }
@@ -1712,6 +1713,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                 if( @("Clone","Fetch","Pull") -notcontains $cmd ){ throw [Exception] "Expected one of (Clone,Fetch,Pull) instead of: $cmd"; }
                                                 [String] $dir = FsEntryGetAbsolutePath (GitBuildLocalDirFromUrl $tarRootDir $url);
                                                 try{
+												  [Object] $usedTime = [System.Diagnostics.Stopwatch]::StartNew();
                                                   [String[]] $gitArgs = @(); 
                                                   if( $cmd -eq "Clone" ){
                                                     # Writes to stderr: Cloning into 'c:\temp\test'...
@@ -1731,9 +1733,9 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   # - warning: You appear to have cloned an empty repository.
                                                   # - The string "Already up to date." is presumebly suppressed by quiet option.
                                                   StringSplitIntoLines $out | Where-Object{ -not [String]::IsNullOrWhiteSpace($_) } |
-                                                    Where-Object { -not ($_.StartsWith("Checking out files: ") -and ($_.EndsWith(")") -or $_.EndsWith(", done."))) } |
+                                                    Where-Object { -not ($_.StartsWith(" Checking out files: ") -and ($_.EndsWith(")") -or $_.EndsWith(", done."))) } |
                                                     ForEach-Object{ OutProgress $_; }
-                                                  OutSuccess "  Ok.";
+                                                  OutSuccess "  Ok, usedTimeInSec=$([Int64]($usedTime.Elapsed.TotalSeconds+0.999)).";
                                                 }catch{
                                                   # ex: fatal: HttpRequestException encountered.
                                                   # ex: Fehler beim Senden der Anforderung.
@@ -1991,10 +1993,12 @@ function SvnStatus                            ( [String] $workDir, [Boolean] $sh
                                                 OutVerbose "SvnStatus - List pending changes";
                                                 [String[]] $out = & (SvnExe) "status" $workDir; AssertRcIsOk $out;
                                                 FileAppendLines $svnLogFile (StringArrayInsertIndent $out 2);
-                                                [Int32] $nrOfPendingChanges = $out | wc -l; # maybe we can ignore lines with '!'
-                                                OutProgress "NrOfPendingChanged=$nrOfPendingChanges";
-                                                FileAppendLineWithTs $svnLogFile "  NrOfPendingChanges=$nrOfPendingChanges";
-                                                [Boolean] $hasAnyChange = $nrOfPendingChanges -gt 0;
+                                                [Int32] $nrOfPendingChanges = $out | wc -l;
+                                                [Int32] $nrOfCommitRelevantChanges = $out | 
+												  Where-Object { -not $_.StartsWith("!") } | wc -l; # ignore lines with leading '!' because these would not occurre in commit dialog
+                                                OutProgress "NrOfPendingChanged=$nrOfPendingChanges;  NrOfCommitRelevantChanges=$nrOfCommitRelevantChanges;";
+                                                FileAppendLineWithTs $svnLogFile "  NrOfPendingChanges=$nrOfPendingChanges;  NrOfCommitRelevantChanges=$nrOfCommitRelevantChanges;";
+                                                [Boolean] $hasAnyChange = $nrOfCommitRelevantChanges -gt 0;
                                                 if( $showFiles -and $hasAnyChange ){ $out | %{ OutProgress $_; }; }
                                                 return [Boolean] $hasAnyChange; }
 function SvnRevert                            ( [String] $workDir, [String[]] $relativeRevertFsEntries ){
