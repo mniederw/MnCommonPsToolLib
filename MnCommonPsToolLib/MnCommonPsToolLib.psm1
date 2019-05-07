@@ -1732,7 +1732,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   # - "Checking out files:  47% (219/463)" or "Checking out files: 100% (463/463), done."
                                                   # - warning: You appear to have cloned an empty repository.
                                                   # - The string "Already up to date." is presumebly suppressed by quiet option.
-                                                  StringSplitIntoLines $out | Where-Object{ -not [String]::IsNullOrWhiteSpace($_) } |
+                                                  StringSplitIntoLines $out | Where-Object{ -not [String]::IsNullOrWhiteSpace($_) } | ForEach-Object { $_.Trim() } |
                                                     Where-Object { -not ($_.StartsWith("Checking out files: ") -and ($_.EndsWith(")") -or $_.EndsWith(", done."))) } |
                                                     ForEach-Object{ OutProgress $_; }
                                                   OutSuccess "  Ok, usedTimeInSec=$([Int64]($usedTime.Elapsed.TotalSeconds+0.999)).";
@@ -1994,8 +1994,7 @@ function SvnStatus                            ( [String] $workDir, [Boolean] $sh
                                                 [String[]] $out = & (SvnExe) "status" $workDir; AssertRcIsOk $out;
                                                 FileAppendLines $svnLogFile (StringArrayInsertIndent $out 2);
                                                 [Int32] $nrOfPendingChanges = $out | wc -l;
-                                                [Int32] $nrOfCommitRelevantChanges = $out | 
-												  Where-Object { -not $_.StartsWith("!") } | wc -l; # ignore lines with leading '!' because these would not occurre in commit dialog
+                                                [Int32] $nrOfCommitRelevantChanges = $out | Where-Object { $_ -ne $null -and -not $_.StartsWith("!") } | wc -l; # ignore lines with leading '!' because these would not occurre in commit dialog
                                                 OutProgress "NrOfPendingChanged=$nrOfPendingChanges;  NrOfCommitRelevantChanges=$nrOfCommitRelevantChanges;";
                                                 FileAppendLineWithTs $svnLogFile "  NrOfPendingChanges=$nrOfPendingChanges;  NrOfCommitRelevantChanges=$nrOfCommitRelevantChanges;";
                                                 [Boolean] $hasAnyChange = $nrOfCommitRelevantChanges -gt 0;
