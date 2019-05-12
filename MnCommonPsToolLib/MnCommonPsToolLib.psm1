@@ -48,7 +48,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $MnCommonPsToolLibVersion = "3.3"; # more see Releasenotes.txt
+[String] $MnCommonPsToolLibVersion = "3.4"; # more see Releasenotes.txt
 
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 
@@ -363,7 +363,8 @@ function OutProgressText                      ( [String] $str  ){ if( $Global:Mo
 function OutVerbose                           ( [String] $line ){ Write-Verbose -Message $line; } # Output depends on $VerbosePreference, used tracing read or network operations
 function OutDebug                             ( [String] $line ){ Write-Debug -Message $line; } # Output depends on $DebugPreference, used tracing read or network operations
 function OutClear                             (){ Clear-Host; }
-function ProcessFindExecutableInPath          ( [String] $exec ){ [Object] $p = (Get-Command $exec -ErrorAction SilentlyContinue); if( $p -eq $null ){ return [String] ""; } return [String] $p.Source; } # Return full path or empty if not found.
+function ProcessFindExecutableInPath          ( [String] $exec ){ # Return full path or empty if not found.
+                                                [Object] $p = (Get-Command $exec -ErrorAction SilentlyContinue); if( $p -eq $null ){ return [String] ""; } return [String] $p.Source; }
 function ProcessIsRunningInElevatedAdminMode  (){ return [Boolean] ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"); }
 function ProcessAssertInElevatedAdminMode     (){ if( -not (ProcessIsRunningInElevatedAdminMode) ){ throw [Exception] "Assertion failed because requires to be in elevated admin mode"; } }
 function ProcessRestartInElevatedAdminMode    (){ if( -not (ProcessIsRunningInElevatedAdminMode) ){
@@ -789,9 +790,10 @@ function FsEntryNotExistsOrIsOlderThanNrDays  ( [String] $fsEntry, [Int32] $maxA
                                                 return [Boolean] ((FsEntryNotExists $fsEntry) -or ((FsEntryGetLastModified $fsEntry).AddDays($maxAgeInDays) -lt (Get-Date))); }
 function FsEntrySetAttributeReadOnly          ( [String] $fsEntry, [Boolean] $val ){ 
                                                 OutProgress "FsFileSetAttributeReadOnly $fsEntry $val"; Set-ItemProperty (FsEntryEsc $fsEntry) -name IsReadOnly -value $val; }
-function FsEntryFindFlatSingleByPattern       ( [String] $fsEntryPattern ){ 
+function FsEntryFindFlatSingleByPattern       ( [String] $fsEntryPattern, [Boolean] $allowNotFound = $false ){
+                                                # it throws if file not found or more than one file exists. if allowNotFound is true then if return empty if not found.
                                                 [System.IO.FileSystemInfo[]] $r = @()+(Get-ChildItem -Force -ErrorAction SilentlyContinue -Path $fsEntryPattern);
-                                                if( $r.Count -eq 0 ){ throw [Exception] "No file exists: `"$fsEntryPattern`""; }
+                                                if( $r.Count -eq 0 ){ if( $allowNotFound ){ return [String] ""; } throw [Exception] "No file exists: `"$fsEntryPattern`""; }
                                                 if( $r.Count -gt 1 ){ throw [Exception] "More than one file exists: `"$fsEntryPattern`""; }
                                                 return [String] $r[0].FullName; }
 function FsEntryFsInfoFullNameDirWithBackSlash( [System.IO.FileSystemInfo] $fsInfo ){ return [String] ($fsInfo.FullName+$(switch($fsInfo.PSIsContainer){($true){"\"}default{""}})); }

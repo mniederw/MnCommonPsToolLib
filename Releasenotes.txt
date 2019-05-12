@@ -4,6 +4,8 @@
 Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
 Current version can be requested by: $MnCommonPsToolLibVersion
 
+2019-05-11  V3.4   extend FsEntryFindFlatSingleByPattern
+
 2019-05-06  V3.3   set doublequotes instead of quotes in log strings, improve svn changes detections for committing, git pull used time, fix console buffer sizes.
 
 2019-04-29  V3.2   add tfs functions.
