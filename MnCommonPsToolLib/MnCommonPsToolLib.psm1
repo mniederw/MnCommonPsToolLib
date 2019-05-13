@@ -249,9 +249,10 @@ function ConsoleSetGuiProperties              (){ # set standard sizes which mak
                                                   $w.backgroundcolor = switch(ProcessIsRunningInElevatedAdminMode){($true){"DarkMagenta"}default{"DarkBlue";}}; 
                                                   # for future use: $ = $host.PrivateData; $.VerboseForegroundColor = "white"; $.VerboseBackgroundColor = "blue"; 
 												  #   $.WarningForegroundColor = "yellow"; $.WarningBackgroundColor = "darkgreen"; $.ErrorForegroundColor = "white"; $.ErrorBackgroundColor = "red";
+                                                  [Object] $buf = $w.buffersize; $buf.height = 9999; $buf.width = 300; $w.buffersize = $buf; <# set buffer sizes befor setting window sizes otherwise PSArgumentOutOfRangeException: Window cannot be wider than the screen buffer. #> 
                                                   if( $w.WindowSize -ne $null ){ # is null in case of powershell-ISE
                                                     [Object] $m = $w.windowsize; $m.height =   48; $m.width = 150; $w.windowsize = $m; ConsoleSetPos 40 40; }
-                                                  [Object] $buf = $w.buffersize; $buf.height = 9999; $buf.width = 300; $w.buffersize = $buf; <# set buffer after setting window sizes #> }
+                                                  }
 function StdInAssertAllowInteractions         (){ if( $global:ModeDisallowInteractions ){ throw [Exception] "Cannot read for input because all interactions are disallowed, either caller should make sure variable ModeDisallowInteractions is false or he should not call an input method."; } }
 function StdInReadLine                        ( [String] $line ){ Write-Host -ForegroundColor Cyan -nonewline $line; StdInAssertAllowInteractions; return [String] (Read-Host); }
 function StdInReadLinePw                      ( [String] $line ){ Write-Host -ForegroundColor Cyan -nonewline $line; StdInAssertAllowInteractions; return [System.Security.SecureString] (Read-Host -AsSecureString); }
