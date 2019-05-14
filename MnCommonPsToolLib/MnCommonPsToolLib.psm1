@@ -248,7 +248,7 @@ function ConsoleSetGuiProperties              (){ # set standard sizes which mak
                                                   [Object] $w = $pshost.ui.rawui; $w.windowtitle = "$PSCommandPath"; $w.foregroundcolor = "Gray"; 
                                                   $w.backgroundcolor = switch(ProcessIsRunningInElevatedAdminMode){($true){"DarkMagenta"}default{"DarkBlue";}}; 
                                                   # for future use: $ = $host.PrivateData; $.VerboseForegroundColor = "white"; $.VerboseBackgroundColor = "blue"; 
-												  #   $.WarningForegroundColor = "yellow"; $.WarningBackgroundColor = "darkgreen"; $.ErrorForegroundColor = "white"; $.ErrorBackgroundColor = "red";
+                                                  #   $.WarningForegroundColor = "yellow"; $.WarningBackgroundColor = "darkgreen"; $.ErrorForegroundColor = "white"; $.ErrorBackgroundColor = "red";
                                                   [Object] $buf = $w.buffersize; $buf.height = 9999; $buf.width = 300; $w.buffersize = $buf; <# set buffer sizes befor setting window sizes otherwise PSArgumentOutOfRangeException: Window cannot be wider than the screen buffer. #> 
                                                   if( $w.WindowSize -ne $null ){ # is null in case of powershell-ISE
                                                     [Object] $m = $w.windowsize; $m.height =   48; $m.width = 150; $w.windowsize = $m; ConsoleSetPos 40 40; }
@@ -1716,7 +1716,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                 if( @("Clone","Fetch","Pull") -notcontains $cmd ){ throw [Exception] "Expected one of (Clone,Fetch,Pull) instead of: $cmd"; }
                                                 [String] $dir = FsEntryGetAbsolutePath (GitBuildLocalDirFromUrl $tarRootDir $url);
                                                 try{
-												  [Object] $usedTime = [System.Diagnostics.Stopwatch]::StartNew();
+                                                  [Object] $usedTime = [System.Diagnostics.Stopwatch]::StartNew();
                                                   [String[]] $gitArgs = @(); 
                                                   if( $cmd -eq "Clone" ){
                                                     # Writes to stderr: Cloning into 'c:\temp\test'...
@@ -2083,10 +2083,10 @@ function SvnPreCommitCleanupRevertAndDelFiles ( [String] $workDir, [String[]] $r
                                                 SvnRevert $workDir $relativeRevertFsEntries; }
 function SvnTortoiseCommitAndUpdate           ( [String] $workDir, [String] $svnUrl, [String] $svnUser, [Boolean] $ignoreIfHostNotReachable, [String] $pw = "" ){
                                                 # Check svn dir, do svn cleanup, check svn user by asserting it matches previously used svn user, delete temporary files, svn commit (interactive), svn update.
-												# If pw is empty then it takes it from svn-credential-cache.
+                                                # If pw is empty then it takes it from svn-credential-cache.
                                                 [String] $traceInfo = "SvnTortoiseCommitAndUpdate workdir=`"$workDir`" url=$svnUrl user=$svnUser";
                                                 OutInfo $traceInfo;
-												OutProgress "SvnLogFile: `"$svnLogFile`"";
+                                                OutProgress "SvnLogFile: `"$svnLogFile`"";
                                                 FileAppendLineWithTs $svnLogFile ("`r`n"+("-"*80)+"`r`n"+(DateTimeNowAsStringIso "yyyy-MM-dd HH:mm")+" "+$traceInfo);
                                                 try{
                                                   [String] $dotSvnDir = SvnGetDotSvnDir $workDir;
@@ -2209,6 +2209,7 @@ function TfsResolveMergeConflict              ( [String] $wsdir, [String] $tfsPa
                                                   Set-Location $cd;
                                                 } }
 function TfsCheckinDirWhenNoConflict          ( [String] $wsdir, [String] $tfsPath, [String] $comment, [Boolean] $handleErrorsAsWarnings ){
+                                                # Return true if checkin was successful.
                                                 [String] $tfExe = (TfsExe);
                                                 OutProgress "CD `"$wsdir`"; `"$tfExe`" checkin /noprompt /recursive /noautoresolve /comment:`"$comment`" `"$tfsPath`" ";
                                                 [String] $cd = (Get-Location);
@@ -2218,9 +2219,11 @@ function TfsCheckinDirWhenNoConflict          ( [String] $wsdir, [String] $tfsPa
                                                   #  "Es sind keine ausstehenden Änderungen vorhanden, die mit den angegebenen Elementen übereinstimmen.\nEs wurden keine Dateien eingecheckt."
                                                   [String[]] $a = (& "$tfExe" checkin /noprompt /recursive /noautoresolve /comment:"$comment" $tfsPath);
                                                   ScriptResetRc;
+                                                  return $true;
                                                 }catch{
                                                   if( -not $handleErrorsAsWarnings ){ throw; }
                                                   OutWarning "Warning: Ignoring checkin problem which requires manually resolving: $($_.Exception.Message)";
+                                                  return $false;
                                                 }finally{
                                                   Set-Location $cd;
                                                 } }
