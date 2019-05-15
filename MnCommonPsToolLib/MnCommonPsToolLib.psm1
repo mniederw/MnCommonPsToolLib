@@ -243,16 +243,20 @@ Function ConsoleSetPos                        ( [Int32] $x, [Int32] $y ){
                                                 [Object] $t = [Window]::GetWindowRect($hd,[ref]$r);
                                                 [Int32] $w = $r.Right - $r.Left; [Int32] $h = $r.Bottom - $r.Top;
                                                 If( $t ){ [Boolean] $dummy = [Window]::MoveWindow($hd, $x, $y, $w, $h, $true); } }
-function ConsoleSetGuiProperties              (){ # set standard sizes which makes sense, display-hight 46 lines for HD with 125% zoom.
-                                                  [Object] $pshost = get-host; 
-                                                  [Object] $w = $pshost.ui.rawui; $w.windowtitle = "$PSCommandPath"; $w.foregroundcolor = "Gray"; 
-                                                  $w.backgroundcolor = switch(ProcessIsRunningInElevatedAdminMode){($true){"DarkMagenta"}default{"DarkBlue";}}; 
-                                                  # for future use: $ = $host.PrivateData; $.VerboseForegroundColor = "white"; $.VerboseBackgroundColor = "blue"; 
-                                                  #   $.WarningForegroundColor = "yellow"; $.WarningBackgroundColor = "darkgreen"; $.ErrorForegroundColor = "white"; $.ErrorBackgroundColor = "red";
-                                                  [Object] $buf = $w.buffersize; $buf.height = 9999; $buf.width = 300; $w.buffersize = $buf; <# set buffer sizes befor setting window sizes otherwise PSArgumentOutOfRangeException: Window cannot be wider than the screen buffer. #> 
-                                                  if( $w.WindowSize -ne $null ){ # is null in case of powershell-ISE
-                                                    [Object] $m = $w.windowsize; $m.height =   48; $m.width = 150; $w.windowsize = $m; ConsoleSetPos 40 40; }
-                                                  }
+function ConsoleSetGuiProperties              (){ # set standard sizes which makes sense, display-hight 46 lines for HD with 125% zoom. It is performed only once per shell.
+                                                if( -not [Boolean] (Get-Variable consoleSetGuiProperties_DoneOnce -Scope script -ErrorAction SilentlyContinue) ){
+                                                  $error.clear(); New-Variable -Scope script -name consoleSetGuiProperties_DoneOnce -value $false;
+                                                }
+                                                if( $script:consoleSetGuiProperties_DoneOnce ){ return; } 
+                                                [Object] $pshost = get-host; 
+                                                [Object] $w = $pshost.ui.rawui; $w.windowtitle = "$PSCommandPath"; $w.foregroundcolor = "Gray"; 
+                                                $w.backgroundcolor = switch(ProcessIsRunningInElevatedAdminMode){($true){"DarkMagenta"}default{"DarkBlue";}}; 
+                                                # for future use: $ = $host.PrivateData; $.VerboseForegroundColor = "white"; $.VerboseBackgroundColor = "blue"; 
+                                                #   $.WarningForegroundColor = "yellow"; $.WarningBackgroundColor = "darkgreen"; $.ErrorForegroundColor = "white"; $.ErrorBackgroundColor = "red";
+                                                [Object] $buf = $w.buffersize; $buf.height = 9999; $buf.width = 300; $w.buffersize = $buf; <# set buffer sizes befor setting window sizes otherwise PSArgumentOutOfRangeException: Window cannot be wider than the screen buffer. #> 
+                                                if( $w.WindowSize -ne $null ){ # is null in case of powershell-ISE
+                                                  [Object] $m = $w.windowsize; $m.height =   48; $m.width = 150; $w.windowsize = $m; ConsoleSetPos 40 40; }
+                                                $script:consoleSetGuiProperties_DoneOnce = $true; }
 function StdInAssertAllowInteractions         (){ if( $global:ModeDisallowInteractions ){ throw [Exception] "Cannot read for input because all interactions are disallowed, either caller should make sure variable ModeDisallowInteractions is false or he should not call an input method."; } }
 function StdInReadLine                        ( [String] $line ){ Write-Host -ForegroundColor Cyan -nonewline $line; StdInAssertAllowInteractions; return [String] (Read-Host); }
 function StdInReadLinePw                      ( [String] $line ){ Write-Host -ForegroundColor Cyan -nonewline $line; StdInAssertAllowInteractions; return [System.Security.SecureString] (Read-Host -AsSecureString); }
