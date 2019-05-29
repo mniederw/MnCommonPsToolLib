@@ -4,6 +4,8 @@
 Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
 Current version can be requested by: $MnCommonPsToolLibVersion
 
+2019-05-29  V3.5   improved get-sql-db-schema
+
 2019-05-11  V3.4   extend FsEntryFindFlatSingleByPattern, extend TfsCheckinDirWhenNoConflict, added StdInAskAndAssertExpectedAnswer, do ConsoleSetGuiProperties only once per shell, added StringIsInt32/64, StringAsInt32/64.
 
 2019-05-06  V3.3   set doublequotes instead of quotes in log strings, improve svn changes detections for committing, git pull used time, fix console buffer sizes.
