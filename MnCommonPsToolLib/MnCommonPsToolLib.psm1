@@ -2299,7 +2299,8 @@ function SqlPerformCmd                        ( [String] $connectionString, [Str
                                                 #     $relocateFileList += New-Object Microsoft.SqlServer.Management.Smo.RelocateFile($_.LogicalName, $f); }
                                                 #   Restore-SqlDatabase -Partial -ReplaceDatabase -NoRecovery -ServerInstance $server -Database $dbName -BackupFile $bakFile -RelocateFile $relocateFileList;
                                               }
-function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $dbInstanceServerName, [String] $dbName, [String] $targetRootDir, [Boolean] $errorAsWarning = $false, [Boolean] $inclIfNotExists = $false, [Boolean] $inclDropStmts = $false, [Boolean] $scriptData = $false ){
+function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $dbInstanceServerName, [String] $dbName, [String] $targetRootDir, 
+                                                 [Boolean] $errorAsWarning = $false, [Boolean] $inclIfNotExists = $false, [Boolean] $inclDropStmts = $false, [Boolean] $inclDataAsInsertStmts = $false ){
                                                 # Create all creation files for a specified sql server database with current user to a specified target directory which must not exists. 
                                                 # This includes tables, indexes, views, stored procedures, functions, roles, schemas, db-triggers and table-Triggers.
                                                 # It creates file "DbInfo.dbname.out" with some db infos. In case of an error it creates file "DbInfo.dbname.err".
@@ -2328,19 +2329,19 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                   $options.AllowSystemObjects = $false;
                                                   $options.IncludeDatabaseContext = $true;
                                                   $options.IncludeIfNotExists = $inclIfNotExists;
+                                                  $options.Indexes = $true;
                                                   $options.ClusteredIndexes = $true;
                                                   $options.Default = $true;
-                                                  $options.DriAll = $true;
-                                                  $options.Indexes = $true;
-                                                  $options.NonClusteredIndexes = $true;
+                                                  $options.DriAll = $true; # includes all Declarative Referential Integrity objects such as constraints.
+                                                  $options.NonClusteredIndexes = $false;
                                                   $options.IncludeHeaders = $false;
                                                   $options.NoCollation = $true;
                                                   $options.ToFileOnly = $true;
                                                   $options.AppendToFile = $false; # means overwriting
                                                   $options.AnsiFile = $true;
                                                   $options.ScriptDrops = $inclDropStmts;
-                                                  $options.OptimizerData = $true;
-                                                  $options.ScriptData = $scriptData;
+                                                  $options.OptimizerData = $false; # include: UPDATE STATISTICS [dbo].[MyTable] WITH ROWCOUNT = nrofrows, PAGECOUNT = nrofpages
+                                                  $options.ScriptData = $inclDataAsInsertStmts;
                                                   $scr.Options = $options; # Set options for SMO.Scripter
                                                   # not yet used: [Microsoft.SqlServer.Management.Smo.DependencyType] $deptype = New-Object "Microsoft.SqlServer.Management.Smo.DependencyType";
                                                   [Microsoft.SqlServer.Management.Smo.Database] $db = $srv.Databases[$dbName];
@@ -2353,102 +2354,99 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                   #  # ex: ExtendedTypeSystemException: The following exception occurred while trying to enumerate the collection: "An exception occurred while executing a Transact-SQL statement or batch.".
                                                   #  throw [Exception] "Accessing database $dbName failed because $_";
                                                   #}
+                                                  [Array] $tables           = @()+($db.Tables               | Where-Object {$_ -ne $null} | Where-Object {$_.IsSystemObject -eq $false});
+                                                  [Array] $views            = @()+($db.Views                | Where-Object {$_ -ne $null} | Where-Object {$_.IsSystemObject -eq $false});
+                                                  [Array] $storedProcedures = @()+($db.StoredProcedures     | Where-Object {$_ -ne $null} | Where-Object {$_.IsSystemObject -eq $false});
+                                                  [Array] $userDefFunctions = @()+($db.UserDefinedFunctions | Where-Object {$_ -ne $null} | Where-Object {$_.IsSystemObject -eq $false});
+                                                  [Array] $dbSchemas        = @()+($db.Schemas              | Where-Object {$_ -ne $null} | Where-Object {$_.IsSystemObject -eq $false});
+                                                  [Array] $dbTriggers       = @()+($db.Triggers             | Where-Object {$_ -ne $null} | Where-Object {$_.IsSystemObject -eq $false});
+                                                  [Array] $dbRoles          = @()+($db.Roles                | Where-Object {$_ -ne $null});
+                                                  [Array] $tableTriggers    = @()+($tables                  | Where-Object {$_ -ne $null} | ForEach-Object {$_.triggers } | Where-Object {$_ -ne $null});
+                                                  [Array] $indexesNonClust  = @()+($tables                  | Where-Object {$_ -ne $null} | ForEach-Object {$_.indexes  } | Where-Object {$_ -ne $null} | Where-Object {-not $_.IsClustered});
+                                                  [Int64] $spaceUsedDataInMB  = [Math]::Ceiling(($db.DataSpaceUsage + $db.IndexSpaceUsage) / 1000000);
+                                                  [Int64] $spaceUsedIndexInMB = [Math]::Ceiling( $db.IndexSpaceUsage                       / 1000000);
+                                                  [Int64] $spaceAvailableInMB = [Math]::Ceiling( $db.SpaceAvailable                        / 1000000);
                                                   [String[]] $fileDbInfoContent = @( 
                                                       "DbInfo: $dbName (current-user=$env:USERDOMAIN\$env:USERNAME)"
-                                                      ,"  Parent                   : $($db.Parent                                                  )" # ex: [MySqlInstance]
-                                                      ,"  Collation                : $($db.Collation                                               )" # ex: Latin1_General_CI_AS
-                                                      ,"  CompatibilityLevel       : $($db.CompatibilityLevel                                      )" # ex: Version100
-                                                      ,"  DataSpaceUsageInMB       : $([Math]::Ceiling($db.DataSpaceUsage  / 1000000)              )" # ex: 40
-                                                      ,"  IndexSpaceUsageInMB      : $([Math]::Ceiling($db.IndexSpaceUsage / 1000000)              )" # ex: 12
-                                                      ,"  SpaceAvailableInMB       : $([Math]::Ceiling($db.SpaceAvailable  / 1000000)              )" # ex: 11
-                                                      ,"  DefaultSchema            : $($db.DefaultSchema                                           )" # ex: dbo
-                                                      ,"  NrOfTables               : $($db.Tables.Count                                            )" # ex: 2
-                                                      ,"  NrOfViews                : $($db.Views.Count                                             )" # ex: 2
-                                                      ,"  NrOfStoredProcedures     : $($db.StoredProcedures.Count                                  )" # ex: 2
-                                                      ,"  NrOfUserDefinedFunctions : $($db.UserDefinedFunctions.Count                              )" # ex: 2
-                                                      ,"  NrOfDbTriggers           : $($db.Triggers.Count                                          )" # ex: 2
-                                                      ,"  NrOfTableTriggers        : $((@()+($db.Tables|Where-Object{$_.triggers -ne $null})).Count)" # ex: 2
+                                                      ,"  Parent               : $($db.Parent             )" # ex: [MySqlInstance.MyDomain.ch]
+                                                      ,"  Collation            : $($db.Collation          )" # ex: Latin1_General_CI_AS
+                                                      ,"  CompatibilityLevel   : $($db.CompatibilityLevel )" # ex: Version100
+                                                      ,"  SpaceUsedDataInMB    : $spaceUsedDataInMB        " # ex: 40
+                                                      ,"  SpaceUsedIndexInMB   : $spaceUsedIndexInMB       " # ex: 12
+                                                      ,"  SpaceAvailableInMB   : $spaceAvailableInMB       " # ex: 11
+                                                      ,"  DefaultSchema        : $($db.DefaultSchema      )" # ex: dbo
+                                                      ,"  NrOfTables           : $($tables.Count          )" # ex: 2
+                                                      ,"  NrOfViews            : $($views.Count           )" # ex: 2
+                                                      ,"  NrOfStoredProcedures : $($storedProcedures.Count)" # ex: 2
+                                                      ,"  NrOfUserDefinedFuncs : $($userDefFunctions.Count)" # ex: 2
+                                                      ,"  NrOfDbTriggers       : $($dbTriggers.Count      )" # ex: 2
+                                                      ,"  NrOfTableTriggers    : $($tableTriggers.Count   )" # ex: 2
+                                                      ,"  NrOfIndexesNonClust  : $($indexesNonClust.Count )" # ex: 20
                                                   );
                                                   OutProgress ("DbInfo: $dbName Collation=$($db.Collation) CompatibilityLevel=$($db.CompatibilityLevel) " + 
-                                                    "UsedInMB=$([Math]::Ceiling(($db.DataSpaceUsage + $db.IndexSpaceUsage) / 1000000)); " +
-                                                    "NrOfTabs=$($db.Tables.Count); Views=$($db.Views.Count); StProcs=$($db.StoredProcedures.Count); " +
-                                                    "Funcs=$($db.UserDefinedFunctions.Count); Triggers=$($db.Triggers.Count); TabTriggers=$((@()+($db.Tables|Where-Object{$_.triggers -ne $null})).Count); ");
+                                                    "UsedDataInMB=$spaceUsedDataInMB; " + "UsedIndexInMB=$spaceUsedIndexInMB; " +
+                                                    "NrOfTabs=$($tables.Count); Views=$($views.Count); StProcs=$($storedProcedures.Count); " +
+                                                    "Funcs=$($userDefFunctions.Count); DbTriggers=$($dbTriggers.Count); "+
+                                                    "TabTriggers=$($tableTriggers.Count); "+"IndexesNonClust=$($indexesNonClust.Count); ");
                                                   FileWriteFromLines $fileDbInfo $fileDbInfoContent $false; # throws if it already exists
                                                   OutProgressText "  Process: ";
-                                                  OutProgressText "Tables ";
-                                                  Foreach ($tb in $db.Tables){
-                                                    If ($tb.IsSystemObject -eq $FALSE){
-                                                      $options.FileName = "$tarDir\Table.$($tb.Schema).$($tb.Name).sql";
-                                                      New-Item $options.FileName -type file -force | Out-Null;
-                                                      $smoObjects = New-Object Microsoft.SqlServer.Management.Smo.UrnCollection;
-                                                      $smoObjects.Add($tb.Urn);
-                                                      $scr.Script($smoObjects);
-                                                    }
-                                                  }   
-                                                  OutProgressText "Views ";
-                                                  $views = $db.Views | where {$_.IsSystemObject -eq $false};
-                                                  Foreach ($view in $views){
-                                                    if ($view -ne $null){
-                                                      $options.FileName = "$tarDir\View.$($view.Schema).$($view.Name).sql";
-                                                      New-Item $options.FileName -type file -force | Out-Null;
-                                                      $scr.Script($view);
-                                                    }
-                                                  }   
-                                                  OutProgressText "StoredProcedures";
-                                                  $StoredProcedures = $db.StoredProcedures | where {$_.IsSystemObject -eq $false}
-                                                  Foreach ($StoredProcedure in $StoredProcedures){
-                                                    if ($StoredProcedure -ne $null){
-                                                      $options.FileName = "$tarDir\StoredProcedure.$($StoredProcedure.Schema).$($StoredProcedure.Name).sql";
-                                                      New-Item $options.FileName -type file -force | Out-Null;
-                                                      $scr.Script($StoredProcedure);
-                                                    }
-                                                  }   
-                                                  OutProgressText "SqlFunctions ";
-                                                  $UserDefinedFunctions = $db.UserDefinedFunctions | where {$_.IsSystemObject -eq $false};
-                                                  Foreach ($function in $UserDefinedFunctions){
-                                                    if ($function -ne $null){
-                                                      $options.FileName = "$tarDir\UserDefinedFunction.$($function.Schema).$($function.Name).sql";
-                                                      New-Item $options.FileName -type file -force | Out-Null;
-                                                      $scr.Script($function);
-                                                    }
-                                                  }  
                                                   OutProgressText "Schemas ";
-                                                  $DBSchemas = $db.Schemas | where {$_.IsSystemObject -eq $false}
-                                                  Foreach ($sch in $DBSchemas){
-                                                    if ($sch -ne $null){
-                                                      $options.FileName = "$tarDir\Schema.$($sch.Name).sql";
-                                                      New-Item $options.FileName -type file -force | Out-Null;
-                                                      $scr.Script($sch);
-                                                    }
-                                                  }
-                                                  OutProgressText "DbTriggers ";
-                                                  $DBTriggers = $db.Triggers;
-                                                  foreach ($dbtrigger in $DBTriggers){
-                                                    if ($dbtrigger -ne $null){
-                                                      $options.FileName = "$tarDir\DbTrigger.$($dbtrigger.Name).sql";
-                                                      New-Item $options.FileName -type file -force | Out-Null;
-                                                      $scr.Script($dbtrigger);
-                                                    }
-                                                  }   
-                                                  OutProgressText "TableTriggers ";
-                                                  Foreach ($tb in $db.Tables){     
-                                                    if($tb.triggers -ne $null){
-                                                      $options.FileName = "$tarDir\TableTrigger.$($tb.Schema).$($tb.Name).sql";
-                                                      New-Item $options.FileName -type file -force | Out-Null;
-                                                      foreach ($trigger in $tb.triggers){
-                                                        $scr.Script($trigger);
-                                                      }
-                                                    }
+                                                  Foreach ($i in $dbSchemas){
+                                                    $options.FileName = "$tarDir\Schema.$($i.Name).sql";
+                                                    New-Item $options.FileName -type file -force | Out-Null;
+                                                    $scr.Script($i);
                                                   }
                                                   OutProgressText "Roles ";
-                                                  $DBRoles = $db.Roles;
-                                                  Foreach ($rol in $DBRoles){
-                                                    if ($rol -ne $null){
-                                                      $options.FileName = "$tarDir\Role.$($rol.Name).sql";
-                                                      New-Item $options.FileName -type file -force | Out-Null;
-                                                      $scr.Script($rol);
-                                                    }
-                                                  }  
+                                                  Foreach ($i in $dbRoles){
+                                                    $options.FileName = "$tarDir\Role.$($i.Name).sql";
+                                                    New-Item $options.FileName -type file -force | Out-Null;
+                                                    $scr.Script($i);
+                                                  }
+                                                  OutProgressText "DbTriggers ";
+                                                  foreach ($i in $dbTriggers){
+                                                    $options.FileName = "$tarDir\DbTrigger.$($i.Name).sql";
+                                                    New-Item $options.FileName -type file -force | Out-Null;
+                                                    $scr.Script($i);
+                                                  }
+                                                  OutProgressText "Tables ";
+                                                  Foreach ($i in $tables){
+                                                    $options.FileName = "$tarDir\Table.$($i.Schema).$($i.Name).sql";
+                                                    New-Item $options.FileName -type file -force | Out-Null;
+                                                    $smoObjects = New-Object Microsoft.SqlServer.Management.Smo.UrnCollection;
+                                                    $smoObjects.Add($i.Urn);
+                                                    $scr.Script($smoObjects);
+                                                  }
+                                                  OutProgressText "Views ";
+                                                  Foreach ($i in $views){
+                                                    $options.FileName = "$tarDir\View.$($i.Schema).$($i.Name).sql";
+                                                    New-Item $options.FileName -type file -force | Out-Null;
+                                                    $scr.Script($i);
+                                                  }
+                                                  OutProgressText "StoredProcedures";
+                                                  Foreach ($i in $storedProcedures){
+                                                    $options.FileName = "$tarDir\StoredProcedure.$($i.Schema).$($i.Name).sql";
+                                                    New-Item $options.FileName -type file -force | Out-Null;
+                                                    $scr.Script($i);
+                                                  }
+                                                  OutProgressText "UserDefFunctions ";
+                                                  Foreach ($i in $userDefFunctions){
+                                                    $options.FileName = "$tarDir\userDefFunctions.$($i.Schema).$($i.Name).sql";
+                                                    New-Item $options.FileName -type file -force | Out-Null;
+                                                    $scr.Script($i);
+                                                  }
+                                                  OutProgressText "TableTriggers ";
+                                                  Foreach ($i in $tableTriggers){
+                                                    $options.FileName = "$tarDir\TableTrigger.$($i.Schema).$(i.Parent.Name).$($i.Name).sql";
+                                                    New-Item $options.FileName -type file -force | Out-Null;
+                                                    $scr.Script($i);
+                                                  }
+                                                  OutProgressText "IndexesNonClustered ";
+                                                  Foreach ($i in $IndexesNonClustered){
+                                                    $options.FileName = "$tarDir\IndexesNonClustered.$($i.Schema).$(i.Parent.Name).$($i.Name).sql";
+                                                    New-Item $options.FileName -type file -force | Out-Null;
+                                                    $scr.Script($i);
+                                                  }
+                                                  # for future use: remove the lines when in sequence: "SET ANSI_NULLS ON","GO","SET QUOTED_IDENTIFIER ON","GO".
                                                   OutProgress "";
                                                   OutSuccess "ok, done. Written files below: `"$tarDir`"";
                                                 }catch{
