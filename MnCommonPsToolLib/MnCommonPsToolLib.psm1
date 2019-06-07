@@ -2354,40 +2354,40 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                   #  # ex: ExtendedTypeSystemException: The following exception occurred while trying to enumerate the collection: "An exception occurred while executing a Transact-SQL statement or batch.".
                                                   #  throw [Exception] "Accessing database $dbName failed because $_";
                                                   #}
-                                                  [Array] $tables           = @()+($db.Tables               | Where-Object {$_ -ne $null} | Where-Object {$_.IsSystemObject -eq $false});
-                                                  [Array] $views            = @()+($db.Views                | Where-Object {$_ -ne $null} | Where-Object {$_.IsSystemObject -eq $false});
-                                                  [Array] $storedProcedures = @()+($db.StoredProcedures     | Where-Object {$_ -ne $null} | Where-Object {$_.IsSystemObject -eq $false});
-                                                  [Array] $userDefFunctions = @()+($db.UserDefinedFunctions | Where-Object {$_ -ne $null} | Where-Object {$_.IsSystemObject -eq $false});
-                                                  [Array] $dbSchemas        = @()+($db.Schemas              | Where-Object {$_ -ne $null} | Where-Object {$_.IsSystemObject -eq $false});
-                                                  [Array] $dbTriggers       = @()+($db.Triggers             | Where-Object {$_ -ne $null} | Where-Object {$_.IsSystemObject -eq $false});
-                                                  [Array] $dbRoles          = @()+($db.Roles                | Where-Object {$_ -ne $null});
-                                                  [Array] $tableTriggers    = @()+($tables                  | Where-Object {$_ -ne $null} | ForEach-Object {$_.triggers } | Where-Object {$_ -ne $null});
-                                                  [Array] $indexesNonClust  = @()+($tables                  | Where-Object {$_ -ne $null} | ForEach-Object {$_.indexes  } | Where-Object {$_ -ne $null} | Where-Object {-not $_.IsClustered});
-                                                  [Int64] $spaceUsedDataInMB  = [Math]::Ceiling(($db.DataSpaceUsage + $db.IndexSpaceUsage) / 1000000);
-                                                  [Int64] $spaceUsedIndexInMB = [Math]::Ceiling( $db.IndexSpaceUsage                       / 1000000);
-                                                  [Int64] $spaceAvailableInMB = [Math]::Ceiling( $db.SpaceAvailable                        / 1000000);
+                                                  [Array] $tables              = @()+($db.Tables               | Where-Object {$_ -ne $null} | Where-Object {$_.IsSystemObject -eq $false}); # including clustered indexes
+                                                  [Array] $views               = @()+($db.Views                | Where-Object {$_ -ne $null} | Where-Object {$_.IsSystemObject -eq $false});
+                                                  [Array] $storedProcedures    = @()+($db.StoredProcedures     | Where-Object {$_ -ne $null} | Where-Object {$_.IsSystemObject -eq $false});
+                                                  [Array] $userDefFunctions    = @()+($db.UserDefinedFunctions | Where-Object {$_ -ne $null} | Where-Object {$_.IsSystemObject -eq $false});
+                                                  [Array] $dbSchemas           = @()+($db.Schemas              | Where-Object {$_ -ne $null} | Where-Object {$_.IsSystemObject -eq $false});
+                                                  [Array] $dbTriggers          = @()+($db.Triggers             | Where-Object {$_ -ne $null} | Where-Object {$_.IsSystemObject -eq $false});
+                                                  [Array] $dbRoles             = @()+($db.Roles                | Where-Object {$_ -ne $null});
+                                                  [Array] $tableTriggers       = @()+($tables                  | Where-Object {$_ -ne $null} | ForEach-Object {$_.triggers } | Where-Object {$_ -ne $null});
+                                                  [Array] $indexesNonClustered = @()+($tables                  | Where-Object {$_ -ne $null} | ForEach-Object {$_.indexes  } | Where-Object {$_ -ne $null} | Where-Object {-not $_.IsClustered});
+                                                  [Int64] $spaceUsedDataInMB   = [Math]::Ceiling(($db.DataSpaceUsage + $db.IndexSpaceUsage) / 1000000);
+                                                  [Int64] $spaceUsedIndexInMB  = [Math]::Ceiling( $db.IndexSpaceUsage                       / 1000000);
+                                                  [Int64] $spaceAvailableInMB  = [Math]::Ceiling( $db.SpaceAvailable                        / 1000000);
                                                   [String[]] $fileDbInfoContent = @( 
                                                       "DbInfo: $dbName (current-user=$env:USERDOMAIN\$env:USERNAME)"
-                                                      ,"  Parent               : $($db.Parent             )" # ex: [MySqlInstance.MyDomain.ch]
-                                                      ,"  Collation            : $($db.Collation          )" # ex: Latin1_General_CI_AS
-                                                      ,"  CompatibilityLevel   : $($db.CompatibilityLevel )" # ex: Version100
-                                                      ,"  SpaceUsedDataInMB    : $spaceUsedDataInMB        " # ex: 40
-                                                      ,"  SpaceUsedIndexInMB   : $spaceUsedIndexInMB       " # ex: 12
-                                                      ,"  SpaceAvailableInMB   : $spaceAvailableInMB       " # ex: 11
-                                                      ,"  DefaultSchema        : $($db.DefaultSchema      )" # ex: dbo
-                                                      ,"  NrOfTables           : $($tables.Count          )" # ex: 2
-                                                      ,"  NrOfViews            : $($views.Count           )" # ex: 2
-                                                      ,"  NrOfStoredProcedures : $($storedProcedures.Count)" # ex: 2
-                                                      ,"  NrOfUserDefinedFuncs : $($userDefFunctions.Count)" # ex: 2
-                                                      ,"  NrOfDbTriggers       : $($dbTriggers.Count      )" # ex: 2
-                                                      ,"  NrOfTableTriggers    : $($tableTriggers.Count   )" # ex: 2
-                                                      ,"  NrOfIndexesNonClust  : $($indexesNonClust.Count )" # ex: 20
+                                                      ,"  Parent               : $($db.Parent                 )" # ex: [MySqlInstance.MyDomain.ch]
+                                                      ,"  Collation            : $($db.Collation              )" # ex: Latin1_General_CI_AS
+                                                      ,"  CompatibilityLevel   : $($db.CompatibilityLevel     )" # ex: Version100
+                                                      ,"  SpaceUsedDataInMB    : $spaceUsedDataInMB            " # ex: 40
+                                                      ,"  SpaceUsedIndexInMB   : $spaceUsedIndexInMB           " # ex: 12
+                                                      ,"  SpaceAvailableInMB   : $spaceAvailableInMB           " # ex: 11
+                                                      ,"  DefaultSchema        : $($db.DefaultSchema          )" # ex: dbo
+                                                      ,"  NrOfTables           : $($tables.Count              )" # ex: 2
+                                                      ,"  NrOfViews            : $($views.Count               )" # ex: 2
+                                                      ,"  NrOfStoredProcedures : $($storedProcedures.Count    )" # ex: 2
+                                                      ,"  NrOfUserDefinedFuncs : $($userDefFunctions.Count    )" # ex: 2
+                                                      ,"  NrOfDbTriggers       : $($dbTriggers.Count          )" # ex: 2
+                                                      ,"  NrOfTableTriggers    : $($tableTriggers.Count       )" # ex: 2
+                                                      ,"  NrOfIndexesNonClust  : $($indexesNonClustered.Count )" # ex: 20
                                                   );
                                                   OutProgress ("DbInfo: $dbName Collation=$($db.Collation) CompatibilityLevel=$($db.CompatibilityLevel) " + 
                                                     "UsedDataInMB=$spaceUsedDataInMB; " + "UsedIndexInMB=$spaceUsedIndexInMB; " +
                                                     "NrOfTabs=$($tables.Count); Views=$($views.Count); StProcs=$($storedProcedures.Count); " +
                                                     "Funcs=$($userDefFunctions.Count); DbTriggers=$($dbTriggers.Count); "+
-                                                    "TabTriggers=$($tableTriggers.Count); "+"IndexesNonClust=$($indexesNonClust.Count); ");
+                                                    "TabTriggers=$($tableTriggers.Count); "+"IndexesNonClust=$($indexesNonClustered.Count); ");
                                                   FileWriteFromLines $fileDbInfo $fileDbInfoContent $false; # throws if it already exists
                                                   OutProgressText "  Process: ";
                                                   OutProgressText "Schemas ";
@@ -2436,13 +2436,13 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                   }
                                                   OutProgressText "TableTriggers ";
                                                   Foreach ($i in $tableTriggers){
-                                                    $options.FileName = "$tarDir\TableTrigger.$($i.Schema).$(i.Parent.Name).$($i.Name).sql";
+                                                    $options.FileName = "$tarDir\TableTrigger.$($i.Parent.Schema).$($i.Parent.Name).$($i.Name).sql";
                                                     New-Item $options.FileName -type file -force | Out-Null;
                                                     $scr.Script($i);
                                                   }
                                                   OutProgressText "IndexesNonClustered ";
-                                                  Foreach ($i in $IndexesNonClustered){
-                                                    $options.FileName = "$tarDir\IndexesNonClustered.$($i.Schema).$(i.Parent.Name).$($i.Name).sql";
+                                                  Foreach ($i in $indexesNonClustered){
+                                                    $options.FileName = "$tarDir\IndexesNonClustered.$($i.Parent.Schema).$($i.Parent.Name).$($i.Name).sql";
                                                     New-Item $options.FileName -type file -force | Out-Null;
                                                     $scr.Script($i);
                                                   }
