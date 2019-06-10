@@ -2348,7 +2348,6 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                   [Microsoft.SqlServer.Management.Smo.Database] $db = $srv.Databases[$dbName];
                                                   if( $db -eq $null ){ throw [Exception] "Not found database with current user."; }
                                                   [String] $fileDbInfo = "$tarDir\DbInfo.$dbName.out";
-                                                  OutProgress "Write: $fileDbInfo";
                                                   #try{
                                                   #  [String] $dummy = $db.Parent; # check for read access
                                                   #}catch{
@@ -2384,12 +2383,12 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                       ,"  NrOfTableTriggers    : $($tableTriggers.Count       )" # ex: 2
                                                       ,"  NrOfIndexesNonClust  : $($indexesNonClustered.Count )" # ex: 20
                                                   );
+                                                  FileWriteFromLines $fileDbInfo $fileDbInfoContent $false; # throws if it already exists
                                                   OutProgress ("DbInfo: $dbName Collation=$($db.Collation) CompatibilityLevel=$($db.CompatibilityLevel) " + 
                                                     "UsedDataInMB=$spaceUsedDataInMB; " + "UsedIndexInMB=$spaceUsedIndexInMB; " +
                                                     "NrOfTabs=$($tables.Count); Views=$($views.Count); StProcs=$($storedProcedures.Count); " +
                                                     "Funcs=$($userDefFunctions.Count); DbTriggers=$($dbTriggers.Count); "+
                                                     "TabTriggers=$($tableTriggers.Count); "+"IndexesNonClust=$($indexesNonClustered.Count); ");
-                                                  FileWriteFromLines $fileDbInfo $fileDbInfoContent $false; # throws if it already exists
                                                   OutProgressText "  Process: ";
                                                   OutProgressText "Schemas ";
                                                   Foreach ($i in $dbSchemas){
