@@ -2303,6 +2303,7 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                  [Boolean] $errorAsWarning = $false, [Boolean] $inclIfNotExists = $false, [Boolean] $inclDropStmts = $false, [Boolean] $inclDataAsInsertStmts = $false ){
                                                 # Create all creation files for a specified sql server database with current user to a specified target directory which must not exists. 
                                                 # This includes tables, indexes, views, stored procedures, functions, roles, schemas, db-triggers and table-Triggers.
+                                                # If a stored procedure, a function or a trigger is encrypted then a single line is put to its sql file indicating encrypted code cannot be dumped.
                                                 # It creates file "DbInfo.dbname.out" with some db infos. In case of an error it creates file "DbInfo.dbname.err".
                                                 # ex: SqlGenerateFullDbSchemaFiles "MyLogicEnvironment" "MySqlInstance" "MyDbName" "$env:TEMP\DumpFullDbSchemas"
                                                 [String] $currentUser = "$env:USERDOMAIN\$env:USERNAME";
@@ -2406,7 +2407,11 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                   foreach ($i in $dbTriggers){
                                                     $options.FileName = "$tarDir\DbTrigger.$($i.Name).sql";
                                                     New-Item $options.FileName -type file -force | Out-Null;
-                                                    $scr.Script($i);
+                                                    if( $i.IsEncrypted ){
+                                                      FileAppendLine $options.FileName "Note: DbTrigger $($i.Name) is encrypted, so cannot be dumped.";
+                                                    }else{
+                                                      $scr.Script($i);
+                                                    }
                                                   }
                                                   OutProgressText "Tables ";
                                                   Foreach ($i in $tables){
@@ -2426,19 +2431,31 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                   Foreach ($i in $storedProcedures){
                                                     $options.FileName = "$tarDir\StoredProcedure.$($i.Schema).$($i.Name).sql";
                                                     New-Item $options.FileName -type file -force | Out-Null;
-                                                    $scr.Script($i);
+                                                    if( $i.IsEncrypted ){
+                                                      FileAppendLine $options.FileName "Note: StoredProcedure $($i.Schema).$($i.Name) is encrypted, so cannot be dumped.";
+                                                    }else{
+                                                      $scr.Script($i);
+                                                    }
                                                   }
-                                                  OutProgressText "UserDefFunctions ";
+                                                  OutProgressText "UserDefinedFunctions ";
                                                   Foreach ($i in $userDefFunctions){
-                                                    $options.FileName = "$tarDir\userDefFunctions.$($i.Schema).$($i.Name).sql";
+                                                    $options.FileName = "$tarDir\UserDefinedFunction.$($i.Schema).$($i.Name).sql";
                                                     New-Item $options.FileName -type file -force | Out-Null;
-                                                    $scr.Script($i);
+                                                    if( $i.IsEncrypted ){
+                                                      FileAppendLine $options.FileName "Note: UserDefinedFunction $($i.Schema).$($i.Name) is encrypted, so cannot be dumped.";
+                                                    }else{
+                                                      $scr.Script($i);
+                                                    }
                                                   }
                                                   OutProgressText "TableTriggers ";
                                                   Foreach ($i in $tableTriggers){
                                                     $options.FileName = "$tarDir\TableTrigger.$($i.Parent.Schema).$($i.Parent.Name).$($i.Name).sql";
                                                     New-Item $options.FileName -type file -force | Out-Null;
-                                                    $scr.Script($i);
+                                                    if( $i.IsEncrypted ){
+                                                      FileAppendLine $options.FileName "Note: TableTrigger $($i.Schema).$($i.Name) is encrypted, so cannot be dumped.";
+                                                    }else{
+                                                      $scr.Script($i);
+                                                    }
                                                   }
                                                   OutProgressText "IndexesNonClustered ";
                                                   Foreach ($i in $indexesNonClustered){
@@ -2456,6 +2473,12 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                   #       "An exception occurred while executing a Transact-SQL statement or batch.". 
                                                   #       ---> Microsoft.SqlServer.Management.Common.ExecutionFailureException: An exception occurred while executing a Transact-SQL statement or batch. 
                                                   #       ---> System.Data.SqlClient.SqlException: The server principal "MyDomain\MyUser" is not able to access the database "MyDatabaseName" under the current security context.
+                                                  # ex: System.Management.Automation.MethodInvocationException: Exception calling "Script" with "1" argument(s): 
+                                                  #       "The StoredProcedure '[mySchema].[MyTable]' cannot be scripted as its data is not accessible." 
+                                                  #       ---> Microsoft.SqlServer.Management.Smo.FailedOperationException: The StoredProcedure '[mySchema].[MyTable]' cannot be scripted as its data is not accessible. 
+                                                  #       ---> Microsoft.SqlServer.Management.Smo.PropertyCannotBeRetrievedException: Property TextHeader is not available for StoredProcedure '[mySchema].[MyTable]'. 
+                                                  #       This property may not exist for this object, or may not be retrievable due to insufficient access rights. The text is encrypted.
+                                                  #       at Microsoft.SqlServer.Management.Smo.ScriptNameObjectBase.GetTextProperty(String requestingProperty, ScriptingPreferences sp, Boolean bThrowIfCreating)
                                                   [String] $msg = $traceInfo + " failed because $($_.Exception)";
                                                   FileWriteFromLines "$tarDir\DbInfo.$dbName.err" $msg;
                                                   if( -not $errorAsWarning ){ throw [Exception] $msg; }
