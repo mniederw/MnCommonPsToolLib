@@ -2302,7 +2302,7 @@ function SqlPerformCmd                        ( [String] $connectionString, [Str
 function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $dbInstanceServerName, [String] $dbName, [String] $targetRootDir, 
                                                  [Boolean] $errorAsWarning = $false, [Boolean] $inclIfNotExists = $false, [Boolean] $inclDropStmts = $false, [Boolean] $inclDataAsInsertStmts = $false ){
                                                 # Create all creation files for a specified sql server database with current user to a specified target directory which must not exists. 
-                                                # This includes tables, indexes, views, stored procedures, functions, roles, schemas, db-triggers and table-Triggers.
+                                                # This includes tables (including unique indexes), indexes (non-unique), views, stored procedures, functions, roles, schemas, db-triggers and table-Triggers.
                                                 # If a stored procedure, a function or a trigger is encrypted then a single line is put to its sql file indicating encrypted code cannot be dumped.
                                                 # It creates file "DbInfo.dbname.out" with some db infos. In case of an error it creates file "DbInfo.dbname.err".
                                                 # ex: SqlGenerateFullDbSchemaFiles "MyLogicEnvironment" "MySqlInstance" "MyDbName" "$env:TEMP\DumpFullDbSchemas"
@@ -2330,12 +2330,12 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                   $options.AllowSystemObjects = $false;
                                                   $options.IncludeDatabaseContext = $true;
                                                   $options.IncludeIfNotExists = $inclIfNotExists;
-                                                  $options.Indexes = $true;
-                                                  $options.ClusteredIndexes = $true;
-                                                  $options.Default = $true;
-                                                  $options.DriAll = $true; # includes all Declarative Referential Integrity objects such as constraints.
+                                                  $options.Indexes = $false;
+                                                  $options.ClusteredIndexes = $false;
                                                   $options.NonClusteredIndexes = $false;
                                                   $options.IncludeHeaders = $false;
+                                                  $options.Default = $true;
+                                                  $options.DriAll = $true; # includes all Declarative Referential Integrity objects such as constraints.
                                                   $options.NoCollation = $true;
                                                   $options.ToFileOnly = $true;
                                                   $options.AppendToFile = $false; # means overwriting
@@ -2354,7 +2354,7 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                   #  # ex: ExtendedTypeSystemException: The following exception occurred while trying to enumerate the collection: "An exception occurred while executing a Transact-SQL statement or batch.".
                                                   #  throw [Exception] "Accessing database $dbName failed because $_";
                                                   #}
-                                                  [Array] $tables              = @()+($db.Tables               | Where-Object {$_ -ne $null} | Where-Object {$_.IsSystemObject -eq $false}); # including clustered indexes
+                                                  [Array] $tables              = @()+($db.Tables               | Where-Object {$_ -ne $null} | Where-Object {$_.IsSystemObject -eq $false}); # including unique indexes
                                                   [Array] $views               = @()+($db.Views                | Where-Object {$_ -ne $null} | Where-Object {$_.IsSystemObject -eq $false});
                                                   [Array] $storedProcedures    = @()+($db.StoredProcedures     | Where-Object {$_ -ne $null} | Where-Object {$_.IsSystemObject -eq $false});
                                                   [Array] $userDefFunctions    = @()+($db.UserDefinedFunctions | Where-Object {$_ -ne $null} | Where-Object {$_.IsSystemObject -eq $false});
@@ -2362,11 +2362,11 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                   [Array] $dbTriggers          = @()+($db.Triggers             | Where-Object {$_ -ne $null} | Where-Object {$_.IsSystemObject -eq $false});
                                                   [Array] $dbRoles             = @()+($db.Roles                | Where-Object {$_ -ne $null});
                                                   [Array] $tableTriggers       = @()+($tables                  | Where-Object {$_ -ne $null} | ForEach-Object {$_.triggers } | Where-Object {$_ -ne $null});
-                                                  [Array] $indexesNonClustered = @()+($tables                  | Where-Object {$_ -ne $null} | ForEach-Object {$_.indexes  } | Where-Object {$_ -ne $null} | Where-Object {-not $_.IsClustered});
+                                                  [Array] $indexesNonUnique    = @()+($tables                  | Where-Object {$_ -ne $null} | ForEach-Object {$_.indexes  } | Where-Object {$_ -ne $null} | Where-Object {-not $_.IsUnique});
                                                   [Int64] $spaceUsedDataInMB   = [Math]::Ceiling(($db.DataSpaceUsage + $db.IndexSpaceUsage) / 1000000);
                                                   [Int64] $spaceUsedIndexInMB  = [Math]::Ceiling( $db.IndexSpaceUsage                       / 1000000);
                                                   [Int64] $spaceAvailableInMB  = [Math]::Ceiling( $db.SpaceAvailable                        / 1000000);
-                                                  [String[]] $fileDbInfoContent = @( 
+                                                  [String[]] $fileDbInfoContent = @(
                                                       "DbInfo: $dbName (current-user=$env:USERDOMAIN\$env:USERNAME)"
                                                       ,"  Parent               : $($db.Parent                 )" # ex: [MySqlInstance.MyDomain.ch]
                                                       ,"  Collation            : $($db.Collation              )" # ex: Latin1_General_CI_AS
@@ -2381,14 +2381,14 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                       ,"  NrOfUserDefinedFuncs : $($userDefFunctions.Count    )" # ex: 2
                                                       ,"  NrOfDbTriggers       : $($dbTriggers.Count          )" # ex: 2
                                                       ,"  NrOfTableTriggers    : $($tableTriggers.Count       )" # ex: 2
-                                                      ,"  NrOfIndexesNonClust  : $($indexesNonClustered.Count )" # ex: 20
+                                                      ,"  NrOfIndexesNonUnique : $($indexesNonUnique.Count    )" # ex: 20
                                                   );
                                                   FileWriteFromLines $fileDbInfo $fileDbInfoContent $false; # throws if it already exists
                                                   OutProgress ("DbInfo: $dbName Collation=$($db.Collation) CompatibilityLevel=$($db.CompatibilityLevel) " + 
                                                     "UsedDataInMB=$spaceUsedDataInMB; " + "UsedIndexInMB=$spaceUsedIndexInMB; " +
                                                     "NrOfTabs=$($tables.Count); Views=$($views.Count); StProcs=$($storedProcedures.Count); " +
                                                     "Funcs=$($userDefFunctions.Count); DbTriggers=$($dbTriggers.Count); "+
-                                                    "TabTriggers=$($tableTriggers.Count); "+"IndexesNonClust=$($indexesNonClustered.Count); ");
+                                                    "TabTriggers=$($tableTriggers.Count); "+"IndexesNonUnique=$($indexesNonUnique.Count); ");
                                                   OutProgressText "  Process: ";
                                                   OutProgressText "Schemas ";
                                                   Foreach ($i in $dbSchemas){
@@ -2412,13 +2412,14 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                       $scr.Script($i);
                                                     }
                                                   }
-                                                  OutProgressText "Tables ";
+                                                  OutProgressText "Tables "; # inclusive unique indexes
                                                   Foreach ($i in $tables){
                                                     $options.FileName = "$tarDir\Table.$($i.Schema).$($i.Name).sql";
                                                     New-Item $options.FileName -type file -force | Out-Null;
                                                     $smoObjects = New-Object Microsoft.SqlServer.Management.Smo.UrnCollection;
                                                     $smoObjects.Add($i.Urn);
                                                     $scr.Script($smoObjects);
+                                                    $i.indexes | Where-Object {$_ -ne $null -and $_.IsUnique} | ForEach-Object { $scr.Script($_); };
                                                   }
                                                   OutProgressText "Views ";
                                                   Foreach ($i in $views){
@@ -2456,9 +2457,9 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                       $scr.Script($i);
                                                     }
                                                   }
-                                                  OutProgressText "IndexesNonClustered ";
-                                                  Foreach ($i in $indexesNonClustered){
-                                                    $options.FileName = "$tarDir\IndexesNonClustered.$($i.Parent.Schema).$($i.Parent.Name).$($i.Name).sql";
+                                                  OutProgressText "IndexesNonUnique ";
+                                                  Foreach ($i in $indexesNonUnique){
+                                                    $options.FileName = "$tarDir\IndexesNonUnique.$($i.Parent.Schema).$($i.Parent.Name).$($i.Name).sql";
                                                     New-Item $options.FileName -type file -force | Out-Null;
                                                     $scr.Script($i);
                                                   }
