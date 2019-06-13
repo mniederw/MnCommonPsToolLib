@@ -2392,74 +2392,83 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                   OutProgressText "  Process: ";
                                                   OutProgressText "Schemas ";
                                                   Foreach ($i in $dbSchemas){
-                                                    $options.FileName = "$tarDir\Schema.$($i.Name).sql";
+                                                    [String] $name = FsEntryMakeValidFileName $i.Name;
+                                                    $options.FileName = "$tarDir\Schema.$name.sql";
                                                     New-Item $options.FileName -type file -force | Out-Null;
                                                     $scr.Script($i);
                                                   }
                                                   OutProgressText "Roles ";
                                                   Foreach ($i in $dbRoles){
-                                                    $options.FileName = "$tarDir\Role.$($i.Name).sql";
+                                                    [String] $name = FsEntryMakeValidFileName $i.Name;
+                                                    $options.FileName = "$tarDir\Role.$name.sql";
                                                     New-Item $options.FileName -type file -force | Out-Null;
                                                     $scr.Script($i);
                                                   }
                                                   OutProgressText "DbTriggers ";
                                                   foreach ($i in $dbTriggers){
-                                                    $options.FileName = "$tarDir\DbTrigger.$($i.Name).sql";
+                                                    [String] $name = FsEntryMakeValidFileName $i.Name;
+                                                    $options.FileName = "$tarDir\DbTrigger.$name.sql";
                                                     New-Item $options.FileName -type file -force | Out-Null;
                                                     if( $i.IsEncrypted ){
-                                                      FileAppendLine $options.FileName "Note: DbTrigger $($i.Name) is encrypted, so cannot be dumped.";
+                                                      FileAppendLine $options.FileName "Note: DbTrigger $name is encrypted, so cannot be dumped.";
                                                     }else{
                                                       $scr.Script($i);
                                                     }
                                                   }
                                                   OutProgressText "Tables "; # inclusive unique indexes
                                                   Foreach ($i in $tables){
-                                                    $options.FileName = "$tarDir\Table.$($i.Schema).$($i.Name).sql";
+                                                    [String] $name = FsEntryMakeValidFileName "$($i.Schema).$($i.Name)";
+                                                    $options.FileName = "$tarDir\Table.$name.sql";
                                                     New-Item $options.FileName -type file -force | Out-Null;
                                                     $smoObjects = New-Object Microsoft.SqlServer.Management.Smo.UrnCollection;
                                                     $smoObjects.Add($i.Urn);
+                                                    $i.indexes | Where-Object {$_ -ne $null -and $_.IsUnique} | ForEach-Object { $smoObjects.Add($_.Urn); };
                                                     $scr.Script($smoObjects);
-                                                    $i.indexes | Where-Object {$_ -ne $null -and $_.IsUnique} | ForEach-Object { $scr.Script($_); };
                                                   }
                                                   OutProgressText "Views ";
                                                   Foreach ($i in $views){
-                                                    $options.FileName = "$tarDir\View.$($i.Schema).$($i.Name).sql";
+                                                    [String] $name = FsEntryMakeValidFileName "$($i.Schema).$($i.Name)";
+                                                    $options.FileName = "$tarDir\View.$name.sql";
                                                     New-Item $options.FileName -type file -force | Out-Null;
                                                     $scr.Script($i);
                                                   }
                                                   OutProgressText "StoredProcedures";
                                                   Foreach ($i in $storedProcedures){
-                                                    $options.FileName = "$tarDir\StoredProcedure.$($i.Schema).$($i.Name).sql";
+                                                    [String] $name = FsEntryMakeValidFileName "$($i.Schema).$($i.Name)";
+                                                    $options.FileName = "$tarDir\StoredProcedure.$name.sql";
                                                     New-Item $options.FileName -type file -force | Out-Null;
                                                     if( $i.IsEncrypted ){
-                                                      FileAppendLine $options.FileName "Note: StoredProcedure $($i.Schema).$($i.Name) is encrypted, so cannot be dumped.";
+                                                      FileAppendLine $options.FileName "Note: StoredProcedure $name is encrypted, so cannot be dumped.";
                                                     }else{
                                                       $scr.Script($i);
                                                     }
                                                   }
                                                   OutProgressText "UserDefinedFunctions ";
                                                   Foreach ($i in $userDefFunctions){
-                                                    $options.FileName = "$tarDir\UserDefinedFunction.$($i.Schema).$($i.Name).sql";
+                                                    [String] $name = FsEntryMakeValidFileName "$($i.Schema).$($i.Name)";
+                                                    $options.FileName = "$tarDir\UserDefinedFunction.$name.sql";
                                                     New-Item $options.FileName -type file -force | Out-Null;
                                                     if( $i.IsEncrypted ){
-                                                      FileAppendLine $options.FileName "Note: UserDefinedFunction $($i.Schema).$($i.Name) is encrypted, so cannot be dumped.";
+                                                      FileAppendLine $options.FileName "Note: UserDefinedFunction $name is encrypted, so cannot be dumped.";
                                                     }else{
                                                       $scr.Script($i);
                                                     }
                                                   }
                                                   OutProgressText "TableTriggers ";
                                                   Foreach ($i in $tableTriggers){
-                                                    $options.FileName = "$tarDir\TableTrigger.$($i.Parent.Schema).$($i.Parent.Name).$($i.Name).sql";
+                                                    [String] $name = FsEntryMakeValidFileName "$($i.Parent.Schema).$($i.Parent.Name).$($i.Name)";
+                                                    $options.FileName = "$tarDir\TableTrigger.$name.sql";
                                                     New-Item $options.FileName -type file -force | Out-Null;
                                                     if( $i.IsEncrypted ){
-                                                      FileAppendLine $options.FileName "Note: TableTrigger $($i.Schema).$($i.Name) is encrypted, so cannot be dumped.";
+                                                      FileAppendLine $options.FileName "Note: TableTrigger $name is encrypted, so cannot be dumped.";
                                                     }else{
                                                       $scr.Script($i);
                                                     }
                                                   }
                                                   OutProgressText "IndexesNonUnique ";
                                                   Foreach ($i in $indexesNonUnique){
-                                                    $options.FileName = "$tarDir\IndexesNonUnique.$($i.Parent.Schema).$($i.Parent.Name).$($i.Name).sql";
+                                                    [String] $name = FsEntryMakeValidFileName "$($i.Parent.Schema).$($i.Parent.Name).$($i.Name)";
+                                                    $options.FileName = "$tarDir\IndexesNonUnique.$name.sql";
                                                     New-Item $options.FileName -type file -force | Out-Null;
                                                     $scr.Script($i);
                                                   }
