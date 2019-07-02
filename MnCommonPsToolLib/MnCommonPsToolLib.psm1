@@ -2715,7 +2715,8 @@ function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [St
                                                 # Create menu entries based on files below a dir.
                                                 # ex: ToolCreateMenuLinksByMenuItemRefFile "$env:APPDATA\Microsoft\Windows\Start Menu\MyPortableProg" "D:\MyPortableProgs" ".menulink.txt";
                                                 # Find all files below sourceDir with the extension (ex: ".menulink.txt"), which we call them menu-item-reference-file.
-                                                # For each of these files it will create a menu item below the target menu root dir (ex: "$env:APPDATA\Microsoft\Windows\Start Menu\MyPortableProg").
+                                                # For each of these files it will create a menu item below the target menu root dir 
+                                                # (ex: "$env:APPDATA\Microsoft\Windows\Start Menu\MyPortableProg").
                                                 # The name of the target menu item (ex: "Manufactor ProgramName V1") will be taken 
                                                 # from the name of the menu-item-reference-file (...\Manufactor ProgramName V1.menulink.txt) without the extension (ex: ".menulink.txt")
                                                 # and the sub menu folder will be taken from the relative location of the menu-item-reference-file below the sourceDir.
@@ -2740,14 +2741,14 @@ function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [St
                                                   [String] $encodingIfNoBom = "Default";
                                                   [String] $cmdLine = FileReadContentAsLines $f $encodingIfNoBom | Select-Object -First 1;
                                                   [String] $addTraceInfo = "";
+                                                  [Boolean] $forceRecreate = FileNotExistsOrIsOlder $lnkFile $f;
+                                                  [Boolean] $ignoreIfSrcFileNotExists = $f.EndsWith($srcFileExtMenuLinkOpt);
                                                   try{
                                                     [String[]] $ar = StringCommandLineToArray $cmdLine; # can throw: Expected blank or tab char or end of string but got char ...
                                                     if( $ar.Length -eq 0 ){ throw [Exception] "Missing a command line at first line in file=`"$f`" cmdline=`"$cmdLine`""; }
                                                     if( ($ar.Length-1) -gt 999 ){ throw [Exception] "Command line has more than the allowed 999 arguments at first line infile=`"$f`" nrOfArgs=$($ar.Length) cmdline=`"$cmdLine`""; }
                                                     [String] $srcFile = FsEntryMakeAbsolutePath $d $ar[0]; # ex: "D:\MyPortableProgs\Manufactor ProgramName\AnyProgram.exe"
                                                     [String[]] $arguments = $ar | Select-Object -Skip 1;
-                                                    [Boolean] $forceRecreate = FileNotExistsOrIsOlder $lnkFile $f;
-                                                    [Boolean] $ignoreIfSrcFileNotExists = $srcFile.EndsWith($srcFileExtMenuLinkOpt);
                                                     $addTraceInfo = "and calling (ToolCreateLnkIfNotExists $forceRecreate `"$workDir`" `"$lnkFile`" `"$srcFile`" `"$arguments`" $false $ignoreIfSrcFileNotExists) ";
                                                     ToolCreateLnkIfNotExists $forceRecreate $workDir $lnkFile $srcFile $arguments $false $ignoreIfSrcFileNotExists;
                                                   }catch{
