@@ -480,9 +480,12 @@ function PrivFsRuleAsString                   ( [System.Security.AccessControl.F
                                                 } # for later: CentralAccessPolicyId, CentralAccessPolicyName, Sddl="O:BAG:SYD:PAI(A;OICI;FA;;;SY)(A;;FA;;;BA)"
 function PrivAclAsString                      ( [System.Security.AccessControl.FileSystemSecurity] $acl ){
                                                 [String] $s = "Owner=$($acl.Owner);Group=$($acl.Group);Acls="; foreach( $a in $acl.Access){ $s += PrivFsRuleAsString $a; } return [String] $s; }
-function PrivAclSetProtection                 ( [Object] $acl, [Boolean] $accessRuleProtection, [Boolean] $auditRuleProtection ){ $acl.SetAccessRuleProtection($accessRuleProtection, $auditRuleProtection); }
+function PrivAclSetProtection                 ( [System.Security.AccessControl.ObjectSecurity] $acl, [Boolean] $isProtectedFromInheritance, [Boolean] $preserveInheritance ){
+                                                # set preserveInheritance to false to remove inherited access rules, param is ignored if $isProtectedFromInheritance is false.
+                                                $acl.SetAccessRuleProtection($isProtectedFromInheritance, $preserveInheritance); }
 function PrivFsRuleCreate                     ( [System.Security.Principal.IdentityReference] $account, [System.Security.AccessControl.FileSystemRights] $rights,
-                                                [System.Security.AccessControl.InheritanceFlags] $inherit, [System.Security.AccessControl.PropagationFlags] $propagation, [System.Security.AccessControl.AccessControlType] $access ){ 
+                                                [System.Security.AccessControl.InheritanceFlags] $inherit, [System.Security.AccessControl.PropagationFlags] $propagation, [System.Security.AccessControl.AccessControlType] $access ){
+                                                # usually account is (PrivGetGroupAdministrators)
                                                 # combinations see: https://msdn.microsoft.com/en-us/library/ms229747(v=vs.100).aspx
                                                 # https://technet.microsoft.com/en-us/library/ff730951.aspx  Rights=(AppendData,ChangePermissions,CreateDirectories,CreateFiles,Delete,DeleteSubdirectoriesAndFiles,ExecuteFile,FullControl,ListDirectory,Modify,Read,ReadAndExecute,ReadAttributes,ReadData,ReadExtendedAttributes,ReadPermissions,Synchronize,TakeOwnership,Traverse,Write,WriteAttributes,WriteData,WriteExtendedAttributes) Inherit=(ContainerInherit,ObjectInherit,None) Propagation=(InheritOnly,NoPropagateInherit,None) Access=(Allow,Deny)
                                                 return [System.Security.AccessControl.FileSystemAccessRule] (New-Object System.Security.AccessControl.FileSystemAccessRule($account, $rights, $inherit, $propagation, $access)); }
@@ -511,8 +514,10 @@ function PrivAclHasFullControl                ( [System.Security.AccessControl.F
 function PrivShowTokenPrivileges              (){ 
                                                 whoami /priv; }
 function PrivEnableTokenPrivilege             (){
-                                                # Required for example for Set-ACL if it returns "The security identifier is not allowed to be the owner of this object."; Then you need for example the Privilege SeRestorePrivilege;
-                                                # Taken from https://gist.github.com/fernandoacorreia/3997188 or http://www.leeholmes.com/blog/2010/09/24/adjusting-token-privileges-in-powershell/ 
+                                                # Required for example for Set-ACL if it returns "The security identifier is not allowed to be the owner of this object.";
+                                                # Then you need for example the Privilege SeRestorePrivilege;
+                                                # Taken from https://gist.github.com/fernandoacorreia/3997188 
+                                                #   or http://www.leeholmes.com/blog/2010/09/24/adjusting-token-privileges-in-powershell/ 
                                                 #   or https://social.technet.microsoft.com/forums/windowsserver/en-US/e718a560-2908-4b91-ad42-d392e7f8f1ad/take-ownership-of-a-registry-key-and-change-permissions
                                                 # Alternative: https://www.powershellgallery.com/packages/PoshPrivilege/0.3.0.0/Content/Scripts%5CEnable-Privilege.ps1
                                                 param(
@@ -533,7 +538,7 @@ function PrivEnableTokenPrivilege             (){
                                                 )
                                                 ## Taken from P/Invoke.NET with minor adjustments.
                                                 [String] $t = '';
-                                                $t += ' using System; using System.Runtime.InteropServices; public class AdjPriv { ';
+                                                $t += 'using System; using System.Runtime.InteropServices; public class AdjPriv { ';
                                                 $t += '  [DllImport("advapi32.dll", ExactSpelling = true, SetLastError = true)] internal static extern bool AdjustTokenPrivileges(IntPtr htok, bool disall, ref TokPriv1Luid newst, int len, IntPtr prev, IntPtr relen); ';
                                                 $t += '  [DllImport("advapi32.dll", ExactSpelling = true, SetLastError = true)] internal static extern bool OpenProcessToken(IntPtr h, int acc, ref IntPtr phtok); ';
                                                 $t += '  [DllImport("advapi32.dll",                       SetLastError = true)] internal static extern bool LookupPrivilegeValue(string host, string name, ref long pluid); ';
@@ -578,38 +583,48 @@ function PrivEnableTokenAll                   (){
                                                 PrivEnableTokenPrivilege SeCreateSymbolicLinkPrivilege  ;
                                                 whoami /priv;
                                               }
-function RegistryMapToShortKey                ( [String] $key ){ 
+function RegistryMapToShortKey                ( [String] $key ){ # Note: HKCU: will be replaced by HKLM:\SOFTWARE\Classes" otherwise it would not work
                                                 if( -not $key.StartsWith("HKEY_","CurrentCultureIgnoreCase") ){ return [String] $key; }
-                                                return [String] $key -replace "HKEY_LOCAL_MACHINE:","HKLM:" -replace "HKEY_CURRENT_USER:","HKCU:" -replace "HKEY_CLASSES_ROOT:","HKCR:" -replace "HKEY_USERS:","HKU:" -replace "HKEY_CURRENT_CONFIG:","HKCC:"; }
+                                                return [String] $key -replace "HKEY_LOCAL_MACHINE:","HKLM:" -replace "HKEY_CURRENT_USER:","HKCU:" -replace "HKEY_CLASSES_ROOT:","HKCR:" -replace "HKCR:","HKLM:\SOFTWARE\Classes" -replace "HKEY_USERS:","HKU:" -replace "HKEY_CURRENT_CONFIG:","HKCC:"; }
 function RegistryRequiresElevatedAdminMode    ( [String] $key ){ 
-                                                if( $key.StartsWith("HKLM:","CurrentCultureIgnoreCase") -or $key.StartsWith("HKEY_LOCAL_MACHINE:","CurrentCultureIgnoreCase") ){ ProcessRestartInElevatedAdminMode; } }
+                                                if( (RegistryMapToShortKey $key).StartsWith("HKLM:","CurrentCultureIgnoreCase") ){ ProcessRestartInElevatedAdminMode; } }
 function RegistryAssertIsKey                  ( [String] $key ){ 
-                                                if( $key.StartsWith("HK","CurrentCultureIgnoreCase") -or $key.StartsWith("HKEY_","CurrentCultureIgnoreCase") ){ return; } throw [Exception] "Missing registry key instead of: `"$key`""; }
-function RegistryExistsKey                    ( [String] $key ){ 
-                                                RegistryAssertIsKey $key; return [Boolean] (Test-Path $key); }
-function RegistryExistsValue                  ( [String] $key, [String] $name = ""){ 
-                                                RegistryAssertIsKey $key; if( $name -eq "" ){ $name = "(default)"; } 
+                                                $key = RegistryMapToShortKey $key; if( $key.StartsWith("HK","CurrentCultureIgnoreCase") ){ return; } throw [Exception] "Missing registry key instead of: `"$key`""; }
+function RegistryExistsKey                    ( [String] $key ){
+                                                $key = RegistryMapToShortKey $key; RegistryAssertIsKey $key; return [Boolean] (Test-Path $key); }
+function RegistryExistsValue                  ( [String] $key, [String] $name = ""){
+                                                $key = RegistryMapToShortKey $key; RegistryAssertIsKey $key; if( $name -eq "" ){ $name = "(default)"; } 
                                                 [Object] $k = Get-Item -Path $key -ErrorAction SilentlyContinue; 
                                                 return [Boolean] $k -and $k.GetValue($name, $null) -ne $null; }
 function RegistryCreateKey                    ( [String] $key ){  # creates key if not exists
-                                                RegistryAssertIsKey $key; if( ! (RegistryExistsKey $key) ){ RegistryRequiresElevatedAdminMode $key; OutProgress "RegistryCreateKey `"$key`""; New-Item -Force -Path $key | Out-Null; } }
+                                                $key = RegistryMapToShortKey $key; RegistryAssertIsKey $key; 
+                                                if( ! (RegistryExistsKey $key) ){ OutProgress "RegistryCreateKey `"$key`""; RegistryRequiresElevatedAdminMode $key; New-Item -Force -Path $key | Out-Null; } }
 function RegistryGetValueAsObject             ( [String] $key, [String] $name = ""){ # Return null if value not exists.
-                                                RegistryAssertIsKey $key; if( $name -eq "" ){ $name = "(default)"; }
+                                                $key = RegistryMapToShortKey $key; RegistryAssertIsKey $key; if( $name -eq "" ){ $name = "(default)"; }
                                                 [Object] $v = Get-ItemProperty -Path $key -Name $name -ErrorAction SilentlyContinue;
                                                 if( $v -eq $null ){ return [Object] $null; }else{ return [Object] $v.$name; } }
 function RegistryGetValueAsString             ( [String] $key, [String] $name = "" ){ # return empty string if value not exists
-                                                RegistryAssertIsKey $key; [Object] $obj = RegistryGetValueAsObject $key $name; if( $obj -eq $null ){ return ""; } return [String] $obj.ToString(); }
-function RegistryListValueNames               ( [String] $key ){ 
-                                                RegistryAssertIsKey $key; return [String[]] (Get-Item -Path $key).GetValueNames(); } # Throws if key not found, if (default) value is assigned then empty string is returned for it.
-function RegistryDelKey                       ( [String] $key ){ 
-                                                RegistryAssertIsKey $key; if( !(RegistryExistsKey $key) ){ return; } RegistryRequiresElevatedAdminMode; OutProgress "RegistryDelKey `"$key`""; Remove-Item -Path "$key"; }
+                                                $key = RegistryMapToShortKey $key; RegistryAssertIsKey $key; [Object] $obj = RegistryGetValueAsObject $key $name; 
+                                                if( $obj -eq $null ){ return ""; } return [String] $obj.ToString(); }
+function RegistryListValueNames               ( [String] $key ){
+                                                $key = RegistryMapToShortKey $key; RegistryAssertIsKey $key; 
+                                                return [String[]] (Get-Item -Path $key).GetValueNames(); } # Throws if key not found, if (default) value is assigned then empty string is returned for it.
+function RegistryDelKey                       ( [String] $key ){
+                                                $key = RegistryMapToShortKey $key; RegistryAssertIsKey $key; 
+                                                if( !(RegistryExistsKey $key) ){ return; } 
+                                                OutProgress "RegistryDelKey `"$key`""; 
+                                                RegistryRequiresElevatedAdminMode; 
+                                                Remove-Item -Path "$key"; }
 function RegistryDelValue                     ( [String] $key, [String] $name = "" ){ 
+                                                $key = RegistryMapToShortKey $key; 
                                                 RegistryAssertIsKey $key; if( $name -eq "" ){ $name = "(default)"; } 
                                                 if( !(RegistryExistsValue $key $name) ){ return; } 
-                                                RegistryRequiresElevatedAdminMode;  OutProgress "RegistryDelValue `"$key`" `"$name`""; Remove-ItemProperty -Path $key -Name $name; }
+                                                OutProgress "RegistryDelValue `"$key`" `"$name`""; 
+                                                RegistryRequiresElevatedAdminMode;  
+                                                Remove-ItemProperty -Path $key -Name $name; }
 function RegistrySetValue                     ( [String] $key, [String] $name, [String] $type, [Object] $val, [Boolean] $overwriteEvenIfStringValueIsEqual = $false ){
                                                 # Creates key-value if it not exists; value is changed only if it is not equal than previous value; available types: Binary, DWord, ExpandString, MultiString, None, QWord, String, Unknown.
-                                                RegistryAssertIsKey $key; if( $name -eq "" ){ $name = "(default)"; } RegistryCreateKey $key; if( !$overwriteEvenIfStringValueIsEqual ){ 
+                                                $key = RegistryMapToShortKey $key; RegistryAssertIsKey $key; if( $name -eq "" ){ $name = "(default)"; } RegistryCreateKey $key; if( !$overwriteEvenIfStringValueIsEqual ){ 
                                                   [Object] $obj = RegistryGetValueAsObject $key $name;
                                                   if( $obj -ne $null -and $val -ne $null -and $obj.GetType() -eq $val.GetType() -and $obj.ToString() -eq $val.ToString() ){ return; }
                                                 } 
@@ -624,39 +639,99 @@ function RegistryImportFile                   ( [String] $regFile ){
                                                 }catch{ <# ignore always: System.Management.Automation.RemoteException Der Vorgang wurde erfolgreich beendet. #> [String] $expectedMsg = "Der Vorgang wurde erfolgreich beendet."; 
                                                   if( $_.Exception.Message -ne $expectedMsg ){ throw [Exception] "$(ScriptGetCurrentFunc)(`"$regFile`") failed. We expected an exc but this must match '$expectedMsg' but we got: '$($_.Exception.Message)'"; } ScriptResetRc; } }
 function RegistryKeyGetAcl                    ( [String] $key ){
+                                                $key = RegistryMapToShortKey $key;
                                                 return [System.Security.AccessControl.RegistrySecurity] (Get-Acl -Path $key); } # must be called with shortkey form
 function RegistryKeyGetHkey                   ( [String] $key ){
-                                                if    ( $key.StartsWith("HKLM:","CurrentCultureIgnoreCase") ){ return [Microsoft.Win32.Registry]::LocalMachine; }  # Note: we must return result immediatly because we had problems if it would be stored in a variable.
-                                                elseif( $key.StartsWith("HKCU:","CurrentCultureIgnoreCase") ){ return [Microsoft.Win32.Registry]::CurrentUser; }
-                                                elseif( $key.StartsWith("HKCR:","CurrentCultureIgnoreCase") ){ return [Microsoft.Win32.Registry]::ClassesRoot; }
-                                                elseif( $key.StartsWith("HKCC:","CurrentCultureIgnoreCase") ){ return [Microsoft.Win32.Registry]::CurrentConfig; }
-                                                elseif( $key.StartsWith("HKPD:","CurrentCultureIgnoreCase") ){ return [Microsoft.Win32.Registry]::PerformanceData; }
-                                                elseif( $key.StartsWith("HKU:","CurrentCultureIgnoreCase")  ){ return [Microsoft.Win32.Registry]::Users; }
-                                                else{ throw [Exception] "$(ScriptGetCurrentFunc): Unknown HKey in: `"$key`""; } }
+                                                $key = RegistryMapToShortKey $key;
+                                                if    ( $key.StartsWith("HKLM:","CurrentCultureIgnoreCase") ){ return [Microsoft.Win32.RegistryHive]::LocalMachine; }
+                                                elseif( $key.StartsWith("HKCU:","CurrentCultureIgnoreCase") ){ return [Microsoft.Win32.RegistryHive]::CurrentUser; }
+                                                elseif( $key.StartsWith("HKCR:","CurrentCultureIgnoreCase") ){ return [Microsoft.Win32.RegistryHive]::ClassesRoot; }
+                                                elseif( $key.StartsWith("HKCC:","CurrentCultureIgnoreCase") ){ return [Microsoft.Win32.RegistryHive]::CurrentConfig; }
+                                                elseif( $key.StartsWith("HKPD:","CurrentCultureIgnoreCase") ){ return [Microsoft.Win32.RegistryHive]::PerformanceData; }
+                                                elseif( $key.StartsWith("HKU:","CurrentCultureIgnoreCase")  ){ return [Microsoft.Win32.RegistryHive]::Users; }
+                                                else{ throw [Exception] "$(ScriptGetCurrentFunc): Unknown HKey in: `"$key`""; } } # not used: [Microsoft.Win32.RegistryHive]::DynData
 function RegistryKeyGetSubkey                 ( [String] $key ){ 
-                                                return [String] ($key -split ":",2)[1]; }
+                                                $key = RegistryMapToShortKey $key; 
+                                                return [String] (($key -split ":\\",2)[1]); }
 function RegistryPrivRuleCreate               ( [System.Security.Principal.IdentityReference] $account, [String] $regRight = "" ){
-                                                # ex: "FullControl", "ReadKey". available enums: https://msdn.microsoft.com/en-us/library/system.security.accesscontrol.registryrights(v=vs.110).aspx 
+                                                # ex: (PrivGetGroupAdministrators) "FullControl";
+                                                # regRight ex: "ReadKey", available enums: https://msdn.microsoft.com/en-us/library/system.security.accesscontrol.registryrights(v=vs.110).aspx 
                                                 if( $regRight -eq "" ){ return [System.Security.AccessControl.AccessControlSections]::None; }
                                                 $inh = [System.Security.AccessControl.InheritanceFlags]"ContainerInherit";
                                                 $pro = [System.Security.AccessControl.PropagationFlags]::None;
                                                 return New-Object System.Security.AccessControl.RegistryAccessRule($account,[System.Security.AccessControl.RegistryRights]$regRight,$inh,$pro,[System.Security.AccessControl.AccessControlType]::Allow); }
                                                 # alternative: "ObjectInherit,ContainerInherit"
-function RegistryKeySetOwner                  ( [String] $key, [System.Security.Principal.IdentityReference] $account ){ # Note: Throws PermissionDenied if object is protected by TrustedInstaller, then use RegistryKeySetOwnerForced.
-                                                [System.Security.AccessControl.RegistrySecurity] $acl = RegistryKeyGetAcl $key; 
-                                                if( $acl.Owner -ne $account.Value ){ OutProgress "RegistryKeySetOwner `"$key`" `"$($account.ToString())`""; $acl.SetOwner($account); Set-Acl -Path $key -AclObject $acl; } }
-function RegistryKeySetOwnerForced            ( [String] $key, [System.Security.Principal.IdentityReference] $account ){ # use this if object is protected by TrustedInstaller
-                                                ProcessRestartInElevatedAdminMode; OutProgress "RegistryKeySetOwnerForced `"$key`" `"$account`""; PrivEnableTokenPrivilege SeTakeOwnershipPrivilege; PrivEnableTokenPrivilege SeRestorePrivilege;
-                                                try{ [Object] $k = (RegistryKeyGetHkey $key).OpenSubKey((RegistryKeyGetSubkey $key),[Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,[System.Security.AccessControl.RegistryRights]::TakeOwnership);
-                                                [Object] $acl = $k.GetAccessControl();
-                                                $acl.SetOwner($account); $k.SetAccessControl($acl); $k.Close();
+function RegistryPrivRuleToString             ( [System.Security.AccessControl.RegistryAccessRule] $rule ){
+                                                [String] $s = $rule.IdentityReference + ":"; # ex: VORDEFINIERT\Administratoren
+                                                if( $rule.AccessControlType -band [System.Security.AccessControl.AccessControlType]::Allow             ){ $s = "+"; }
+                                                if( $rule.AccessControlType -band [System.Security.AccessControl.AccessControlType]::Deny              ){ $s = "-"; }
+                                                if( $rule.IsInherited ){
+                                                  $s += "I,";
+                                                  if(   $rule.InheritanceFlags -eq   [System.Security.AccessControl.InheritanceFlags]::None              ){ $s = ""; }else{
+                                                    if( $rule.InheritanceFlags -band [System.Security.AccessControl.InheritanceFlags]::ContainerInherit  ){ $s = "IC,"; }
+                                                    if( $rule.InheritanceFlags -band [System.Security.AccessControl.InheritanceFlags]::ObjectInherit     ){ $s = "IO,"; }
+                                                  }
+                                                  if(   $rule.PropagationFlags -eq   [System.Security.AccessControl.PropagationFlags]::None              ){ $s = ""; }else{
+                                                    if( $rule.PropagationFlags -band [System.Security.AccessControl.PropagationFlags]::NoPropagateInherit){ $s = "PN,"; }
+                                                    if( $rule.PropagationFlags -band [System.Security.AccessControl.PropagationFlags]::InheritOnly       ){ $s = "PI,"; }
+                                                  }
+                                                }
+                                                if(   $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::FullControl         ){ $s = "F,"; }else{
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::ReadKey             ){ $s = "R,"; }
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::WriteKey            ){ $s = "W,"; }
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::CreateSubKey        ){ $s = "C,"; }
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::Delete              ){ $s = "D,"; }
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::TakeOwnership       ){ $s = "O,"; }
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::EnumerateSubKeys    ){ $s = "L,"; }
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::QueryValues         ){ $s = "r,"; }
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::SetValue            ){ $s = "w,"; }
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::ReadPermissions     ){ $s = "p,"; }
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::ChangePermissions   ){ $s = "c,"; }
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::Notify              ){ $s = "n,"; }
+                                                } return [String] $s; }
+function RegistryKeySetOwner                  ( [String] $key, [System.Security.Principal.IdentityReference] $account ){
+                                                # ex: "HKLM:\Software\MyManufactor" (PrivGetGroupAdministrators);
+                                                # Changes only if owner is not yet the required one.
+                                                # Note: Throws PermissionDenied if object is protected by TrustedInstaller.
+                                                # Use force this if object is protected by TrustedInstaller, then it asserts elevated mode and enables some token privileges.
+                                                $key = RegistryMapToShortKey $key;
+                                                OutProgress "RegistryKeySetOwner `"$key`" `"$($account.ToString())`"";
+                                                RegistryRequiresElevatedAdminMode;
+                                                PrivEnableTokenPrivilege SeTakeOwnershipPrivilege; 
+                                                PrivEnableTokenPrivilege SeRestorePrivilege; 
+                                                PrivEnableTokenPrivilege SeBackupPrivilege;
+                                                try{
+                                                  [Microsoft.Win32.RegistryKey] $hk = [Microsoft.Win32.RegistryKey]::OpenBaseKey((RegistryKeyGetHkey $key),[Microsoft.Win32.RegistryView]::Default);
+                                                  [Microsoft.Win32.RegistryKey] $k = $hk.OpenSubKey((RegistryKeyGetSubkey $key),[Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,[System.Security.AccessControl.RegistryRights]::TakeOwnership);
+                                                  [System.Security.AccessControl.RegistrySecurity] $acl = $k.GetAccessControl([System.Security.AccessControl.AccessControlSections]::All); # alternatives: None, Audit, Access, Owner, Group, All
+                                                  if( $acl.Owner -eq $account.Value ){ return; }
+                                                  $acl.SetOwner($account); $k.SetAccessControl($acl); 
+                                                  $k.Close(); $hk.Close();
+                                                  # alternative but sometimes access denied: [System.Security.AccessControl.RegistrySecurity] $acl = RegistryKeyGetAcl $key; $acl.SetOwner($account); Set-Acl -Path $key -AclObject $acl;
                                                 }catch{ throw [Exception] "$(ScriptGetCurrentFunc)($key,$account) failed because $($_.Exception.Message)"; } }
-function RegistryKeySetAccessRuleForced       ( [String] $key, [System.Security.AccessControl.RegistryAccessRule] $rule ){ # Use this if object is protected by TrustedInstaller.
-                                                ProcessRestartInElevatedAdminMode; OutProgress "RegistryKeySetAccessRuleForced `"$key`" `"$rule`""; PrivEnableTokenPrivilege SeTakeOwnershipPrivilege; PrivEnableTokenPrivilege SeRestorePrivilege;
-                                                try{ [Object] $k = (RegistryKeyGetHkey $key).OpenSubKey((RegistryKeyGetSubkey $key),[Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,[System.Security.AccessControl.RegistryRights]::TakeOwnership);
-                                                  [Object] $acl = $k.GetAccessControl();
-                                                  $acl.SetAccessRule($rule); <# alternative: AddAccessRule #> $k.SetAccessControl($acl); $k.Close(); 
-                                                }catch{ throw [Exception] "$(ScriptGetCurrentFunc)($key,$rule) failed because $($_.Exception.Message)"; } }
+function RegistryKeySetAclRight               ( [String] $key, [System.Security.Principal.IdentityReference] $account, [String] $regRight = "FullControl" ){
+                                                # ex: "HKLM:\Software\MyManufactor" (PrivGetGroupAdministrators) "FullControl";
+                                                RegistryKeySetAclRule $key (RegistryPrivRuleCreate $account $regRight); }
+function RegistryKeyAddAclRule                ( [String] $key, [System.Security.AccessControl.RegistryAccessRule] $rule ){
+                                                RegistryKeySetAclRule $key $rule $true; } 
+function RegistryKeySetAclRule                ( [String] $key, [System.Security.AccessControl.RegistryAccessRule] $rule, [Boolean] $useAddNotSet = $false ){
+                                                # ex: "HKLM:\Software\MyManufactor" (PrivGetGroupAdministrators) "FullControl";
+                                                $key = RegistryMapToShortKey $key;
+                                                OutProgress "RegistryKeySetAclRule `"$key`" `"$(RegistryPrivRuleToString $rule)`"";
+                                                RegistryRequiresElevatedAdminMode;
+                                                PrivEnableTokenPrivilege SeTakeOwnershipPrivilege;
+                                                PrivEnableTokenPrivilege SeRestorePrivilege; 
+                                                PrivEnableTokenPrivilege SeBackupPrivilege;
+                                                try{
+                                                  [Microsoft.Win32.RegistryKey] $hk = [Microsoft.Win32.RegistryKey]::OpenBaseKey((RegistryKeyGetHkey $key),[Microsoft.Win32.RegistryView]::Default);
+                                                  [Microsoft.Win32.RegistryKey] $k = $hk.OpenSubKey((RegistryKeyGetSubkey $key),[Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,[System.Security.AccessControl.RegistryRights]::ChangePermissions);
+                                                  [System.Security.AccessControl.RegistrySecurity] $acl = $k.GetAccessControl([System.Security.AccessControl.AccessControlSections]::All); # alternatives: None, Audit, Access, Owner, Group, All
+                                                  [System.Security.AccessControl.RegistryAccessRule] $rule = RegistryPrivRuleCreate $account $regRight;
+                                                  if( $useAddNotSet ){ $acl.AddAccessRule($rule); }
+                                                  else               { $acl.SetAccessRule($rule); }
+                                                  $k.SetAccessControl($acl); 
+                                                  $k.Close(); $hk.Close();
+                                                }catch{ throw [Exception] "$(ScriptGetCurrentFunc)($key,$(RegistryPrivRuleToString $rule)) failed because $($_.Exception.Message)"; } }
 function OsGetWindowsProductKey               (){
                                                 [String] $map = "BCDFGHJKMPQRTVWXY2346789"; 
                                                 [Object] $value = (Get-ItemProperty "HKLM:\\SOFTWARE\Microsoft\Windows NT\CurrentVersion").digitalproductid[0x34..0x42]; [String] $p = ""; 
@@ -702,7 +777,7 @@ function ServiceSetStartType                  ( [String] $serviceName, [String] 
                                                 [String] $startTypeExt = switch($startType){ "Disabled" {$startType} "Manual" {$startType} "Automatic" {$startType} "Automatic_Delayed" {"Automatic"} 
                                                   default { throw [Exception] "Unknown startType=$startType expected Disabled,Manual,Automatic,Automatic_Delayed."; } };
                                                 [Nullable[UInt32]] $targetDelayedAutostart = switch($startType){ "Automatic" {0} "Automatic_Delayed" {1} default {$null} };
-                                                [String] $key = "HKLM\System\CurrentControlSet\Services\$serviceName";
+                                                [String] $key = "HKLM:\System\CurrentControlSet\Services\$serviceName";
                                                 [String] $regName = "DelayedAutoStart";
                                                 [UInt32] $delayedAutostart = RegistryGetValueAsObject $key $regName; # null converted to 0
                                                 [Object] $s = ServiceGet $serviceName; if( $s -eq $null ){ throw [Exception] "Service $serviceName not exists"; }
@@ -864,7 +939,9 @@ function FsEntryRename                        ( [String] $fsEntryFrom, [String] 
                                                 # for files or dirs, relative or absolute, origin must exists, directory parts must be identic.
                                                 OutProgress "FsEntryRename `"$fsEntryFrom`" `"$fsEntryTo`""; 
                                                 FsEntryAssertExists $fsEntryFrom; FsEntryAssertNotExists $fsEntryTo; 
-                                                Rename-Item -Path (FsEntryGetAbsolutePath (FsEntryRemoveTrailingBackslash $fsEntryFrom)) -newName (FsEntryGetAbsolutePath (FsEntryRemoveTrailingBackslash $fsEntryTo)) -force; }
+                                                [String] $fs1 = (FsEntryGetAbsolutePath (FsEntryRemoveTrailingBackslash $fsEntryFrom));
+                                                [String] $fs2 = (FsEntryGetAbsolutePath (FsEntryRemoveTrailingBackslash $fsEntryTo));
+                                                Rename-Item -Path $fs1 -newName $fs2 -force; }
 function FsEntryCreateSymLink                 ( [String] $newSymLink, [String] $fsEntryOrigin ){
                                                 # (junctions (=~symlinksToDirs) do not) (https://superuser.com/questions/104845/permission-to-make-symbolic-links-in-windows-7/105381).
                                                 New-Item -ItemType SymbolicLink -Name (FsEntryEsc $newSymLink) -Value (FsEntryEsc $fsEntryOrigin); }
@@ -921,9 +998,12 @@ function FsEntryAclRuleWrite                  ( [String] $modeSetAddOrDel, [Stri
                                                 if( $recursive -and (FsEntryIsDir $fsEntry) ){
                                                   FsEntryListAsStringArray "$fsEntry\*" $false | ForEach-Object{ FsEntryAclRuleWrite $modeSetAddOrDel $_ $rule $true };
                                                 } }
-function FsEntryTrySetOwner                   ( [String] $fsEntry, [System.Security.Principal.IdentityReference] $account, [Boolean] $recursive = $false ){ # usually account is (PrivGetGroupAdministrators)
+function FsEntryTrySetOwner                   ( [String] $fsEntry, [System.Security.Principal.IdentityReference] $account, [Boolean] $recursive = $false ){
+                                                # usually account is (PrivGetGroupAdministrators)
                                                 ProcessRestartInElevatedAdminMode; 
-                                                PrivEnableTokenPrivilege SeTakeOwnershipPrivilege; PrivEnableTokenPrivilege SeRestorePrivilege; PrivEnableTokenPrivilege SeBackupPrivilege;
+                                                PrivEnableTokenPrivilege SeTakeOwnershipPrivilege; 
+                                                PrivEnableTokenPrivilege SeRestorePrivilege; 
+                                                PrivEnableTokenPrivilege SeBackupPrivilege;
                                                 [System.Security.AccessControl.FileSystemSecurity] $acl = FsEntryAclGet $fsEntry; 
                                                 try{
                                                   [System.IO.FileSystemInfo] $fs = Get-Item -Force -LiteralPath $fsEntry;
@@ -953,6 +1033,7 @@ function FsEntryTrySetOwner                   ( [String] $fsEntry, [System.Secur
                                                   OutWarning "Ignoring: FsEntryTrySetOwner($fsEntry,$account) failed because $($_.Exception.Message)";
                                                 } }
 function FsEntryTrySetOwnerAndAclsIfNotSet    ( [String] $fsEntry, [System.Security.Principal.IdentityReference] $account, [Boolean] $recursive = $false ){
+                                                # usually account is (PrivGetGroupAdministrators)
                                                 [System.Security.AccessControl.FileSystemSecurity] $acl = FsEntryAclGet $fsEntry;
                                                 if( $acl.Owner -ne $account ){
                                                   FsEntryTrySetOwner $fsEntry $account $false;
@@ -2498,7 +2579,7 @@ function JuniperNcEstablishVpnConn            ( [String] $secureCredentialFile, 
                                                 [String] $serviceName = "DsNcService";
                                                 [String] $vpnProg = "${env:ProgramFiles(x86)}\Juniper Networks\Network Connect 8.0\nclauncher.exe";
                                                 # Using: nclauncher [-url Url] [-u username] [-p password] [-r realm] [-help] [-stop] [-signout] [-version] [-d DSID] [-cert client certificate] [-t Time(Seconds min:45, max:600)] [-ir true | false]
-                                                # Alternatively we could take: "HKLM\SOFTWARE\Wow6432Node\Juniper Networks\Network Connect 8.0\InstallPath":  C:\Program Files (x86)\Juniper Networks\Network Connect 8.0
+                                                # Alternatively we could take: "HKLM:\SOFTWARE\Wow6432Node\Juniper Networks\Network Connect 8.0\InstallPath":  C:\Program Files (x86)\Juniper Networks\Network Connect 8.0
                                                 function JuniperNetworkConnectStop(){
                                                   OutProgress "Call: `"$vpnProg`" -signout";
                                                   try{

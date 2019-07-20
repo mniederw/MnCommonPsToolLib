@@ -4,9 +4,13 @@
 Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
 Current version can be requested by: $MnCommonPsToolLibVersion
 
-2019-05-29  V3.5   improved get-sql-db-schema, fixed optional menu link file of ToolCreateMenuLinksByMenuItemRefFile
 
-2019-05-11  V3.4   extend FsEntryFindFlatSingleByPattern, extend TfsCheckinDirWhenNoConflict, added StdInAskAndAssertExpectedAnswer, do ConsoleSetGuiProperties only once per shell, added StringIsInt32/64, StringAsInt32/64.
+2019-07-20  V3.5   improved get-sql-db-schema, fixed optional menu link file of ToolCreateMenuLinksByMenuItemRefFile, 
+                   improve reg key priv methods, replaced RegistryKeySetOwnerForced by RegistryKeySetOwner, 
+                   renamed RegistryKeySetAccessRule by RegistryKeySetAclRule, rename RegistryKeySetAcl by RegistryKeySetAclRight.
+
+2019-05-11  V3.4   extend FsEntryFindFlatSingleByPattern, extend TfsCheckinDirWhenNoConflict, added StdInAskAndAssertExpectedAnswer, 
+                   do ConsoleSetGuiProperties only once per shell, added StringIsInt32/64, StringAsInt32/64.
 
 2019-05-06  V3.3   set doublequotes instead of quotes in log strings, improve svn changes detections for committing, git pull used time, fix console buffer sizes.
 
@@ -14,15 +18,24 @@ Current version can be requested by: $MnCommonPsToolLibVersion
 
 2019-04-21  V3.1   add progress to reg functions, fix RegistrySetValue, fix createlnk for filenames with brackets, git-pull ok if repo hs no content, add log for git.
 
-2019-03-23  V3.0   change ProcessStart return string instead of string array and remove outToProgress param, replace StringReplaceNewlinesBySpaces by StringReplaceNewlines(with space as default arg), improve git pull.
+2019-03-23  V3.0   change ProcessStart return string instead of string array and remove outToProgress param, 
+                   replace StringReplaceNewlinesBySpaces by StringReplaceNewlines(with space as default arg), improve git pull.
 
-2019-02-22  V2.0   remove unused var ModeDisallowElevation, replace var CurrentMonthIsoString by function DateTimeNowAsStringIsoMonth(), new ConsoleSetPos, refactor MnCommonPsToolLibSelfUpdate by using github release, removed ToolPerformFileUpdateAndIsActualized.
+2019-02-22  V2.0   remove unused var ModeDisallowElevation, replace var CurrentMonthIsoString by function DateTimeNowAsStringIsoMonth(), 
+                   new ConsoleSetPos, refactor MnCommonPsToolLibSelfUpdate by using github release, removed ToolPerformFileUpdateAndIsActualized.
 
 2019-01-16  V1.32  add SqlGenerateFullDbSchemaFiles, add check, care gitstderr as out.
 
-2019-01-06  V1.29  doc, InfoGetInstalledDotNetVersion, rename SvnCommitAndGet to SvnTortoiseCommitAndUpdate, rename SvnCommit to SvnTortoiseCommit, improve ProcessStart, rename RdpConnect to ToolRdpConnect, rename WgetDownloadSite to NetDownloadSite, rename PsWebRequestLastModifiedFailSafe to NetWebRequestLastModifiedFailSafe, rename PsDownloadFile to NetDownloadFile, rename PsDownloadToString to NetDownloadToString, rename CurlDownloadFile to NetDownloadFileByCurl, rename CurlDownloadToString to NetDownloadToStringByCurl.
-2018-12-30  V1.28  improve download exc, add encoding as param for FileReadContent functions, renamed from CredentialGetPasswordTextFromCred to CredentialGetPassword, new CredentialGetUsername, rename CredentialReadFromParamOrInput to CredentialCreate
-2018-12-16  V1.27  suppress import-module warnings, improve ToolCreateLnkIfNotExists, rename FsEntryPrivAclAsString to PrivAclAsString, rename PrivFsSecurityHasFullControl to PrivAclHasFullControl, new: FsEntryCreateSymLink, FsEntryCreateHardLink, CredentialReadUserFromFile; 
+2019-01-06  V1.29  doc, InfoGetInstalledDotNetVersion, rename SvnCommitAndGet to SvnTortoiseCommitAndUpdate, rename SvnCommit to SvnTortoiseCommit, 
+                   improve ProcessStart, rename RdpConnect to ToolRdpConnect, rename WgetDownloadSite to NetDownloadSite, 
+                   rename PsWebRequestLastModifiedFailSafe to NetWebRequestLastModifiedFailSafe, rename PsDownloadFile to NetDownloadFile, 
+                   rename PsDownloadToString to NetDownloadToString, rename CurlDownloadFile to NetDownloadFileByCurl, 
+                   rename CurlDownloadToString to NetDownloadToStringByCurl.
+2018-12-30  V1.28  improve download exc, add encoding as param for FileReadContent functions, 
+                   renamed from CredentialGetPasswordTextFromCred to CredentialGetPassword, new CredentialGetUsername, 
+                   rename CredentialReadFromParamOrInput to CredentialCreate
+2018-12-16  V1.27  suppress import-module warnings, improve ToolCreateLnkIfNotExists, rename FsEntryPrivAclAsString to PrivAclAsString, 
+                   rename PrivFsSecurityHasFullControl to PrivAclHasFullControl, new: FsEntryCreateSymLink, FsEntryCreateHardLink, CredentialReadUserFromFile; 
 2018-12-16  V1.26  doc
 2018-10-08  V1.25  improve git logging, add ProcessStart
 2018-09-27  V1.24  fix FsEntryMakeRelative for equal dirs
@@ -30,7 +43,9 @@ Current version can be requested by: $MnCommonPsToolLibVersion
 2018-09-26  V1.22  improved logging of SqlPerformFile
 2018-09-26  V1.21  improved FsEntryMakeRelative
 2018-09-26  V1.20  add: ScriptImportModuleIfNotDone, SqlPerformFile;
-2018-09-07  V1.19  remove deprecated: DirExistsAssert (use DirAssertExists instead), DateTimeFromStringAsFormat (use DateTimeFromStringIso instead), DateTimeAsStringForFileName (use DateTimeNowAsStringIso instead), fix DateTimeFromStringIso formats. Added FsEntryFsInfoFullNameDirWithBackSlash, FsEntryResetTs. Ignore Import err. Use ps module sqlserver instead sqlps and now with connectstring.
+2018-09-07  V1.19  remove deprecated: DirExistsAssert (use DirAssertExists instead), DateTimeFromStringAsFormat (use DateTimeFromStringIso instead), 
+                   DateTimeAsStringForFileName (use DateTimeNowAsStringIso instead), fix DateTimeFromStringIso formats. 
+                   Added FsEntryFsInfoFullNameDirWithBackSlash, FsEntryResetTs. Ignore Import err. Use ps module sqlserver instead sqlps and now with connectstring.
 2018-09-06  V1.18  add ConsoleSetGuiProperties, GetExtension.
 2018-08-14  V1.17  fix git err msg.
 2018-08-07  V1.16  add tool for sign assemblies, DirCreateTemp.
