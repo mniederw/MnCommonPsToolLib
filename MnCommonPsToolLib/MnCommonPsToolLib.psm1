@@ -662,32 +662,33 @@ function RegistryPrivRuleCreate               ( [System.Security.Principal.Ident
                                                 return New-Object System.Security.AccessControl.RegistryAccessRule($account,[System.Security.AccessControl.RegistryRights]$regRight,$inh,$pro,[System.Security.AccessControl.AccessControlType]::Allow); }
                                                 # alternative: "ObjectInherit,ContainerInherit"
 function RegistryPrivRuleToString             ( [System.Security.AccessControl.RegistryAccessRule] $rule ){
-                                                [String] $s = $rule.IdentityReference + ":"; # ex: VORDEFINIERT\Administratoren
-                                                if( $rule.AccessControlType -band [System.Security.AccessControl.AccessControlType]::Allow             ){ $s = "+"; }
-                                                if( $rule.AccessControlType -band [System.Security.AccessControl.AccessControlType]::Deny              ){ $s = "-"; }
+                                                # ex: RegistryPrivRuleToString (RegistryPrivRuleCreate (PrivGetGroupAdministrators) "FullControl")
+                                                [String] $s = "$($rule.IdentityReference.ToString()):"; # ex: VORDEFINIERT\Administratoren
+                                                if( $rule.AccessControlType -band [System.Security.AccessControl.AccessControlType]::Allow             ){ $s += "+"; }
+                                                if( $rule.AccessControlType -band [System.Security.AccessControl.AccessControlType]::Deny              ){ $s += "-"; }
                                                 if( $rule.IsInherited ){
                                                   $s += "I,";
-                                                  if(   $rule.InheritanceFlags -eq   [System.Security.AccessControl.InheritanceFlags]::None              ){ $s = ""; }else{
-                                                    if( $rule.InheritanceFlags -band [System.Security.AccessControl.InheritanceFlags]::ContainerInherit  ){ $s = "IC,"; }
-                                                    if( $rule.InheritanceFlags -band [System.Security.AccessControl.InheritanceFlags]::ObjectInherit     ){ $s = "IO,"; }
+                                                  if(   $rule.InheritanceFlags -eq   [System.Security.AccessControl.InheritanceFlags]::None              ){ $s += ""; }else{
+                                                    if( $rule.InheritanceFlags -band [System.Security.AccessControl.InheritanceFlags]::ContainerInherit  ){ $s += "IC,"; }
+                                                    if( $rule.InheritanceFlags -band [System.Security.AccessControl.InheritanceFlags]::ObjectInherit     ){ $s += "IO,"; }
                                                   }
-                                                  if(   $rule.PropagationFlags -eq   [System.Security.AccessControl.PropagationFlags]::None              ){ $s = ""; }else{
-                                                    if( $rule.PropagationFlags -band [System.Security.AccessControl.PropagationFlags]::NoPropagateInherit){ $s = "PN,"; }
-                                                    if( $rule.PropagationFlags -band [System.Security.AccessControl.PropagationFlags]::InheritOnly       ){ $s = "PI,"; }
+                                                  if(   $rule.PropagationFlags -eq   [System.Security.AccessControl.PropagationFlags]::None              ){ $s += ""; }else{
+                                                    if( $rule.PropagationFlags -band [System.Security.AccessControl.PropagationFlags]::NoPropagateInherit){ $s += "PN,"; }
+                                                    if( $rule.PropagationFlags -band [System.Security.AccessControl.PropagationFlags]::InheritOnly       ){ $s += "PI,"; }
                                                   }
                                                 }
-                                                if(   $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::FullControl         ){ $s = "F,"; }else{
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::ReadKey             ){ $s = "R,"; }
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::WriteKey            ){ $s = "W,"; }
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::CreateSubKey        ){ $s = "C,"; }
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::Delete              ){ $s = "D,"; }
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::TakeOwnership       ){ $s = "O,"; }
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::EnumerateSubKeys    ){ $s = "L,"; }
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::QueryValues         ){ $s = "r,"; }
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::SetValue            ){ $s = "w,"; }
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::ReadPermissions     ){ $s = "p,"; }
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::ChangePermissions   ){ $s = "c,"; }
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::Notify              ){ $s = "n,"; }
+                                                if(   $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::FullControl         ){ $s += "F,"; }else{
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::ReadKey             ){ $s += "R,"; }
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::WriteKey            ){ $s += "W,"; }
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::CreateSubKey        ){ $s += "C,"; }
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::Delete              ){ $s += "D,"; }
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::TakeOwnership       ){ $s += "O,"; }
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::EnumerateSubKeys    ){ $s += "L,"; }
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::QueryValues         ){ $s += "r,"; }
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::SetValue            ){ $s += "w,"; }
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::ReadPermissions     ){ $s += "p,"; }
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::ChangePermissions   ){ $s += "c,"; }
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::Notify              ){ $s += "n,"; }
                                                 } return [String] $s; }
 function RegistryKeySetOwner                  ( [String] $key, [System.Security.Principal.IdentityReference] $account ){
                                                 # ex: "HKLM:\Software\MyManufactor" (PrivGetGroupAdministrators);
@@ -731,7 +732,7 @@ function RegistryKeySetAclRule                ( [String] $key, [System.Security.
                                                   else               { $acl.SetAccessRule($rule); }
                                                   $k.SetAccessControl($acl); 
                                                   $k.Close(); $hk.Close();
-                                                }catch{ throw [Exception] "$(ScriptGetCurrentFunc)($key,$(RegistryPrivRuleToString $rule)) failed because $($_.Exception.Message)"; } }
+                                                }catch{ throw [Exception] "$(ScriptGetCurrentFunc)($key,$(RegistryPrivRuleToString $rule),$useAddNotSet) failed because $($_.Exception.Message)"; } }
 function OsGetWindowsProductKey               (){
                                                 [String] $map = "BCDFGHJKMPQRTVWXY2346789"; 
                                                 [Object] $value = (Get-ItemProperty "HKLM:\\SOFTWARE\Microsoft\Windows NT\CurrentVersion").digitalproductid[0x34..0x42]; [String] $p = ""; 
