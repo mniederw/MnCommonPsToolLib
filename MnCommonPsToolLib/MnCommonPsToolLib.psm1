@@ -48,7 +48,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $MnCommonPsToolLibVersion = "3.5"; # more see Releasenotes.txt
+[String] $MnCommonPsToolLibVersion = "4.0"; # more see Releasenotes.txt
 
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 
@@ -1836,7 +1836,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   # ex: Fehler beim Senden der Anforderung.
                                                   # ex: fatal: AggregateException encountered.
                                                   # ex: Logon failed, use ctrl+c to cancel basic credential prompt.
-                                                  # ex: remote: Repository not found. fatal: repository 'https://github.com/mniederw/UnknownRepo/' not found
+                                                  # ex: remote: Repository not found.\nfatal: repository 'https://github.com/mniederw/UnknownRepo/' not found
                                                   # ex: fatal: Not a git repository: 'D:\WorkGit\mniederw\UnknownRepo\.git'
                                                   # ex: error: Your local changes to the following files would be overwritten by merge:
                                                   # ex: error: unknown option `anyUnknownOption'
@@ -1853,6 +1853,9 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   }
                                                   if( $cmd -eq "Pull" -and $msg.Contains("fatal: Couldn't find remote ref HEAD") ){
                                                     OutSuccess "  Ok, repository has no content."; return;
+                                                  }
+                                                  if( $cmd -eq "Pull" -and $msg.Contains("remote: Repository not found." -and $msg.Contains("fatal: repository ") ){
+                                                    $msg = "Pull failed because not found repository: $url .";
                                                   }
                                                   if( -not $errorAsWarning ){ throw [Exception] $msg; }
                                                   OutWarning $msg;

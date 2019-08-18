@@ -1,9 +1,14 @@
 ﻿# .gitignore
 
+# files
 *.tmp
 *.suo
 *.cache
-*.vs
+*.u?.user
+.textClipping
+
+# dirs
+.vs
 
 # OS generated files
 .DS_Store
