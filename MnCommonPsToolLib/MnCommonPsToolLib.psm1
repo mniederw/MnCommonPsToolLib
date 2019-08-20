@@ -1854,7 +1854,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   if( $cmd -eq "Pull" -and $msg.Contains("fatal: Couldn't find remote ref HEAD") ){
                                                     OutSuccess "  Ok, repository has no content."; return;
                                                   }
-                                                  if( $cmd -eq "Pull" -and $msg.Contains("remote: Repository not found." -and $msg.Contains("fatal: repository ") ){
+                                                  if( $cmd -eq "Pull" -and $msg.Contains("remote: Repository not found.") -and $msg.Contains("fatal: repository ") ){
                                                     $msg = "Pull failed because not found repository: $url .";
                                                   }
                                                   if( -not $errorAsWarning ){ throw [Exception] $msg; }
@@ -2148,12 +2148,13 @@ function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url
                                                     # ex: "svn: E155004: Run 'svn cleanup' to remove locks (type 'svn help cleanup' for details)"
                                                     # ex: "svn: E175002: REPORT request on '/svn/Work/!svn/me' failed"
                                                     # ex: "svn: E170013: Unable to connect to a repository at URL 'https://myserver/svn/myrepo'."
+                                                    # ex: "svn: E200014: Checksum mismatch for '...file...'"
                                                     # ex: "svn: E200030: sqlite[S10]: disk I/O error, executing statement 'VACUUM '"
                                                     # ex: "svn: E205000: Try 'svn help checkout' for more information"
                                                     [String] $m = $_.Exception.Message;
                                                     [String] $msg = "$(ScriptGetCurrentFunc)(dir=`"$workDir`",url=$url,user=$user) failed because $m. Logfile=`"$svnLogFile`".";
                                                     FileAppendLineWithTs $svnLogFile $msg;
-                                                    [Boolean] $isKnownProblemToSolveWithRetry = $m.Contains(" E120106:") -or $m.Contains(" E155037:") -or $m.Contains(" E155004:") -or $m.Contains(" E170013:") -or $m.Contains(" E175002:") -or $m.Contains(" E200030:");
+                                                    [Boolean] $isKnownProblemToSolveWithRetry = $m.Contains(" E120106:") -or $m.Contains(" E155037:") -or $m.Contains(" E155004:") -or $m.Contains(" E170013:") -or $m.Contains(" E175002:") -or $m.Contains(" E200014:") -or $m.Contains(" E200030:");
                                                     if( -not $isKnownProblemToSolveWithRetry -or $nrOfTries -ge $maxNrOfTries ){ throw [Exception] $msg; }
                                                     [String] $msg2 = "Is try nr $nrOfTries of $maxNrOfTries, will do cleanup, wait 30 sec and if not reached max then retry.";
                                                     OutWarning "$msg $msg2";
