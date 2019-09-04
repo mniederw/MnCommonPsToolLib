@@ -880,7 +880,7 @@ function FsEntrySetAttributeReadOnly          ( [String] $fsEntry, [Boolean] $va
                                                 OutProgress "FsFileSetAttributeReadOnly $fsEntry $val"; Set-ItemProperty (FsEntryEsc $fsEntry) -name IsReadOnly -value $val; }
 function FsEntryFindFlatSingleByPattern       ( [String] $fsEntryPattern, [Boolean] $allowNotFound = $false ){
                                                 # it throws if file not found or more than one file exists. if allowNotFound is true then if return empty if not found.
-                                                [System.IO.FileSystemInfo[]] $r = @()+(Get-ChildItem -Force -ErrorAction SilentlyContinue -Path $fsEntryPattern);
+                                                [System.IO.FileSystemInfo[]] $r = @()+(Get-ChildItem -Force -ErrorAction SilentlyContinue -Path $fsEntryPattern | Where-Object{ $_ -ne $null });
                                                 if( $r.Count -eq 0 ){ if( $allowNotFound ){ return [String] ""; } throw [Exception] "No file exists: `"$fsEntryPattern`""; }
                                                 if( $r.Count -gt 1 ){ throw [Exception] "More than one file exists: `"$fsEntryPattern`""; }
                                                 return [String] $r[0].FullName; }
@@ -921,9 +921,14 @@ function FsEntryListAsFileSystemInfo          ( [String] $fsEntryPattern, [Boole
                                                 if( $inclTopDir -and $includeDirs -and -not ($pa -eq "*" -or $pa.EndsWith("\*")) ){
                                                   $result += (Get-Item -Force -ErrorAction SilentlyContinue -Path $pa) | Where-Object{ $_.PSIsContainer } | Where-Object{ $_ -ne $null };
                                                 }
-                                                $result += (Get-ChildItem -Force -ErrorAction SilentlyContinue -Recurse:$recursive -Path $pa | 
-                                                  Where-Object{ ($includeDirs -and $includeFiles) -or ($includeDirs -and $_.PSIsContainer) -or ($includeFiles -and -not $_.PSIsContainer) });
-                                                return $result; }
+                                                try{
+                                                  $result += (Get-ChildItem -Force -ErrorAction SilentlyContinue -Recurse:$recursive -Path $pa | 
+                                                    Where-Object{ $_ -ne $null } | 
+                                                    Where-Object{ ($includeDirs -and $includeFiles) -or ($includeDirs -and $_.PSIsContainer) -or ($includeFiles -and -not $_.PSIsContainer) });
+                                                }catch [System.UnauthorizedAccessException] { # BUG: why is this not handled by SilentlyContinue?
+                                                  OutWarning "Ignoring UnauthorizedAccessException for Get-ChildItem -Force -ErrorAction SilentlyContinue -Recurse:$recursive -Path `"$pa`"";
+                                                } return $result; }
+                                                
 function FsEntryListAsStringArray             ( [String] $fsEntryPattern, [Boolean] $recursive = $true, [Boolean] $includeDirs = $true, [Boolean] $includeFiles = $true, [Boolean] $inclTopDir = $false ){
                                                 # Output of directories will have a trailing backslash. more see FsEntryListAsFileSystemInfo.
                                                 return [String[]] (@() + (FsEntryListAsFileSystemInfo $fsEntryPattern $recursive $includeDirs $includeFiles $inclTopDir |
@@ -960,7 +965,7 @@ function FsEntryCreateDirSymLink              ( [String] $symLinkDir, [String] $
 function FsEntryReportMeasureInfo             ( [String] $fsEntry ){ # Must exists, works recursive.
                                                 if( FsEntryNotExists $fsEntry ){ throw [Exception] "File system entry not exists: `"$fsEntry`""; }
                                                 [Microsoft.PowerShell.Commands.GenericMeasureInfo] $size = Get-ChildItem -Force -ErrorAction SilentlyContinue -Recurse -LiteralPath $fsEntry |
-                                                  Measure-Object -Property length -sum;
+                                                  Where-Object{ $_ -ne $null } | Measure-Object -Property length -sum;
                                                 if( $size -eq $null ){ return [String] "SizeInBytes=0; NrOfFsEntries=0;"; }
                                                 return [String] "SizeInBytes=$($size.sum); NrOfFsEntries=$($size.count);"; }
 function FsEntryCreateParentDir               ( [String] $fsEntry ){ [String] $dir = FsEntryGetParentDir $fsEntry; DirCreate $dir; }
