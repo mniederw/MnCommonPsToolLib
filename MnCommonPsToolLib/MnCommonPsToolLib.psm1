@@ -48,7 +48,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $MnCommonPsToolLibVersion = "4.1"; # more see Releasenotes.txt
+[String] $MnCommonPsToolLibVersion = "4.2"; # more see Releasenotes.txt
 
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 
@@ -268,8 +268,8 @@ function StdInAskForEnter                     (){ [String] $line = StdInReadLine
 function StdInAskForBoolean                   ( [String] $msg =  "Enter Yes or No (y/n)?", [String] $strForYes = "y", [String] $strForNo = "n" ){ while($true){ Write-Host -ForegroundColor Magenta -NoNewline $msg; [String] $answer = StdInReadLine ""; if( $answer -eq $strForYes ){ return [Boolean] $true ; } if( $answer -eq $strForNo  ){ return [Boolean] $false; } } }
 function StdInWaitForAKey                     (){ StdInAssertAllowInteractions; $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") | Out-Null; } # does not work in powershell-ise, so in general do not use it, use StdInReadLine()
 function StdOutLine                           ( [String] $line ){ $Host.UI.WriteLine($line); } # Writes an stdout line in default color, normally not used, rather use OutInfo because it gives more information what to output.
-function StdOutRedLine                        ( [String] $line ){ $Host.UI.WriteErrorLine($line); } # Writes an stderr line in red.
-function StdOutRedLineAndPerformExit          ( [String] $line, [Int32] $delayInSec = 1 ){ StdOutRedLine $line; if( $global:ModeDisallowInteractions ){ ProcessSleepSec $delayInSec; }else{ StdInReadLine "Press Enter to Exit"; }; Exit 1; }
+function StdOutRedLine                        ( [String] $line ){ OutError $line; } # deprecated
+function StdOutRedLineAndPerformExit          ( [String] $line, [Int32] $delayInSec = 1 ){ OutError $line; if( $global:ModeDisallowInteractions ){ ProcessSleepSec $delayInSec; }else{ StdInReadLine "Press Enter to Exit"; }; Exit 1; }
 function StdErrHandleExc                      ( [System.Management.Automation.ErrorRecord] $er, [Int32] $delayInSec = 1 ){
                                                 # Output full error information in red lines and then either wait for pressing enter or otherwise if interactions are globally disallowed then wait specified delay
                                                 [String] $msg = "$(StringFromException $er.Exception)"; # ex: "ArgumentOutOfRangeException: Specified argument was out of the range of valid values. Parameter name: times  at ..."
@@ -287,13 +287,13 @@ function StdErrHandleExc                      ( [System.Management.Automation.Er
                                                 $msg += "`r`n TargetObject: $($er.TargetObject)"; # can be null
                                                 $msg += "`r`n ErrorDetails: $(switch($er.ErrorDetails -ne $null){($true){$er.ErrorDetails.ToString()}default{''}})";
                                                 $msg += "`r`n PSMessageDetails: $($er.PSMessageDetails)";
-                                                StdOutRedLine $msg;
+                                                OutError $msg;
                                                 if( -not $global:ModeDisallowInteractions ){ 
-                                                  StdOutRedLine "Press enter to exit"; 
+                                                  OutError "Press enter to exit"; 
                                                   try{
                                                     Read-Host; return;
                                                   }catch{ # ex: PSInvalidOperationException:  Read-Host : Windows PowerShell is in NonInteractive mode. Read and Prompt functionality is not available.
-                                                    StdOutRedLine "Note: Cannot Read-Host because $($_.Exception.Message)"; 
+                                                    OutError "Note: Cannot Read-Host because $($_.Exception.Message)"; 
                                                   }
                                                 }
                                                 if( $delayInSec -gt 0 ){ StdOutLine "Waiting for $delayInSec seconds."; }
@@ -367,8 +367,9 @@ function StreamToTableString                  ( [String[]] $propertyNames ){ # N
                                                 if( $propertyNames -eq $null -or $propertyNames.Count -eq 0 ){ $propertyNames = @("*"); } 
                                                 $input | Format-Table -Wrap -Force -autosize $propertyNames | StreamToStringDelEmptyLeadAndTrLines; }
 function OutInfo                              ( [String] $line ){ Write-Host -ForegroundColor $InfoLineColor -NoNewline "$line`r`n"; } # NoNewline is used because on multi threading usage line text and newline can be interrupted between.
-function OutWarning                           ( [String] $line, [Int32] $indentLevel = 1 ){ Write-Host -ForegroundColor Yellow -NoNewline (("  "*$indentLevel)+$line+"`r`n"); }
 function OutSuccess                           ( [String] $line ){ Write-Host -ForegroundColor Green -NoNewline "$line`r`n"; }
+function OutWarning                           ( [String] $line, [Int32] $indentLevel = 1 ){ Write-Host -ForegroundColor Yellow -NoNewline (("  "*$indentLevel)+$line+"`r`n"); }
+function OutError                             ( [String] $line ){ $Host.UI.WriteErrorLine($line); } # Writes an stderr line in red.
 function OutProgress                          ( [String] $line, [Int32] $indentLevel = 1 ){ if( $Global:ModeHideOutProgress ){ return; } Write-Host -ForegroundColor DarkGray -NoNewline (("  "*$indentLevel) +$line+"`r`n"); } # Used for tracing changing actions, otherwise use OutVerbose.
 function OutProgressText                      ( [String] $str  ){ if( $Global:ModeHideOutProgress ){ return; } Write-Host -ForegroundColor DarkGray -NoNewline $str; }
 function OutVerbose                           ( [String] $line ){ Write-Verbose -Message $line; } # Output depends on $VerbosePreference, used tracing read or network operations
@@ -1270,15 +1271,17 @@ function CredentialCreate                     ( [String] $username = "", [String
                                                 return (New-Object System.Management.Automation.PSCredential((CredentialStandardizeUserWithDomain $us), $pwSecure)); }
 function CredentialGetAndStoreIfNotExists     ( [String] $secureCredentialFile, [String] $username = "", [String] $password = "", [String] $accessShortDescription = ""){
                                                 # If username or password is empty then they are asked from std input.
-                                                # If file exists then it takes credentials from it.
-                                                # If file not exists then it is written by given credentials.
+                                                # If file exists and non-empty-user matches then it takes credentials from it.
+                                                # If file not exists or non-empty-user not matches then it is written by given credentials.
                                                 # For access description enter a message hint which is added to request for user as "login host xy", "mountpoint xy", etc.
                                                 # For secureCredentialFile usually use: "$env:LOCALAPPDATA\MyNameOrCompany\MyOperation.secureCredentials.txt";
                                                 Assert ($secureCredentialFile -ne "") "Missing secureCredentialFile.";
                                                 [System.Management.Automation.PSCredential] $cred = $null;
                                                 if( FileExists $secureCredentialFile ){
                                                   $cred = CredentialReadFromFile $secureCredentialFile;
-                                                }else{
+                                                  if( $username -ne "" -and (CredentialGetUsername $cred) -ne (CredentialStandardizeUserWithDomain $username)){ $cred = null; }
+                                                }
+                                                if( $cred -eq $null ){
                                                   $cred = CredentialCreate $username $password $accessShortDescription;
                                                 }
                                                 if( FileNotExists $secureCredentialFile ){
@@ -1376,11 +1379,12 @@ function MountPointRemove                     ( [String] $drive, [String] $mount
                                                   Remove-PSDrive -Name ($drive -replace ":","") -Force; # Force means no confirmation
                                                 } }                                                
 function MountPointCreate                     ( [String] $drive, [String] $mountPoint, [System.Management.Automation.PSCredential] $cred = $null, [Boolean] $errorAsWarning = $false, [Boolean] $noPreLogMsg = $false ){
+                                                # $noPreLogMsg is usually true if mount points are called parallel when order of output strings is not sequentially
                                                 if( -not $drive.EndsWith(":") ){ throw [Exception] "Expected drive=`"$drive`" with trailing colon"; }
                                                 [String] $us = CredentialGetUsername $cred $true;
                                                 [String] $pw = CredentialGetPassword $cred;
                                                 [String] $traceInfo = "MountPointCreate drive=$drive mountPoint=$($mountPoint.PadRight(22)) us=$($us.PadRight(12)) pw=*** state=";
-                                                if( $noPreLogMsg ){ }else{ OutProgressText $traceInfo; }
+                                                if( -not $noPreLogMsg ){ OutProgressText $traceInfo; }
                                                 [Object] $smbMap = MountPointGetByDrive $drive;
                                                 if( $smbMap -ne $null -and $smbMap.RemotePath -eq $mountPoint -and $smbMap.Status -eq "OK" ){ 
                                                   if( $noPreLogMsg ){ OutProgress "$($traceInfo)OkNoChange."; }else{ OutSuccess "OkNoChange."; } return; 
@@ -1400,15 +1404,17 @@ function MountPointCreate                     ( [String] $drive, [String] $mount
                                                   #     Trennen Sie alle früheren Verbindungen zu dem Server bzw. der freigegebenen Ressource, und versuchen Sie es erneut.
                                                   # ex: Der Netzwerkname wurde nicht gefunden.
                                                   # ex: Der Netzwerkpfad wurde nicht gefunden.
+                                                  # ex: Das angegebene Netzwerkkennwort ist falsch.
                                                   [String] $exMsg = $_.Exception.Message.Trim();
                                                   [String] $msg = "New-SmbMapping($drive,$mountPoint,$us) failed because $exMsg";
                                                   if( -not $errorAsWarning ){ throw [Exception] $msg; }
                                                   # also see http://www.winboard.org/win7-allgemeines/137514-windows-fehler-code-liste.html http://www.megos.ch/files/content/diverses/doserrors.txt
-                                                  if    ( $exMsg -eq "Der Netzwerkpfad wurde nicht gefunden." ){ $msg = "HostNotFound"; } # 53 BAD_NETPATH
-                                                  elseif( $exMsg -eq "Der Netzwerkname wurde nicht gefunden." ){ $msg = "NameNotFound"; } # 67 BAD_NET_NAME
-                                                  elseif( $exMsg -eq "Zugriff verweigert" ){ $msg = "AccessDenied"; } # 5 ACCESS_DENIED: 
-                                                  elseif( $exMsg -eq "Mehrfache Verbindungen zu einem Server oder einer freigegebenen Ressource von demselben Benutzer unter Verwendung mehrerer Benutzernamen sind nicht zulässig. Trennen Sie alle früheren Verbindungen zu dem Server bzw. der freigegebenen Ressource, und versuchen Sie es erneut." ){
-                                                    $msg = "MultiConnectionsByMultiUserNamesNotAllowed"; } # 1219 SESSION_CREDENTIAL_CONFLICT
+                                                  if    ( $exMsg -eq "Der Netzwerkpfad wurde nicht gefunden."      ){ $msg = "HostNotFound";  } # 53 BAD_NETPATH
+                                                  elseif( $exMsg -eq "Der Netzwerkname wurde nicht gefunden."      ){ $msg = "NameNotFound";  } # 67 BAD_NET_NAME
+                                                  elseif( $exMsg -eq "Zugriff verweigert"                          ){ $msg = "AccessDenied";  } # 5 ACCESS_DENIED: 
+                                                  elseif( $exMsg -eq "Das angegebene Netzwerkkennwort ist falsch." ){ $msg = "WrongPassword"; } # 86 INVALID_PASSWORD
+                                                  elseif( $exMsg -eq "Mehrfache Verbindungen zu einem Server oder einer freigegebenen Ressource von demselben Benutzer unter Verwendung mehrerer Benutzernamen sind nicht zulässig. Trennen Sie alle früheren Verbindungen zu dem Server bzw. der freigegebenen Ressource, und versuchen Sie es erneut." )
+                                                                                                                    { $msg = "MultiConnectionsByMultiUserNamesNotAllowed"; } # 1219 SESSION_CREDENTIAL_CONFLICT
                                                   else {}
                                                   if( $noPreLogMsg ){ OutProgress "$($traceInfo)$($msg)"; }else{ OutWarning $msg 0; }
                                                   # alternative: (New-Object -ComObject WScript.Network).MapNetworkDrive("B:", "\\FPS01\users")
@@ -1421,7 +1427,7 @@ function PsDriveCreate                        ( [String] $drive, [String] $mount
                                                 if( -not $drive.EndsWith(":") ){ throw [Exception] "Expected drive=`"$drive`" with trailing colon"; }
                                                 MountPointRemove $drive $mountPoint;
                                                 [String] $us = CredentialGetUsername $cred $true;
-                                                OutProgress "MountPointCreate drive=$drive mountPoint=$mountPoint username=$us";
+                                                OutProgress "PsDriveCreate drive=$drive mountPoint=$mountPoint username=$us";
                                                 try{
                                                   $obj = New-PSDrive -Name ($drive -replace ":","") -Root $mountPoint -PSProvider "FileSystem" -Scope Global -Persist -Description "$mountPoint($drive)" -Credential $cred;
                                                 }catch{
@@ -1440,7 +1446,7 @@ function NetAdapterGetConnectionStatusName    ( [Int32] $netConnectionStatusNr )
 function NetAdapterListAll                    (){ 
                                                 return (Get-WmiObject -Class win32_networkadapter | Select-Object Name,NetConnectionID,MACAddress,Speed,@{Name="Status";Expression={(NetAdapterGetConnectionStatusName $_.NetConnectionStatus)}}); }
 function NetPingHostIsConnectable             ( [String] $hostName, [Boolean] $doRetryWithFlushDns = $false ){
-                                                if( (Test-Connection -Cn $hostName -BufferSize 16 -Count 1 -ea 0 -quiet) ){ return $true; }
+                                                if( (Test-Connection -Cn $hostName -BufferSize 16 -Count 1 -ea 0 -quiet) ){ return $true; } # later in ps V6 use -TimeoutSeconds 3 default is 5 sec
                                                 if( -not $doRetryWithFlushDns ){ return $false; }
                                                 OutVerbose "Host $hostName not reachable, so flush dns, nslookup and retry";
                                                 & "ipconfig.exe" "/flushdns" | out-null; # note option /registerdns would require more privs
@@ -3007,7 +3013,7 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 # - Available colors for options -foregroundcolor and -backgroundcolor: 
 #   Black DarkBlue DarkGreen DarkCyan DarkRed DarkMagenta DarkYellow Gray DarkGray Blue Green Cyan Red Magenta Yellow White
 # - Manifest .psd1 file can be created with: New-ModuleManifest MnCommonPsToolLib.psd1 -ModuleVersion "1.0" -Author "Marc Niederwieser"
-# - Know Bugs:
+# - Known Bugs:
 #   - Powershell V2 Bug: checking strings for $null is different between if and switch tests:
 #     http://stackoverflow.com/questions/12839479/powershell-treats-empty-string-as-equivalent-to-null-in-switch-statements-but-no
 #   - Variable or function argument of type String is never $null, if $null is assigned then always empty is stored. [String] $s; $s = $null; Assert ($s -ne $null); Assert ($s -eq "");
@@ -3039,6 +3045,13 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #     Can result in:  SessionStateUnauthorizedAccessException: Cannot overwrite variable a because the variable has been optimized. 
 #       Try using the New-Variable or Set-Variable cmdlet (without any aliases), or dot-source the command that you are using to set the variable.
 #     Recommendation: Rename one of the variables.
+#   - Exceptions are always catched within Expression statement and instead of expecting the throw it returns $null:
+#     [Object[]] $a = @( "a", "b" ) | Select-Object -Property @{Name="Field1";Expression={$_}} | 
+#       Select-Object -Property Field1,
+#       @{Name="Field2";Expression={if($_.Field1 -eq "a" ){ "is_a"; }else{ throw [Exception] "This exc is ignored and instead of throwing up the stack the result of the Expression statement is $null."; } }};
+#     $a[0].Field2 -eq "is_a" -and $a[1].Field2 -eq $null;  # this is true
+#     $a | ForEach { if( $_.Field2 -eq $null ){ throw [Exception] "Field2 is null"; } } # this does the throw
+#     Recommendation: After creation of the list do iterate through it and assert non-null values.
 # - Standard module paths:
 #   - %windir%\system32\WindowsPowerShell\v1.0\Modules    location for windows modules for all users
 #   - %ProgramW6432%\WindowsPowerShell\Modules\           location for any modules     for all users

@@ -3,7 +3,7 @@ Common powershell tool library by Marc Niederwieser
 
 License: GPL3, this is freeware.
 
-Files:
+Files of this repository:
 
 - InstallEnablePowerShellToUnrestrictedRequiresAdminRights.bat :
   If you never enabled powershell to run without warning dialogs then run this script,
@@ -21,4 +21,6 @@ Files:
 
 - Releasenotes.txt : Releasenotes for last and previously released versions.
 
-- Examples\*.ps1 : examples to show some usages of this library.
+- Examples\*.ps1 : Examples to show some usages of this library.
+
+- .gitignore : File patterns which files should be ignored for all git commands.
