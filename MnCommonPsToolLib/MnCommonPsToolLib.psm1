@@ -48,7 +48,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $MnCommonPsToolLibVersion = "4.2"; # more see Releasenotes.txt
+[String] $MnCommonPsToolLibVersion = "4.4"; # more see Releasenotes.txt
 
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 
@@ -195,7 +195,7 @@ function StringIsInt32                        ( [String] $s ){ [String] $tmp = "
 function StringIsInt64                        ( [String] $s ){ [String] $tmp = ""; return [Int64]::TryParse($s,[ref]$tmp); }
 function StringAsInt32                        ( [String] $s ){ if( ! (StringIsInt32 $s) ){ throw [Exception] "Is not an Int32: $s"; } return $s -as [Int32]; }
 function StringAsInt64                        ( [String] $s ){ if( ! (StringIsInt64 $s) ){ throw [Exception] "Is not an Int64: $s"; } return $s -as [Int64]; }
-function StringFromException                  ( [Exception] $ex ){ return [String] "$($ex.GetType().Name): $($ex.Message -replace `"`r`n`",`" `") $($ex.Data|ForEach-Object{`"`r`n Data: [$($_.Values)]`"})`r`n StackTrace:`r`n$($ex.StackTrace)"; } # use this if $_.Exception.Message is not enough. note: .Data is never null.
+function StringFromException                  ( [Exception] $ex ){ return [String] "$($ex.GetType().Name): $($ex.Message -replace `"`r`n`",`" `") $($ex.Data|Where-Object{$_.Values -ne $null}|ForEach-Object{`"`r`n Data: [$($_.Values)]`"})`r`n StackTrace:`r`n$($ex.StackTrace)"; } # use this if $_.Exception.Message is not enough. note: .Data is never null.
 function StringCommandLineToArray             ( [String] $commandLine ){
                                                 # Care spaces or tabs separated args and doublequoted args which can contain double doublequotes for escaping single doublequotes.
                                                 # ex: "my cmd.exe" arg1 "ar g2" "arg""3""" "arg4"""""  ex: StringCommandLineToArray "`"my cmd.exe`" arg1 `"ar g2`" `"arg`"`"3`"`"`" `"arg4`"`"`"`"`""
@@ -635,7 +635,7 @@ function RegistrySetValue                     ( [String] $key, [String] $name, [
                                                 }catch{ # ex: SecurityException: Requested registry access is not allowed.
                                                   throw [Exception] "$(ScriptGetCurrentFunc)($key,$name) failed because $($_.Exception.Message) (often it requires elevated mode)"; } }                                                
 function RegistryImportFile                   ( [String] $regFile ){
-                                                OutProgress "RegistryImportFile `"$regFile`""; FileAssertExists $regFile; OutProgress "RegistryImportFile `"$regFile`""; 
+                                                OutProgress "RegistryImportFile `"$regFile`""; FileAssertExists $regFile;
                                                 try{ <# stupid, it writes success to stderr #> & "$env:SystemRoot\system32\reg.exe" "IMPORT" $regFile 2>&1 | Out-Null; AssertRcIsOk; 
                                                 }catch{ <# ignore always: System.Management.Automation.RemoteException Der Vorgang wurde erfolgreich beendet. #> [String] $expectedMsg = "Der Vorgang wurde erfolgreich beendet."; 
                                                   if( $_.Exception.Message -ne $expectedMsg ){ throw [Exception] "$(ScriptGetCurrentFunc)(`"$regFile`") failed. We expected an exc but this must match '$expectedMsg' but we got: '$($_.Exception.Message)'"; } ScriptResetRc; } }
@@ -652,8 +652,11 @@ function RegistryKeyGetHkey                   ( [String] $key ){
                                                 elseif( $key.StartsWith("HKU:","CurrentCultureIgnoreCase")  ){ return [Microsoft.Win32.RegistryHive]::Users; }
                                                 else{ throw [Exception] "$(ScriptGetCurrentFunc): Unknown HKey in: `"$key`""; } } # not used: [Microsoft.Win32.RegistryHive]::DynData
 function RegistryKeyGetSubkey                 ( [String] $key ){ 
-                                                $key = RegistryMapToShortKey $key; 
-                                                return [String] (($key -split ":\\",2)[1]); }
+                                                $key = RegistryMapToShortKey $key;
+                                                if( $key.Contains(":\\") ){ throw [Exception] "Must not contain double backslashes after colon in `"$key`""; }
+                                                [String[]] $s = ($key -split ":\\",2); # means only one backslash
+                                                if( $s.Count -le 1 ){ throw [Exception] "Missing `":\`" in `"$key`""; }
+                                                return [String] $s[1]; }
 function RegistryPrivRuleCreate               ( [System.Security.Principal.IdentityReference] $account, [String] $regRight = "" ){
                                                 # ex: (PrivGetGroupAdministrators) "FullControl";
                                                 # regRight ex: "ReadKey", available enums: https://msdn.microsoft.com/en-us/library/system.security.accesscontrol.registryrights(v=vs.110).aspx 
@@ -715,7 +718,7 @@ function RegistryKeySetAclRight               ( [String] $key, [System.Security.
                                                 # ex: "HKLM:\Software\MyManufactor" (PrivGetGroupAdministrators) "FullControl";
                                                 RegistryKeySetAclRule $key (RegistryPrivRuleCreate $account $regRight); }
 function RegistryKeyAddAclRule                ( [String] $key, [System.Security.AccessControl.RegistryAccessRule] $rule ){
-                                                RegistryKeySetAclRule $key $rule $true; } 
+                                                RegistryKeySetAclRule $key $rule $true; }
 function RegistryKeySetAclRule                ( [String] $key, [System.Security.AccessControl.RegistryAccessRule] $rule, [Boolean] $useAddNotSet = $false ){
                                                 # ex: "HKLM:\Software\MyManufactor" (PrivGetGroupAdministrators) "FullControl";
                                                 $key = RegistryMapToShortKey $key;
@@ -728,7 +731,6 @@ function RegistryKeySetAclRule                ( [String] $key, [System.Security.
                                                   [Microsoft.Win32.RegistryKey] $hk = [Microsoft.Win32.RegistryKey]::OpenBaseKey((RegistryKeyGetHkey $key),[Microsoft.Win32.RegistryView]::Default);
                                                   [Microsoft.Win32.RegistryKey] $k = $hk.OpenSubKey((RegistryKeyGetSubkey $key),[Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,[System.Security.AccessControl.RegistryRights]::ChangePermissions);
                                                   [System.Security.AccessControl.RegistrySecurity] $acl = $k.GetAccessControl([System.Security.AccessControl.AccessControlSections]::All); # alternatives: None, Audit, Access, Owner, Group, All
-                                                  [System.Security.AccessControl.RegistryAccessRule] $rule = RegistryPrivRuleCreate $account $regRight;
                                                   if( $useAddNotSet ){ $acl.AddAccessRule($rule); }
                                                   else               { $acl.SetAccessRule($rule); }
                                                   $k.SetAccessControl($acl); 
@@ -736,7 +738,7 @@ function RegistryKeySetAclRule                ( [String] $key, [System.Security.
                                                 }catch{ throw [Exception] "$(ScriptGetCurrentFunc)($key,$(RegistryPrivRuleToString $rule),$useAddNotSet) failed because $($_.Exception.Message)"; } }
 function OsGetWindowsProductKey               (){
                                                 [String] $map = "BCDFGHJKMPQRTVWXY2346789"; 
-                                                [Object] $value = (Get-ItemProperty "HKLM:\\SOFTWARE\Microsoft\Windows NT\CurrentVersion").digitalproductid[0x34..0x42]; [String] $p = ""; 
+                                                [Object] $value = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").digitalproductid[0x34..0x42]; [String] $p = ""; 
                                                 for( $i = 24; $i -ge 0; $i-- ){ 
                                                   $r = 0; for( $j = 14; $j -ge 0; $j-- ){ $r = ($r * 256) -bxor $value[$j]; $value[$j] = [math]::Floor([double]($r/24)); $r = $r % 24; } 
                                                   $p = $map[$r] + $p; if( ($i % 5) -eq 0 -and $i -ne 0 ){ $p = "-" + $p; } 
@@ -836,10 +838,14 @@ function FsEntryMakeRelative                  ( [String] $fsEntry, [String] $bel
                                                 if( (FsEntryMakeTrailingBackslash $fsEntry) -eq $belowDir ){ $fsEntry += "\."; }
                                                 Assert ($fsEntry.StartsWith($belowDir,"CurrentCultureIgnoreCase")) "Expected `"$fsEntry`" is below `"$belowDir`"";
                                                 return [String] ($(switch($prefixWithDotDir){($true){".\"}default{""}})+$fsEntry.Substring($belowDir.Length)); }
+
 function FsEntryGetAbsolutePath               ( [String] $fsEntry ){ # works without IO, so no check to file system; does not change a trailing backslash
-                                                return [String] ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($fsEntry)); }
                                                 # Note: We cannot use (Resolve-Path -LiteralPath $fsEntry) because it will throw if path not exists, 
                                                 # see http://stackoverflow.com/questions/3038337/powershell-resolve-path-that-might-not-exist
+                                                try{ return [String] ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($fsEntry)); }
+                                                catch [System.Management.Automation.DriveNotFoundException] { # ex: DriveNotFoundException: Cannot find drive. A drive with the name 'Z' does not exist.
+                                                  return [String] [IO.Path]::GetFullPath($fsEntry); # maybe this is not working for psdrives. Solve this if it occurrs.
+                                                } }
 function FsEntryHasTrailingBackslash          ( [String] $fsEntry ){ return [Boolean] $fsEntry.EndsWith("\"); }
 function FsEntryRemoveTrailingBackslash       ( [String] $fsEntry ){ 
                                                 [String] $result = $fsEntry; if( $result -ne "" ){ while( $result.EndsWith("\") ){ $result = $result.Remove($result.Length-1); }
@@ -994,7 +1000,8 @@ function FsEntryAclSetInheritance             ( [String] $fsEntry ){
                                                   $acl.SetAccessRuleProtection($isProtected,$preserveInheritance);
                                                   Set-Acl -AclObject $acl -Path (FsEntryEsc $fsEntry);
                                                 } }
-function FsEntryAclRuleWrite                  ( [String] $modeSetAddOrDel, [String] $fsEntry, [System.Security.AccessControl.FileSystemAccessRule] $rule, [Boolean] $recursive = $false ){ # $modeSetAddOrDel = "Set", "Add", "Del".
+function FsEntryAclRuleWrite                  ( [String] $modeSetAddOrDel, [String] $fsEntry, [System.Security.AccessControl.FileSystemAccessRule] $rule, [Boolean] $recursive = $false ){
+                                                # $modeSetAddOrDel = "Set", "Add", "Del".
                                                 OutProgress "FsEntryAclRuleWrite $modeSetAddOrDel `"$fsEntry`" '$(PrivFsRuleAsString $rule)'"; 
                                                 [System.Security.AccessControl.FileSystemSecurity] $acl = FsEntryAclGet $fsEntry; 
                                                 if    ( $modeSetAddOrDel -eq "Set" ){ $acl.SetAccessRule($rule); } 
@@ -1474,8 +1481,10 @@ function NetWebRequestLastModifiedFailSafe    ( [String] $url ){ # Requests meta
                                                   if( $resp.LastModified -lt (DateTimeFromStringIso "1970-01-01") ){ throw [Exception] "GetResponse($url) failed because LastModified=$($resp.LastModified) is unexpected lower than 1970"; }
                                                   return [DateTime] $resp.LastModified;
                                                 }catch{ return [DateTime]::MaxValue; }finally{ if( $resp -ne $null ){ $resp.Dispose(); } } }
-function NetDownloadFile                      ( [String] $url, [String] $tarFile, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Boolean] $onlyIfNewer = $false ){
-                                                # Download a single file by overwrite it (as NetDownloadFileByCurl), powershell internal implementation of curl or wget which works for http, https and ftp only. Cares http response code 3xx for auto redirections.
+function NetDownloadFile                      ( [String] $url, [String] $tarFile, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Boolean] $onlyIfNewer = $false, [Boolean] $errorAsWarning = $false ){
+                                                # Download a single file by overwrite it (as NetDownloadFileByCurl), powershell internal implementation of curl or wget which works for http, https and ftp only. 
+                                                # Cares http response code 3xx for auto redirections.
+                                                # If url not exists then it will throw.
                                                 if( $url -eq "" ){ throw [Exception] "Wrong file url: $url"; } # alternative check: -or $url.EndsWith("/") 
                                                 if( $us -ne "" -and $pw -eq "" ){ throw [Exception] "Missing password for username=$us"; }
                                                 OutProgress "NetDownloadFile(onlyIfNewer=$onlyIfNewer) $url to `"$tarFile`" ";
@@ -1516,30 +1525,36 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                   if( $useWebclient ){
                                                     $webclient.DownloadFile($url,$tarFile);
                                                   }else{
+                                                    # For future use: -UseDefaultCredentials, -Method, -Body, -ContentType, -TransferEncoding, -InFile
                                                     if( $us -ne "" ){
                                                       $base64 = [System.Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes("${us}:$pw"));
                                                       $headers = @{ Authorization = "Basic $base64" };
                                                       # Note: on api.github.com the $cred were ignored, so it requires the basic auth in header, but we also add $cred maybe for other servers. By the way curl -u works.
+                                                      FileAppendLineWithTs $logf "Invoke-WebRequest -Uri `"$url`" -OutFile `"$tarFile`" -MaximumRedirection 2 -TimeoutSec 70 -UserAgent `"$userAgent`" -Headers `"$headers`" (Credential-User=`"$us`");";
                                                       Invoke-WebRequest -Uri $url -OutFile $tarFile -MaximumRedirection 2 -TimeoutSec 70 -UserAgent $userAgent -Headers $headers -Credential $cred;
                                                     }else{
+                                                      FileAppendLineWithTs $logf "Invoke-WebRequest -Uri $url -OutFile $tarFile -MaximumRedirection 2 -TimeoutSec 70 -UserAgent $userAgent;";
                                                       Invoke-WebRequest -Uri $url -OutFile $tarFile -MaximumRedirection 2 -TimeoutSec 70 -UserAgent $userAgent;
                                                     }
                                                   }
+                                                  [String] $stateMsg = "Ok, downloaded $(FileGetSize $tarFile) bytes.";
+                                                  FileAppendLineWithTs $logf "  $stateMsg";
+                                                  OutProgress $stateMsg;
                                                 }catch{ 
                                                   # ex: The request was aborted: Could not create SSL/TLS secure channel.
                                                   # ex: Ausnahme beim Aufrufen von "DownloadFile" mit 2 Argument(en):  "The server committed a protocol violation. Section=ResponseStatusLine"
+                                                  # ex: System.Net.WebException: Der Remoteserver hat einen Fehler zurückgegeben: (404) Nicht gefunden.
+                                                  # for future use: $fileNotExists = $_.Exception -is [System.Net.WebException] -and (([System.Net.WebException]($_.Exception)).Response.StatusCode.value__) -eq 404;
                                                   [String] $msg = $_.Exception.Message;
                                                   if( $msg.Contains("Section=ResponseStatusLine") ){ $msg = "Server returned not a valid HTTP response. "+$msg; }
-                                                  throw [Exception] "NetDownloadFile(url=$url,tar=$tarFile,us=$us) failed because $msg"; 
-                                                }
-                                                # alternative:  FileAppendLineWithTs $logf "Invoke-WebRequest -Uri $url -OutFile $tarFile";
-                                                # For future use: -UseDefaultCredentials, -Headers, -MaximumRedirection, -Method, -Body, -ContentType, -TransferEncoding, -InFile
-                                                [String] $stateMsg = "Ok, downloaded $(FileGetSize $tarFile) bytes.";
-                                                FileAppendLineWithTs $logf $stateMsg;
-                                                OutProgress $stateMsg; }
-function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Boolean] $onlyIfNewer = $false ){
+                                                  $msg = "NetDownloadFile(url=$url ,us=$us,tar=$tarFile) failed because $msg";
+                                                  FileAppendLineWithTs $logf "  $msg";
+                                                  if( -not $errorAsWarning ){ throw [Exception] $msg; }
+                                                  OutWarning $msg;
+                                                } }
+function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Boolean] $onlyIfNewer = $false, [Boolean] $errorAsWarning = $false ){
                                                 # Download a single file by overwrite it (as NetDownloadFile), requires curl.exe in path, timestamps are also taken, logging info is stored in a global logfile, 
-                                                #   for user agent info a relative new mozilla firefox is set, if file curl-ca-bundle.crt exists next to curl.exe then this is taken.
+                                                #   for user agent info a mozilla firefox is set, if file curl-ca-bundle.crt exists next to curl.exe then this is taken.
                                                 # Supported protocols: DICT, FILE, FTP, FTPS, Gopher, HTTP, HTTPS, IMAP, IMAPS, LDAP, LDAPS, POP3, POP3S, RTMP, RTSP, SCP, SFTP, SMB, SMTP, SMTPS, Telnet and TFTP. 
                                                 # Supported features:  SSL certificates, HTTP POST, HTTP PUT, FTP uploading, HTTP form based upload, proxies, HTTP/2, cookies, 
                                                 #                      user+password authentication (Basic, Plain, Digest, CRAM-MD5, NTLM, Negotiate and Kerberos), file transfer resume, proxy tunneling and more. 
@@ -1548,6 +1563,7 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                 if( $us -ne "" -and $pw -eq "" ){ throw [Exception] "Missing password for username=$us"; }
                                                 [String[]] $opt = @( # see https://curl.haxx.se/docs/manpage.html
                                                    "--show-error"                            # Show error. With -s, make curl show errors when they occur
+                                                  ,"--fail"                                  # if http response code is 4xx or 5xx then fail
                                                   ,"--output", "$tarFile"                    # Write to FILE instead of stdout
                                                   ,"--silent"                                # Silent mode (don't output anything), no progress meter
                                                   ,"--create-dirs"                           # create the necessary local directory hierarchy as needed of --output file
@@ -1719,26 +1735,35 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                 DirCreate $tarDir;
                                                 FileAppendLineWithTs $logf "$curlExe $opt --url $url";
                                                 OutProgress "Logfile: `"$logf`"";
-                                                [String[]] $out = & $curlExe $opt "--url" $url;
-                                                if( $LASTEXITCODE -eq 60 ){
-                                                  # Curl: (60) SSL certificate problem: unable to get local issuer certificate. More details here: http://curl.haxx.se/docs/sslcerts.html
-                                                  # Curl performs SSL certificate verification by default, using a "bundle" of Certificate Authority (CA) public keys (CA certs). 
-                                                  # If the default bundle file isn't adequate, you can specify an alternate file using the --cacert option.
-                                                  # If this HTTPS server uses a certificate signed by a CA represented in the bundle, the certificate verification probably failed 
-                                                  # due to a problem with the certificate (it might be expired, or the name might not match the domain name in the URL).
-                                                  # If you'd like to turn off curl's verification of the certificate, use the -k (or --insecure) option.
-                                                  throw [Exception] "Curl($url) failed because SSL certificate problem as expired or domain name not matches, alternatively use option to ignore ssl check.";
-                                                }elseif( $LASTEXITCODE -eq 6 ){
-                                                  # curl: (6) Could not resolve host: github.com
-                                                  throw [Exception] "Curl($url) failed because host not found.";
-                                                }
-                                                # Trace example:  Warning: Transient problem: timeout Will retry in 5 seconds. 2 retries left.
-                                                AssertRcIsOk $out;
-                                                FileAppendLines $logf (StringArrayInsertIndent $out 2);
-                                                [String] $stateMsg = "Ok, downloaded $(FileGetSize $tarFile) bytes.";
-                                                FileAppendLineWithTs $logf $stateMsg;
-                                                OutProgress $stateMsg;
-                                                AssertRcIsOk; }
+                                                try{
+                                                  [String[]] $out = & $curlExe $opt "--url" $url;
+                                                  if( $LASTEXITCODE -eq 60 ){
+                                                    # Curl: (60) SSL certificate problem: unable to get local issuer certificate. More details here: http://curl.haxx.se/docs/sslcerts.html
+                                                    # Curl performs SSL certificate verification by default, using a "bundle" of Certificate Authority (CA) public keys (CA certs). 
+                                                    # If the default bundle file isn't adequate, you can specify an alternate file using the --cacert option.
+                                                    # If this HTTPS server uses a certificate signed by a CA represented in the bundle, the certificate verification probably failed 
+                                                    # due to a problem with the certificate (it might be expired, or the name might not match the domain name in the URL).
+                                                    # If you'd like to turn off curl's verification of the certificate, use the -k (or --insecure) option.
+                                                    throw [Exception] "SSL certificate problem as expired or domain name not matches, alternatively use option to ignore ssl check.";
+                                                  }elseif( $LASTEXITCODE -eq 6 ){
+                                                    # curl: (6) Could not resolve host: github.com
+                                                    throw [Exception] "host not found.";
+                                                  }elseif( $LASTEXITCODE -eq 22 ){
+                                                    # curl: (22) The requested URL returned error: 404 Not Found
+                                                    throw [Exception] "file not found.";
+                                                  }
+                                                  AssertRcIsOk $out $true;
+                                                  FileAppendLines $logf (StringArrayInsertIndent $out 2);
+                                                  # Trace example:  Warning: Transient problem: timeout Will retry in 5 seconds. 2 retries left.
+                                                  [String] $stateMsg = "Ok, downloaded $(FileGetSize $tarFile) bytes.";
+                                                  FileAppendLineWithTs $logf "  $stateMsg";
+                                                  OutProgress $stateMsg;
+                                                }catch{
+                                                  [String] $msg = "Curl($url ,us=$us,tar=$tarFile) failed because $($_.Exception.Message)";
+                                                  FileAppendLines $logf (StringArrayInsertIndent $msg 2);
+                                                  if( -not $errorAsWarning ){ throw [Exception] $msg; }
+                                                  OutWarning $msg;
+                                                } }
 function NetDownloadToString                  ( [String] $url, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Boolean] $onlyIfNewer = $false, [String] $encodingIfNoBom = "UTF8" ){
                                                 [String] $tmp = (FileGetTempFile); NetDownloadFile $url $tmp $us $pw $ignoreSslCheck $onlyIfNewer;
                                                 [String] $result = (FileReadContentAsString $tmp $encodingIfNoBom); FileDelTempFile $tmp; return [String] $result; }
@@ -1847,26 +1872,27 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   # ex: Fehler beim Senden der Anforderung.
                                                   # ex: fatal: AggregateException encountered.
                                                   # ex: Logon failed, use ctrl+c to cancel basic credential prompt.
-                                                  # ex: remote: Repository not found.\nfatal: repository 'https://github.com/mniederw/UnknownRepo/' not found
+                                                  # ex: remote: Repository not found.\nfatal: repository 'https://github.com/mniederw/UnknownRepo/' not found   (Clone rc=128)
                                                   # ex: fatal: Not a git repository: 'D:\WorkGit\mniederw\UnknownRepo\.git'
-                                                  # ex: error: Your local changes to the following files would be overwritten by merge:
                                                   # ex: error: unknown option `anyUnknownOption'
-                                                  # ex: fatal: refusing to merge unrelated histories
-                                                  # ex: "fatal: Couldn't find remote ref HEAD"  (in case the repo contains no content)
+                                                  # ex: fatal: refusing to merge unrelated histories   (pull rc=128)
+                                                  # ex: fatal: Couldn't find remote ref HEAD    (in case the repo contains no content)
+                                                  # ex: error: Your local changes to the following files would be overwritten by merge:   (Then the lines: "        ...file..." "Aborting" "Please commit your changes or stash them before you merge.")
+                                                  # ex: error: The following untracked working tree files would be overwritten by merge:   (Then the lines: "        ....file..." "Please move or remove them before you merge." "Aborting")
                                                   $msg = "$(ScriptGetCurrentFunc)($cmd,$tarRootDir,$url) failed because $(StringReplaceNewlines $_.Exception.Message ' - ')";
-                                                  # ex: "  error: Your local changes to the following files would be overwritten by merge:"
-                                                  #     "        ....file..."
-                                                  #     "Aborting"
-                                                  #     "Please commit your changes or stash them before you merge."
                                                   ScriptResetRc;
                                                   if( $cmd -eq "Pull" -and $msg.Contains("error: Your local changes to the following files would be overwritten by merge:") ){
-                                                    OutProgress "Note: If you would like to ignore and reset all local changes then call:  git -C `"$dir`" --git-dir=.git reset --hard origin/master";
+                                                    OutProgress "Note: If you would like to ignore and reset all local changes then call:  git -C `"$dir`" --git-dir=.git reset --hard"; # alternative option: --hard origin/master
+                                                  }
+                                                  if( $cmd -eq "Pull" -and $msg.Contains("fatal: refusing to merge unrelated histories") ){
+                                                    OutProgress "Note: If you would like to ignore and reset all local changes then call:  git -C `"$dir`" --git-dir=.git reset --hard";
+                                                    OutProgress "      Afterwards you can retry pull with the option --allow-unrelated-histories  but if it still results in (error: The following untracked ...) then remove dir and clone it."
                                                   }
                                                   if( $cmd -eq "Pull" -and $msg.Contains("fatal: Couldn't find remote ref HEAD") ){
                                                     OutSuccess "  Ok, repository has no content."; return;
                                                   }
-                                                  if( $cmd -eq "Pull" -and $msg.Contains("remote: Repository not found.") -and $msg.Contains("fatal: repository ") ){
-                                                    $msg = "Pull failed because not found repository: $url .";
+                                                  if( $msg.Contains("remote: Repository not found.") -and $msg.Contains("fatal: repository ") ){
+                                                    $msg = "$cmd failed because not found repository: $url .";
                                                   }
                                                   if( -not $errorAsWarning ){ throw [Exception] $msg; }
                                                   OutWarning $msg;
@@ -2397,7 +2423,7 @@ function SqlPerformCmd                        ( [String] $connectionString, [Str
                                                 #   Restore-SqlDatabase -Partial -ReplaceDatabase -NoRecovery -ServerInstance $server -Database $dbName -BackupFile $bakFile -RelocateFile $relocateFileList;
                                               }
 function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $dbInstanceServerName, [String] $dbName, [String] $targetRootDir, 
-                                                 [Boolean] $errorAsWarning = $false, [Boolean] $inclIfNotExists = $false, [Boolean] $inclDropStmts = $false, [Boolean] $inclDataAsInsertStmts = $false ){
+                                                  [Boolean] $errorAsWarning = $false, [Boolean] $inclIfNotExists = $false, [Boolean] $inclDropStmts = $false, [Boolean] $inclDataAsInsertStmts = $false ){
                                                 # Create all creation files for a specified sql server database with current user to a specified target directory which must not exists. 
                                                 # This includes tables (including unique indexes), indexes (non-unique), views, stored procedures, functions, roles, schemas, db-triggers and table-Triggers.
                                                 # If a stored procedure, a function or a trigger is encrypted then a single line is put to its sql file indicating encrypted code cannot be dumped.
