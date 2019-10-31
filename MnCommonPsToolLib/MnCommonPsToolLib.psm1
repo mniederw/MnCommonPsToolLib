@@ -3108,12 +3108,19 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #       . { Write-Host "Test"; }    
 #       powershell.exe -command ". .\myscript.ps1" 
 #       powershell.exe -file ".\myscript.ps1"
-#   - Call operator, runs a script, executable, function or scriptblock, creates a new script scope which is deleted after script end. Changes to global variables are also lost.
-#       & "./myscript.ps1" ...arguments... ; & $mycmd ...args... ; & { mycmd1; mycmd2 }
-#     Use quotes when calling non-powershell executables. 
-#     Very important: if an empty argument should be specified then two quotes as '' or "" or $null or $myEmptyVar do not work (will make the argument not present), it requires '""' or "`"`"", really bad!
-#     Precedence of commands: Alias > Function > Filter > Cmdlet > Application > ExternalScript > Script.
-#     Override precedence of commands by using get-command, ex: Get-Command -commandType Application Ping
+#   - Call operator, runs a script, executable, function or scriptblock, 
+#     - Creates a new script scope which is deleted after script end. Changes to global variables are also lost.
+#         & "./myscript.ps1" ...arguments... ; & $mycmd ...args... ; & { mycmd1; mycmd2 }
+#     - Use quotes when calling non-powershell executables. 
+#     - Very important: if an empty argument should be specified then two quotes as '' or "" or $null 
+#       or $myEmptyVar do not work (will make the argument not present), 
+#       it requires '""' or "`"`"" or `"`" or use a blank as " ". This is really a big fail, it is very bad and dangerous!
+#       Why is an empty string not handled similar as a filled string?
+#       The best workaround is to use ALWAYS escaped double-quotes for EACH argument: & "myexe.exe" `"$arg1`" `"`" `"$arg3`";
+#       But even then it is NOT ALLOWED that content contains a double-quote.
+#       There is also no proper solution if quotes instead of double-quotes are used.
+#     - Precedence of commands: Alias > Function > Filter > Cmdlet > Application > ExternalScript > Script.
+#     - Override precedence of commands by using get-command, ex: Get-Command -commandType Application Ping
 #   - Evaluate (string expansion) and run a command given in a string, does not create a new script scope and so works in local scope. Care for code injection. 
 #       Invoke-Expression [-command] string [CommonParameters]
 #     Very important: It performs string expansion before running, so it can be a severe problem if the string contains character $.
