@@ -48,7 +48,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $MnCommonPsToolLibVersion = "4.4"; # more see Releasenotes.txt
+[String] $MnCommonPsToolLibVersion = "4.5"; # more see Releasenotes.txt
 
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 
@@ -1836,28 +1836,43 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                 FileAppendLineWithTs $logf $state;
                                                 OutProgress $state; }
 <# Script local variable: gitLogFile #>       [String] $script:gitLogFile = "$script:LogDir\Git.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
-function GitCmd                               ( [String] $cmd, [String] $tarRootDir, [String] $url, [Boolean] $errorAsWarning = $false ){
-                                                # ex: GitCmd Clone "C:\WorkGit" "https://github.com/mniederw/MnCommonPsToolLib"
-                                                # $cmd == "Clone": target dir must not exist.
-                                                # $cmd == "Fetch": target dir must exist.
-                                                # $cmd == "Pull" : target dir must exist. [git pull] is the same as [git fetch] and then [git merge FETCH_HEAD]. [git pull -rebase] runs [git rebase] instead of [git merge].
+function GitBuildLocalDirFromUrl              ( [String] $tarRootDir, [String] $urlAndBranch ){
+                                                # Note for branches: Our standard is to expect .../reponame#branchname in url and map this to local dir ...\reponame#branchname 
+                                                # ex: GitBuildLocalDirFromUrl(".\gitdir","http://myhost/mydir1/dir2") == "C:\gitdir\mydir1\dir2";
+                                                return [String] (FsEntryGetAbsolutePath (Join-Path $tarRootDir (([System.Uri]$urlAndBranch).AbsolutePath+([System.Uri]$urlAndBranch).Fragment).Replace("/","\"))); }
+function GitCmd                               ( [String] $cmd, [String] $tarRootDir, [String] $urlAndBranch, [Boolean] $errorAsWarning = $false ){
+                                                # ex: GitCmd Clone "C:\WorkGit"          "https://github.com/mniederw/MnCommonPsToolLib"
+                                                # ex: GitCmd Clone "C:\WorkGit\Branches" "https://github.com/mniederw/MnCommonPsToolLib#V1.0"
+                                                # $cmd == "Clone": target dir must not exist. Branch can be optionally specified.
+                                                # $cmd == "Fetch": target dir must exist. Branch can be optionally specified.
+                                                # $cmd == "Pull" : target dir must exist. Branch can be optionally specified.
+                                                #   [git pull] is the same as [git fetch] and then [git merge FETCH_HEAD]. [git pull -rebase] runs [git rebase] instead of [git merge].
+                                                # $urlAndBranch defines url and with sharp-char separated a branch which is used if you do not need the standard remote HEAD is pointing to, usually the master branch.
                                                 if( @("Clone","Fetch","Pull") -notcontains $cmd ){ throw [Exception] "Expected one of (Clone,Fetch,Pull) instead of: $cmd"; }
-                                                [String] $dir = FsEntryGetAbsolutePath (GitBuildLocalDirFromUrl $tarRootDir $url);
+                                                [String[]] $urlOpt = StringSplitToArray "#" $urlAndBranch;
+                                                [String] $url = $urlOpt[0];
+                                                [String] $branch = ""; if( $urlOpt.Count -gt 1 ){ $branch = $urlOpt[1]; if( $branch -eq ""){ throw [Exception] "Missing branch in urlAndBranch=`"$urlAndBranch`". "; } }
+                                                if( $urlOpt.Count -gt 2 ){ throw [Exception] "Unknown third param in urlAndBranch=`"$urlAndBranch`". "; }
+                                                [String] $dir = FsEntryGetAbsolutePath (GitBuildLocalDirFromUrl $tarRootDir $urlAndBranch);
                                                 try{
                                                   [Object] $usedTime = [System.Diagnostics.Stopwatch]::StartNew();
                                                   [String[]] $gitArgs = @(); 
                                                   if( $cmd -eq "Clone" ){
                                                     # Writes to stderr: Cloning into 'c:\temp\test'...
-                                                    $gitArgs = @( "clone", "--quiet", $url, $dir);
+                                                    $gitArgs = @( "clone", "--quiet" );
+                                                    if( $branch -ne "" ){ $gitArgs += @( "--branch", $branch ); }
+                                                    $gitArgs += @( "--", $url, $dir);
                                                   }elseif( $cmd -eq "Fetch" ){
                                                      # Writes to stderr: From https://github.com/myrepo  * branch  HEAD  -> FETCH_HEAD.
                                                     $gitArgs = @( "-C", $dir, "--git-dir=.git", "fetch", "--quiet", $url);
+                                                    if( $branch -ne "" ){ $gitArgs += @( $branch ); }
                                                   }elseif( $cmd -eq "Pull" ){
                                                     # Defaults: "--no-rebase" "origin"; 
                                                     $gitArgs = @( "-C", $dir, "--git-dir=.git", "pull", "--quiet", "--no-stat", $url);
+                                                    if( $branch -ne "" ){ $gitArgs += @( $branch ); }
                                                   }else{ throw [Exception] "Unknown git cmd=`"$cmd`""; }
                                                   # ex: "git" "-C" "C:\Temp\mniederw\myrepo" "--git-dir=.git" "pull" "--quiet" "--no-stat" "https://github.com/mniederw/myrepo"
-                                                  FileAppendLineWithTs $gitLogFile "GitCmd(`"$tarRootDir`",$url) git $gitArgs";
+                                                  FileAppendLineWithTs $gitLogFile "GitCmd(`"$tarRootDir`",$urlAndBranch) git $gitArgs";
                                                   [String] $out = ProcessStart "git" $gitArgs $true; # care stderr as stdout
                                                   # Skip known unused strings which are written to stderr as:
                                                   # - "Checking out files:  47% (219/463)" or "Checking out files: 100% (463/463), done."
@@ -1897,19 +1912,22 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   if( -not $errorAsWarning ){ throw [Exception] $msg; }
                                                   OutWarning $msg;
                                                 } }
-function GitCloneOrFetchOrPull                ( [String] $tarRootDir, [String] $url, [Boolean] $usePullNotFetch = $false, [Boolean] $errorAsWarning = $false ){
+function GitCloneOrFetchOrPull                ( [String] $tarRootDir, [String] $urlAndBranch, [Boolean] $usePullNotFetch = $false, [Boolean] $errorAsWarning = $false ){
                                                 # Extracts path of url below host as relative dir, uses this path below target root dir to create or update git; 
-                                                # ex: GitCloneOrFetchOrPull "C:\WorkGit" "https://github.com/mniederw/MnCommonPsToolLib"
-                                                [String] $tarDir = (GitBuildLocalDirFromUrl $tarRootDir $url);
+                                                # ex: GitCloneOrFetchOrPull "C:\WorkGit"          "https://github.com/mniederw/MnCommonPsToolLib"
+                                                # ex: GitCloneOrFetchOrPull "C:\WorkGit\Branches" "https://github.com/mniederw/MnCommonPsToolLib#V1.0"
+                                                [String] $tarDir = (GitBuildLocalDirFromUrl $tarRootDir $urlAndBranch);
                                                 if( (DirExists $tarDir) ){
                                                   if( $usePullNotFetch ){
-                                                    GitCmd "Pull" $tarRootDir $url $errorAsWarning;
+                                                    GitCmd "Pull" $tarRootDir $urlAndBranch $errorAsWarning;
                                                   }else{
-                                                    GitCmd "Fetch" $tarRootDir $url $errorAsWarning;
+                                                    GitCmd "Fetch" $tarRootDir $urlAndBranch $errorAsWarning;
                                                   }
                                                 }else{
-                                                  GitCmd "Clone" $tarRootDir $url $errorAsWarning;
+                                                  GitCmd "Clone" $tarRootDir $urlAndBranch $errorAsWarning;
                                                 } }
+function GitCloneOrFetchIgnoreError           ( [String] $tarRootDir, [String] $url ){ GitCloneOrFetchOrPull $tarRootDir $url $false $true; }
+function GitCloneOrPullIgnoreError            ( [String] $tarRootDir, [String] $url ){ GitCloneOrFetchOrPull $tarRootDir $url $true  $true; }
 function GitListCommitComments                ( [String] $tarDir, [String] $localRepoDir, [String] $fileExtension = ".tmp", [String] $prefix = "Log.", [Int32] $doOnlyIfOlderThanAgeInDays = 14 ){
                                                 # Overwrite git log info files below specified target dir, 
                                                 # For the name of the repo it takes the two last dir parts separated with a dot (NameOfRepoParent.NameOfRepo).
@@ -1943,10 +1961,6 @@ function GitListCommitComments                ( [String] $tarDir, [String] $loca
                                                 }
                                                 GitGetLog ""          "$tarDir\$prefix$repoName.CommittedComments$fileExtension";
                                                 GitGetLog "--summary" "$tarDir\$prefix$repoName.CommittedChangedFiles$fileExtension"; }
-function GitCloneOrFetchIgnoreError           ( [String] $tarRootDir, [String] $url ){ GitCloneOrFetchOrPull $tarRootDir $url $false $true; }
-function GitCloneOrPullIgnoreError            ( [String] $tarRootDir, [String] $url ){ GitCloneOrFetchOrPull $tarRootDir $url $true  $true; }
-function GitBuildLocalDirFromUrl              ( [String] $tarRootDir, [String] $url ){ return [String] (FsEntryGetAbsolutePath (Join-Path $tarRootDir ([System.Uri]$url).AbsolutePath.Replace("/","\"))); }
-                                                # ex: GitBuildLocalDirFromUrl(".\gitdir","http://myhost/mydir1/dir2") == "C:\gitdir\mydir1\dir2";
 <# Type: SvnEnvInfo #>                        Add-Type -TypeDefinition "public struct SvnEnvInfo {public string Url; public string Path; public string RealmPattern; public string CachedAuthorizationFile; public string CachedAuthorizationUser; public string Revision; }";
                                                 # ex: Url="https://myhost/svn/Work"; Path="D:\Work"; RealmPattern="https://myhost:443"; 
                                                 # CachedAuthorizationFile="$env:APPDATA\Subversion\auth\svn.simple\25ff84926a354d51b4e93754a00064d6"; CachedAuthorizationUser="myuser"; Revision="1234"
