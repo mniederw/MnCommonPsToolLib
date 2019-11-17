@@ -48,7 +48,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $MnCommonPsToolLibVersion = "4.5"; # more see Releasenotes.txt
+[String] $MnCommonPsToolLibVersion = "4.6"; # more see Releasenotes.txt
 
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 
@@ -326,7 +326,9 @@ function AssertRcIsOk                         ( [String[]] $linesToOutProgress =
                                                   throw [Exception] $msg; } }
 function ScriptImportModuleIfNotDone          ( [String] $moduleName ){ if( -not (Get-Module $moduleName) ){ OutProgress "Import module $moduleName (can take some seconds on first call)"; Import-Module -NoClobber $moduleName -DisableNameChecking; } }
 function ScriptGetCurrentFunc                 (){ return [String] ((Get-Variable MyInvocation -Scope 1).Value.MyCommand.Name); }
-function ScriptGetAndClearLastRc              (){ [Int32] $rc = 0; if( ((test-path "variable:LASTEXITCODE") -and $LASTEXITCODE -ne $null -and $LASTEXITCODE -ne 0) -or -not $? ){ $rc = $LASTEXITCODE; ScriptResetRc; } return [Int32] $rc; } # if no windows command was done then $LASTEXITCODE is null
+function ScriptGetAndClearLastRc              (){ [Int32] $rc = 0; 
+                                                if( ((test-path "variable:LASTEXITCODE") -and $LASTEXITCODE -ne $null <# if no windows command was done then $LASTEXITCODE is null #> -and $LASTEXITCODE -ne 0) -or -not $? ){ $rc = $LASTEXITCODE; ScriptResetRc; }
+                                                return [Int32] $rc; }
 function ScriptResetRc                        (){ $error.clear(); & "cmd.exe" "/C" "EXIT 0"; $error.clear(); AssertRcIsOk; } # reset ERRORLEVEL to 0
 function ScriptNrOfScopes                     (){ [Int32] $i = 1; while($true){ 
                                                 try{ Get-Variable null -Scope $i -ValueOnly -ErrorAction SilentlyContinue | Out-Null; $i++; 
@@ -2142,8 +2144,8 @@ function SvnStatus                            ( [String] $workDir, [Boolean] $sh
                                                 OutVerbose "SvnStatus - List pending changes";
                                                 [String[]] $out = & (SvnExe) "status" $workDir; AssertRcIsOk $out;
                                                 FileAppendLines $svnLogFile (StringArrayInsertIndent $out 2);
-                                                [Int32] $nrOfPendingChanges = $out | wc -l;
-                                                [Int32] $nrOfCommitRelevantChanges = $out | Where-Object { $_ -ne $null -and -not $_.StartsWith("!") } | wc -l; # ignore lines with leading '!' because these would not occurre in commit dialog
+                                                [Int32] $nrOfPendingChanges = $out.Count;
+                                                [Int32] $nrOfCommitRelevantChanges = ($out | Where-Object { $_ -ne $null -and -not $_.StartsWith("!") }).Count; # ignore lines with leading '!' because these would not occurre in commit dialog
                                                 OutProgress "NrOfPendingChanged=$nrOfPendingChanges;  NrOfCommitRelevantChanges=$nrOfCommitRelevantChanges;";
                                                 FileAppendLineWithTs $svnLogFile "  NrOfPendingChanges=$nrOfPendingChanges;  NrOfCommitRelevantChanges=$nrOfCommitRelevantChanges;";
                                                 [Boolean] $hasAnyChange = $nrOfCommitRelevantChanges -gt 0;
@@ -2978,6 +2980,48 @@ function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $
                                                   }
                                                   return [Boolean] $false;
                                                 } }
+function ToolSetAssocFileExtToCmd             ( [String[]] $fileExtensions, [String] $cmd, [String] $ftype = "", [Boolean] $assertPrgExists = $false ){
+                                                # Sets the association of a file extension to a command by overwriting it. 
+                                                # FileExtensions: must begin with a dot, must not content blanks or commas, if it is only a dot then it is used for files without a file ext.
+                                                # Cmd: if it is empty then association is deleted. Can contain variables as %SystemRoot% which will be replaced at runtime.
+                                                #   If cmd does not begin with embedded double quotes then it is interpreted as a full path to an executable
+                                                #   otherwise it uses the cmd as it is.
+                                                # Ftype: Is a group of file extensions. If it not yet exists then a default will be created in the style {extWithoutDot}file (ex: ps1file).
+                                                # AssertPrgExists: You can assert that the program in the command must exist but note that variables enclosed in % char cannot be expanded
+                                                #   because these are not powershell variables.
+                                                # ex: ToolSetAssocFileExtToCmd @(".log",".out") "$env:SystemRoot\System32\notepad.exe" "" $true;
+                                                # ex: ToolSetAssocFileExtToCmd ".log"           "$env:SystemRoot\System32\notepad.exe";
+                                                # ex: ToolSetAssocFileExtToCmd ".log"           "%SystemRoot%\System32\notepad.exe" "txtfile";
+                                                # ex: ToolSetAssocFileExtToCmd ".out"           "`"C:\Any.exe`" `"%1`" -xy";
+                                                # ex: ToolSetAssocFileExtToCmd ".out" "";
+                                                [String] $prg = $cmd; if( $cmd.StartsWith("`"") ){ $prg = ($prg -split "`"")[1]; }
+                                                [String] $exec = $cmd; if( -not $cmd.StartsWith("`"") ){ $exec = "`"$cmd`" `"%1`"";}
+                                                [String] $traceInfo = "ToolSetAssocFileExtToCmd($fileExtensions,`"$cmd`",$ftype,$assertPrgExists)";
+                                                if( $assertPrgExists -and $cmd -ne "" -and (FileNotExists $prg) ){ throw [Exception] "$traceInfo failed because not exists: `"$prg`""; }
+                                                $fileExtensions | ForEach-Object { 
+                                                  if( -not $_.StartsWith(".") ){ throw [Exception] "$traceInfo failed because file ext not starts with dot: `"$_`""; };
+                                                  if( $_.Contains(" ") ){ throw [Exception] "$traceInfo failed because file ext contains blank: `"$_`""; };
+                                                  if( $_.Contains(",") ){ throw [Exception] "$traceInfo failed because file ext contains blank: `"$_`""; };
+                                                };
+                                                $fileExtensions | ForEach-Object {
+                                                  [String] $ext = $_; # ex: ".ps1"
+                                                  if( $cmd -eq "" ){
+                                                    OutProgress "DelFileAssociation ext=$ext :  cmd /c assoc $ext=";
+                                                    [String] $out = (& cmd.exe /c "assoc $ext=" 2>&1); # ex: ""
+                                                  }else{
+                                                    [String] $ft = $ftype;
+                                                    if( $ftype -eq "" ){
+                                                      try{
+                                                        $ft = (& cmd.exe /c "assoc $ext" 2>&1); AssertRcIsOk; # ex: ".ps1=Microsoft.PowerShellScript.1"
+                                                      }catch{ # "Dateizuordnung für die Erweiterung .ps9 nicht gefunden."
+                                                        $ft = (& cmd.exe /c "assoc $ext=$($ext.Substring(1))file" 2>&1); # ex: ".ps1=ps1file"
+                                                      }
+                                                      $ft = $ft.Split("=")[-1]; # "Microsoft.PowerShellScript.1" or "ps1file"
+                                                    }
+                                                    [String] $out = (& cmd.exe /c "ftype $ft=$exec"); # ex: Microsoft.PowerShellScript.1="C:\WINDOWS\system32\WindowsPowerShell\v1.0\powershell.exe" "%1"
+                                                    OutProgress "SetFileAssociation ext=$($ext.PadRight(6)) ftype=$($ft.PadRight(20)) cmd=$exec";
+                                                  }
+                                                }; }
 function MnCommonPsToolLibSelfUpdate          ( [Boolean] $doWaitForEnterKeyIfFailed = $false ){
                                                 # If installed in standard mode (saved under c:\Program Files\WindowsPowerShell\Modules\...) then it performs a self update to the newest version from github.
                                                 [String] $moduleName = "MnCommonPsToolLib";

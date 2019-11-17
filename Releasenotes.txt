@@ -5,6 +5,7 @@ Major version changes will reflect breaking changes and minor identifies extensi
 Current version can be requested by: $MnCommonPsToolLibVersion
 
 
+2019-11-15  V4.6   added ToolSetAssocFileExtToCmd, simplify word-count.
 2019-11-11  V4.5   Extend GitCmd by branch. Extend GitBuildLocalDirFromUrl by branch.
 2019-10-16  V4.4   Fix FsEntryGetAbsolutePath drive not found. Fix RegistryKeySetAclRule. Improve checkings in RegistryKeyGetSubkey, handle 404 in NetDownloadFile and NetDownloadFileByCurl.
 2019-09-04  V4.3   improve FsEntryListAsFileSystemInfo for unauthorized.
