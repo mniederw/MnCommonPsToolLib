@@ -2145,7 +2145,7 @@ function SvnStatus                            ( [String] $workDir, [Boolean] $sh
                                                 [String[]] $out = @()+(& (SvnExe) "status" $workDir); AssertRcIsOk $out;
                                                 FileAppendLines $svnLogFile (StringArrayInsertIndent $out 2);
                                                 [Int32] $nrOfPendingChanges = $out.Count;
-                                                [Int32] $nrOfCommitRelevantChanges = ($out | Where-Object {$_ -ne $null -and -not $_.StartsWith("!") }).Count; # ignore lines with leading '!' because these would not occurre in commit dialog
+                                                [Int32] $nrOfCommitRelevantChanges = ([String[]](@()+($out | Where-Object {$_ -ne $null -and -not $_.StartsWith("!") }))).Count; # ignore lines with leading '!' because these would not occurre in commit dialog
                                                 OutProgress "NrOfPendingChanged=$nrOfPendingChanges;  NrOfCommitRelevantChanges=$nrOfCommitRelevantChanges;";
                                                 FileAppendLineWithTs $svnLogFile "  NrOfPendingChanges=$nrOfPendingChanges;  NrOfCommitRelevantChanges=$nrOfCommitRelevantChanges;";
                                                 [Boolean] $hasAnyChange = $nrOfCommitRelevantChanges -gt 0;
