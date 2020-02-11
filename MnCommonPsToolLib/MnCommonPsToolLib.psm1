@@ -466,6 +466,7 @@ function HelpListOfAllVariables               (){ Get-Variable | Sort-Object Nam
 function HelpListOfAllAliases                 (){ Get-Alias    | Select-Object CommandType, Name, Version, Source | StreamToTableString | ForEach-Object{ OutInfo $_; } }
 function HelpListOfAllCommands                (){ Get-Command  | Select-Object CommandType, Name, Version, Source | StreamToTableString | ForEach-Object{ OutInfo $_; } }
 function HelpListOfAllModules                 (){ Get-Module -ListAvailable | Sort-Object Name | Select-Object Name, ModuleType, Version, ExportedCommands; }
+function HelpListOfAllExportedCommands        (){ (Get-Module -ListAvailable).ExportedCommands.Values | Sort-Object Name | Select-Object Name, ModuleName; }
 function HelpGetType                          ( [Object] $obj ){ return [String] $obj.GetType(); }
 function OsPsVersion                          (){ return [String] (""+$Host.Version.Major+"."+$Host.Version.Minor); } # alternative: $PSVersionTable.PSVersion.Major
 function OsIsWinVistaOrHigher                 (){ return [Boolean] ([Environment]::OSVersion.Version -ge (new-object "Version" 6,0)); }
@@ -1791,36 +1792,43 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                   ,"--tries=2"
                                                   ,"--waitretry=5"
                                                   ,"--referer=$url" 
-                                                  ,"-erobots=off" 
+                                                  ,"--execute=robots=off" 
                                                   ,"--user-agent='Mozilla/5.0 (Windows NT 6.3; rv:36.0) Gecko/20100101 Firefox/36.0'"
                                                   ,"--quota=$maxBytes" 
                                                   ,"--limit-rate=$limitRateBytesPerSec"
-                                                  #,"--wait=0.02"
+                                                 #,"--wait=0.02"
                                                   ,"--user='$us'"
                                                   ,"--password='$pw'"
-                                                  #,"--timestamping" 
-                                                  ,"--no-clobber" # skip downloads to existing files, either noclobber or timestamping ,"--timestamping"
+                                                 #,"--timestamping" 
                                                   ,$(switch($ignoreSslCheck){ ($true){"--no-check-certificate"} default{""}})
-                                                  # If a file is downloaded more than once in the same directory, Wget’s behavior depends on a few options, including ‘-nc’.
-                                                  # In certain cases, the local file will be clobb  ered, or overwritten, upon repeated download.
-                                                  # In other cases it will be preserved.
-                                                  # When running Wget without ‘-N’, ‘-nc’, ‘-r’, or ‘-p’, downloading the same file in the same directory will result in the original copy of file being preserved and the second copy being named ‘file.1’. 
-                                                  # If that file is downloaded yet again, the third copy will be named ‘file.2’, and so on. 
-                                                  # (This is also the behavior with ‘-nd’, even if ‘-r’ or ‘-p’ are in effect.) When ‘-nc’ is specified, this behavior is suppressed, and Wget will refuse to download newer copies of ‘file’.
-                                                  # Therefore, "no-clobber" is actually a misnomer in this mode—it’s not clobbering that’s prevented (as the numeric suffixes were already preventing clobbering), but rather the multiple version saving that’s prevented.
-                                                  # When running Wget with ‘-r’ or ‘-p’, but without ‘-N’, ‘-nd’, or ‘-nc’, re-downloading a file will result in the new copy simply overwriting the old.
-                                                  # Adding ‘-nc’ will prevent this behavior, instead causing the original version to be preserved and any newer copies on the server to be ignored.
-                                                  # When running Wget with ‘-N’, with or without ‘-r’ or ‘-p’, the decision as to whether or not to download a newer copy of a file depends on the local and remote timestamp and size of the file (see Time-Stamping).
-                                                  # ‘-nc’ may not be specified at the same time as ‘-N’.
-                                                  # Note that when ‘-nc’ is specified, files with the suffixes ‘.html’ or ‘.htm’ will be loaded from the local disk and parsed as if they had been retrieved from the Web.  
-                                                  #,"--convert-links"  # Convert non-relative links locally    deactivated because:  Both --no-clobber and --convert-links were specified, only --convert-links will be used.
-                                                  # --force-html    # When input is read from a file, force it to be treated as an HTML file. This enables you to retrieve relative links from existing HTML files on your local disk, by adding <base href="url"> to HTML, or using the ‘--base’ command-line option.
-                                                  # --input-file=$fileslist
-                                                  # --ca-certificate file.crt   (more see http://users.ugent.be/~bpuype/wget/#download)
+                                                    # Otherwise: ERROR: cannot verify ...'s certificate, issued by 'CN=Let\'s Encrypt Authority X3,O=Let\'s Encrypt,C=US': Unable to locally verify the issuer's authority. To connect to ... insecurely, use `--no-check-certificate'.
+                                                 #,"--convert-links"            # Convert non-relative links locally    deactivated because:  Both --no-clobber and --convert-links were specified, only --convert-links will be used.
+                                                 #,"--force-html"               # When input is read from a file, force it to be treated as an HTML file. This enables you to retrieve relative links from existing HTML files on your local disk, by adding <base href="url"> to HTML, or using the ‘--base’ command-line option.
+                                                 #,"--input-file=$fileslist"    # 
+                                                 #,"--ca-certificate file.crt"  # (more see http://users.ugent.be/~bpuype/wget/#download)
+                                                  ,"--no-clobber"               # skip downloads to existing files, either noclobber or timestamping ,"--timestamping"
+                                                      # If a file is downloaded more than once in the same directory, Wget’s behavior depends on a few options, including ‘--no-clobber’.
+                                                      # In certain cases, the local file will be clobb  ered, or overwritten, upon repeated download.
+                                                      # In other cases it will be preserved.
+                                                      # When running Wget without ‘--timestamping’, ‘--no-clobber’, ‘--recursive’ or ‘--page-requisites’ downloading the same file 
+                                                      # in the same directory will result in the original copy of file being preserved and the second copy being named ‘file.1’. 
+                                                      # If that file is downloaded yet again, the third copy will be named ‘file.2’, and so on. 
+                                                      # This is also the behavior with ‘-nd’, even if ‘--recursive’ or ‘--page-requisites’ are in effect. 
+                                                      # When ‘--no-clobber’ is specified, this behavior is suppressed, and Wget will refuse to download newer copies of ‘file’.
+                                                      # Therefore, "no-clobber" is actually a misnomer in this mode—it’s not clobbering that’s prevented (as the numeric 
+                                                      # suffixes were already preventing clobbering), but rather the multiple version saving that’s prevented.
+                                                      # When running Wget with ‘--recursive’ or ‘--page-requisites’, but without ‘--timestamping’, ‘--no-directories’, or ‘--no-clobber’, re-downloading
+                                                      # a file will result in the new copy simply overwriting the old. Adding ‘--no-clobber’ will prevent this behavior, instead 
+                                                      # causing the original version to be preserved and any newer copies on the server to be ignored.
+                                                      # When running Wget with ‘--timestamping’, with or without ‘--recursive’ or ‘--page-requisites’, the decision as to whether 
+                                                      # or not to download a newer copy of a file depends on the local and remote timestamp and size of the file (see Time-Stamping).
+                                                      # ‘--no-clobber’ may not be specified at the same time as ‘--timestamping’.
+                                                      # Note that when ‘--no-clobber’ is specified, files with the suffixes ‘.html’ or ‘.htm’ will be loaded from the local disk 
+                                                      # and parsed as if they had been retrieved from the Web.
                                                   # more about logon forms: http://wget.addictivecode.org/FrequentlyAskedQuestions
-                                                  # backup without file conversions: wget -mirror -p -P c:\wget_files\example2 ftp://username:password@ftp.yourdomain.com
-                                                  # download:                        Wget            -P c:\wget_files\example3 http://ftp.gnu.org/gnu/wget/wget-1.9.tar.gz
-                                                  # download resume:                 Wget -c         -P c:\wget_files\example3 http://ftp.gnu.org/gnu/wget/wget-1.9.tar.gz
+                                                  # backup without file conversions: wget -mirror --page-requisites --directory-prefix=c:\wget_files\example2 ftp://username:password@ftp.yourdomain.com
+                                                  # download:                        Wget                           --directory-prefix=c:\wget_files\example3 http://ftp.gnu.org/gnu/wget/wget-1.9.tar.gz
+                                                  # download resume:                 Wget --continue                --directory-prefix=c:\wget_files\example3 http://ftp.gnu.org/gnu/wget/wget-1.9.tar.gz
                                                 );
                                                 # maybe we should also: $url/sitemap.xml
                                                 DirCreate $tarDir;
@@ -1833,7 +1841,7 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                 & $wgetExe $url $opt "--append-output=$logf";
                                                 [Int32] $rc = ScriptGetAndClearLastRc; if( $rc -ne 0 ){
                                                   [String] $err = switch($rc){ 0 {"OK"} 1 {"Generic"} 2 {"CommandLineOption"} 3 {"FileIo"} 4 {"Network"} 5 {"SslVerification"} 6 {"Authentication"} 7 {"Protocol"} 8 {"ServerIssuedSomeResponse(ex:404NotFound)"} default {"Unknown(rc=$rc)"} };
-                                                  OutWarning "Warning: Ignored one or more occurrences of error: $err. More see logfile=`"$logf`".";
+                                                  OutWarning "Warning: Ignored one or more occurrences of error category: $err. More see logfile=`"$logf`".";
                                                 }
                                                 [String] $state = "TargetDir: $(FsEntryReportMeasureInfo "$tarDir") (BeforeStart: $stateBefore)";
                                                 FileAppendLineWithTs $logf $state;
