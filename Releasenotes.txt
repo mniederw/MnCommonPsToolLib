@@ -4,7 +4,7 @@
 Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
 Current version can be requested by: $MnCommonPsToolLibVersion
 
-2020-02-11  V4.9   add HelpListOfAllExportedCommands, extend wget comment.
+2020-02-13  V4.9   add HelpListOfAllExportedCommands, extend wget comment. improved ProcessRestartInElevatedAdminMode, MnCommonPsToolLibSelfUpdate, ToolPerformFileUpdateAndIsActualized.
 2020-01-14  V4.8   add StringRemoveLeft
 2019-12-04  V4.7   extended tfs path
 2019-11-15  V4.6   added ToolSetAssocFileExtToCmd, simplify word-count. 

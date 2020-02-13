@@ -48,7 +48,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $MnCommonPsToolLibVersion = "4.8"; # more see Releasenotes.txt
+[String] $MnCommonPsToolLibVersion = "4.9"; # more see Releasenotes.txt
 
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 
@@ -338,7 +338,8 @@ function ScriptGetProcessCommandLine          (){ return [String] ([environment]
 function ScriptGetDirOfLibModule              (){ return [String] $PSScriptRoot ; } # Get dir       of this script file of this function or empty if not from a script; alternative: (Split-Path -Parent -Path ($script:MyInvocation.MyCommand.Path))
 function ScriptGetFileOfLibModule             (){ return [String] $PSCommandPath; } # Get full path of this script file of this function or empty if not from a script. alternative1: try{ return [String] (Get-Variable MyInvocation -Scope 1 -ValueOnly).MyCommand.Path; }catch{ return [String] ""; }  alternative2: $script:MyInvocation.MyCommand.Path
 function ScriptGetCallerOfLibModule           (){ return [String] $MyInvocation.PSCommandPath; } # Result can be empty or implicit module if called interactive. alternative for dir: $MyInvocation.PSScriptRoot.
-function ScriptGetTopCaller                   (){ [String] $f = $global:MyInvocation.MyCommand.Definition.Trim(); # Result can be empty or implicit module if called interactive. usage ex: "&'C:\Temp\A.ps1'" or '&"C:\Temp\A.ps1"' or on ISE '"C:\Temp\A.ps1"'
+function ScriptGetTopCaller                   (){ # return the command line with correct doublequotes
+                                                [String] $f = $global:MyInvocation.MyCommand.Definition.Trim(); # Result can be empty or implicit module if called interactive. usage ex: "&'C:\Temp\A.ps1'" or '&"C:\Temp\A.ps1"' or on ISE '"C:\Temp\A.ps1"'
                                                 if( $f -eq "" -or $f -eq "ScriptGetTopCaller" ){ return ""; }
                                                 if( $f.StartsWith("&") ){ $f = $f.Substring(1,$f.Length-1).Trim(); }
                                                 if( ($f -match "^\'.+\'$") -or ($f -match "^\`".+\`"$") ){ $f = $f.Substring(1,$f.Length-2); }
@@ -382,24 +383,25 @@ function ProcessFindExecutableInPath          ( [String] $exec ){ # Return full 
                                                 [Object] $p = (Get-Command $exec -ErrorAction SilentlyContinue); if( $p -eq $null ){ return [String] ""; } return [String] $p.Source; }
 function ProcessIsRunningInElevatedAdminMode  (){ return [Boolean] ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"); }
 function ProcessAssertInElevatedAdminMode     (){ if( -not (ProcessIsRunningInElevatedAdminMode) ){ throw [Exception] "Assertion failed because requires to be in elevated admin mode"; } }
-function ProcessRestartInElevatedAdminMode    (){ if( -not (ProcessIsRunningInElevatedAdminMode) ){
-                                                [String[]] $topCallerArguments = @(); # Currently it supports no arguments because we do not know how to access them (something like $global:args would be nice).
+function ProcessRestartInElevatedAdminMode    (){ if( (ProcessIsRunningInElevatedAdminMode) ){ return; }
                                                 # ex: "C:\myscr.ps1" or if interactive then statement name ex: "ProcessRestartInElevatedAdminMode"
-                                                [String[]] $cmd = @( (ScriptGetTopCaller) ) + $topCallerArguments + $Global:ArgsForRestartInElevatedAdminMode;
+                                                [String] $cmd = @( (ScriptGetTopCaller) ) + $Global:ArgsForRestartInElevatedAdminMode;
                                                 if( $Global:ModeDisallowInteractions ){ 
                                                   [String] $msg = "Script `"$cmd`" is currently not in elevated admin mode and function ProcessRestartInElevatedAdminMode was called ";
                                                   $msg += "but currently the mode ModeDisallowInteractions=$Global:ModeDisallowInteractions, ";
                                                   $msg += "and so restart will not be performed. Now it will continue but it probably will fail."; 
                                                   OutWarning $msg;
                                                 }else{
-                                                  $cmd = @("&", "`"$cmd`"" );
-                                                  if( ScriptIsProbablyInteractive ){ $cmd = @("-NoExit") + $cmd; }
-                                                  OutProgress "Not running in elevated administrator mode so elevate current script and exit: powershell.exe $cmd";
+                                                  $cmd = $cmd -replace "`"","`"`"`""; # see https://docs.microsoft.com/en-us/dotnet/api/system.diagnostics.processstartinfo.arguments
+                                                  $cmd = ([String[]]$(switch(ScriptIsProbablyInteractive){ ($true){@("-NoExit")} default{@()} })) + @("&") + @("`"$cmd`"");
+                                                  OutProgress "Not running in elevated administrator mode so elevate current script and exit:";
+                                                  OutProgress "  powershell.exe $cmd";
                                                   Start-Process -Verb "RunAs" -FilePath "powershell.exe" -ArgumentList $cmd; # ex: InvalidOperationException: This command cannot be run due to the error: Der Vorgang wurde durch den Benutzer abgebrochen.
-                                                  # AssertRcIsOk; seams not to be nessessary
+                                                  OutProgress "Exiting in 10 seconds";
+                                                  ProcessSleepSec 10;
                                                   [Environment]::Exit("0"); # Note: 'Exit 0;' would only leave the last '. mycommand' statement.
                                                   throw [Exception] "Exit done, but it did not work, so it throws now an exception.";
-                                                } } }
+                                                } }
 function ProcessGetCurrentThreadId            (){ return [Int32] [Threading.Thread]::CurrentThread.ManagedThreadId; }
 function ProcessListRunnings                  (){ return (Get-Process * | Where-Object{ $_.Id -ne 0 } | Sort-Object ProcessName); }
 function ProcessListRunningsAsStringArray     (){ return (ProcessListRunnings | Format-Table -auto -HideTableHeaders " ",ProcessName,ProductVersion,Company | StreamToStringDelEmptyLeadAndTrLines); }
@@ -2958,44 +2960,50 @@ function ToolGithubApiListOrgRepos            ( [String] $org, [System.Managemen
                                                   if( $a -eq $null -or $a.Count -eq 0 ){ break; }
                                                   $result +=$a;
                                                 } return $result | Sort-Object archived, html_url; }
-function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $url, [Boolean] $requireElevatedAdminMode, [Boolean] $doWaitIfFailed = $false, [String] $additionalOkUpdMsg = "" ){
-                                                # Assert the correct installed environment by requiring that the file to be update previously exists.
-                                                # Assert the network is prepared by checking if host is reachable by ping.
-                                                # If there is any change then it requests for running as admin, it downloads the module and verifies it with the previously downloaded hash file.
-                                                # Then the current module is actualized by overwriting its file and a success message is given out.
+function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $url, [Boolean] $requireElevatedAdminMode = $false, 
+                                                  [Boolean] $doWaitIfFailed = $false, [String] $additionalOkUpdMsg = "", 
+                                                  [Boolean] $assertFilePreviouslyExists = $true, [Boolean] $performPing = $true ){
+                                                # Check if target file exists, checking wether host is reachable by ping, downloads the file, check for differences, 
+                                                # check for admin mode, overwriting the file and a success message is given out.
                                                 # Otherwise if it failed it will output a warning message and optionally wait for pressing enter key.
                                                 # It returns true if the file is now actualized.
+                                                # Note: if not in elevated admin mode and if it is required then it will download file twice, 
+                                                #   once to check for differences and once after switching to elevated admin mode.
+                                                # Example: ToolPerformFileUpdateAndIsActualized "C:\Temp\a.psm1" "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/master/MnCommonPsToolLib/MnCommonPsToolLib.psm1" $true $true "Please restart" $false $true;
                                                 try{
-                                                  OutInfo "Check for update of $targetFile `n  from $url";
-                                                  if( (FileNotExists $targetFile) ){ 
+                                                  OutInfo "Update file `"$targetFile`" `n  from $url";
+                                                  [String] $hashInstalled = "";
+                                                  [Boolean] $targetFileExists = (FileExists $targetFile);
+                                                  if( $assertFilePreviouslyExists -and (-not $targetFileExists) ){
                                                     throw [Exception] "Unexpected environment, for updating it is required that target file previously exists but it does not: `"$targetFile`"";
                                                   }
-                                                  [String] $host = (NetExtractHostName $url);
-                                                  if( -not (NetPingHostIsConnectable) ){ 
-                                                    throw [Exception] "Host $host is not pingable."; 
+                                                  if( $targetFileExists ){
+                                                    OutProgress "Reading hash of target file";
+                                                    $hashInstalled = FileGetHexStringOfHash512BitsSha2 $targetFile;
                                                   }
-                                                  [String] $hash512BitsSha2Url = "$url.sha2";
-                                                  [String] $hash = (PsDownloadToString $hash512BitsSha2Url).TrimEnd();
-                                                  [String] $hash2 = FileGetHexStringOfHash512BitsSha2 $targetFile;
-                                                  if( $hash -eq $hash2 ){
+                                                  if( $performPing ){
+                                                    OutProgress "Checking host of url wether it is reachable by ping";
+                                                    [String] $host = (NetExtractHostName $url);
+                                                    if( -not (NetPingHostIsConnectable $host) ){ 
+                                                      throw [Exception] "Host $host is not pingable."; 
+                                                    }
+                                                  }
+                                                  [String] $tmp = (FileGetTempFile); NetDownloadFile $url $tmp;
+                                                  OutProgress "Checking for differences."; 
+                                                  if( $targetFileExists -and $hashInstalled -eq (FileGetHexStringOfHash512BitsSha2 $tmp) ){
                                                     OutProgress "Ok, is up to date, nothing done.";
                                                   }else{
-                                                    OutProgress "There are changes between the current file and that from url, so going to download and install it.";
+                                                    OutProgress "There are changes between the current file and the downloaded file, so overwrite it.";
                                                     if( $requireElevatedAdminMode ){ 
-                                                      ProcessRestartInElevatedAdminMode; 
-                                                    }
-                                                    [String] $tmp = (FileGetTempFile); NetDownloadFile $url $tmp;
-                                                    [String] $hash3 = (FileGetHexStringOfHash512BitsSha2 $tmp);
-                                                    if( $hash -ne $hash3 ){
-                                                      throw [Exception] ("The hash of the downloaded file from $url`n  (=$hash3)  does not match the content of $hash512BitsSha2Url.`n  (=$hash)"`
-                                                        +"  Probably author did not update hash after updating source, then you must manually get source or wait until author updates hash.  "); 
+                                                      ProcessRestartInElevatedAdminMode;
+                                                      OutProgress "Is running in elevated admin mode.";
                                                     }
                                                     FileMove $tmp $targetFile $true;
                                                     OutSuccess "Ok, updated `"$targetFile`". $additionalOkUpdMsg";
                                                   }
                                                   return [Boolean] $true;
                                                 }catch{
-                                                  OutWarning "update failed because $($_.Exception.Message)";
+                                                  OutWarning "Update failed because $($_.Exception.Message)";
                                                   if( $doWaitIfFailed ){ 
                                                     StdInReadLine "Press enter to continue."; 
                                                   }
@@ -3045,12 +3053,15 @@ function ToolSetAssocFileExtToCmd             ( [String[]] $fileExtensions, [Str
                                                 }; }
 function MnCommonPsToolLibSelfUpdate          ( [Boolean] $doWaitForEnterKeyIfFailed = $false ){
                                                 # If installed in standard mode (saved under c:\Program Files\WindowsPowerShell\Modules\...) then it performs a self update to the newest version from github.
-                                                [String] $moduleName = "MnCommonPsToolLib";
-                                                [String] $tarRootDir = "$Env:ProgramW6432\WindowsPowerShell\Modules"; # more see: https://msdn.microsoft.com/en-us/library/dd878350(v=vs.85).aspx
-                                                [String] $moduleFile = "$tarRootDir\$moduleName\$moduleName.psm1";                                               
-                                                [String] $url = "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/master/$moduleName/$moduleName.psm1";
-                                                [String] $additionalOkUpdMsg = "`n  Please restart all processes which may have an old version of the modified env-vars before using functions of this library.";
-                                                [Boolean] $dummyResult = ToolPerformFileUpdateAndIsActualized $moduleFile $url $true $doWaitForEnterKeyIfFailed $additionalOkUpdMsg;
+                                                [String]  $moduleName = "MnCommonPsToolLib";
+                                                [String]  $tarRootDir = "$Env:ProgramW6432\WindowsPowerShell\Modules"; # more see: https://msdn.microsoft.com/en-us/library/dd878350(v=vs.85).aspx
+                                                [String]  $moduleFile = "$tarRootDir\$moduleName\$moduleName.psm1";                                               
+                                                [String]  $url = "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/master/$moduleName/$moduleName.psm1";
+                                                [String]  $additionalOkUpdMsg = "`n  Please restart all processes which currently loaded this module before using changed functions of this library.";
+                                                [Boolean] $requireElevatedAdminMode = $true;
+                                                [Boolean] $assertFilePreviouslyExists = $true;
+                                                [Boolean] $performPing = $true;
+                                                [Boolean] $dummyResult = ToolPerformFileUpdateAndIsActualized $moduleFile $url $requireElevatedAdminMode $doWaitForEnterKeyIfFailed $additionalOkUpdMsg $assertFilePreviouslyExists $performPing;
                                               }
 
 function MnLibCommonSelfTest(){ # perform some tests
@@ -3123,11 +3134,13 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 # - Available colors for options -foregroundcolor and -backgroundcolor: 
 #   Black DarkBlue DarkGreen DarkCyan DarkRed DarkMagenta DarkYellow Gray DarkGray Blue Green Cyan Red Magenta Yellow White
 # - Manifest .psd1 file can be created with: New-ModuleManifest MnCommonPsToolLib.psd1 -ModuleVersion "1.0" -Author "Marc Niederwieser"
-# - Known Bugs:
+# - Known Bugs or Problems:
 #   - Powershell V2 Bug: checking strings for $null is different between if and switch tests:
 #     http://stackoverflow.com/questions/12839479/powershell-treats-empty-string-as-equivalent-to-null-in-switch-statements-but-no
-#   - Variable or function argument of type String is never $null, if $null is assigned then always empty is stored. [String] $s; $s = $null; Assert ($s -ne $null); Assert ($s -eq "");
-#     But if type String is within a struct then it can be null.  Add-Type -TypeDefinition "public struct MyStruct {public string MyVar;}"; Assert( (New-Object MyStruct).MyVar -eq $null );
+#   - Variable or function argument of type String is never $null, if $null is assigned then always empty is stored.
+#     [String] $s; $s = $null; Assert ($s -ne $null); Assert ($s -eq "");
+#     But if type String is within a struct then it can be null.  
+#     Add-Type -TypeDefinition "public struct MyStruct {public string MyVar;}"; Assert( (New-Object MyStruct).MyVar -eq $null );
 #   - GetFullPath() works not with the current dir but with the working dir where powershell was started (ex. when running as administrator).
 #     http://stackoverflow.com/questions/4071775/why-is-powershell-resolving-paths-from-home-instead-of-the-current-directory/4072205
 #     powershell.exe         ; pwd <# ex: C:\Users\myuser     #>; echo hi > .\a.tmp ; [System.IO.Path]::GetFullPath(".\a.tmp")     <# is correct "C:\Users\myuser\a.tmp"     #>;
@@ -3138,13 +3151,16 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #                                                                                     (Get-Item -Path ".\a.tmp" -Verbose).FullName <# is correct "C:\Users\myuser\a.tmp"     #>;
 #     Possible reasons: PS can have a regkey as current location. GetFullPath works with [System.IO.Directory]::GetCurrentDirectory().
 #     Recommendation: do not use [System.IO.Path]::GetFullPath, use Resolve-Path.
-#   - ForEach-Object iterates once with $null in pipeline:    see http://stackoverflow.com/questions/4356758/how-to-handle-null-in-the-pipeline
+#   - ForEach-Object iterates once with $null in pipeline:    
+#     see http://stackoverflow.com/questions/4356758/how-to-handle-null-in-the-pipeline
 #     $null | ForEach-Object{ write-host "badly reached." }
 #     But:  @() | ForEach-Object{ write-host "ok not reached." }
-#     Workaround if array variable can be null, then use:  $null | Where-Object{ $_ -ne $null } | ForEach-Object{ write-host "ok not reached." }
+#     Workaround if array variable can be null, then use:  
+#       $null | Where-Object{ $_ -ne $null } | ForEach-Object{ write-host "ok not reached." }
 #     Alternative: $null | ForEach-Object -Begin{if($_ -eq $null){continue}} -Process {do your stuff here}
 #     Recommendation: Make sure an array variable is never null.
-#   - Empty array in pipeline is converted to $null:  $r = ([String[]]@()) | Where-Object{ $_ -ne "bla" }; if( $r -eq $null ){ write-host "ok reached" };
+#   - Empty array in pipeline is converted to $null:  
+#     $r = ([String[]]@()) | Where-Object{ $_ -ne "bla" }; if( $r -eq $null ){ write-host "ok reached" };
 #     Workaround:  $r = @()+(([String[]]@()) | Where-Object{ $_ -ne "bla" }); if( !$r ){ write-host "ok reached, var is not null" };
 #   - Compare empty array with $null:  [Object[]] $r = @(); if( $r.gettype().Name -eq "Object[]" ){ write-host "ok reached" };
 #     if( $r.count -eq 0 ){ write-host "ok reached"; }
@@ -3153,7 +3169,8 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #     Recommendation: Make sure an array variable is never null.
 #   - Variable name conflict: ... | ForEach-Object { [String[]] $a = $_; ... }; [Array] $a = ...;
 #     Can result in:  SessionStateUnauthorizedAccessException: Cannot overwrite variable a because the variable has been optimized. 
-#       Try using the New-Variable or Set-Variable cmdlet (without any aliases), or dot-source the command that you are using to set the variable.
+#       Try using the New-Variable or Set-Variable cmdlet (without any aliases), 
+#       or dot-source the command that you are using to set the variable.
 #     Recommendation: Rename one of the variables.
 #   - Exceptions are always catched within Expression statement and instead of expecting the throw it returns $null:
 #     [Object[]] $a = @( "a", "b" ) | Select-Object -Property @{Name="Field1";Expression={$_}} | 
@@ -3162,6 +3179,7 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #     $a[0].Field2 -eq "is_a" -and $a[1].Field2 -eq $null;  # this is true
 #     $a | ForEach { if( $_.Field2 -eq $null ){ throw [Exception] "Field2 is null"; } } # this does the throw
 #     Recommendation: After creation of the list do iterate through it and assert non-null values.
+#   - String without comparison as condition:  Assert ( "anystring" ); Assert ( "$false" );
 # - Standard module paths:
 #   - %windir%\system32\WindowsPowerShell\v1.0\Modules    location for windows modules for all users
 #   - %ProgramW6432%\WindowsPowerShell\Modules\           location for any modules     for all users
@@ -3175,11 +3193,14 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #   - Private         : Cannot be seen outside of current scope.
 #   - Numbered Scopes : Relative position to another scope, 0=local, 1=parent, 2=parent of parent, and so on.
 # - Scope Inheritance: 
-#     A child scope does not inherit variables, functions, etc., but it is allowed to view and even change them by accessing parent scope.
-#     However, a child scope is created with a set of items. Typically, it includes all the aliases and variables that have the AllScope option, 
+#     A child scope does not inherit variables, functions, etc., 
+#     but it is allowed to view and even change them by accessing parent scope.
+#     However, a child scope is created with a set of items. 
+#     Typically, it includes all the aliases and variables that have the AllScope option, 
 #     plus some variables that can be used to customize the scope, such as MaximumFunctionCount. 
-#   Examples: $global:MyVar = "a1"; $script:MyVar = "a2"; $private:MyVar = "a3"; function global:MyFunc(){..};  $local.MyVar = "a4"; $MyVar = "a5"; get-variable -scope global;
-# - Run script:C:\Users\u4\a.tmp
+#   Examples: $global:MyVar = "a1"; $script:MyVar = "a2"; $private:MyVar = "a3"; 
+#     function global:MyFunc(){..};  $local.MyVar = "a4"; $MyVar = "a5"; get-variable -scope global;
+# - Run a script:
 #   - runs script in script scope, variables and functions do not persists in shell after script end:
 #       ".\myscript.ps1"
 #   - runs script in local scope, variables and functions persists in shell after script end, used to include ps artefacts:
@@ -3200,31 +3221,41 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #       There is also no proper solution if quotes instead of double-quotes are used.
 #     - Precedence of commands: Alias > Function > Filter > Cmdlet > Application > ExternalScript > Script.
 #     - Override precedence of commands by using get-command, ex: Get-Command -commandType Application Ping
-#   - Evaluate (string expansion) and run a command given in a string, does not create a new script scope and so works in local scope. Care for code injection. 
+#   - Evaluate (string expansion) and run a command given in a string, does not create a new script scope 
+#     and so works in local scope. Care for code injection. 
 #       Invoke-Expression [-command] string [CommonParameters]
 #     Very important: It performs string expansion before running, so it can be a severe problem if the string contains character $.
 #     This behaviour is very bad and so avoid using Invoke-Expression and use & or . operators instead.
 #     Ex: $cmd1 = "echo `$PSHome"; $cmd2 = "echo $PSHome"; Invoke-Expression $cmd1; Invoke-Expression $cmd2;
 #   - Run a script or command remotely. See http://ss64.com/ps/invoke-command.html
 #     Invoke-Command 
-#     If you use Invoke-Command to run a script or command on a remote computer, then it will not run elevated even if the local session is. 
-#     This is because any prompt for elevation will happen on the remote machine in a non-interactive session and so will fail
-#     Example:  invoke-command -LiteralPath "c:\scripts\test.ps1" -computerName "Server64";  invoke-command -computername "server64" -credential "domain64\user64" -scriptblock {get-culture};
+#     If you use Invoke-Command to run a script or command on a remote computer, 
+#     then it will not run elevated even if the local session is. This is because any prompt 
+#     for elevation will happen on the remote machine in a non-interactive session and so will fail.
+#     Example:  invoke-command -LiteralPath "c:\scripts\test.ps1" -computerName "Server64";  
+#       invoke-command -computername "server64" -credential "domain64\user64" -scriptblock {get-culture};
 #   - Invoke the (provider-specific) default action on an item (like double click). For example open pdf viewer for a .pdf file.
 #       Invoke-Item ./myfile.xls
 #   - Start a process waiting for end or not.
-#       Start-Process -FilePath myfile.exe -ArgumentList myargs
-#     Examples: start-process -FilePath notepad.exe -ArgumentList Test.txt; 
-#       [Diagnostics.Process]::Start("notepad.exe","test.txt");
+#       start-process -FilePath notepad.exe -ArgumentList """Test.txt"""; # no wait for end, opened in foreground
+#       [Diagnostics.Process]::Start("notepad.exe","test.txt"); # no wait for end, opened in foreground
 #       start-process -FilePath  C:\batch\demo.cmd -verb runas;
-#       start-process -FilePath notepad -wait -windowstyle Maximized
+#       start-process -FilePath notepad.exe -wait -windowstyle Maximized; # wait for end
 #       start-process -FilePath Sort.exe -RedirectStandardInput C:\Demo\Testsort.txt -RedirectStandardOutput C:\Demo\Sorted.txt -RedirectStandardError C:\Demo\SortError.txt
-#       $pclass = [wmiclass]'root\cimv2:Win32_Process'; $new_pid = $pclass.Create('notepad.exe', '.', $null).ProcessId;
+#       $pclass = [wmiclass]'root\cimv2:Win32_Process'; $new_pid = $pclass.Create('notepad.exe', '.', $null).ProcessId; # no wait for end, opened app in background
 #     Run powershell with elevated rights: Start-Process -FilePath powershell.exe -Verb runAs
+#     Important note: If a program is called which also has as input a commandline then the arguments must be tripple-doublequoted.
+#       see https://docs.microsoft.com/en-us/dotnet/api/system.diagnostics.processstartinfo.arguments
+#           https://github.com/PowerShell/PowerShell/issues/5576
+#       Start-Process -FilePath powershell.exe -Verb runAs -ArgumentList "-NoExit `"&`" notepad.exe `"`"`"Test WithBlank.txt`"`"`" "
 # - Call module with arguments: ex:  Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1" -ArgumentList $myinvocation.mycommand.Path;
 # - FsEntries: -LiteralPath means no interpretation of wildcards
 # - Extensions and libraries: https://www.powershellgallery.com/  http://ss64.com/links/pslinks.html
 # - Important to know:
-#   - Alternative for Split-Path has problems: [System.IO.Path]::GetDirectoryName("c:\") -eq $null; [System.IO.Path]::GetDirectoryName("\\mymach\myshare\") -eq "\\mymach\myshare\";
-#   - Split(): [String[]] $a = "".Split(";",[System.StringSplitOptions]::RemoveEmptyEntries); # returns correctly an empty array and not null: $a.Count -eq 0;
+#   - Alternative for Split-Path has problems: 
+#       [System.IO.Path]::GetDirectoryName("c:\") -eq $null; 
+#       [System.IO.Path]::GetDirectoryName("\\mymach\myshare\") -eq "\\mymach\myshare\";
+#   - Split():
+#       [String[]] $a = "".Split(";",[System.StringSplitOptions]::RemoveEmptyEntries); 
+#       # returns correctly an empty array and not null: $a.Count -eq 0;
 #     Usually Split is used with the option RemoveEmptyEntries.

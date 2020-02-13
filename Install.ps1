@@ -52,13 +52,13 @@ function InstallDir                           ( [String] $srcDir, [String] $tarP
 function InstallSrcPathToPsModulePathIfNotInst( [String] $srcDir ){ OutProgress "Change environment system variable $envVar by appending '$srcDir'. "; 
                                                 if( (PsModulePathContains $srcDir) ){ OutProgress "Already installed so environment variable not changed."; }
                                                 else{ ProcessRestartInElevatedAdminMode; PsModulePathAdd $srcDir; } }
+function IsInstalledInStandardMode            ( [String] $srcRootDir ){ return [Boolean] (PsModulePathContains $srcRootDir); }
 function OutCurrentInstallState               ( [String] $srcRootDir, [String] $moduleTarDir, [String] $color = "White" ){
-                                                [Boolean] $srcRootDirIsInPath = PsModulePathContains $srcRootDir;
-                                                [Boolean] $moduleTarDirExists = DirExists $moduleTarDir; 
-                                                [String] $installedText = switch($srcRootDirIsInPath){ ($true){"Installed-for-Developers. "} 
+                                                [Boolean] $moduleTarDirExists = DirExists $moduleTarDir;
+                                                [String] $installedText = switch((IsInstalledInStandardMode $srcRootDir)){ ($true){"Installed-for-Developers. "} 
                                                   default{switch($moduleTarDirExists){ ($true){"Installed-in-Standard-Mode. "} default{"Not-Installed. "}}}}; 
                                                 OutProgressText "Current installation mode: "; Write-Host -ForegroundColor $color $installedText; }
-function SelfUpdate                           (){ $PSModuleAutoLoadingPreference = "All";
+function SelfUpdate                           (){ $PSModuleAutoLoadingPreference = "All"; # none=Disabled. All=Auto load when cmd not found.
                                                 try{ Import-Module "MnCommonPsToolLib.psm1"; MnCommonPsToolLib\MnCommonPsToolLibSelfUpdate; }
                                                 catch{ OutProgress "Please restart shell and maybe calling file manager and retry"; throw; } }
 
