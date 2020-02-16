@@ -48,7 +48,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $MnCommonPsToolLibVersion = "4.9"; # more see Releasenotes.txt
+[String] $MnCommonPsToolLibVersion = "4.10"; # more see Releasenotes.txt
 
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 
@@ -981,9 +981,9 @@ function FsEntryReportMeasureInfo             ( [String] $fsEntry ){ # Must exis
                                                 if( $size -eq $null ){ return [String] "SizeInBytes=0; NrOfFsEntries=0;"; }
                                                 return [String] "SizeInBytes=$($size.sum); NrOfFsEntries=$($size.count);"; }
 function FsEntryCreateParentDir               ( [String] $fsEntry ){ [String] $dir = FsEntryGetParentDir $fsEntry; DirCreate $dir; }
-function FsEntryMoveByPatternToDir            ( [String] $fsEntryPattern, [String] $targetDir, [Boolean] $showProgressFiles = $false ){ # Target dir must exists.
+function FsEntryMoveByPatternToDir            ( [String] $fsEntryPattern, [String] $targetDir, [Boolean] $showProgressFiles = $false ){ # Target dir must exists. pattern is non-recursive scanned.
                                                 OutProgress "FsEntryMoveByPatternToDir `"$fsEntryPattern`" to `"$targetDir`""; DirAssertExists $targetDir;
-                                                FsEntryListAsStringArray $fsEntryPattern | Sort-Object | 
+                                                FsEntryListAsStringArray $fsEntryPattern $false | Sort-Object | 
                                                   ForEach-Object{ if( $showProgressFiles ){ OutProgress "Source: $_"; }; Move-Item -Force -Path $_ -Destination (FsEntryEsc $targetDir); }; }
 function FsEntryCopyByPatternByOverwrite      ( [String] $fsEntryPattern, [String] $targetDir, [Boolean] $continueOnErr = $false ){
                                                 OutProgress "FsEntryCopyByPatternByOverwrite `"$fsEntryPattern`" to `"$targetDir`" continueOnErr=$continueOnErr";
@@ -1559,8 +1559,10 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                   OutWarning $msg;
                                                 } }
 function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Boolean] $onlyIfNewer = $false, [Boolean] $errorAsWarning = $false ){
-                                                # Download a single file by overwrite it (as NetDownloadFile), requires curl.exe in path, timestamps are also taken, logging info is stored in a global logfile, 
-                                                #   for user agent info a mozilla firefox is set, if file curl-ca-bundle.crt exists next to curl.exe then this is taken.
+                                                # Download a single file by overwrite it (as NetDownloadFile), requires curl.exe in path, 
+                                                # timestamps are also taken, logging info is stored in a global logfile, redirections are followed,
+                                                # for user agent info a mozilla firefox is set, 
+                                                # if file curl-ca-bundle.crt exists next to curl.exe then this is taken.
                                                 # Supported protocols: DICT, FILE, FTP, FTPS, Gopher, HTTP, HTTPS, IMAP, IMAPS, LDAP, LDAPS, POP3, POP3S, RTMP, RTSP, SCP, SFTP, SMB, SMTP, SMTPS, Telnet and TFTP. 
                                                 # Supported features:  SSL certificates, HTTP POST, HTTP PUT, FTP uploading, HTTP form based upload, proxies, HTTP/2, cookies, 
                                                 #                      user+password authentication (Basic, Plain, Digest, CRAM-MD5, NTLM, Negotiate and Kerberos), file transfer resume, proxy tunneling and more. 
@@ -1569,14 +1571,16 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                 if( $us -ne "" -and $pw -eq "" ){ throw [Exception] "Missing password for username=$us"; }
                                                 [String[]] $opt = @( # see https://curl.haxx.se/docs/manpage.html
                                                    "--show-error"                            # Show error. With -s, make curl show errors when they occur
-                                                  ,"--fail"                                  # if http response code is 4xx or 5xx then fail
-                                                  ,"--output", "$tarFile"                    # Write to FILE instead of stdout
+                                                  ,"--fail"                                  # if http response code is 4xx or 5xx then fail, but 3XX (redirects) are ok.
+                                                  ,"--output", "`"$tarFile`""                # Write to FILE instead of stdout
                                                   ,"--silent"                                # Silent mode (don't output anything), no progress meter
                                                   ,"--create-dirs"                           # create the necessary local directory hierarchy as needed of --output file
                                                   ,"--connect-timeout", "70"                 # in sec
                                                   ,"--retry","2"                             #
                                                   ,"--retry-delay","5"                       #
                                                   ,"--remote-time"                           # Set the remote file's time on the local output
+                                                  ,"--location"                              # Follow redirects (H)
+                                                  ,"--max-redirs","50"                       # Maximum number of redirects allowed, default is 50, 0 means error on redir (H)
                                                   ,"--stderr","-"                            # Where to redirect stderr (use "-" for stdout)
                                                   # ,"--limit-rate","$limitRateBytesPerSec"  #
                                                   # ,"--progress-bar"                        # Display transfer progress as a progress bar
@@ -1632,7 +1636,6 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                   # --limit-rate RATE                        # Limit transfer speed to RATE
                                                   # --list-only                              # List only mode (F/POP3)
                                                   # --local-port RANGE                       # Force use of RANGE for local port numbers
-                                                  # --location                               # Follow redirects (H)
                                                   # --location-trusted                       # Like '--location', and send auth to other hosts (H)
                                                   # --login-options                          # OPTIONS Server login options (IMAP, POP3, SMTP)
                                                   # --manual                                 # Display the full manual
@@ -1640,7 +1643,6 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                   # --mail-rcpt TO                           # Mail to this/these addresses (SMTP)
                                                   # --mail-auth AUTH                         # Originator address of the original email (SMTP)
                                                   # --max-filesize BYTES                     # Maximum file size to download (H/F)
-                                                  # --max-redirs NUM                         # Maximum number of redirects allowed (H)
                                                   # --max-time SECONDS                       # Maximum time allowed for the transfer
                                                   # --metalink                               # Process given URLs as metalink XML file
                                                   # --negotiate                              # Use HTTP Negotiate (SPNEGO) authentication (H)
@@ -1757,6 +1759,8 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                   }elseif( $LASTEXITCODE -eq 22 ){
                                                     # curl: (22) The requested URL returned error: 404 Not Found
                                                     throw [Exception] "file not found.";
+                                                  }elseif( $LASTEXITCODE -ne 0 ){
+                                                    throw [Exception] "LastExitCode=$LASTEXITCODE.";
                                                   }
                                                   AssertRcIsOk $out $true;
                                                   FileAppendLines $logf (StringArrayInsertIndent $out 2);
@@ -2837,6 +2841,12 @@ function ToolCreate7zip                       ( [String] $srcDirOrFile, [String]
                                                 [Array] $arguments = "-t7z", "-mx=9", "-ms=4g", "-mmt=4", "-w", $recursiveOption, "a", "$tar7zipFile", $src;
                                                 OutProgress "$Prog7ZipExe $arguments";
                                                 [String] $out = & $Prog7ZipExe $arguments; AssertRcIsOk $out; }
+function ToolUnzip                            ( [String] $srcZipFile, [String] $tarDir ){ # tarDir is created if it not exists, no overwriting, requires DotNetFX4.5.
+                                                Add-Type -AssemblyName "System.IO.Compression.FileSystem";
+                                                $srcZipFile = FsEntryGetAbsolutePath $srcZipFile; $tarDir = FsEntryGetAbsolutePath $tarDir;
+                                                OutProgress "Unzip `"$srcZipFile`" to `"$tarDir`"";
+                                                # alternative: in PS5 there is: Expand-Archive zipfile -DestinationPath tardir
+                                                [System.IO.Compression.ZipFile]::ExtractToDirectory($srcZipFile, $tarDir); }
 function ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [String] $workDir, [String] $lnkFile, [String] $srcFile, [String[]] $arguments = @(), [Boolean] $runElevated = $false, [Boolean] $ignoreIfSrcFileNotExists = $false ){
                                                 # ex: ToolCreateLnkIfNotExists $false "" "$env:USERPROFILE\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\LinkToNotepad.lnk" "C:\Windows\notepad.exe";
                                                 # ex: ToolCreateLnkIfNotExists $false "" "$env:USERPROFILE\AppData\Roaming\Microsoft\Internet Explorer\Quick Launch\LinkToNotepad.lnk" "C:\Windows\notepad.exe";
@@ -2960,6 +2970,83 @@ function ToolGithubApiListOrgRepos            ( [String] $org, [System.Managemen
                                                   if( $a -eq $null -or $a.Count -eq 0 ){ break; }
                                                   $result +=$a;
                                                 } return $result | Sort-Object archived, html_url; }
+function ToolGithubApiAssertValidRepoUrl      ( [String] $repoUrl ){ # Example repoUrl="https://github.com/mniederw/MnCommonPsToolLib/"
+                                                [String] $githubUrl = "https://github.com/";
+                                                Assert $repoUrl.StartsWith($githubUrl) "Expected url begins with $githubUrl but got: $repoUrl";
+                                                [String[]] $a = StringSplitToArray "/" (StringRemoveLeft (StringRemoveRight $repoUrl "/") $githubUrl $false);
+                                                Assert ($a.Count -eq 2 -and $a[0].Length -ge 2 -and $a[1].Length -ge 2) "Expected url contains user/reponame but got: $repoUrl"; }
+function ToolGithubApiDownloadLatestReleaseDir( [String] $repoUrl ){
+                                                # Creates a unique temp dir, downloads zip, return folder of extracted zip; You shoud remove dir after usage.
+                                                # Latest release is the most recent non-prerelease, non-draft release, sorted by its last commit-date.
+                                                # Example repoUrl="https://github.com/mniederw/MnCommonPsToolLib/"
+                                                ToolGithubApiAssertValidRepoUrl $repoUrl;
+                                                [String] $apiUrl = "https://api.github.com/repos/" + (StringRemoveLeft (StringRemoveRight $repoUrl "/") "https://github.com/" $false);
+                                                # ex: $apiUrl = "https://api.github.com/repos/mniederw/MnCommonPsToolLib"
+                                                [String] $url = "$apiUrl/releases/latest";
+                                                OutProgress "Download: $url";
+                                                [Object] $apiObj = (. "curl.exe" -s $url) | ConvertFrom-Json;
+                                                [String] $relName = "$($apiObj.name) [$($apiObj.target_commitish),$($apiObj.created_at.Substring(0,10)),$($apiObj.tag_name)]";
+                                                OutProgress "Selected: `"$relName`"";
+                                                # ex: $apiObj.zipball_url = "https://api.github.com/repos/mniederw/MnCommonPsToolLib/zipball/V4.9"
+                                                # ex: $relName = "OpenSource-GPL3 MnCommonPsToolLib V4.9 en 2020-02-13 [master,2020-02-13,V4.9]"
+                                                [String] $tarDir = DirCreateTemp "MnCoPsToLib_";
+                                                [String] $tarZip = "$tarDir\$relName.zip";
+                                                # We can download latest release zip by one of:
+                                                # - https://api.github.com/repos/mniederw/MnCommonPsToolLib/zipball
+                                                # - https://api.github.com/repos/mniederw/MnCommonPsToolLib/zipball/V4.9
+                                                # - https://github.com/mniederw/MnCommonPsToolLib/archive/V4.9.zip
+                                                # - https://codeload.github.com/mniederw/MnCommonPsToolLib/legacy.zip/master
+                                                NetDownloadFileByCurl "$apiUrl/zipball" $tarZip;
+                                                ToolUnzip $tarZip $tarDir; # Ex: ./mniederw-MnCommonPsToolLib-25dbfb0/*
+                                                FileDelete $tarZip;
+                                                [String[]] $dirs = FsEntryListAsStringArray $tarDir $false $true $false; # list flat dirs, ex: "C:\Temp\User_u2\MnCoPsToLib_catkmrpnfdp\mniederw-MnCommonPsToolLib-25dbfb0\"
+                                                if( $dirs.Count -ne 1 ){ throw [Exception] "Expected one dir in `"$tarDir`" instead of: $dirs"; }
+                                                [String] $dir0 = $dirs[0];
+                                                FsEntryMoveByPatternToDir "$dir0\*" $tarDir;
+                                                DirDelete $dir0;
+                                                return [String] $tarDir; }
+function ToolSetAssocFileExtToCmd             ( [String[]] $fileExtensions, [String] $cmd, [String] $ftype = "", [Boolean] $assertPrgExists = $false ){
+                                                # Sets the association of a file extension to a command by overwriting it. 
+                                                # FileExtensions: must begin with a dot, must not content blanks or commas, if it is only a dot then it is used for files without a file ext.
+                                                # Cmd: if it is empty then association is deleted. Can contain variables as %SystemRoot% which will be replaced at runtime.
+                                                #   If cmd does not begin with embedded double quotes then it is interpreted as a full path to an executable
+                                                #   otherwise it uses the cmd as it is.
+                                                # Ftype: Is a group of file extensions. If it not yet exists then a default will be created in the style {extWithoutDot}file (ex: ps1file).
+                                                # AssertPrgExists: You can assert that the program in the command must exist but note that variables enclosed in % char cannot be expanded
+                                                #   because these are not powershell variables.
+                                                # ex: ToolSetAssocFileExtToCmd @(".log",".out") "$env:SystemRoot\System32\notepad.exe" "" $true;
+                                                # ex: ToolSetAssocFileExtToCmd ".log"           "$env:SystemRoot\System32\notepad.exe";
+                                                # ex: ToolSetAssocFileExtToCmd ".log"           "%SystemRoot%\System32\notepad.exe" "txtfile";
+                                                # ex: ToolSetAssocFileExtToCmd ".out"           "`"C:\Any.exe`" `"%1`" -xy";
+                                                # ex: ToolSetAssocFileExtToCmd ".out" "";
+                                                [String] $prg = $cmd; if( $cmd.StartsWith("`"") ){ $prg = ($prg -split "`"")[1]; }
+                                                [String] $exec = $cmd; if( -not $cmd.StartsWith("`"") ){ $exec = "`"$cmd`" `"%1`"";}
+                                                [String] $traceInfo = "ToolSetAssocFileExtToCmd($fileExtensions,`"$cmd`",$ftype,$assertPrgExists)";
+                                                if( $assertPrgExists -and $cmd -ne "" -and (FileNotExists $prg) ){ throw [Exception] "$traceInfo failed because not exists: `"$prg`""; }
+                                                $fileExtensions | ForEach-Object { 
+                                                  if( -not $_.StartsWith(".") ){ throw [Exception] "$traceInfo failed because file ext not starts with dot: `"$_`""; };
+                                                  if( $_.Contains(" ") ){ throw [Exception] "$traceInfo failed because file ext contains blank: `"$_`""; };
+                                                  if( $_.Contains(",") ){ throw [Exception] "$traceInfo failed because file ext contains blank: `"$_`""; };
+                                                };
+                                                $fileExtensions | ForEach-Object {
+                                                  [String] $ext = $_; # ex: ".ps1"
+                                                  if( $cmd -eq "" ){
+                                                    OutProgress "DelFileAssociation ext=$ext :  cmd /c assoc $ext=";
+                                                    [String] $out = (& cmd.exe /c "assoc $ext=" 2>&1); # ex: ""
+                                                  }else{
+                                                    [String] $ft = $ftype;
+                                                    if( $ftype -eq "" ){
+                                                      try{
+                                                        $ft = (& cmd.exe /c "assoc $ext" 2>&1); AssertRcIsOk; # ex: ".ps1=Microsoft.PowerShellScript.1"
+                                                      }catch{ # "Dateizuordnung für die Erweiterung .ps9 nicht gefunden."
+                                                        $ft = (& cmd.exe /c "assoc $ext=$($ext.Substring(1))file" 2>&1); # ex: ".ps1=ps1file"
+                                                      }
+                                                      $ft = $ft.Split("=")[-1]; # "Microsoft.PowerShellScript.1" or "ps1file"
+                                                    }
+                                                    [String] $out = (& cmd.exe /c "ftype $ft=$exec"); # ex: Microsoft.PowerShellScript.1="C:\WINDOWS\system32\WindowsPowerShell\v1.0\powershell.exe" "%1"
+                                                    OutProgress "SetFileAssociation ext=$($ext.PadRight(6)) ftype=$($ft.PadRight(20)) cmd=$exec";
+                                                  }
+                                                }; }
 function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $url, [Boolean] $requireElevatedAdminMode = $false, 
                                                   [Boolean] $doWaitIfFailed = $false, [String] $additionalOkUpdMsg = "", 
                                                   [Boolean] $assertFilePreviouslyExists = $true, [Boolean] $performPing = $true ){
@@ -3009,48 +3096,6 @@ function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $
                                                   }
                                                   return [Boolean] $false;
                                                 } }
-function ToolSetAssocFileExtToCmd             ( [String[]] $fileExtensions, [String] $cmd, [String] $ftype = "", [Boolean] $assertPrgExists = $false ){
-                                                # Sets the association of a file extension to a command by overwriting it. 
-                                                # FileExtensions: must begin with a dot, must not content blanks or commas, if it is only a dot then it is used for files without a file ext.
-                                                # Cmd: if it is empty then association is deleted. Can contain variables as %SystemRoot% which will be replaced at runtime.
-                                                #   If cmd does not begin with embedded double quotes then it is interpreted as a full path to an executable
-                                                #   otherwise it uses the cmd as it is.
-                                                # Ftype: Is a group of file extensions. If it not yet exists then a default will be created in the style {extWithoutDot}file (ex: ps1file).
-                                                # AssertPrgExists: You can assert that the program in the command must exist but note that variables enclosed in % char cannot be expanded
-                                                #   because these are not powershell variables.
-                                                # ex: ToolSetAssocFileExtToCmd @(".log",".out") "$env:SystemRoot\System32\notepad.exe" "" $true;
-                                                # ex: ToolSetAssocFileExtToCmd ".log"           "$env:SystemRoot\System32\notepad.exe";
-                                                # ex: ToolSetAssocFileExtToCmd ".log"           "%SystemRoot%\System32\notepad.exe" "txtfile";
-                                                # ex: ToolSetAssocFileExtToCmd ".out"           "`"C:\Any.exe`" `"%1`" -xy";
-                                                # ex: ToolSetAssocFileExtToCmd ".out" "";
-                                                [String] $prg = $cmd; if( $cmd.StartsWith("`"") ){ $prg = ($prg -split "`"")[1]; }
-                                                [String] $exec = $cmd; if( -not $cmd.StartsWith("`"") ){ $exec = "`"$cmd`" `"%1`"";}
-                                                [String] $traceInfo = "ToolSetAssocFileExtToCmd($fileExtensions,`"$cmd`",$ftype,$assertPrgExists)";
-                                                if( $assertPrgExists -and $cmd -ne "" -and (FileNotExists $prg) ){ throw [Exception] "$traceInfo failed because not exists: `"$prg`""; }
-                                                $fileExtensions | ForEach-Object { 
-                                                  if( -not $_.StartsWith(".") ){ throw [Exception] "$traceInfo failed because file ext not starts with dot: `"$_`""; };
-                                                  if( $_.Contains(" ") ){ throw [Exception] "$traceInfo failed because file ext contains blank: `"$_`""; };
-                                                  if( $_.Contains(",") ){ throw [Exception] "$traceInfo failed because file ext contains blank: `"$_`""; };
-                                                };
-                                                $fileExtensions | ForEach-Object {
-                                                  [String] $ext = $_; # ex: ".ps1"
-                                                  if( $cmd -eq "" ){
-                                                    OutProgress "DelFileAssociation ext=$ext :  cmd /c assoc $ext=";
-                                                    [String] $out = (& cmd.exe /c "assoc $ext=" 2>&1); # ex: ""
-                                                  }else{
-                                                    [String] $ft = $ftype;
-                                                    if( $ftype -eq "" ){
-                                                      try{
-                                                        $ft = (& cmd.exe /c "assoc $ext" 2>&1); AssertRcIsOk; # ex: ".ps1=Microsoft.PowerShellScript.1"
-                                                      }catch{ # "Dateizuordnung für die Erweiterung .ps9 nicht gefunden."
-                                                        $ft = (& cmd.exe /c "assoc $ext=$($ext.Substring(1))file" 2>&1); # ex: ".ps1=ps1file"
-                                                      }
-                                                      $ft = $ft.Split("=")[-1]; # "Microsoft.PowerShellScript.1" or "ps1file"
-                                                    }
-                                                    [String] $out = (& cmd.exe /c "ftype $ft=$exec"); # ex: Microsoft.PowerShellScript.1="C:\WINDOWS\system32\WindowsPowerShell\v1.0\powershell.exe" "%1"
-                                                    OutProgress "SetFileAssociation ext=$($ext.PadRight(6)) ftype=$($ft.PadRight(20)) cmd=$exec";
-                                                  }
-                                                }; }
 function MnCommonPsToolLibSelfUpdate          ( [Boolean] $doWaitForEnterKeyIfFailed = $false ){
                                                 # If installed in standard mode (saved under c:\Program Files\WindowsPowerShell\Modules\...) then it performs a self update to the newest version from github.
                                                 [String]  $moduleName = "MnCommonPsToolLib";
