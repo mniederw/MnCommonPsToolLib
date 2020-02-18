@@ -48,7 +48,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $MnCommonPsToolLibVersion = "4.10"; # more see Releasenotes.txt
+[String] $MnCommonPsToolLibVersion = "4.11"; # more see Releasenotes.txt
 
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 
@@ -253,14 +253,23 @@ function ConsoleSetGuiProperties              (){ # set standard sizes which mak
                                                   $error.clear(); New-Variable -Scope script -name consoleSetGuiProperties_DoneOnce -value $false;
                                                 }
                                                 if( $script:consoleSetGuiProperties_DoneOnce ){ return; } 
-                                                [Object] $pshost = get-host; 
-                                                [Object] $w = $pshost.ui.rawui; $w.windowtitle = "$PSCommandPath"; $w.foregroundcolor = "Gray"; 
+                                                [Object] $w = (get-host).ui.rawui; $w.windowtitle = "$PSCommandPath"; $w.foregroundcolor = "Gray"; 
                                                 $w.backgroundcolor = switch(ProcessIsRunningInElevatedAdminMode){($true){"DarkMagenta"}default{"DarkBlue";}}; 
                                                 # for future use: $ = $host.PrivateData; $.VerboseForegroundColor = "white"; $.VerboseBackgroundColor = "blue"; 
                                                 #   $.WarningForegroundColor = "yellow"; $.WarningBackgroundColor = "darkgreen"; $.ErrorForegroundColor = "white"; $.ErrorBackgroundColor = "red";
-                                                [Object] $buf = $w.buffersize; $buf.height = 9999; $buf.width = 300; $w.buffersize = $buf; <# set buffer sizes befor setting window sizes otherwise PSArgumentOutOfRangeException: Window cannot be wider than the screen buffer. #> 
+                                                # set buffer sizes before setting window sizes otherwise PSArgumentOutOfRangeException: Window cannot be wider than the screen buffer.
+                                                $w = (get-host).ui.rawui; # refresh values, maybe meanwhile windows was resized
+                                                [Object] $buf = $w.buffersize; $buf.height = 9999; $buf.width = [math]::max(300,[System.Console]::WindowWidth);
+                                                try{
+                                                  $w.buffersize = $buf;
+                                                }catch{ # seldom we got: PSArgumentOutOfRangeException: Cannot set the buffer size because the size specified is too large or too small.
+                                                  OutWarning "Ignore: Setting buffersize failed because $($_.Exception.Message)"; 
+                                                }
+                                                $w = (get-host).ui.rawui; # refresh values, maybe meanwhile windows was resized
                                                 if( $w.WindowSize -ne $null ){ # is null in case of powershell-ISE
-                                                  [Object] $m = $w.windowsize; $m.height =   48; $m.width = 150; $w.windowsize = $m; ConsoleSetPos 40 40; }
+                                                  [Object] $m = $w.windowsize; $m.height =   48; $m.width = [math]::min(150,[system.console]::BufferWidth); $w.windowsize = $m;
+                                                  ConsoleSetPos 40 40; # little indended from top and left
+                                                }
                                                 $script:consoleSetGuiProperties_DoneOnce = $true; }
 function StdInAssertAllowInteractions         (){ if( $global:ModeDisallowInteractions ){ throw [Exception] "Cannot read for input because all interactions are disallowed, either caller should make sure variable ModeDisallowInteractions is false or he should not call an input method."; } }
 function StdInReadLine                        ( [String] $line ){ Write-Host -ForegroundColor Cyan -nonewline $line; StdInAssertAllowInteractions; return [String] (Read-Host); }
