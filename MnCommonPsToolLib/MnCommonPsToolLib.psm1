@@ -2326,21 +2326,21 @@ function TfsExe                               (){ # return tfs executable
 <# Script local variable: tfsLogFile #>       [String] $script:tfsLogFile = "$script:LogDir\Tfs.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
 function TfsGetNewestNoOverwrite              ( [String] $wsdir, [String] $tfsPath ){ # ex: TfsGetNewestNoOverwrite C:\MyWorkspace\Src $/Src
                                                 [String] $tfExe = (TfsExe);
-                                                OutProgress "CD `"$wsdir`"; `"$tfExe`" get /noprompt /recursive /version:T `"$tfsPath`" ";
+                                                OutProgress "CD `"$wsdir`"; `"$tfExe`" vc get /noprompt /recursive /version:T `"$tfsPath`" ";
                                                 FileAppendLineWithTs $tfsLogFile "TfsGetNewestNoOverwrite(`"$wsdir`",`"$tfsPath`")";
                                                 [String] $cd = (Get-Location);
                                                 Set-Location $wsdir;
-                                                try{ [String[]] $a = @()+(& "$tfExe" get /noprompt /recursive /version:T $tfsPath); # Output: "Alle Dateien sind auf dem neuesten Stand."
+                                                try{ [String[]] $a = @()+(& "$tfExe" vc get /noprompt /recursive /version:T $tfsPath); # Output: "Alle Dateien sind auf dem neuesten Stand."
                                                   if( $a.Count -gt 0 ){ $a | ForEach-Object { OutProgress "  $_"; }; }
                                                 }finally{ Set-Location $cd; } }
 
 function TfsListOwnLocks                      ( [String] $wsdir, [String] $tfsPath ){
                                                 [String] $tfExe = (TfsExe);
-                                                OutProgress "CD `"$wsdir`"; `"$tfExe`" status /noprompt /recursive /format:brief `"$tfsPath`" ";
+                                                OutProgress "CD `"$wsdir`"; `"$tfExe`" vc status /noprompt /recursive /format:brief `"$tfsPath`" ";
                                                 [String] $cd = (Get-Location);
                                                 Set-Location $wsdir;
                                                 try{
-                                                  [String[]] $a = @()+((& "$tfExe" status /noprompt /recursive /format:brief $tfsPath 2>&1 ) | Select-Object -Skip 2 | Where-Object { -not [String]::IsNullOrWhiteSpace($_) });
+                                                  [String[]] $a = @()+((& "$tfExe" vc status /noprompt /recursive /format:brief $tfsPath 2>&1 ) | Select-Object -Skip 2 | Where-Object { -not [String]::IsNullOrWhiteSpace($_) });
                                                   # ex:
                                                   #    Dateiname    Ändern     Lokaler Pfad
                                                   #    ------------ ---------- -------------------------------------
@@ -2361,11 +2361,11 @@ function TfsAssertNoLocksInDir                ( [String] $wsdir, [String] $tfsPa
                                                 } }
 function TfsMergeDir                          ( [String] $wsdir, [String] $tfsPath, [String] $tfsTargetBranch ){
                                                 [String] $tfExe = (TfsExe);
-                                                OutProgress "CD `"$wsdir`"; `"$tfExe`" merge /noprompt /recursive /format:brief /version:T `"$tfsPath`" `"$tfsTargetBranch`" ";
+                                                OutProgress "CD `"$wsdir`"; `"$tfExe`" vc merge /noprompt /recursive /format:brief /version:T `"$tfsPath`" `"$tfsTargetBranch`" ";
                                                 [String] $cd = (Get-Location);
                                                 Set-Location $wsdir;
                                                 try{
-                                                  [String[]] $a = (& "$tfExe" merge /noprompt /recursive /format:brief /version:T "$tfsPath" "$tfsTargetBranch"); # later we would like to suppres stderr
+                                                  [String[]] $a = (& "$tfExe" vc merge /noprompt /recursive /format:brief /version:T "$tfsPath" "$tfsTargetBranch"); # later we would like to suppres stderr
                                                   ScriptResetRc;
                                                   # ex:
                                                   #    Konflikt ("mergen, bearbeiten"): $/Src/MyBranch1/MyFile.txt;C123~C129 -> $/Src/MyBranch2/MyFile.txt;C121
@@ -2384,11 +2384,11 @@ function TfsMergeDir                          ( [String] $wsdir, [String] $tfsPa
 function TfsResolveMergeConflict              ( [String] $wsdir, [String] $tfsPath, [Boolean] $keepTargetAndNotTakeSource ){
                                                 [String] $tfExe = (TfsExe);
                                                 [String] $resolveMode = switch( $keepTargetAndNotTakeSource ){ $true{"TakeTheirs"} $false{"AcceptYours"} };
-                                                OutProgress "CD `"$wsdir`"; `"$tfExe`" resolve /noprompt /recursive /auto:$resolveMode `"$tfsPath`" ";
+                                                OutProgress "CD `"$wsdir`"; `"$tfExe`" vc resolve /noprompt /recursive /auto:$resolveMode `"$tfsPath`" ";
                                                 [String] $cd = (Get-Location);
                                                 Set-Location $wsdir;
                                                 try{
-                                                  [String[]] $a = (& "$tfExe" resolve /noprompt /recursive /auto:$resolveMode "$tfsPath" );
+                                                  [String[]] $a = (& "$tfExe" vc resolve /noprompt /recursive /auto:$resolveMode "$tfsPath" );
                                                 #}catch{ ScriptResetRc; OutProgress "Ignoring Error: $($_.Exception)";
                                                 }finally{
                                                   Set-Location $cd;
@@ -2396,13 +2396,13 @@ function TfsResolveMergeConflict              ( [String] $wsdir, [String] $tfsPa
 function TfsCheckinDirWhenNoConflict          ( [String] $wsdir, [String] $tfsPath, [String] $comment, [Boolean] $handleErrorsAsWarnings ){
                                                 # Return true if checkin was successful.
                                                 [String] $tfExe = (TfsExe);
-                                                OutProgress "CD `"$wsdir`"; `"$tfExe`" checkin /noprompt /recursive /noautoresolve /comment:`"$comment`" `"$tfsPath`" ";
+                                                OutProgress "CD `"$wsdir`"; `"$tfExe`" vc checkin /noprompt /recursive /noautoresolve /comment:`"$comment`" `"$tfsPath`" ";
                                                 [String] $cd = (Get-Location);
                                                 Set-Location $wsdir;
                                                 try{
                                                   # Note: sometimes it seem to write this to stderror:
                                                   #  "Es sind keine ausstehenden Änderungen vorhanden, die mit den angegebenen Elementen übereinstimmen.\nEs wurden keine Dateien eingecheckt."
-                                                  [String[]] $a = (& "$tfExe" checkin /noprompt /recursive /noautoresolve /comment:"$comment" $tfsPath);
+                                                  [String[]] $a = (& "$tfExe" vc checkin /noprompt /recursive /noautoresolve /comment:"$comment" $tfsPath);
                                                   ScriptResetRc;
                                                   return $true;
                                                 }catch{
@@ -2414,8 +2414,8 @@ function TfsCheckinDirWhenNoConflict          ( [String] $wsdir, [String] $tfsPa
                                                 } }
 function TfsUndoAllLocksInDir                 ( [String] $dir ){ # Undo all locks below dir to cleanup a previous failed operation as from merging.
                                                 [String] $tfExe = (TfsExe);
-                                                OutProgress "`"$tfExe`" undo /noprompt /recursive `"$dir`"";
-                                                . $tfExe undo /noprompt /recursive $dir; }
+                                                OutProgress "`"$tfExe`" vc undo /noprompt /recursive `"$dir`"";
+                                                . $tfExe vc undo /noprompt /recursive $dir; }
 function SqlGetCmdExe                         (){ # old style. It is recommended to use: SqlPerformFile
                                                 [String] $k1 = "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\130\Tools\ClientSetup"; # sql server 2016
                                                 [String] $k2 = "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\120\Tools\ClientSetup"; # sql server 2014
