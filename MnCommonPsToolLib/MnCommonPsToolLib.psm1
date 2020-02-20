@@ -48,7 +48,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $MnCommonPsToolLibVersion = "4.11"; # more see Releasenotes.txt
+[String] $MnCommonPsToolLibVersion = "5.0"; # more see Releasenotes.txt
 
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 
@@ -1321,7 +1321,7 @@ function ShareGetTypeName                     ( [UInt32] $typeNr ){
 function ShareGetTypeNr                       ( [String] $typeName ){ 
                                                 return [UInt32] $(switch($typeName){ "DiskDrive"{0} "PrintQueue"{1} "Device"{2} "IPC"{3} 
                                                 "DiskDriveAdmin"{2147483648} "PrintQueueAdmin"{2147483649} "DeviceAdmin"{2147483650} "IPCAdmin"{2147483651} default{4294967295} }); }
-function ShareListAll                         ( [String] $computerName = ".", [String] $selectShareName = "" ){
+function ShareListAllByWmi                    ( [String] $computerName = ".", [String] $selectShareName = "" ){
                                                 OutVerbose "List shares of machine=$computerName selectShareName=`"$selectShareName`"";
                                                 # Exclude: AccessMask,InstallDate,MaximumAllowed,Description,Type,Status,@{Name="Descr";Expression={($_.Description).PadLeft(1,"-")}};
                                                 [String] $filter = ""; if( $selectShareName -ne ""){ $filter = "Name='$selectShareName'"; }
@@ -1329,7 +1329,19 @@ function ShareListAll                         ( [String] $computerName = ".", [S
                                                 return [PSCustomObject[]] (Get-WmiObject -Class Win32_Share -ComputerName $computerName -Filter $filter | 
                                                   Select-Object @{Name="TypeName";Expression={(ShareGetTypeName $_.Type)}}, @{Name="FullName";Expression={"\\$computerName\"+$_.Name}}, Path, Caption, Name, AllowMaximum, Status | 
                                                   Sort-Object TypeName, Name); }
-function ShareRemove                          ( [String] $shareName ){
+function ShareListAll                         ( [String] $selectShareName = "*" ){
+                                                # Almost the same as ShareListAllByWmi, but uses new module SmbShare
+                                                OutVerbose "List shares selectShareName=`"$selectShareName`"";
+                                                # Ex: ShareState: Online, ...; ShareType: InterprocessCommunication, PrintQueue, FileSystemDirectory;
+                                                return [Object] (Get-SMBShare -Name $selectShareName | Select-Object Name, ShareType, Path, Description, ShareState, ConcurrentUserLimit, CurrentUsers | Sort-Object TypeName, Name); }
+function ShareLocksList                       ( [String] $path = "" ){ # list currenty read or readwrite locked open files of a share, requires elevated admin mode
+                                                ProcessRestartInElevatedAdminMode;
+                                                return [Object] (Get-SmbOpenFile | Where-Object { $_.Path.StartsWith($path,"OrdinalIgnoreCase") } | 
+                                                  Select-Object FileId, SessionId, Path, ClientComputerName, ClientUserName, Locks | Sort-Object Path); }
+function ShareLocksClose                      ( [String] $path = "" ){ # closes locks, ex: $path="D:\Transfer\" or $path="D:\Transfer\MyFile.txt"
+                                                ProcessRestartInElevatedAdminMode;
+                                                ShareLocksList $path | ForEach-Object{ OutProgress "ShareLocksClose `"$($_.Path)`""; Close-SmbOpenFile -Force -FileId $_.FileId; }; }
+function ShareRemoveByWmi                     ( [String] $shareName ){
                                                 [Object] $share = Get-WmiObject -Class Win32_Share -ComputerName "." -Filter "Name='$shareName'";
                                                 if( $share -eq $null ){ return; }
                                                 OutProgress "Remove shareName=`"$shareName`" typeName=$(ShareGetTypeName $share.Type) path=$($share.Path)"; 
@@ -1352,7 +1364,7 @@ function ShareRemove                          ( [String] $shareName ){
                                                   }
                                                   throw [Exception] "$(ScriptGetCurrentFunc)(sharename=`"$shareName`") failed because $errMsg";
                                                 } }
-function ShareCreate                          ( [String] $shareName, [String] $dir, [String] $typeName = "DiskDrive", [Int32] $nrOfAccessUsers = 25, [String] $descr = "", [Boolean] $ignoreIfAlreadyExists = $true ){
+function ShareCreateByWmi                     ( [String] $shareName, [String] $dir, [String] $typeName = "DiskDrive", [Int32] $nrOfAccessUsers = 25, [String] $descr = "", [Boolean] $ignoreIfAlreadyExists = $true ){
                                                 if( !(DirExists $dir)  ){ throw [Exception] "Cannot create share because original directory not exists: `"$dir`""; }
                                                 FsEntryAssertExists $dir "Cannot create share";
                                                 [UInt32] $typeNr = ShareGetTypeNr $typeName;
@@ -1375,11 +1387,6 @@ function ShareCreate                          ( [String] $shareName, [String] $d
                                                     22{"Duplicate share"} 23{"Redirected path"} 24{"Unknown device or directory"} 25{"Net name not found"} default{"Unknown rc=$rc"} }
                                                   throw [Exception] "$(ScriptGetCurrentFunc)(dir=`"$dir`",sharename=`"$shareName`",typenr=$typeNr) failed because $errMsg";
                                                 } }
-function SmbShareListAll2                     ( [String] $selectShareName = "*" ){
-                                                # Almost the same as ShareListAll, but uses new module SmbShare
-                                                OutVerbose "List shares selectShareName=`"$selectShareName`"";
-                                                # Ex: ShareState: Online, ...; ShareType: InterprocessCommunication, PrintQueue, FileSystemDirectory;
-                                                return [Object] (Get-SMBShare -Name $selectShareName | Select-Object Name, ShareType, Path, Description, ShareState | Sort-Object TypeName, Name); }
 function MountPointLocksListAll               (){ 
                                                 OutVerbose "List all mount point locks"; return [Object] (Get-SmbConnection | 
                                                 Select-Object ServerName,ShareName,UserName,Credential,NumOpens,ContinuouslyAvailable,Encrypted,PSComputerName,Redirected,Signed,SmbInstance,Dialect | 
