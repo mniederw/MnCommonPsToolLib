@@ -490,6 +490,7 @@ function PrivGetUserCurrent                   (){ return [System.Security.Princi
 function PrivGetUserSystem                    (){ return [System.Security.Principal.IdentityReference] (New-Object System.Security.Principal.SecurityIdentifier("S-1-5-18"                                                      )).Translate([System.Security.Principal.NTAccount]); } # NT AUTHORITY\SYSTEM = NT-AUTORITÄT\SYSTEM 
 function PrivGetGroupAdministrators           (){ return [System.Security.Principal.IdentityReference] (New-Object System.Security.Principal.SecurityIdentifier("S-1-5-32-544"                                                  )).Translate([System.Security.Principal.NTAccount]); } # BUILTIN\Administrators = VORDEFINIERT\Administratoren  (more https://msdn.microsoft.com/en-us/library/windows/desktop/aa379649(v=vs.85).aspx)
 function PrivGetGroupAuthenticatedUsers       (){ return [System.Security.Principal.IdentityReference] (New-Object System.Security.Principal.SecurityIdentifier("S-1-5-11"                                                      )).Translate([System.Security.Principal.NTAccount]); } # NT AUTHORITY\Authenticated Users = NT-AUTORITÄT\Authentifizierte Benutzer
+function PrivGetGroupEveryone                 (){ return [System.Security.Principal.IdentityReference] (New-Object System.Security.Principal.SecurityIdentifier("S-1-1-0"                                                       )).Translate([System.Security.Principal.NTAccount]); } # Jeder
 function PrivGetUserTrustedInstaller          (){ return [System.Security.Principal.IdentityReference] (New-Object System.Security.Principal.SecurityIdentifier("S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464")).Translate([System.Security.Principal.NTAccount]); } # NT SERVICE\TrustedInstaller
 function PrivFsRuleAsString                   ( [System.Security.AccessControl.FileSystemAccessRule] $rule ){
                                                 return [String] "($($rule.IdentityReference);$(($rule.FileSystemRights) -replace ' ','');$($rule.InheritanceFlags -replace ' ','');$($rule.PropagationFlags -replace ' ','');$($rule.AccessControlType);IsInherited=$($rule.IsInherited))";
@@ -1321,7 +1322,16 @@ function ShareGetTypeName                     ( [UInt32] $typeNr ){
 function ShareGetTypeNr                       ( [String] $typeName ){ 
                                                 return [UInt32] $(switch($typeName){ "DiskDrive"{0} "PrintQueue"{1} "Device"{2} "IPC"{3} 
                                                 "DiskDriveAdmin"{2147483648} "PrintQueueAdmin"{2147483649} "DeviceAdmin"{2147483650} "IPCAdmin"{2147483651} default{4294967295} }); }
-function ShareListAllByWmi                    ( [String] $computerName = ".", [String] $selectShareName = "" ){
+function ShareExists                          ( [String] $shareName ){
+                                                return [Boolean] ((Get-SMBShare | Where-Object { $shareName -ne "" -and $_.Name -eq $shareName }) -ne $null); }
+function ShareListAll                         ( [String] $selectShareName = "" ){
+                                                # uses newer module SmbShare
+                                                OutVerbose "List shares selectShareName=`"$selectShareName`"";
+                                                # Ex: ShareState: Online, ...; ShareType: InterprocessCommunication, PrintQueue, FileSystemDirectory;
+                                                return [Object] (Get-SMBShare | where { $selectShareName -eq "" -or $_.Name -eq $selectShareName } | Select-Object Name, ShareType, Path, Description, ShareState, ConcurrentUserLimit, CurrentUsers | Sort-Object TypeName, Name); }
+function ShareListAllByWmi                    ( [String] $selectShareName = "" ){
+                                                # As ShareListAll but uses older wmi and not newer module SmbShare
+                                                [String] $computerName = ".";
                                                 OutVerbose "List shares of machine=$computerName selectShareName=`"$selectShareName`"";
                                                 # Exclude: AccessMask,InstallDate,MaximumAllowed,Description,Type,Status,@{Name="Descr";Expression={($_.Description).PadLeft(1,"-")}};
                                                 [String] $filter = ""; if( $selectShareName -ne ""){ $filter = "Name='$selectShareName'"; }
@@ -1329,11 +1339,6 @@ function ShareListAllByWmi                    ( [String] $computerName = ".", [S
                                                 return [PSCustomObject[]] (Get-WmiObject -Class Win32_Share -ComputerName $computerName -Filter $filter | 
                                                   Select-Object @{Name="TypeName";Expression={(ShareGetTypeName $_.Type)}}, @{Name="FullName";Expression={"\\$computerName\"+$_.Name}}, Path, Caption, Name, AllowMaximum, Status | 
                                                   Sort-Object TypeName, Name); }
-function ShareListAll                         ( [String] $selectShareName = "*" ){
-                                                # Almost the same as ShareListAllByWmi, but uses new module SmbShare
-                                                OutVerbose "List shares selectShareName=`"$selectShareName`"";
-                                                # Ex: ShareState: Online, ...; ShareType: InterprocessCommunication, PrintQueue, FileSystemDirectory;
-                                                return [Object] (Get-SMBShare -Name $selectShareName | Select-Object Name, ShareType, Path, Description, ShareState, ConcurrentUserLimit, CurrentUsers | Sort-Object TypeName, Name); }
 function ShareLocksList                       ( [String] $path = "" ){ # list currenty read or readwrite locked open files of a share, requires elevated admin mode
                                                 ProcessRestartInElevatedAdminMode;
                                                 return [Object] (Get-SmbOpenFile | Where-Object { $_.Path.StartsWith($path,"OrdinalIgnoreCase") } | 
@@ -1341,6 +1346,48 @@ function ShareLocksList                       ( [String] $path = "" ){ # list cu
 function ShareLocksClose                      ( [String] $path = "" ){ # closes locks, ex: $path="D:\Transfer\" or $path="D:\Transfer\MyFile.txt"
                                                 ProcessRestartInElevatedAdminMode;
                                                 ShareLocksList $path | ForEach-Object{ OutProgress "ShareLocksClose `"$($_.Path)`""; Close-SmbOpenFile -Force -FileId $_.FileId; }; }
+function ShareCreate                          ( [String] $shareName, [String] $dir, [String] $descr = "", [Int32] $nrOfAccessUsers = 25, [Boolean] $ignoreIfAlreadyExists = $true ){
+                                                ProcessRestartInElevatedAdminMode;
+                                                [String] $typeName = "DiskDrive";
+                                                if( !(DirExists $dir)  ){ throw [Exception] "Cannot create share because original directory not exists: `"$dir`""; }
+                                                FsEntryAssertExists $dir "Cannot create share";
+                                                [UInt32] $typeNr = ShareGetTypeNr $typeName;
+                                                [Object] $existingShare = ShareListAll "." $shareName | Where-Object{ $_.Path -ieq $dir -and $_.TypeName -eq $typeName } | Select-Object -First 1;
+                                                if( $existingShare -ne $null ){
+                                                  OutVerbose "Already exists shareName=`"$shareName`" dir=`"$dir`" typeName=$typeName"; 
+                                                  if( $ignoreIfAlreadyExists ){ return; }
+                                                }
+                                                # alternative: -FolderEnumerationMode AccessBased; Note: this is not allowed but it is the default: -ContinuouslyAvailable $true 
+                                                New-SmbShare -Path $dir -Name $shareName -Description $descr -ConcurrentUserLimit $nrOfAccessUsers -FolderEnumerationMode Unrestricted -FullAccess (PrivGetGroupEveryone); }
+function ShareCreateByWmi                     ( [String] $shareName, [String] $dir, [String] $descr = "", [Int32] $nrOfAccessUsers = 25, [Boolean] $ignoreIfAlreadyExists = $true ){
+                                                [String] $typeName = "DiskDrive";
+                                                if( !(DirExists $dir) ){ throw [Exception] "Cannot create share because original directory not exists: `"$dir`""; }
+                                                FsEntryAssertExists $dir "Cannot create share";
+                                                [UInt32] $typeNr = ShareGetTypeNr $typeName;
+                                                [Object] $existingShare = ShareListAll "." $shareName | Where-Object{ $_.Path -ieq $dir -and $_.TypeName -eq $typeName } | Select-Object -First 1;
+                                                if( $existingShare -ne $null ){
+                                                  OutVerbose "Already exists shareName=`"$shareName`" dir=`"$dir`" typeName=$typeName"; 
+                                                  if( $ignoreIfAlreadyExists ){ return; }
+                                                }
+                                                # Optionals:
+                                                # MaximumAllowed: With this parameter, you can specify the maximum number of users allowed to concurrently use the shared resource (e.g., 25 users).
+                                                # Description   : You use this parameter to describe the resource being shared (e.g., temp share).
+                                                # Password      : Using this parameter, you can set a password for the shared resource on a server that is running 
+                                                #                 with share-level security. If the server is running with user-level security, this parameter is ignored.
+                                                # Access        : You use this parameter to specify a Security Descriptor (SD) for user-level permissions. 
+                                                #                 An SD contains information about the permissions, owner, and access capabilities of the resource.
+                                                [Object] $obj = (Get-WmiObject Win32_Share -List).Create( $dir, $shareName, $typeNr, $nrOfAccessUsers, $descr );
+                                                [Int32] $rc = $obj.ReturnValue;
+                                                if( $rc -ne 0 ){
+                                                  [String] $errMsg = switch( $rc ){ 0{"Ok, Success"} 2{"Access denied"} 8{"Unknown failure"} 9{"Invalid name"} 10{"Invalid level"} 21{"Invalid parameter"} 
+                                                    22{"Duplicate share"} 23{"Redirected path"} 24{"Unknown device or directory"} 25{"Net name not found"} default{"Unknown rc=$rc"} }
+                                                  throw [Exception] "$(ScriptGetCurrentFunc)(dir=`"$dir`",sharename=`"$shareName`",typenr=$typeNr) failed because $errMsg";
+                                                } }
+                                                # TODO later add function ShareCreate by using New-SmbShare https://docs.microsoft.com/en-us/powershell/module/smbshare/new-smbshare?view=win10-ps
+function ShareRemove                          ( [String] $shareName ){ # no action if it not exists
+                                                if( -not (ShareExists $shareName) ){ return; }
+                                                OutProgress "Remove shareName=`"$shareName`""; 
+                                                Remove-SmbShare -Name $shareName -Confirm:$false; }
 function ShareRemoveByWmi                     ( [String] $shareName ){
                                                 [Object] $share = Get-WmiObject -Class Win32_Share -ComputerName "." -Filter "Name='$shareName'";
                                                 if( $share -eq $null ){ return; }
@@ -1363,29 +1410,6 @@ function ShareRemoveByWmi                     ( [String] $shareName ){
                                                     default{"Unknown rc=$rc"}
                                                   }
                                                   throw [Exception] "$(ScriptGetCurrentFunc)(sharename=`"$shareName`") failed because $errMsg";
-                                                } }
-function ShareCreateByWmi                     ( [String] $shareName, [String] $dir, [String] $typeName = "DiskDrive", [Int32] $nrOfAccessUsers = 25, [String] $descr = "", [Boolean] $ignoreIfAlreadyExists = $true ){
-                                                if( !(DirExists $dir)  ){ throw [Exception] "Cannot create share because original directory not exists: `"$dir`""; }
-                                                FsEntryAssertExists $dir "Cannot create share";
-                                                [UInt32] $typeNr = ShareGetTypeNr $typeName;
-                                                [Object] $existingShare = ShareListAll "." $shareName | Where-Object{ $_.Path -ieq $dir -and $_.TypeName -eq $typeName } | Select-Object -First 1;
-                                                if( $existingShare -ne $null ){
-                                                  OutVerbose "Already exists shareName=`"$shareName`" dir=`"$dir`" typeName=$typeName"; 
-                                                  if( $ignoreIfAlreadyExists ){ return; }
-                                                }
-                                                # Optionals:
-                                                # MaximumAllowed: With this parameter, you can specify the maximum number of users allowed to concurrently use the shared resource (e.g., 25 users).
-                                                # Description   : You use this parameter to describe the resource being shared (e.g., temp share).
-                                                # Password      : Using this parameter, you can set a password for the shared resource on a server that is running 
-                                                #                 with share-level security. If the server is running with user-level security, this parameter is ignored.
-                                                # Access        : You use this parameter to specify a Security Descriptor (SD) for user-level permissions. 
-                                                #                 An SD contains information about the permissions, owner, and access capabilities of the resource.
-                                                [Object] $obj = (Get-WmiObject Win32_Share -List).Create( $dir, $shareName, $typeNr, $nrOfAccessUsers, $descr );
-                                                [Int32] $rc = $obj.ReturnValue;
-                                                if( $rc -ne 0 ){
-                                                  [String] $errMsg = switch( $rc ){ 0{"Ok, Success"} 2{"Access denied"} 8{"Unknown failure"} 9{"Invalid name"} 10{"Invalid level"} 21{"Invalid parameter"} 
-                                                    22{"Duplicate share"} 23{"Redirected path"} 24{"Unknown device or directory"} 25{"Net name not found"} default{"Unknown rc=$rc"} }
-                                                  throw [Exception] "$(ScriptGetCurrentFunc)(dir=`"$dir`",sharename=`"$shareName`",typenr=$typeNr) failed because $errMsg";
                                                 } }
 function MountPointLocksListAll               (){ 
                                                 OutVerbose "List all mount point locks"; return [Object] (Get-SmbConnection | 
@@ -2899,16 +2923,20 @@ function ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [Strin
                                                   if( $runElevated ){ 
                                                     [Byte[]] $bytes = [IO.File]::ReadAllBytes($lnkFile); $bytes[0x15] = $bytes[0x15] -bor 0x20; [IO.File]::WriteAllBytes($lnkFile,$bytes);  # set bit 6 of byte nr 21
                                                   } } }
-function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [String] $sourceDir, [String] $srcFileExtMenuLink = ".menulink.txt", [String] $srcFileExtMenuLinkOpt = ".menulinkoptional.txt" ){
+function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [String] $sourceDir, [String] $srcFileExtMenuLink = ".menulink.txt", 
+                                                  [String] $srcFileExtMenuLinkOpt = ".menulinkoptional.txt" ){
                                                 # Create menu entries based on files below a dir.
                                                 # ex: ToolCreateMenuLinksByMenuItemRefFile "$env:APPDATA\Microsoft\Windows\Start Menu\MyPortableProg" "D:\MyPortableProgs" ".menulink.txt";
-                                                # Find all files below sourceDir with the extension (ex: ".menulink.txt"), which we call them menu-item-reference-file.
+                                                # Find all files below sourceDir with the extension (ex: ".menulink.txt"), 
+                                                # which we call them menu-item-reference-file.
                                                 # For each of these files it will create a menu item below the target menu root dir 
                                                 # (ex: "$env:APPDATA\Microsoft\Windows\Start Menu\MyPortableProg").
                                                 # The name of the target menu item (ex: "Manufactor ProgramName V1") will be taken 
-                                                # from the name of the menu-item-reference-file (...\Manufactor ProgramName V1.menulink.txt) without the extension (ex: ".menulink.txt")
-                                                # and the sub menu folder will be taken from the relative location of the menu-item-reference-file below the sourceDir.
-                                                # The command for the target menu will be taken from the first line (ex: "D:\MyPortableProgs\Manufactor ProgramName\AnyProgram.exe")
+                                                # from the name of the menu-item-reference-file (...\Manufactor ProgramName V1.menulink.txt) 
+                                                # without the extension (ex: ".menulink.txt") and the sub menu folder will be taken 
+                                                # from the relative location of the menu-item-reference-file below the sourceDir.
+                                                # The command for the target menu will be taken from the first line 
+                                                # (ex: "D:\MyPortableProgs\Manufactor ProgramName\AnyProgram.exe")
                                                 # of the content of the menu-item-reference-file. If target lnkfile already exists it does nothing.
                                                 [String] $m = FsEntryGetAbsolutePath $targetMenuRootDir; # ex: "C:\Users\u1\AppData\Roaming\Microsoft\Windows\Start Menu\MyPortableProg"
                                                 [String] $sdir = FsEntryGetAbsolutePath $sourceDir; # ex: "D:\MyPortableProgs"
@@ -2924,7 +2952,8 @@ function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [St
                                                   [String] $relBelowSrcDir = FsEntryMakeRelative $d $sdir; # ex: "Appl\Graphic" or "."
                                                   [String] $workDir = "";
                                                   # ex: "C:\Users\u1\AppData\Roaming\Microsoft\Windows\Start Menu\MyPortableProg\Appl\Graphic\Manufactor ProgramName V1 en 2016.lnk"
-                                                  [String] $fn = FsEntryGetFileName $f; $fn = StringRemoveRight $fn $srcFileExtMenuLink; $fn = StringRemoveRight $fn $srcFileExtMenuLinkOpt; $fn = $fn.TrimEnd();
+                                                  [String] $fn = FsEntryGetFileName $f; $fn = StringRemoveRight $fn $srcFileExtMenuLink; 
+                                                  $fn = StringRemoveRight $fn $srcFileExtMenuLinkOpt; $fn = $fn.TrimEnd();
                                                   [String] $lnkFile = "$($m)\$($relBelowSrcDir)\$fn.lnk";
                                                   [String] $encodingIfNoBom = "Default";
                                                   [String] $cmdLine = FileReadContentAsLines $f $encodingIfNoBom | Select-Object -First 1;
@@ -2967,7 +2996,8 @@ function ToolSignDotNetAssembly               ( [String] $keySnk, [String] $srcD
                                                 if( FileExists $srcXml ){ FileCopy $srcXml $tarXml $true; }
                                                 }
 function ToolGithubApiListOrgRepos            ( [String] $org, [System.Management.Automation.PSCredential] $cred ){
-                                                # List all repos which an org has on github, if user is specified then not only public but also private repos are listed.
+                                                # List all repos which an org has on github, if user is specified 
+                                                # then not only public but also private repos are listed. Ordered by archived, Url.
                                                 [String] $us = CredentialGetUsername $cred;
                                                 [String] $pw = CredentialGetPassword $cred;
                                                 OutInfo "List all github repos from $org with user=$us.";
@@ -2985,7 +3015,7 @@ function ToolGithubApiListOrgRepos            ( [String] $org, [System.Managemen
                                                     @{N='Description';E={$_.description.SubString(0,200)}};
                                                   if( $a -eq $null -or $a.Count -eq 0 ){ break; }
                                                   $result +=$a;
-                                                } return $result | Sort-Object archived, html_url; }
+                                                } return $result | Sort-Object archived, Url; }
 function ToolGithubApiAssertValidRepoUrl      ( [String] $repoUrl ){ # Example repoUrl="https://github.com/mniederw/MnCommonPsToolLib/"
                                                 [String] $githubUrl = "https://github.com/";
                                                 Assert $repoUrl.StartsWith($githubUrl) "Expected url begins with $githubUrl but got: $repoUrl";
@@ -3015,7 +3045,8 @@ function ToolGithubApiDownloadLatestReleaseDir( [String] $repoUrl ){
                                                 NetDownloadFileByCurl "$apiUrl/zipball" $tarZip;
                                                 ToolUnzip $tarZip $tarDir; # Ex: ./mniederw-MnCommonPsToolLib-25dbfb0/*
                                                 FileDelete $tarZip;
-                                                [String[]] $dirs = FsEntryListAsStringArray $tarDir $false $true $false; # list flat dirs, ex: "C:\Temp\User_u2\MnCoPsToLib_catkmrpnfdp\mniederw-MnCommonPsToolLib-25dbfb0\"
+                                                 # list flat dirs, ex: "C:\Temp\User_u2\MnCoPsToLib_catkmrpnfdp\mniederw-MnCommonPsToolLib-25dbfb0\"
+                                                [String[]] $dirs = FsEntryListAsStringArray $tarDir $false $true $false;
                                                 if( $dirs.Count -ne 1 ){ throw [Exception] "Expected one dir in `"$tarDir`" instead of: $dirs"; }
                                                 [String] $dir0 = $dirs[0];
                                                 FsEntryMoveByPatternToDir "$dir0\*" $tarDir;
@@ -3023,13 +3054,16 @@ function ToolGithubApiDownloadLatestReleaseDir( [String] $repoUrl ){
                                                 return [String] $tarDir; }
 function ToolSetAssocFileExtToCmd             ( [String[]] $fileExtensions, [String] $cmd, [String] $ftype = "", [Boolean] $assertPrgExists = $false ){
                                                 # Sets the association of a file extension to a command by overwriting it. 
-                                                # FileExtensions: must begin with a dot, must not content blanks or commas, if it is only a dot then it is used for files without a file ext.
-                                                # Cmd: if it is empty then association is deleted. Can contain variables as %SystemRoot% which will be replaced at runtime.
+                                                # FileExtensions: must begin with a dot, must not content blanks or commas, 
+                                                #   if it is only a dot then it is used for files without a file ext.
+                                                # Cmd: if it is empty then association is deleted. 
+                                                #  Can contain variables as %SystemRoot% which will be replaced at runtime.
                                                 #   If cmd does not begin with embedded double quotes then it is interpreted as a full path to an executable
                                                 #   otherwise it uses the cmd as it is.
-                                                # Ftype: Is a group of file extensions. If it not yet exists then a default will be created in the style {extWithoutDot}file (ex: ps1file).
-                                                # AssertPrgExists: You can assert that the program in the command must exist but note that variables enclosed in % char cannot be expanded
-                                                #   because these are not powershell variables.
+                                                # Ftype: Is a group of file extensions. If it not yet exists then a default will be created 
+                                                #   in the style {extWithoutDot}file (ex: ps1file).
+                                                # AssertPrgExists: You can assert that the program in the command must exist but note that 
+                                                #   variables enclosed in % char cannot be expanded because these are not powershell variables.
                                                 # ex: ToolSetAssocFileExtToCmd @(".log",".out") "$env:SystemRoot\System32\notepad.exe" "" $true;
                                                 # ex: ToolSetAssocFileExtToCmd ".log"           "$env:SystemRoot\System32\notepad.exe";
                                                 # ex: ToolSetAssocFileExtToCmd ".log"           "%SystemRoot%\System32\notepad.exe" "txtfile";
@@ -3059,7 +3093,8 @@ function ToolSetAssocFileExtToCmd             ( [String[]] $fileExtensions, [Str
                                                       }
                                                       $ft = $ft.Split("=")[-1]; # "Microsoft.PowerShellScript.1" or "ps1file"
                                                     }
-                                                    [String] $out = (& cmd.exe /c "ftype $ft=$exec"); # ex: Microsoft.PowerShellScript.1="C:\WINDOWS\system32\WindowsPowerShell\v1.0\powershell.exe" "%1"
+                                                     # ex: Microsoft.PowerShellScript.1="C:\WINDOWS\system32\WindowsPowerShell\v1.0\powershell.exe" "%1"
+                                                    [String] $out = (& cmd.exe /c "ftype $ft=$exec");
                                                     OutProgress "SetFileAssociation ext=$($ext.PadRight(6)) ftype=$($ft.PadRight(20)) cmd=$exec";
                                                   }
                                                 }; }
@@ -3113,7 +3148,8 @@ function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $
                                                   return [Boolean] $false;
                                                 } }
 function MnCommonPsToolLibSelfUpdate          ( [Boolean] $doWaitForEnterKeyIfFailed = $false ){
-                                                # If installed in standard mode (saved under c:\Program Files\WindowsPowerShell\Modules\...) then it performs a self update to the newest version from github.
+                                                # If installed in standard mode (saved under c:\Program Files\WindowsPowerShell\Modules\...) 
+                                                # then it performs a self update to the newest version from github.
                                                 [String]  $moduleName = "MnCommonPsToolLib";
                                                 [String]  $tarRootDir = "$Env:ProgramW6432\WindowsPowerShell\Modules"; # more see: https://msdn.microsoft.com/en-us/library/dd878350(v=vs.85).aspx
                                                 [String]  $moduleFile = "$tarRootDir\$moduleName\$moduleName.psm1";                                               
@@ -3143,7 +3179,8 @@ function MnLibCommonSelfTest(){ # perform some tests
   Assert ((ByteArraysAreEqual @(0x00,0x01,0xFF) @(0x00,0x01,0xFF)) -eq $true );
   Assert ((ByteArraysAreEqual @(0x00,0x01,0xFF) @(0x00,0x02,0xFF)) -eq $false);
   Assert ((ByteArraysAreEqual @(0x00,0x01,0xFF) @(0x00,0x01     )) -eq $false);
-  Assert ((FsEntryMakeRelative "C:\MyDir\Dir1\Dir2" "C:\MyDir") -eq "Dir1\Dir2\");
+  Assert ((FsEntryMakeRelative "C:\MyDir\Dir1\Dir2" "C:\MyDir") -eq "Dir1\Dir2");
+  Assert ((FsEntryMakeRelative "C:\MyDir\Dir1\Dir2" "C:\MyDir" $true) -eq ".\Dir1\Dir2");
   Assert ((FsEntryMakeRelative "C:\MyDir" "C:\MyDir\") -eq ".");
   Assert ((Int32Clip -5 0 9) -eq 0 -and (Int32Clip 5 0 9) -eq 5 -and (Int32Clip 15 0 9) -eq 9);
   Assert ((StringRemoveRight "abc" "c") -eq "ab");
@@ -3173,8 +3210,9 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #   or run any ps1 even when in restricted mode with:  PowerShell.exe -ExecutionPolicy Unrestricted -NoProfile -File "myfile.ps1"
 #   default is: powershell.exe Set-Executionpolicy Restricted
 #   more: get-help about_signing
-#   in Systemsteuerung->Standardprogramme you can associate .ps1 with C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe and make a shortcut ony any .ps1 file, then on clicking on shortcut it will run, but does not work if .ps1 is doubleclicked.
-# - Not use: Note: we do not use $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") or Write-Error because different behaviour of powershell.exe and powershell_ise.exe
+#   in Systemsteuerung->Standardprogramme you can associate .ps1 with C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe 
+#   and make a shortcut ony any .ps1 file, then on clicking on shortcut it will run, but does not work if .ps1 is doubleclicked.
+# - Do Not Use: Avoid using $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") or Write-Error because different behaviour of powershell.exe and powershell_ise.exe
 # - Extensions: download and install PowerShell Community Extensions (PSCX) for ntfs-junctions and symlinks.
 # - Special predefined variables which are not yet used in this script (use by $global:anyprefefinedvar; names are case insensitive):
 #   $null, $true, $false  - some constants
@@ -3184,8 +3222,8 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #   $PsHome               - The directory where the Windows PowerShell is installed. (C:\Windows\SysWOW64\WindowsPowerShell\v1.0)
 #   $PROFILE              - C:\Users\myuser\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1
 #   $PS...                - some variables
-#   $MaximumAliasCount, $MaximumDriveCount, $MaximumErrorCount, $MaximumFunctionCount, $MaximumHistoryCount, $MaximumVariableCount   - some maximum values
-#   $StackTrace, $ConsoleFileName, $ErrorView, $ExecutionContext, $Host, $input, $NestedPromptLevel, $PID, $PWD, $ShellId            - some environment values
+#   $MaximumAliasCount, $MaximumDriveCount, $MaximumErrorCount, $MaximumFunctionCount, $MaximumHistoryCount, $MaximumVariableCount  - some maximum values
+#   $StackTrace, $ConsoleFileName, $ErrorView, $ExecutionContext, $Host, $input, $NestedPromptLevel, $PID, $PWD, $ShellId           - some environment values
 #   $PSScriptRoot         - folder of current running script
 # - Comparison operators; -eq, -ne, -lt, -le, -gt, -ge, "abcde" -like "aB?d*", -notlike, 
 #   @( "a1", "a2" ) -contains "a2", -notcontains, "abcdef" -match "b[CD]", -notmatch, "abcdef" -cmatch "b[cd]", -notcmatch, -not

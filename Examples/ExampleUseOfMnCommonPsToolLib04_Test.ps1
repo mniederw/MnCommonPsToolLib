@@ -5,23 +5,15 @@ Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version
 function TestAssertions{
   OutInfo "Test assertions";
   Assert ((2 + 3) -eq 5);
-  Assert ([Math]::Min(-5,-9) -eq -9);
-  Assert ("xyz".substring(1,0) -eq "");
-  Assert ((DateTimeFromStringIso "2011-12-31"             ) -eq (Get-Date -Date "2011-12-31 00:00:00"    ));
-  Assert ((DateTimeFromStringIso "2011-12-31 23:59"       ) -eq (Get-Date -Date "2011-12-31 23:59:00"    ));
-  Assert ((DateTimeFromStringIso "2011-12-31 23:59:59"    ) -eq (Get-Date -Date "2011-12-31 23:59:59"    ));
-  Assert ((DateTimeFromStringIso "2011-12-31 23:59:59."   ) -eq (Get-Date -Date "2011-12-31 23:59:59"    ));
-  Assert ((DateTimeFromStringIso "2011-12-31 23:59:59.9"  ) -eq (Get-Date -Date "2011-12-31 23:59:59.9"  ));
-  Assert ((DateTimeFromStringIso "2011-12-31 23:59:59.999") -eq (Get-Date -Date "2011-12-31 23:59:59.999"));
-  Assert ((DateTimeFromStringIso "2011-12-31T23:59:59.999") -eq (Get-Date -Date "2011-12-31 23:59:59.999"));
-  Assert (("abc" -split ",").Count -eq 1 -and "abc,".Split(",").Count -eq 2 -and ",abc".Split(",").Count -eq 2);
-  OutProgress "Ok, done.";
+  MnLibCommonSelfTest;
+  OutSuccess "Ok, done.";
 }
 
 function TestCommon(){
   [DateTime] $oldestDate = Get-Date -Date "0001-01-01 00:00:00.000";
   OutProgress "Today in ISO format: $(DateTimeNowAsStringIsoDate)";
   OutProgress "Oldest date is: $(DateTimeAsStringIso $oldestDate)";
+  OutSuccess "Ok, done.";
 }
 
 function TestFsEntries(){
@@ -30,14 +22,14 @@ function TestFsEntries(){
   [String] $d = "C:\Users\u4\Documents";
   [String[]] $a = FsEntryListAsStringArray $d $true $false $true;
   OutProgress "The folder '$d' contains $($a.Count) number of files";
-  OutProgress "The folder '$d' has the following first two files:";
   [String[]] $a2 = $a | Select-Object -First 2;
-  [Object[]] $o2 = $a2 | Select-Object @{Name="FileName";Expression={($_)}};
-  OutProgress "  $a2";
-  OutProgress "View these files in xml format: $(StringReplaceNewlines ($a2 | StreamToXmlString))";
+  [Object[]] $o2 = $a2 | Select-Object @{Name="FileName";Expression={("`"$_`"")}};
+  OutProgress "The folder '$d' has the following first two files: $a2";
+  OutProgress "View these files in xml  format: $(StringReplaceNewlines ($a2 | StreamToXmlString))";
   OutProgress "View these files in json format: $(StringReplaceNewlines ($a2 | StreamToJsonString))";
-  OutProgress "View these files in csv format: $($o2 | StreamToCsvStrings)";
+  OutProgress "View these files in csv  format: $($o2 | StreamToCsvStrings)";
   OutProgress "View these files in html format: $(StringReplaceNewlines ($o2 | StreamToHtmlTableStrings))";
+  OutSuccess "Ok, done.";
 }
 
 function TestParallelScripts1 {
@@ -45,6 +37,7 @@ function TestParallelScripts1 {
   [DateTime] $startedAt = Get-Date;
   (0..4) |ForEachParallel { OutProgress "Running script nr: $_ and wait one second."; sleep 1; }
   OutProgress "Total used time: $((New-Timespan -Start $startedAt -End (Get-Date)).ToString('d\ hh\:mm\:ss\.fff'))";
+  OutSuccess "Ok, done.";
 }
 
 function TestParallelScripts2 {
@@ -52,6 +45,7 @@ function TestParallelScripts2 {
   [DateTime] $startedAt = Get-Date;
   (0..4) | ForEachParallel -MaxThreads 2 { $t = 1.0 + ((Get-Random -Minimum 1 -Maximum 9) / 10); OutProgress "Running script nr: $_ and wait $t seconds."; sleep $t; };
   OutProgress "Total used time: $((New-Timespan -Start $startedAt -End (Get-Date)).ToString('d\ hh\:mm\:ss\.fff'))";
+  OutSuccess "Ok, done.";
 }
 
 function TestAsynchronousJob {
@@ -61,19 +55,22 @@ function TestAsynchronousJob {
   [String] $res = JobWaitForEnd $job.Id;
   OutProgress "Result text of job is: '$res'";
   Assert ($res -eq "my argument");
+  OutSuccess "Ok, done.";
 }
 
 function TestTools {
   OutInfo "List all public repos of github-org arduino";
-  ToolGithubApiListOrgRepos "arduino" | Select-Object html_url, archived, language, default_branch, LicName | StreamToTableString;
+  ToolGithubApiListOrgRepos "arduino" | Select-Object Url, archived, language, default_branch, LicName | StreamToTableString;
+  OutSuccess "Ok, done.";
 }
 
 OutInfo "hello world";
 TestAssertions;
+TestCommon;
 TestFsEntries;
-TestAsynchronousJob;
 TestParallelScripts1;
 TestParallelScripts2;
+TestAsynchronousJob;
 TestTools;
 OutSuccess "Ok, done.";
 StdInReadLine "Press enter to exit.";
