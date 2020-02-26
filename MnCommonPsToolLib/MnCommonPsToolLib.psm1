@@ -1361,23 +1361,22 @@ function ShareLocksClose                      ( [String] $path = "" ){ # closes 
                                                 ShareLocksList $path | ForEach-Object{ OutProgress "ShareLocksClose `"$($_.Path)`""; Close-SmbOpenFile -Force -FileId $_.FileId; }; }
 function ShareCreate                          ( [String] $shareName, [String] $dir, [String] $descr = "", [Int32] $nrOfAccessUsers = 25, [Boolean] $ignoreIfAlreadyExists = $true ){
                                                 ProcessRestartInElevatedAdminMode;
-                                                [String] $typeName = "DiskDrive";
                                                 if( !(DirExists $dir)  ){ throw [Exception] "Cannot create share because original directory not exists: `"$dir`""; }
                                                 FsEntryAssertExists $dir "Cannot create share";
-                                                [UInt32] $typeNr = ShareGetTypeNr $typeName;
-                                                [Object] $existingShare = ShareListAll "." $shareName | Where-Object{ $_.Path -ieq $dir -and $_.TypeName -eq $typeName } | Select-Object -First 1;
+                                                [Object] $existingShare = ShareListAll $shareName | Where-Object{ $_.Path -ieq $dir } | Select-Object -First 1;
                                                 if( $existingShare -ne $null ){
-                                                  OutVerbose "Already exists shareName=`"$shareName`" dir=`"$dir`" typeName=$typeName"; 
+                                                  OutVerbose "Already exists shareName=`"$shareName`" dir=`"$dir`" ";
                                                   if( $ignoreIfAlreadyExists ){ return; }
                                                 }
+                                                OutVerbose "CreateShare name=`"$shareName`" dir=`"$dir`" "; 
                                                 # alternative: -FolderEnumerationMode AccessBased; Note: this is not allowed but it is the default: -ContinuouslyAvailable $true 
-                                                New-SmbShare -Path $dir -Name $shareName -Description $descr -ConcurrentUserLimit $nrOfAccessUsers -FolderEnumerationMode Unrestricted -FullAccess (PrivGetGroupEveryone); }
+                                                [Object] $obj = New-SmbShare -Path $dir -Name $shareName -Description $descr -ConcurrentUserLimit $nrOfAccessUsers -FolderEnumerationMode Unrestricted -FullAccess (PrivGetGroupEveryone); }
 function ShareCreateByWmi                     ( [String] $shareName, [String] $dir, [String] $descr = "", [Int32] $nrOfAccessUsers = 25, [Boolean] $ignoreIfAlreadyExists = $true ){
                                                 [String] $typeName = "DiskDrive";
                                                 if( !(DirExists $dir) ){ throw [Exception] "Cannot create share because original directory not exists: `"$dir`""; }
                                                 FsEntryAssertExists $dir "Cannot create share";
                                                 [UInt32] $typeNr = ShareGetTypeNr $typeName;
-                                                [Object] $existingShare = ShareListAll "." $shareName | Where-Object{ $_.Path -ieq $dir -and $_.TypeName -eq $typeName } | Select-Object -First 1;
+                                                [Object] $existingShare = ShareListAll $shareName | Where-Object{ $_.Path -ieq $dir -and $_.TypeName -eq $typeName } | Select-Object -First 1;
                                                 if( $existingShare -ne $null ){
                                                   OutVerbose "Already exists shareName=`"$shareName`" dir=`"$dir`" typeName=$typeName"; 
                                                   if( $ignoreIfAlreadyExists ){ return; }
