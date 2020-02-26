@@ -253,13 +253,17 @@ function ConsoleSetGuiProperties              (){ # set standard sizes which mak
                                                   $error.clear(); New-Variable -Scope script -name consoleSetGuiProperties_DoneOnce -value $false;
                                                 }
                                                 if( $script:consoleSetGuiProperties_DoneOnce ){ return; } 
-                                                [Object] $w = (get-host).ui.rawui; $w.windowtitle = "$PSCommandPath"; $w.foregroundcolor = "Gray"; 
+                                                [Object] $w = (get-host).ui.rawui; 
+                                                $w.windowtitle = "$PSCommandPath $(switch(ProcessIsRunningInElevatedAdminMode){($true){'- Elevated Admin Mode'}default{'';}})"; 
+                                                $w.foregroundcolor = "Gray"; 
                                                 $w.backgroundcolor = switch(ProcessIsRunningInElevatedAdminMode){($true){"DarkMagenta"}default{"DarkBlue";}}; 
                                                 # for future use: $ = $host.PrivateData; $.VerboseForegroundColor = "white"; $.VerboseBackgroundColor = "blue"; 
                                                 #   $.WarningForegroundColor = "yellow"; $.WarningBackgroundColor = "darkgreen"; $.ErrorForegroundColor = "white"; $.ErrorBackgroundColor = "red";
                                                 # set buffer sizes before setting window sizes otherwise PSArgumentOutOfRangeException: Window cannot be wider than the screen buffer.
                                                 $w = (get-host).ui.rawui; # refresh values, maybe meanwhile windows was resized
-                                                [Object] $buf = $w.buffersize; $buf.height = 9999; $buf.width = [math]::max(300,[System.Console]::WindowWidth);
+                                                [Object] $buf = $w.buffersize; 
+                                                $buf.height = 9999; 
+                                                $buf.width = [math]::max(300,[System.Console]::WindowWidth);
                                                 try{
                                                   $w.buffersize = $buf;
                                                 }catch{ # seldom we got: PSArgumentOutOfRangeException: Cannot set the buffer size because the size specified is too large or too small.
@@ -267,7 +271,16 @@ function ConsoleSetGuiProperties              (){ # set standard sizes which mak
                                                 }
                                                 $w = (get-host).ui.rawui; # refresh values, maybe meanwhile windows was resized
                                                 if( $w.WindowSize -ne $null ){ # is null in case of powershell-ISE
-                                                  [Object] $m = $w.windowsize; $m.height =   48; $m.width = [math]::min(150,[system.console]::BufferWidth); $w.windowsize = $m;
+                                                  [Object] $m = $w.windowsize; $m.height = 48; $m.width = 150;
+                                                  # avoid: PSArgumentOutOfRangeException: Window cannot be wider than 147. Parameter name: value.Width Actual value was 150.
+                                                  #        PSArgumentOutOfRangeException: Window cannot be taller than 47. Parameter name: value.Height Actual value was 48.
+                                                  $m.width  = [math]::min($m.width ,[system.console]::BufferWidth);
+                                                  $m.width  = [math]::min($m.width ,$w.MaxWindowSize.Width);
+                                                  $m.width  = [math]::min($m.width ,$w.MaxPhysicalWindowSize.Width);
+                                                  $m.height = [math]::min($m.height,[system.console]::BufferHeight);
+                                                  $m.height = [math]::min($m.height,$w.MaxWindowSize.height);
+                                                  $m.height = [math]::min($m.height,$w.MaxPhysicalWindowSize.height);
+                                                  $w.windowsize = $m;
                                                   ConsoleSetPos 40 40; # little indended from top and left
                                                 }
                                                 $script:consoleSetGuiProperties_DoneOnce = $true; }
