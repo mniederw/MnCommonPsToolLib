@@ -4,6 +4,7 @@
 Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
 Current version can be requested by: $MnCommonPsToolLibVersion
 
+2020-03-02  V5.1   ShareListAllByWmi changed caption to Description.
 2020-02-25  V5.0   Change and simplify ShareListAll, ShareCreate, ShareRemove, ShareListAll. Add ShareExists, ShareListAllByWmi, ShareRemoveByWmi, ShareCreateByWmi, ShareLocksList, ShareLocksClose.
 2020-02-18  V4.11  improve ConsoleSetGuiProperties, tf options
 2020-02-15  V4.10  add ToolGithubApiDownloadLatestReleaseDir, ToolUnzip, fix FsEntryMoveByPatternToDir.
