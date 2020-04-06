@@ -48,7 +48,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $MnCommonPsToolLibVersion = "5.1"; # more see Releasenotes.txt
+[String] $MnCommonPsToolLibVersion = "5.2"; # more see Releasenotes.txt
 
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 
@@ -1130,8 +1130,8 @@ function DriveFreeSpace                       ( [String] $drive ){
                                                 return [Int64] (Get-PSDrive $drive | Select-Object -ExpandProperty Free); }
 function DirExists                            ( [String] $dir ){ 
                                                 try{ return [Boolean] (Test-Path -PathType Container -LiteralPath $dir); }catch{ throw [Exception] "$(ScriptGetCurrentFunc)($dir) failed because $($_.Exception.Message)"; } }
-function DirAssertExists                      ( [String] $dir ){ 
-                                                if( -not (DirExists $dir) ){ throw [Exception] "Dir not exists: `"$dir`"."; } }
+function DirAssertExists                      ( [String] $dir, [String] $text = "Assertion" ){
+                                                if( -not (DirExists $dir) ){ throw [Exception] "$text failed because dir not exists: `"$dir`"."; } }
 function DirCreate                            ( [String] $dir ){
                                                 New-Item -type directory -Force (FsEntryEsc $dir) | Out-Null; } # create dir if it not yet exists,;we do not call OutProgress because is not an important change.
 function DirCreateTemp                        ( [String] $prefix = "" ){ while($true){
@@ -1360,21 +1360,20 @@ function ShareLocksClose                      ( [String] $path = "" ){ # closes 
                                                 ProcessRestartInElevatedAdminMode;
                                                 ShareLocksList $path | ForEach-Object{ OutProgress "ShareLocksClose `"$($_.Path)`""; Close-SmbOpenFile -Force -FileId $_.FileId; }; }
 function ShareCreate                          ( [String] $shareName, [String] $dir, [String] $descr = "", [Int32] $nrOfAccessUsers = 25, [Boolean] $ignoreIfAlreadyExists = $true ){
-                                                ProcessRestartInElevatedAdminMode;
-                                                if( !(DirExists $dir)  ){ throw [Exception] "Cannot create share because original directory not exists: `"$dir`""; }
-                                                FsEntryAssertExists $dir "Cannot create share";
+                                                DirAssertExists $dir "ShareCreate($shareName)";
                                                 [Object] $existingShare = ShareListAll $shareName | Where-Object{ $_.Path -ieq $dir } | Select-Object -First 1;
                                                 if( $existingShare -ne $null ){
                                                   OutVerbose "Already exists shareName=`"$shareName`" dir=`"$dir`" ";
                                                   if( $ignoreIfAlreadyExists ){ return; }
                                                 }
                                                 OutVerbose "CreateShare name=`"$shareName`" dir=`"$dir`" "; 
+                                                ProcessRestartInElevatedAdminMode;
                                                 # alternative: -FolderEnumerationMode AccessBased; Note: this is not allowed but it is the default: -ContinuouslyAvailable $true 
                                                 [Object] $obj = New-SmbShare -Path $dir -Name $shareName -Description $descr -ConcurrentUserLimit $nrOfAccessUsers -FolderEnumerationMode Unrestricted -FullAccess (PrivGetGroupEveryone); }
 function ShareCreateByWmi                     ( [String] $shareName, [String] $dir, [String] $descr = "", [Int32] $nrOfAccessUsers = 25, [Boolean] $ignoreIfAlreadyExists = $true ){
                                                 [String] $typeName = "DiskDrive";
                                                 if( !(DirExists $dir) ){ throw [Exception] "Cannot create share because original directory not exists: `"$dir`""; }
-                                                FsEntryAssertExists $dir "Cannot create share";
+                                                DirAssertExists $dir "Cannot create share";
                                                 [UInt32] $typeNr = ShareGetTypeNr $typeName;
                                                 [Object] $existingShare = ShareListAll $shareName | Where-Object{ $_.Path -ieq $dir -and $_.TypeName -eq $typeName } | Select-Object -First 1;
                                                 if( $existingShare -ne $null ){
