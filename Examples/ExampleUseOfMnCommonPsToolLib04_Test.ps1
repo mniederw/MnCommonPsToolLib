@@ -64,6 +64,28 @@ function TestTools {
   OutSuccess "Ok, done.";
 }
 
+function TestEnvVar {
+  OutInfo "List environment var of different scopes";
+  $v1 = ProcessEnvVarGet "Temp" ([System.EnvironmentVariableTarget]::Process);
+  $v2 = ProcessEnvVarGet "Temp" ([System.EnvironmentVariableTarget]::User   );
+  $v3 = ProcessEnvVarGet "Temp" ([System.EnvironmentVariableTarget]::Machine);
+  OutProgress "Environment Variable Temp of scope Process: `"$v1`"";
+  OutProgress "Environment Variable Temp of scope User   : `"$v2`"";
+  OutProgress "Environment Variable Temp of scope Machine: `"$v3`"";
+  Assert ($v1 -eq $env:Temp);
+  ProcessEnvVarSet "MnCommonPsToolLibExampleVar" "Testvalue";
+  Assert ($env:MnCommonPsToolLibExampleVar -eq "Testvalue");
+  ProcessEnvVarSet "MnCommonPsToolLibExampleVar" "";
+  OutSuccess "Ok, done.";
+}
+
+function TestUrl {
+  $url = "https://duckduckgo.com/";
+  OutInfo "Check NetDownloadIsSuccessful $url";
+  Assert (NetDownloadIsSuccessful $url);
+  OutSuccess "Ok, done.";
+}
+
 OutInfo "hello world";
 TestAssertions;
 TestCommon;
@@ -72,5 +94,7 @@ TestParallelScripts1;
 TestParallelScripts2;
 TestAsynchronousJob;
 TestTools;
+TestEnvVar;
+TestUrl;
 OutSuccess "Ok, done.";
 StdInReadLine "Press enter to exit.";

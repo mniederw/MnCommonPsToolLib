@@ -4,6 +4,7 @@
 Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
 Current version can be requested by: $MnCommonPsToolLibVersion
 
+2020-04-10  V5.3   Added ProcessEnvVarGet, ProcessEnvVarGet, OsWindowsFeatureDoInstall, OsWindowsFeatureDoUninstall, NetDownloadIsSuccessful.
 2020-04-06  V5.2   Extended DirAssertExists, improve ShareCreate.
 2020-03-02  V5.1   ShareListAllByWmi changed caption to Description.
 2020-02-25  V5.0   Change and simplify ShareListAll, ShareCreate, ShareRemove, ShareListAll. Add ShareExists, ShareListAllByWmi, ShareRemoveByWmi, ShareCreateByWmi, ShareLocksList, ShareLocksClose.

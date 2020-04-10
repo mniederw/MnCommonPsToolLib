@@ -48,7 +48,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $MnCommonPsToolLibVersion = "5.2"; # more see Releasenotes.txt
+[String] $MnCommonPsToolLibVersion = "5.3"; # more see Releasenotes.txt
 
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 
@@ -478,6 +478,8 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 if( $err -ne "" ){ $out += $err; }
                                                 $pr.Dispose();
                                                 return [String[]] $out; }
+function ProcessEnvVarGet                     ( [String] $name, [System.EnvironmentVariableTarget] $scope = [System.EnvironmentVariableTarget]::Process ){ return [String] [Environment]::GetEnvironmentVariable($name,$scope); }
+function ProcessEnvVarSet                     ( [String] $name, [String] $val, [System.EnvironmentVariableTarget] $scope = [System.EnvironmentVariableTarget]::Process ){ OutProgress "SetEnvironmentVariable $name=`"$val`" scope=$scope"; [Environment]::SetEnvironmentVariable($name,$val,$scope); }
 function JobStart                             ( [ScriptBlock] $scr, [Object[]] $scrArgs = $null, [String] $name = "Job" ){ # Return job object of type PSRemotingJob, the returned object of the script block can later be requested.
                                                 return [System.Management.Automation.Job] (Start-Job -name $name -ScriptBlock $scr -ArgumentList $scrArgs); }
 function JobGet                               ( [String] $id ){ return [System.Management.Automation.Job] (Get-Job -Id $id); } # Return job object.
@@ -497,6 +499,18 @@ function OsIsWinVistaOrHigher                 (){ return [Boolean] ([Environment
 function OsIsWin7OrHigher                     (){ return [Boolean] ([Environment]::OSVersion.Version -ge (new-object "Version" 6,1)); }
 function OsIs64BitOs                          (){ return [Boolean] (Get-WmiObject -Class Win32_OperatingSystem -ComputerName $ComputerName -ea 0).OSArchitecture -eq "64-Bit"; }
 function OsInfoMainboardPhysicalMemorySum     (){ return [Int64] (Get-WMIObject -class Win32_PhysicalMemory |Measure-Object -Property capacity -Sum).Sum; }
+function OsWindowsFeatureGetInstalledNames    (){ # Requires windows-server-os or at least Win10Prof with installed RSAT https://www.microsoft.com/en-au/download/details.aspx?id=45520
+                                                  Import-Module ServerManager; return [String[]] (Get-WindowsFeature | Where-Object { $_.InstallState -eq "Installed" } | Foreach-Object { $_.Name }); } # states: Installed, Available, Removed.
+function OsWindowsFeatureDoInstall            ( [String] $name ){ # ex: Web-Server, Web-Mgmt-Console, Web-Scripting-Tools, Web-Basic-Auth, Web-Windows-Auth, NET-FRAMEWORK-45-Core, NET-FRAMEWORK-45-ASPNET, Web-HTTP-Logging, Web-NET-Ext45, Web-ASP-Net45, Telnet-Server, Telnet-Client.
+                                                Import-Module ServerManager; # Used for Install-WindowsFeature; Requires at least Win10Prof: RSAT https://www.microsoft.com/en-au/download/details.aspx?id=45520
+                                                OutProgress "Install-WindowsFeature -name $name -IncludeManagementTools";
+                                                [Object] $res = Install-WindowsFeature -name $name -IncludeManagementTools;
+                                                [String] $out = "Result: IsSuccess=$($res.Success) RequiresRestart=$($res.RestartNeeded) ExitCode=$($res.ExitCode) FeatureResult=$($res.FeatureResult)";
+                                                # ex: "Result: IsSuccess=True RequiresRestart=No ExitCode=NoChangeNeeded FeatureResult="
+                                                OutProgress $out; if( -not $res.Success ){ throw [Exception] "Install $name was not successful, please solve manually. $out"; } }
+function OsWindowsFeatureDoUninstall          ( [String] $name ){ Import-Module ServerManager; OutProgress "Uninstall-WindowsFeature -name $name"; [Object] $res = Uninstall-WindowsFeature -name $name; 
+                                                [String] $out = "Result: IsSuccess=$($res.Success) RequiresRestart=$($res.RestartNeeded) ExitCode=$($res.ExitCode) FeatureResult=$($res.FeatureResult)";
+                                                OutProgress $out; if( -not $res.Success ){ throw [Exception] "Uninstall $name was not successful, please solve manually. $out"; } }
 function PrivGetUserFromName                  ( [String] $username ){ # optionally as domain\username
                                                 return [System.Security.Principal.NTAccount] $username; }
 function PrivGetUserCurrent                   (){ return [System.Security.Principal.IdentityReference] ([System.Security.Principal.WindowsIdentity]::GetCurrent().User); } # alternative: PrivGetUserFromName "$env:userdomain\$env:username"
@@ -1831,6 +1845,9 @@ function NetDownloadToString                  ( [String] $url, [String] $us = ""
 function NetDownloadToStringByCurl            ( [String] $url, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Boolean] $onlyIfNewer = $false, [String] $encodingIfNoBom = "UTF8" ){
                                                 [String] $tmp = (FileGetTempFile); NetDownloadFileByCurl $url $tmp $us $pw $ignoreSslCheck $onlyIfNewer;
                                                 [String] $result = (FileReadContentAsString $tmp $encodingIfNoBom); FileDelTempFile $tmp; return [String] $result; }
+function NetDownloadIsSuccessful              ( [String] $url ){ # test wether an url is downloadable or not
+                                                [Boolean] $res = $false; try{ GlobalSetModeHideOutProgress $true; [Boolean] $ignoreSslCheck = $true; 
+                                                [String] $f = NetDownloadToString $url "" "" $ignoreSslCheck; $res = $true; }catch{ } GlobalSetModeHideOutProgress $false; return [Boolean] $res; }
 function NetDownloadSite                      ( [String] $url, [String] $tarDir, [Int32] $level = 999, [Int32] $maxBytes = ([Int32]::MaxValue), [String] $us = "", 
                                                   [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Int32] $limitRateBytesPerSec = ([Int32]::MaxValue), [Boolean] $alsoRetrieveToParentOfUrl = $false ){
                                                 # Mirror site to dir; wget: HTTP, HTTPS, FTP. Logfile is written into target dir.
