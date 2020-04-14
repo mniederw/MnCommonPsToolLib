@@ -48,7 +48,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $MnCommonPsToolLibVersion = "5.3"; # more see Releasenotes.txt
+[String] $MnCommonPsToolLibVersion = "5.4"; # more see Releasenotes.txt
 
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 
@@ -1968,20 +1968,25 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                     ForEach-Object{ OutProgress $_; }
                                                   OutSuccess "  Ok, usedTimeInSec=$([Int64]($usedTime.Elapsed.TotalSeconds+0.999)).";
                                                 }catch{
-                                                  # ex: fatal: HttpRequestException encountered.
-                                                  # ex: Fehler beim Senden der Anforderung.
-                                                  # ex: fatal: AggregateException encountered.
-                                                  # ex: Logon failed, use ctrl+c to cancel basic credential prompt.
-                                                  # ex: remote: Repository not found.\nfatal: repository 'https://github.com/mniederw/UnknownRepo/' not found   (Clone rc=128)
-                                                  # ex: fatal: Not a git repository: 'D:\WorkGit\mniederw\UnknownRepo\.git'
-                                                  # ex: error: unknown option `anyUnknownOption'
-                                                  # ex: fatal: refusing to merge unrelated histories   (pull rc=128)
-                                                  # ex: fatal: Couldn't find remote ref HEAD    (in case the repo contains no content)
-                                                  # ex: error: Your local changes to the following files would be overwritten by merge:   (Then the lines: "        ...file..." "Aborting" "Please commit your changes or stash them before you merge.")
-                                                  # ex: error: The following untracked working tree files would be overwritten by merge:   (Then the lines: "        ....file..." "Please move or remove them before you merge." "Aborting")
+                                                  # ex:              fatal: HttpRequestException encountered.
+                                                  # ex:              Fehler beim Senden der Anforderung.
+                                                  # ex:              fatal: AggregateException encountered.
+                                                  # ex:              Logon failed, use ctrl+c to cancel basic credential prompt.
+                                                  # ex: Clone rc=128 remote: Repository not found.\nfatal: repository 'https://github.com/mniederw/UnknownRepo/' not found
+                                                  # ex:              fatal: Not a git repository: 'D:\WorkGit\mniederw\UnknownRepo\.git'
+                                                  # ex:              error: unknown option `anyUnknownOption'
+                                                  # ex: Pull  rc=128 fatal: refusing to merge unrelated histories
+                                                  # ex: Pull  rc=1   fatal: Couldn't find remote ref HEAD    (in case the repo contains no content)
+                                                  # ex:              error: Your local changes to the following files would be overwritten by merge:   (Then the lines: "        ...file..." "Aborting" "Please commit your changes or stash them before you merge.")
+                                                  # ex:              error: The following untracked working tree files would be overwritten by merge:   (Then the lines: "        ....file..." "Please move or remove them before you merge." "Aborting")
+                                                  # ex: Pull  rc=128 error: Pulling is not possible because you have unmerged files. - hint: Fix them up in the work tree, and then use 'git add/rm <file>' - fatal: Exiting because of an unresolved conflict. - hint: as appropriate to mark resolution and make a commit.
+                                                  # ex: Pull  rc=128 fatal: Exiting because of an unresolved conflict. - error: Pulling is not possible because you have unmerged files. - hint: as appropriate to mark resolution and make a commit. - hint: Fix them up in the work tree, and then use 'git add/rm <file>'
+                                                  # ex: Pull  rc=1   Auto-merging dir1/file1  CONFLICT (add/add): Merge conflict in dir1/file1  Automatic merge failed; fix conflicts and then commit the result.\nwarning: Cannot merge binary files: dir1/file1 (HEAD vs. ab654...)
                                                   $msg = "$(ScriptGetCurrentFunc)($cmd,$tarRootDir,$url) failed because $(StringReplaceNewlines $_.Exception.Message ' - ')";
                                                   ScriptResetRc;
-                                                  if( $cmd -eq "Pull" -and $msg.Contains("error: Your local changes to the following files would be overwritten by merge:") ){
+                                                  if( $cmd -eq "Pull" -and ( $msg.Contains("error: Your local changes to the following files would be overwritten by merge:") -or 
+                                                                             $msg.Contains("error: Pulling is not possible because you have unmerged files.") -or
+                                                                             $msg.Contains("fatal: Exiting because of an unresolved conflict.") ) ){
                                                     OutProgress "Note: If you would like to ignore and reset all local changes then call:  git -C `"$dir`" --git-dir=.git reset --hard"; # alternative option: --hard origin/master
                                                   }
                                                   if( $cmd -eq "Pull" -and $msg.Contains("fatal: refusing to merge unrelated histories") ){
