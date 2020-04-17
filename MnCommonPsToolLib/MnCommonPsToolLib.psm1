@@ -48,7 +48,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $MnCommonPsToolLibVersion = "5.4"; # more see Releasenotes.txt
+[String] $MnCommonPsToolLibVersion = "5.5"; # more see Releasenotes.txt
 
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 
@@ -328,9 +328,10 @@ function StdOutBegMsgCareInteractiveMode      ( [String] $mode = "" ){ # Availab
                                                 ScriptResetRc; [String[]] $modes = @()+($mode -split "," | ForEach-Object{ $_.Trim() });
                                                 Assert ((@()+($modes | Where-Object{ $_ -ne "DoRequestAtBegin" -and $_ -ne "NoRequestAtBegin" -and $_ -ne "NoWaitAtEnd" -and $_ -ne "MinimizeConsole"})).Count -eq 0 ) "StdOutBegMsgCareInteractiveMode was called with unknown mode='$mode'";
                                                 $Global:ModeNoWaitForEnterAtEnd = $modes -contains "NoWaitAtEnd";
-                                                if( -not $global:ModeDisallowInteractions -and $modes -notcontains "NoRequestAtBegin" ){ StdInAskForAnswerWhenInInteractMode "Are you sure (y/n)? "; }
+                                                if( -not $global:ModeDisallowInteractions -and $modes -notcontains "NoRequestAtBegin" ){ StdInAskForAnswerWhenInInteractMode; }
                                                 if( $modes -contains "MinimizeConsole" ){ OutProgress "Minimize console"; ProcessSleepSec 0; ConsoleMinimize; } }
-function StdInAskForAnswerWhenInInteractMode  ( [String] $line, [String] $expectedAnswer = "y" ){ # works case insensitive; is ignored if interactions are suppressed by global var ModeDisallowInteractions
+function StdInAskForAnswerWhenInInteractMode  ( [String] $line = "Are you sure (y/n)? ", [String] $expectedAnswer = "y" ){
+                                                # works case insensitive; is ignored if interactions are suppressed by global var ModeDisallowInteractions; will abort if not expected answer.
                                                 if( -not $global:ModeDisallowInteractions ){ [String] $answer = StdInReadLine $line; if( $answer -ne $expectedAnswer ){ StdOutRedLineAndPerformExit "Aborted"; } } }
 function StdInAskAndAssertExpectedAnswer      ( [String] $line = "Are you sure (y/n)? ", [String] $expectedAnswer = "y" ){ # works case insensitive
                                                 [String] $answer = StdInReadLine $line; if( $answer -ne $expectedAnswer ){ StdOutRedLineAndPerformExit "Aborted"; } }
@@ -1334,7 +1335,7 @@ function CredentialGetAndStoreIfNotExists     ( [String] $secureCredentialFile, 
                                                 [System.Management.Automation.PSCredential] $cred = $null;
                                                 if( FileExists $secureCredentialFile ){
                                                   $cred = CredentialReadFromFile $secureCredentialFile;
-                                                  if( $username -ne "" -and (CredentialGetUsername $cred) -ne (CredentialStandardizeUserWithDomain $username)){ $cred = null; }
+                                                  if( $username -ne "" -and (CredentialGetUsername $cred) -ne (CredentialStandardizeUserWithDomain $username)){ $cred = $null; }
                                                 }
                                                 if( $cred -eq $null ){
                                                   $cred = CredentialCreate $username $password $accessShortDescription;
@@ -1520,8 +1521,8 @@ function PsDriveCreate                        ( [String] $drive, [String] $mount
                                                   # ex: System.Exception: New-PSDrive(Z,\\mycomp\Transfer,) failed because Das angegebene Netzwerkkennwort ist falsch
                                                   throw [Exception] "New-PSDrive($drive,$mountPoint,$us) failed because $($_.Exception.Message)";
                                                 } }
-function NetExtractHostName                   ( [String] $url ){ 
-                                                return ([System.Uri]$url).Host; }
+function NetExtractHostName                   ( [String] $url ){ return ([System.Uri]$url).Host; }
+function NetUrlUnescape                       ( [String] $url ){ return [uri]::UnescapeDataString($url); } # convert for example %20 to blank.
 function NetAdapterGetConnectionStatusName    ( [Int32] $netConnectionStatusNr ){ 
                                                 return [String] $(switch($netConnectionStatusNr){ 0{"Disconnected"} 1{"Connecting"} 2{"Connected"} 3{"Disconnecting"} 
                                                   4{"Hardware not present"} 5{"Hardware disabled"} 6{"Hardware malfunction"} 7{"Media disconnected"} 8{"Authenticating"} 9{"Authentication succeeded"} 
@@ -1558,7 +1559,8 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                 # If url not exists then it will throw.
                                                 if( $url -eq "" ){ throw [Exception] "Wrong file url: $url"; } # alternative check: -or $url.EndsWith("/") 
                                                 if( $us -ne "" -and $pw -eq "" ){ throw [Exception] "Missing password for username=$us"; }
-                                                OutProgress "NetDownloadFile(onlyIfNewer=$onlyIfNewer) $url to `"$tarFile`" ";
+                                                OutProgress "NetDownloadFile $url";
+                                                OutProgress "  (onlyIfNewer=$onlyIfNewer) to `"$tarFile`" ";
                                                 if( $ignoreSslCheck ){
                                                   # Note: This alternative is now obsolete (see https://msdn.microsoft.com/en-us/library/system.net.servicepointmanager.certificatepolicy(v=vs.110).aspx):
                                                   #   Add-Type -TypeDefinition "using System.Net; using System.Security.Cryptography.X509Certificates; public class TrustAllCertsPolicy : ICertificatePolicy { public bool CheckValidationResult( ServicePoint srvPoint, X509Certificate certificate, WebRequest request, int certificateProblem){ return true; } } ";
@@ -1572,15 +1574,15 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                   [DateTime] $srcTs = (NetWebRequestLastModifiedFailSafe $url);
                                                   [DateTime] $fileTs = (FsEntryGetLastModified $tarFile);
                                                   if( $srcTs -le $fileTs ){
-                                                    OutProgress "Ok, download not nessessary because timestamp of src $(DateTimeAsStringIso $srcTs) is older than target $(DateTimeAsStringIso $fileTs).";
+                                                    OutProgress "  Ok, download not nessessary because timestamp of src $(DateTimeAsStringIso $srcTs) is older than target $(DateTimeAsStringIso $fileTs).";
                                                     return;
                                                   }
                                                 }
-                                                [String] $userAgent = "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:40.0) Gecko/20100101 Firefox/40.1"; # some servers as api.github.com requires at least a string as "Mozilla/5.0"
+                                                [String] $userAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:68.0) Gecko/20100101 Firefox/68.0"; # some servers as api.github.com requires at least a string as "Mozilla/5.0", we take latest ESR
                                                 [String] $tarDir = FsEntryGetParentDir $tarFile;
                                                 [String] $logf = "$LogDir\Download.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
                                                 DirCreate $tarDir;
-                                                OutProgress "Logfile: `"$logf`"";
+                                                OutProgress "  Logfile: `"$logf`"";
                                                 FileAppendLineWithTs $logf "WebClient.DownloadFile(url=$url,tar=$tarFile)";
                                                 $webclient = new-object System.Net.WebClient;
                                                 # Defaults: AllowAutoRedirect is true.
@@ -1608,7 +1610,7 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                       Invoke-WebRequest -Uri $url -OutFile $tarFile -MaximumRedirection 2 -TimeoutSec 70 -UserAgent $userAgent;
                                                     }
                                                   }
-                                                  [String] $stateMsg = "Ok, downloaded $(FileGetSize $tarFile) bytes.";
+                                                  [String] $stateMsg = "  Ok, downloaded $(FileGetSize $tarFile) bytes.";
                                                   FileAppendLineWithTs $logf "  $stateMsg";
                                                   OutProgress $stateMsg;
                                                 }catch{ 
@@ -1618,7 +1620,7 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                   # for future use: $fileNotExists = $_.Exception -is [System.Net.WebException] -and (([System.Net.WebException]($_.Exception)).Response.StatusCode.value__) -eq 404;
                                                   [String] $msg = $_.Exception.Message;
                                                   if( $msg.Contains("Section=ResponseStatusLine") ){ $msg = "Server returned not a valid HTTP response. "+$msg; }
-                                                  $msg = "NetDownloadFile(url=$url ,us=$us,tar=$tarFile) failed because $msg";
+                                                  $msg = "  NetDownloadFile(url=$url ,us=$us,tar=$tarFile) failed because $msg";
                                                   FileAppendLineWithTs $logf "  $msg";
                                                   if( -not $errorAsWarning ){ throw [Exception] $msg; }
                                                   OutWarning $msg;
@@ -1794,7 +1796,7 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                   # --url URL                                # URL to work with
                                                   # --insecure                               # Allow connections to SSL sites without certs check
                                                   # --cacert cacert.pem                      # CA certificate to verify peer against (SSL), see https://curl.haxx.se/docs/caextract.html, .pem or .crt file
-                                                  ,"--user-agent", "`"Mozilla/5.0 (Windows NT 6.1; WOW64; rv:40.0) Gecko/20100101 Firefox/40.1`""  # Send User-Agent STRING to server (H)
+                                                  ,"--user-agent", "`"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:68.0) Gecko/20100101 Firefox/68.0`""  # Send User-Agent STRING to server (H), we take latest ESR
                                                 );
                                                 if( $us -ne "" ){ $opt += @( "--user", "$($us):$pw" ); }
                                                 if( $ignoreSslCheck ){ $opt += "--insecure"; }
@@ -1802,12 +1804,13 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                 [String] $curlExe = ProcessGetCommandInEnvPathOrAltPaths "curl.exe" @() "Please download it from http://curl.haxx.se/download.html and install it and add dir to path env var.";
                                                 [String] $curlCaCert = "$(FsEntryGetParentDir $curlExe)\curl-ca-bundle.crt";
                                                 if( -not $url.StartsWith("http:") -and (FileExists $curlCaCert) ){ $opt += @( "--cacert", $curlCaCert); }
-                                                OutProgress "NetDownloadFileByCurl $url to `"$tarFile`"";
+                                                OutProgress "NetDownloadFileByCurl $url";
+                                                OutProgress "  to `"$tarFile`"";
                                                 [String] $tarDir = FsEntryGetParentDir $tarFile;
                                                 [String] $logf = "$LogDir\Download.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
                                                 DirCreate $tarDir;
                                                 FileAppendLineWithTs $logf "$curlExe $opt --url $url";
-                                                OutProgress "Logfile: `"$logf`"";
+                                                OutProgress "  Logfile: `"$logf`"";
                                                 try{
                                                   [String[]] $out = & $curlExe $opt "--url" $url;
                                                   if( $LASTEXITCODE -eq 60 ){
@@ -1830,11 +1833,11 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                   AssertRcIsOk $out $true;
                                                   FileAppendLines $logf (StringArrayInsertIndent $out 2);
                                                   # Trace example:  Warning: Transient problem: timeout Will retry in 5 seconds. 2 retries left.
-                                                  [String] $stateMsg = "Ok, downloaded $(FileGetSize $tarFile) bytes.";
+                                                  [String] $stateMsg = "  Ok, downloaded $(FileGetSize $tarFile) bytes.";
                                                   FileAppendLineWithTs $logf "  $stateMsg";
                                                   OutProgress $stateMsg;
                                                 }catch{
-                                                  [String] $msg = "Curl($url ,us=$us,tar=$tarFile) failed because $($_.Exception.Message)";
+                                                  [String] $msg = "  Curl($url ,us=$us,tar=$tarFile) failed because $($_.Exception.Message)";
                                                   FileAppendLines $logf (StringArrayInsertIndent $msg 2);
                                                   if( -not $errorAsWarning ){ throw [Exception] $msg; }
                                                   OutWarning $msg;
@@ -1850,9 +1853,11 @@ function NetDownloadIsSuccessful              ( [String] $url ){ # test wether a
                                                 [String] $f = NetDownloadToString $url "" "" $ignoreSslCheck; $res = $true; }catch{ } GlobalSetModeHideOutProgress $false; return [Boolean] $res; }
 function NetDownloadSite                      ( [String] $url, [String] $tarDir, [Int32] $level = 999, [Int32] $maxBytes = ([Int32]::MaxValue), [String] $us = "", 
                                                   [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Int32] $limitRateBytesPerSec = ([Int32]::MaxValue), [Boolean] $alsoRetrieveToParentOfUrl = $false ){
-                                                # Mirror site to dir; wget: HTTP, HTTPS, FTP. Logfile is written into target dir.
+                                                # Mirror site to dir; wget: HTTP, HTTPS, FTP. Logfile is written into target dir. Password is not logged.
                                                 [String] $logf = "$tarDir\.Download.$(DateTimeNowAsStringIsoMonth).log";
-                                                OutProgress "NetDownloadSite from $url to `"$tarDir`" (only newer files, logfile=`"$logf`")";
+                                                OutProgress "NetDownloadSite $url ";
+                                                OutProgress "  (only newer files) to `"$tarDir`"";
+                                                OutProgress "  Logfile: `"$logf`"";
                                                 [String[]] $opt = @(
                                                    "--directory-prefix=$tarDir"
                                                   ,$(switch($alsoRetrieveToParentOfUrl){ ($true){""} default{"--no-parent"}})
@@ -1860,22 +1865,20 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                   ,"--recursive"
                                                   ,"--level=$level" # alternatives: --level=inf
                                                   ,"--no-remove-listing" # leave .listing files for ftp
-                                                  ,"--page-requisites" # download all files to display .html
+                                                  ,"--page-requisites" # download all files as images to display .html
                                                   ,"--adjust-extension" # make sure .html or .css for such types of files
                                                   ,"--backup-converted" # When converting a file, back up the original version with a ‘.orig’ suffix. optimizes incremental runs.
                                                   ,"--tries=2"
                                                   ,"--waitretry=5"
-                                                  ,"--referer=$url" 
+                                                  ,"--referer=$url"
                                                   ,"--execute=robots=off" 
-                                                  ,"--user-agent='Mozilla/5.0 (Windows NT 6.3; rv:36.0) Gecko/20100101 Firefox/36.0'"
+                                                  ,"--user-agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:68.0) Gecko/20100101 Firefox/68.0'" # take latest ESR
                                                   ,"--quota=$maxBytes" 
                                                   ,"--limit-rate=$limitRateBytesPerSec"
                                                  #,"--wait=0.02"
-                                                  ,"--user='$us'"
-                                                  ,"--password='$pw'"
                                                  #,"--timestamping" 
                                                   ,$(switch($ignoreSslCheck){ ($true){"--no-check-certificate"} default{""}})
-                                                    # Otherwise: ERROR: cannot verify ...'s certificate, issued by 'CN=Let\'s Encrypt Authority X3,O=Let\'s Encrypt,C=US': Unable to locally verify the issuer's authority. To connect to ... insecurely, use `--no-check-certificate'.
+                                                    # Otherwise: ERROR: cannot verify ...'s certificate, issued by 'CN=...,C=US': Unable to locally verify the issuer's authority. To connect to ... insecurely, use `--no-check-certificate'.
                                                  #,"--convert-links"            # Convert non-relative links locally    deactivated because:  Both --no-clobber and --convert-links were specified, only --convert-links will be used.
                                                  #,"--force-html"               # When input is read from a file, force it to be treated as an HTML file. This enables you to retrieve relative links from existing HTML files on your local disk, by adding <base href="url"> to HTML, or using the ‘--base’ command-line option.
                                                  #,"--input-file=$fileslist"    # 
@@ -1899,25 +1902,29 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                       # ‘--no-clobber’ may not be specified at the same time as ‘--timestamping’.
                                                       # Note that when ‘--no-clobber’ is specified, files with the suffixes ‘.html’ or ‘.htm’ will be loaded from the local disk 
                                                       # and parsed as if they had been retrieved from the Web.
+                                                  ,"--no-hsts"
+                                                  ,"--no-host-directories"  # no dir $tardir\domainname
+                                                  ,"--local-encoding=utf8" # required if links contains utf8 
+                                                  ,"--user=$us" # we take this as last option because following pw
                                                   # more about logon forms: http://wget.addictivecode.org/FrequentlyAskedQuestions
                                                   # backup without file conversions: wget -mirror --page-requisites --directory-prefix=c:\wget_files\example2 ftp://username:password@ftp.yourdomain.com
                                                   # download:                        Wget                           --directory-prefix=c:\wget_files\example3 http://ftp.gnu.org/gnu/wget/wget-1.9.tar.gz
                                                   # download resume:                 Wget --continue                --directory-prefix=c:\wget_files\example3 http://ftp.gnu.org/gnu/wget/wget-1.9.tar.gz
+                                                  # is default: --force-directories
                                                 );
                                                 # maybe we should also: $url/sitemap.xml
                                                 DirCreate $tarDir;
                                                 [String] $stateBefore = FsEntryReportMeasureInfo $tarDir;
                                                 # alternative would be for wget: Invoke-WebRequest
                                                 [String] $wgetExe = ProcessGetCommandInEnvPathOrAltPaths "wget"; # ex: D:\Work\PortableProg\Tool\...
-                                                FileAppendLineWithTs $logf "$wgetExe $url $opt";
-                                                OutProgress "$wgetExe $url $opt";
-                                                OutProgress "Logfile: `"$logf`"";
-                                                & $wgetExe $url $opt "--append-output=$logf";
+                                                FileAppendLineWithTs $logf "& `"$wgetExe`" `"$url`" $opt --password=*** ";
+                                                OutProgress "  & `"$wgetExe`" `"$url`"";
+                                                & $wgetExe $url $opt "--password=$pw" "--append-output=$logf";
                                                 [Int32] $rc = ScriptGetAndClearLastRc; if( $rc -ne 0 ){
                                                   [String] $err = switch($rc){ 0 {"OK"} 1 {"Generic"} 2 {"CommandLineOption"} 3 {"FileIo"} 4 {"Network"} 5 {"SslVerification"} 6 {"Authentication"} 7 {"Protocol"} 8 {"ServerIssuedSomeResponse(ex:404NotFound)"} default {"Unknown(rc=$rc)"} };
-                                                  OutWarning "Warning: Ignored one or more occurrences of error category: $err. More see logfile=`"$logf`".";
+                                                  OutWarning "  Warning: Ignored one or more occurrences of error category: $err. More see logfile=`"$logf`".";
                                                 }
-                                                [String] $state = "TargetDir: $(FsEntryReportMeasureInfo "$tarDir") (BeforeStart: $stateBefore)";
+                                                [String] $state = "  TargetDir: $(FsEntryReportMeasureInfo "$tarDir") (BeforeStart: $stateBefore)";
                                                 FileAppendLineWithTs $logf $state;
                                                 OutProgress $state; }
 <# Script local variable: gitLogFile #>       [String] $script:gitLogFile = "$script:LogDir\Git.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
