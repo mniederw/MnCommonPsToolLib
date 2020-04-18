@@ -1904,7 +1904,7 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                       # and parsed as if they had been retrieved from the Web.
                                                   ,"--no-hsts"
                                                   ,"--no-host-directories"  # no dir $tardir\domainname
-                                                  ,"--local-encoding=utf8" # required if links contains utf8 
+                                                  ,"--local-encoding=UTF-8" # required if link urls contains utf8 which must be mapped to filesystem names (note: others as ISO-8859-1, windows-1251 do not work).
                                                   ,"--user=$us" # we take this as last option because following pw
                                                   # more about logon forms: http://wget.addictivecode.org/FrequentlyAskedQuestions
                                                   # backup without file conversions: wget -mirror --page-requisites --directory-prefix=c:\wget_files\example2 ftp://username:password@ftp.yourdomain.com
