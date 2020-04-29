@@ -48,7 +48,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $MnCommonPsToolLibVersion = "5.5"; # more see Releasenotes.txt
+[String] $MnCommonPsToolLibVersion = "5.6"; # more see Releasenotes.txt
 
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 
@@ -1463,6 +1463,7 @@ function MountPointRemove                     ( [String] $drive, [String] $mount
                                                   Remove-PSDrive -Name ($drive -replace ":","") -Force; # Force means no confirmation
                                                 } }                                                
 function MountPointCreate                     ( [String] $drive, [String] $mountPoint, [System.Management.Automation.PSCredential] $cred = $null, [Boolean] $errorAsWarning = $false, [Boolean] $noPreLogMsg = $false ){
+                                                # ex: MountPointCreate "S:" "\\localhost\Transfer" (CredentialCreate "user1" "mypw")
                                                 # $noPreLogMsg is usually true if mount points are called parallel when order of output strings is not sequentially
                                                 if( -not $drive.EndsWith(":") ){ throw [Exception] "Expected drive=`"$drive`" with trailing colon"; }
                                                 [String] $us = CredentialGetUsername $cred $true;
