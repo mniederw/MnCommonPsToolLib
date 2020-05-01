@@ -5,6 +5,7 @@ Major version changes will reflect breaking changes and minor identifies extensi
 Current version can be requested by: $MnCommonPsToolLibVersion
 
 
+2020-05-01  V5.7   Added StringArrayIsEqual.
 2020-04-25  V5.6   Doc.
 2020-04-17  V5.5   Improved NetDownloadSite for utf8. NetUrlUnescape.
 2020-04-14  V5.4   Improved git-pull.
@@ -12,6 +13,7 @@ Current version can be requested by: $MnCommonPsToolLibVersion
 2020-04-06  V5.2   Extended DirAssertExists, improve ShareCreate.
 2020-03-02  V5.1   ShareListAllByWmi changed caption to Description.
 2020-02-25  V5.0   Change and simplify ShareListAll, ShareCreate, ShareRemove, ShareListAll. Add ShareExists, ShareListAllByWmi, ShareRemoveByWmi, ShareCreateByWmi, ShareLocksList, ShareLocksClose.
+
 2020-02-18  V4.11  improve ConsoleSetGuiProperties, tf options
 2020-02-15  V4.10  add ToolGithubApiDownloadLatestReleaseDir, ToolUnzip, fix FsEntryMoveByPatternToDir.
 2020-02-13  V4.9   add HelpListOfAllExportedCommands, extend wget comment. improved ProcessRestartInElevatedAdminMode, MnCommonPsToolLibSelfUpdate, ToolPerformFileUpdateAndIsActualized.

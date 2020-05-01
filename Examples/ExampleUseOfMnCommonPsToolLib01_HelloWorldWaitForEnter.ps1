@@ -2,6 +2,6 @@
 Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 
 OutInfo "Hello world with request for pressing enter key before exit";
-StdInAskAndAssertExpectedAnswer;
+StdInAskAndAssertExpectedAnswer; # Are you sure (y/n)?
 OutProgress "Working";
-StdInReadLine "Press enter to exit.";
+StdInAskForEnter; # Press Enter to Exit

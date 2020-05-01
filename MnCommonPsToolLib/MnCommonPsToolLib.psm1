@@ -48,7 +48,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $MnCommonPsToolLibVersion = "5.6"; # more see Releasenotes.txt
+[String] $MnCommonPsToolLibVersion = "5.7"; # more see Releasenotes.txt
 
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 
@@ -179,23 +179,29 @@ function GlobalSetModeEnableAutoLoadingPref   ( [Boolean] $val = $true ){ $Globa
 function StringIsNullOrEmpty                  ( [String] $s ){ return [Boolean] [String]::IsNullOrEmpty($s); }
 function StringIsNotEmpty                     ( [String] $s ){ return [Boolean] (-not [String]::IsNullOrEmpty($s)); }
 function StringIsNullOrWhiteSpace             ( [String] $s ){ return [Boolean] (-not [String]::IsNullOrWhiteSpace($s)); }
-function StringLeft                           ( [String] $s, [Int32] $len ){ return [String] $s.Substring(0,(Int32Clip $len 0 $s.Length)); }
-function StringRight                          ( [String] $s, [Int32] $len ){ return [String] $s.Substring($s.Length-(Int32Clip $len 0 $s.Length)); }
-function StringRemoveRightNr                  ( [String] $s, [Int32] $len ){ return StringLeft $s ($s.Length-$len); }
-function StringSplitIntoLines                 ( [String] $s ){ return [String[]] (($s -replace "`r`n", "`n") -split "`n"); } # for empty string it returns an array with one item.
-function StringReplaceNewlines                ( [String] $s, [String] $repl = " " ){ return [String] ($s -replace "`r`n", "`n" -replace "`r", "" -replace "`n", $repl); }
-function StringArrayInsertIndent              ( [String[]] $lines, [Int32] $nrOfBlanks ){ if( $lines -eq $null ){ return [String[]] $null; } return [String[]] ($lines | %{ ((" "*$nrOfBlanks)+$_); }); }
-function StringArrayDistinct                  ( [String[]] $lines ){ return [String[]] ($lines | Select-Object -Unique); }
-function StringPadRight                       ( [String] $s, [Int32] $len, [Boolean] $doQuote = $false  ){ [String] $r = $s; if( $doQuote ){ $r = '"'+$r+'"'; } return [String] $r.PadRight($len); }
-function StringSplitToArray                   ( [String] $sepChars, [String] $s, [Boolean] $removeEmptyEntries = $true ){ return [String[]] (@()+$s.Split($sepChars,$(switch($removeEmptyEntries){($true){[System.StringSplitOptions]::RemoveEmptyEntries}default{[System.StringSplitOptions]::None}}))); }
-function StringArrayConcat                    ( [String[]] $lines, [String] $sep = [Environment]::NewLine ){ return [String] ($lines -join $sep); }
-function StringReplaceEmptyByTwoQuotes        ( [String] $str ){ return [String] $(switch((StringIsNullOrEmpty $str)){($true){"`"`""}default{$str}}); }
-function StringRemoveLeft                     ( [String] $str, [String] $strLeft , [Boolean] $ignoreCase = $true ){ [String] $s = StringLeft  $str $strLeft.Length; return [String] $(switch(($ignoreCase -and $s -eq $strLeft) -or $s -ceq $strLeft){ ($true){$str.Substring($strLeft.Length,$str.Length-$strLeft.Length)} default{$str} }); }
-function StringRemoveRight                    ( [String] $str, [String] $strRight, [Boolean] $ignoreCase = $true ){ [String] $s = StringRight $str $strRight.Length; return [String] $(switch(($ignoreCase -and $s -eq $strRight) -or $s -ceq $strRight){ ($true){StringRemoveRightNr $str $strRight.Length} default{$str} }); }
 function StringIsInt32                        ( [String] $s ){ [String] $tmp = ""; return [Int32]::TryParse($s,[ref]$tmp); }
 function StringIsInt64                        ( [String] $s ){ [String] $tmp = ""; return [Int64]::TryParse($s,[ref]$tmp); }
 function StringAsInt32                        ( [String] $s ){ if( ! (StringIsInt32 $s) ){ throw [Exception] "Is not an Int32: $s"; } return $s -as [Int32]; }
 function StringAsInt64                        ( [String] $s ){ if( ! (StringIsInt64 $s) ){ throw [Exception] "Is not an Int64: $s"; } return $s -as [Int64]; }
+function StringLeft                           ( [String] $s, [Int32] $len ){ return [String] $s.Substring(0,(Int32Clip $len 0 $s.Length)); }
+function StringRight                          ( [String] $s, [Int32] $len ){ return [String] $s.Substring($s.Length-(Int32Clip $len 0 $s.Length)); }
+function StringRemoveRightNr                  ( [String] $s, [Int32] $len ){ return StringLeft $s ($s.Length-$len); }
+function StringPadRight                       ( [String] $s, [Int32] $len, [Boolean] $doQuote = $false  ){ [String] $r = $s; if( $doQuote ){ $r = '"'+$r+'"'; } return [String] $r.PadRight($len); }
+function StringSplitIntoLines                 ( [String] $s ){ return [String[]] (($s -replace "`r`n", "`n") -split "`n"); } # for empty string it returns an array with one item.
+function StringReplaceNewlines                ( [String] $s, [String] $repl = " " ){ return [String] ($s -replace "`r`n", "`n" -replace "`r", "" -replace "`n", $repl); }
+function StringSplitToArray                   ( [String] $sepChars, [String] $s, [Boolean] $removeEmptyEntries = $true ){ return [String[]] (@()+$s.Split($sepChars,$(switch($removeEmptyEntries){($true){[System.StringSplitOptions]::RemoveEmptyEntries}default{[System.StringSplitOptions]::None}}))); }
+function StringReplaceEmptyByTwoQuotes        ( [String] $str ){ return [String] $(switch((StringIsNullOrEmpty $str)){($true){"`"`""}default{$str}}); }
+function StringRemoveLeft                     ( [String] $str, [String] $strLeft , [Boolean] $ignoreCase = $true ){ [String] $s = StringLeft  $str $strLeft.Length; return [String] $(switch(($ignoreCase -and $s -eq $strLeft) -or $s -ceq $strLeft){ ($true){$str.Substring($strLeft.Length,$str.Length-$strLeft.Length)} default{$str} }); }
+function StringRemoveRight                    ( [String] $str, [String] $strRight, [Boolean] $ignoreCase = $true ){ [String] $s = StringRight $str $strRight.Length; return [String] $(switch(($ignoreCase -and $s -eq $strRight) -or $s -ceq $strRight){ ($true){StringRemoveRightNr $str $strRight.Length} default{$str} }); }
+function StringArrayInsertIndent              ( [String[]] $lines, [Int32] $nrOfBlanks ){ if( $lines -eq $null ){ return [String[]] $null; } return [String[]] ($lines | %{ ((" "*$nrOfBlanks)+$_); }); }
+function StringArrayDistinct                  ( [String[]] $lines ){ return [String[]] ($lines | Select-Object -Unique); }
+function StringArrayConcat                    ( [String[]] $lines, [String] $sep = [Environment]::NewLine ){ return [String] ($lines -join $sep); }
+function StringArrayIsEqual                   ( [String[]] $a, [String[]] $b, [Boolean] $ignoreOrder = $false, [Boolean] $ignoreCase = $false ){
+                                                if( $a -eq $null ){ return [Boolean] ($b -eq $null -or $b.Count -eq 0); }
+                                                if( $b -eq $null ){ return [Boolean] ($a -eq $null -or $a.Count -eq 0); }
+                                                if( $a.Count -ne $b.Count ){ return [Boolean] $false; }
+                                                if( $ignoreOrder ){ [Object[]] $r = (Compare-Object -caseSensitive:(-not $ignoreCase) -ReferenceObject $a -DifferenceObject $b) + @(); return [Boolean] $r.Count -eq 0; }
+                                                for( [Int32] $i = 0; $i -lt $a.Count; $i++ ){ if( ($ignoreCase -and $a[$i] -ne $b[$i]) -or (-not $ignoreCase -and $a[$i] -cne $b[$i]) ){ return [Boolean] $false; } } return $true; }
 function StringFromException                  ( [Exception] $ex ){ return [String] "$($ex.GetType().Name): $($ex.Message -replace `"`r`n`",`" `") $($ex.Data|Where-Object{$_.Values -ne $null}|ForEach-Object{`"`r`n Data: [$($_.Values)]`"})`r`n StackTrace:`r`n$($ex.StackTrace)"; } # use this if $_.Exception.Message is not enough. note: .Data is never null.
 function StringCommandLineToArray             ( [String] $commandLine ){
                                                 # Care spaces or tabs separated args and doublequoted args which can contain double doublequotes for escaping single doublequotes.
@@ -3203,6 +3209,7 @@ function MnCommonPsToolLibSelfUpdate          ( [Boolean] $doWaitForEnterKeyIfFa
                                               }
 
 function MnLibCommonSelfTest(){ # perform some tests
+  Assert ( "$anyUnknownVar".Length -eq 0 -and '$anyUnknownVar'.Length -gt 0 ); # within single quotes parameters were not replaced.
   Assert ((2 + 3) -eq 5);
   Assert ([Math]::Min(-5,-9) -eq -9);
   Assert ("xyz".substring(1,0) -eq "");
@@ -3228,8 +3235,23 @@ function MnLibCommonSelfTest(){ # perform some tests
   Assert ((StringLeft          "abc" 5) -eq "abc" -and (StringLeft          "abc" 2) -eq "ab");
   Assert ((StringRight         "abc" 5) -eq "abc" -and (StringRight         "abc" 2) -eq "bc");
   Assert ((StringRemoveRightNr "abc" 5) -eq ""    -and (StringRemoveRightNr "abc" 1) -eq "ab");
+  Assert (( StringArrayIsEqual $null      @("a")                 ) -eq $false);
+  Assert (( StringArrayIsEqual $null      @("")                  ) -eq $false);
+  Assert (( StringArrayIsEqual @()        @("a")                 ) -eq $false);
+  Assert (( StringArrayIsEqual $null      @()                    ) -eq $true );
+  Assert (( StringArrayIsEqual @()        $null                  ) -eq $true );
+  Assert (( StringArrayIsEqual @()        @()                    ) -eq $true );
+  Assert (( StringArrayIsEqual @("")      @("")                  ) -eq $true );
+  Assert (( StringArrayIsEqual @("a")     @("a")                 ) -eq $true );
+  Assert (( StringArrayIsEqual @("a","b") @("a")                 ) -eq $false);
+  Assert (( StringArrayIsEqual @("a","b") @("a","b")             ) -eq $true );
+  Assert (( StringArrayIsEqual @("a","b") @("b","a")             ) -eq $false);
+  Assert (( StringArrayIsEqual @("a","b") @("a","B")             ) -eq $false);
+  Assert (( StringArrayIsEqual @("a","b") @("a","B") $false $true) -eq $true );
+  Assert (( StringArrayIsEqual @("a","b") @("b","a") $true       ) -eq $true );
+  Assert (( StringArrayIsEqual @("a","b") @("b","c") $true       ) -eq $false);
   OutSuccess "Ok";
-} # MnLibCommonSelfTest; # is deactivated because we know it works :-)
+} # MnLibCommonSelfTest; # currently not run because it needs some time and we know it works :-)
 
 # ----------------------------------------------------------------------------------------------------
 
