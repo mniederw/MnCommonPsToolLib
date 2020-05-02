@@ -1948,7 +1948,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                 #   [git pull] is the same as [git fetch] and then [git merge FETCH_HEAD]. [git pull -rebase] runs [git rebase] instead of [git merge].
                                                 # $urlAndBranch defines url and with sharp-char separated a branch which is used if you do not need the standard remote HEAD is pointing to, usually the master branch.
                                                 if( @("Clone","Fetch","Pull") -notcontains $cmd ){ throw [Exception] "Expected one of (Clone,Fetch,Pull) instead of: $cmd"; }
-                                                [String[]] $urlOpt = StringSplitToArray "#" $urlAndBranch;
+                                                [String[]] $urlOpt = @()+(StringSplitToArray "#" $urlAndBranch);
                                                 [String] $url = $urlOpt[0];
                                                 [String] $branch = ""; if( $urlOpt.Count -gt 1 ){ $branch = $urlOpt[1]; if( $branch -eq ""){ throw [Exception] "Missing branch in urlAndBranch=`"$urlAndBranch`". "; } }
                                                 if( $urlOpt.Count -gt 2 ){ throw [Exception] "Unknown third param in urlAndBranch=`"$urlAndBranch`". "; }
@@ -3066,7 +3066,7 @@ function ToolGithubApiListOrgRepos            ( [String] $org, [System.Managemen
 function ToolGithubApiAssertValidRepoUrl      ( [String] $repoUrl ){ # Example repoUrl="https://github.com/mniederw/MnCommonPsToolLib/"
                                                 [String] $githubUrl = "https://github.com/";
                                                 Assert $repoUrl.StartsWith($githubUrl) "Expected url begins with $githubUrl but got: $repoUrl";
-                                                [String[]] $a = StringSplitToArray "/" (StringRemoveLeft (StringRemoveRight $repoUrl "/") $githubUrl $false);
+                                                [String[]] $a = @()+(StringSplitToArray "/" (StringRemoveLeft (StringRemoveRight $repoUrl "/") $githubUrl $false));
                                                 Assert ($a.Count -eq 2 -and $a[0].Length -ge 2 -and $a[1].Length -ge 2) "Expected url contains user/reponame but got: $repoUrl"; }
 function ToolGithubApiDownloadLatestReleaseDir( [String] $repoUrl ){
                                                 # Creates a unique temp dir, downloads zip, return folder of extracted zip; You shoud remove dir after usage.
