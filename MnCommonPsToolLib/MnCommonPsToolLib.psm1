@@ -48,7 +48,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $MnCommonPsToolLibVersion = "5.7"; # more see Releasenotes.txt
+[String] $MnCommonPsToolLibVersion = "5.8"; # more see Releasenotes.txt
 
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 
@@ -1953,6 +1953,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                 [String] $branch = ""; if( $urlOpt.Count -gt 1 ){ $branch = $urlOpt[1]; if( $branch -eq ""){ throw [Exception] "Missing branch in urlAndBranch=`"$urlAndBranch`". "; } }
                                                 if( $urlOpt.Count -gt 2 ){ throw [Exception] "Unknown third param in urlAndBranch=`"$urlAndBranch`". "; }
                                                 [String] $dir = FsEntryGetAbsolutePath (GitBuildLocalDirFromUrl $tarRootDir $urlAndBranch);
+                                                GitAssertAutoCrLfIsDisabled;
                                                 try{
                                                   [Object] $usedTime = [System.Diagnostics.Stopwatch]::StartNew();
                                                   [String[]] $gitArgs = @(); 
@@ -2065,6 +2066,19 @@ function GitListCommitComments                ( [String] $tarDir, [String] $loca
                                                 }
                                                 GitGetLog ""          "$tarDir\$prefix$repoName.CommittedComments$fileExtension";
                                                 GitGetLog "--summary" "$tarDir\$prefix$repoName.CommittedChangedFiles$fileExtension"; }
+function GitAssertAutoCrLfIsDisabled          (){ # use this before using git
+                                                [String] $line = git config --list --global | Where-Object { $_ -like "core.autocrlf=false" };
+                                                if( $line -ne "" ){ OutVerbose "ok, git-global-autocrlf is defined as false."; return; }
+                                                $line = git config --list --global | Where-Object { $_ -like "core.autocrlf=*" };
+                                                if( $line -eq "" ){ OutVerbose "ok, git-global-autocrlf is undefined."; return; }
+                                                throw [Exception] "Git is globally configured to use auto crlf conversions, it is strongly recommended never use this because unexpected state and merge behaviours. Please change it by calling GitDisableAutoCrLf and then retry."; }
+function GitDisableAutoCrLf                   (){ # no output if nothing done.
+                                                [String] $line = git config --list --global | Where-Object { $_ -like "core.autocrlf=false" };
+                                                if( $line -ne "" ){ OutVerbose "ok, git-global-autocrlf is defined as false."; return; }
+                                                $line = git config --list --global | Where-Object { $_ -like "core.autocrlf=*" };
+                                                if( $line -eq "" ){ OutVerbose "ok, git-global-autocrlf is undefined."; return; }
+                                                OutProgress "Setting git-global-autocrlf to false because current value was: `"$line`"";
+                                                . git config --global core.autocrlf false; <# maybe later: git config --global --unset core.autocrlf #> }
 <# Type: SvnEnvInfo #>                        Add-Type -TypeDefinition "public struct SvnEnvInfo {public string Url; public string Path; public string RealmPattern; public string CachedAuthorizationFile; public string CachedAuthorizationUser; public string Revision; }";
                                                 # ex: Url="https://myhost/svn/Work"; Path="D:\Work"; RealmPattern="https://myhost:443"; 
                                                 # CachedAuthorizationFile="$env:APPDATA\Subversion\auth\svn.simple\25ff84926a354d51b4e93754a00064d6"; CachedAuthorizationUser="myuser"; Revision="1234"
