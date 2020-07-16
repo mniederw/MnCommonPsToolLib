@@ -2079,6 +2079,17 @@ function GitDisableAutoCrLf                   (){ # no output if nothing done.
                                                 if( $line -eq "" ){ OutVerbose "ok, git-global-autocrlf is undefined."; return; }
                                                 OutProgress "Setting git-global-autocrlf to false because current value was: `"$line`"";
                                                 . git config --global core.autocrlf false; <# maybe later: git config --global --unset core.autocrlf #> }
+function GitCloneOrPullUrls                   ( [String[]] $listOfRepoUrls, [String] $tarRootDirOfAllRepos, [Boolean] $errorAsWarning = $false, [Boolean] $onErrorContinueWithOthers = $false ){
+                                                [String[]] $errorLines = @();
+                                                $listOfRepoUrls | ForEach-Object {
+                                                  try{
+                                                    GitCloneOrFetchOrPull $tarRootDirOfAllRepos $_ $true $errorAsWarning;
+                                                  }catch{
+                                                    if( -not $onErrorContinueWithOthers ){ throw; }
+                                                    [String] $msg = $_.Exception.Message; OutError $msg; $errorLines += $msg;
+                                                  }
+                                                } 
+                                                if( $errorLines.Count ){ throw [Exception] (StringArrayConcat $errorLines); } }
 <# Type: SvnEnvInfo #>                        Add-Type -TypeDefinition "public struct SvnEnvInfo {public string Url; public string Path; public string RealmPattern; public string CachedAuthorizationFile; public string CachedAuthorizationUser; public string Revision; }";
                                                 # ex: Url="https://myhost/svn/Work"; Path="D:\Work"; RealmPattern="https://myhost:443"; 
                                                 # CachedAuthorizationFile="$env:APPDATA\Subversion\auth\svn.simple\25ff84926a354d51b4e93754a00064d6"; CachedAuthorizationUser="myuser"; Revision="1234"
