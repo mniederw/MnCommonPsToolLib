@@ -48,7 +48,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $MnCommonPsToolLibVersion = "5.10"; # more see Releasenotes.txt
+[String] $MnCommonPsToolLibVersion = "5.11"; # more see Releasenotes.txt
 
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 
@@ -1155,9 +1155,10 @@ function FsEntryFindInParents                 ( [String] $fromFsEntry, [String] 
                                                 [String] $d = $fromFsEntry;
                                                 while( $d -ne "" ){
                                                   [String] $p = FsEntryGetParentDir $d;
-                                                  if( DirExists "$p\$searchFsEntryName" ){ return "$p\$searchFsEntryName"; }
+                                                  [String] $e = "$p\$searchFsEntryName";
+                                                  if( FsEntryExists $e ){ return $e; }
                                                   $d = $p;
-                                                } return "";
+                                                } return ""; # not found
                                                 }
 function DriveFreeSpace                       ( [String] $drive ){ 
                                                 return [Int64] (Get-PSDrive $drive | Select-Object -ExpandProperty Free); }
@@ -2440,6 +2441,14 @@ function TfsExe                               (){ # return tfs executable
                                                 # for future use: tf.exe merge /baseless /recursive /version:C234~C239 branchFrom branchTo
                                                 # for future use: tf.exe workfold /workspace:ws /cloak 
 <# Script local variable: tfsLogFile #>       [String] $script:tfsLogFile = "$script:LogDir\Tfs.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
+function TfsHelpWorkspaceInfo                 (){
+                                                OutProgress "Help Workspace Info - Command Line Examples";
+                                                OutProgress "- Current Tool Path: `"$(TfsExe)`"";
+                                                OutProgress "- Help:                                   & tf.exe vc help";
+                                                OutProgress "- Help workspace:                         & tf.exe vc help workspace";
+                                                OutProgress "- Delete a remote (and local) workspace:  & tf.exe vc workspace  /delete <workspaceName>[;<domain\user>] [/collection:<url>]";
+                                                OutProgress "- Delete a local cached workspace:        & tf.exe vc workspaces /remove:<workspaceName>[;<domain\user>] /collection:(*|<url>)";
+                                                }
 function TfsShowAllWorkspaces                 ( [String] $url, [Boolean] $showPaths = $false, [Boolean] $currentMachineOnly = $false ){
                                                 # from all users on all machines; normal output is a table but if showPaths is true then it outputs 12 lines per entry
                                                 # ex: url=https://devops.mydomain.ch/MyTfsRoot
@@ -2451,16 +2460,12 @@ function TfsShowAllWorkspaces                 ( [String] $url, [Boolean] $showPa
                                                 $out | ForEach-Object { $_ -replace "--------------------------------------------------", "-" } | 
                                                        ForEach-Object { $_ -replace "==================================================", "=" } | ForEach-Object { OutProgress $_ };
                                                 # Example1:
-                                                #   Für die Option "collection" ist ein Wert erforderlich.
-                                                # Example2:
                                                 #   Sammlung: https://devops.mydomain.ch/MyTfsRoot
                                                 #   Arbeitsbereich Besitzer                                     Computer   Kommentar
                                                 #   -------------- -------------------------------------------- ---------- -----------
                                                 #   MYCOMPUTER     John Doe                                     MYCOMPUTER
                                                 #   ws_1_2         Project Collection Build Service (MyTfsRoot) DEVOPSSV
-                                                # Example3:
-                                                #   Auf dem Computer "MYCOMPUTER" ist kein entsprechender Arbeitsbereich "*;*" f³r den Azure DevOps Server-Computer "https://devops.mydomain.ch/MyTfsRoot" vorhanden.
-                                                # Example4:
+                                                # Example2 (details):
                                                 #    ===================================================
                                                 #    Arbeitsbereich : MYCOMPUTER
                                                 #    Besitzer       : John Doe
@@ -2475,6 +2480,15 @@ function TfsShowAllWorkspaces                 ( [String] $url, [Boolean] $showPa
                                                 #     $/: D:\Work
                                                 #
                                                 #    ===================================================
+                                                # Example3:
+                                                #   Für die Option "collection" ist ein Wert erforderlich.
+                                                # Example4:
+                                                #   Auf dem Computer "MYCOMPUTER" ist kein entsprechender Arbeitsbereich "*;*" f³r den Azure DevOps Server-Computer "https://devops.mydomain.ch/MyTfsRoot" vorhanden.
+                                                # Example5:
+                                                #   TF400324: Team Foundation Services sind auf Server "https://devops.mydomain.ch/MyTfsRoot" nicht verfügbar.
+                                                #   Technische Informationen (für Administrator):  Die Verbindung mit dem Remoteserver kann nicht hergestellt werden.
+                                                #   Ein Verbindungsversuch ist fehlgeschlagen, da die Gegenstelle nach einer bestimmten Zeitspanne nicht richtig reagiert hat, 
+                                                #     oder die hergestellte Verbindung war fehlerhaft, da der verbundene Host nicht reagiert hat 123.123.123.123:8080
                                                 # for future use:
                                                 #   https://docs.microsoft.com/en-us/azure/devops/repos/tfvc/workspaces-command?view=azure-devops
                                                 #   https://docs.microsoft.com/en-us/azure/devops/repos/tfvc/decide-between-using-local-server-workspace?view=azure-devops
@@ -2499,8 +2513,8 @@ function TfsShowLocalCachedWorkspaces         (){ # works without access an url
 function TfsHasLocalMachWorkspace             ( [String] $url ){ # we support only workspace name identic to computername
                                                 [string] $wsName = $env:COMPUTERNAME;
                                                 [string] $mach = $env:COMPUTERNAME;
-                                                OutProgress "Check if local tfs workspaces with name of computername exists";
-                                                OutProgress           "& `"$(TfsExe)`" vc workspaces /noprompt /format:Brief /owner:* /computer:$mach /collection:$url";
+                                                OutProgress "Check if local tfs workspaces with name identic to computername exists";
+                                                OutProgress           "  & `"$(TfsExe)`" vc workspaces /noprompt /format:Brief /owner:* /computer:$mach /collection:$url";
                                                 [String[]] $out = @()+(&    (TfsExe)   vc workspaces /noprompt /format:Brief /owner:* /computer:$mach /collection:$url 2>&1 | 
                                                   Select-Object -Skip 2 | Where-Object { $_.StartsWith("$wsName ") }); ScriptResetRc;
                                                 $out | ForEach-Object { $_ -replace "--------------------------------------------------", "-" } | ForEach-Object { OutProgress $_ };
@@ -2508,8 +2522,8 @@ function TfsHasLocalMachWorkspace             ( [String] $url ){ # we support on
 function ToolTfsInitLocalWorkspaceIfNotDone   ( [String] $url, [String] $rootDir ){
                                                 # also creates the directory ".\$tf\".
                                                 [string] $wsName = $env:COMPUTERNAME;
-                                                OutInfo "Init local tfs workspaces with name of computername if not yet done of $url to `"$rootDir`"";
-                                                if( TfsHasLocalMachWorkspace $url ){ OutProgress "Nothing done because has already workspace of computername."; return; }
+                                                OutProgress "Init local tfs workspaces with name identic to computername if not yet done of $url to `"$rootDir`"";
+                                                if( TfsHasLocalMachWorkspace $url ){ OutProgress "Init-Workspace not nessessary because has already workspace identic to computername."; return; }
                                                 [String] $cd = (Get-Location); Set-Location $rootDir; try{
                                                     OutProgress    "& `"$(TfsExe)`" vc workspace /new /noprompt /location:local /collection:$url $wsName";
                                                     [String] $out = &    (TfsExe)   vc workspace /new /noprompt /location:local /collection:$url $wsName; AssertRcIsOk $out;
@@ -2517,7 +2531,7 @@ function ToolTfsInitLocalWorkspaceIfNotDone   ( [String] $url, [String] $rootDir
                                                 }finally{ Set-Location $cd; } }
 function TfsDeleteLocalMachWorkspace          ( [String] $url ){ # we support only workspace name identic to computername
                                                 OutInfo "Delete local tfs workspace with name of current computer";
-                                                if( -not (TfsHasLocalMachWorkspace $url) ){ OutProgress "Nothing done because has no workspace of computername."; return; }
+                                                if( -not (TfsHasLocalMachWorkspace $url) ){ OutProgress "Delete-Workspace not nessessary because has no workspace of name identic to computername."; return; }
                                                 [string] $wsName = $env:COMPUTERNAME;
                                                 # also deletes the directory ".\$tf\".
                                                 OutProgress    "& `"$(TfsExe)`" vc workspace /noprompt /delete $wsName /collection:$url";
@@ -2534,9 +2548,11 @@ function TfsDeleteLocalMachWorkspace          ( [String] $url ){ # we support on
 function TfsGetNewestNoOverwrite              ( [String] $wsdir, [String] $tfsPath, [String] $url ){ # ex: TfsGetNewestNoOverwrite C:\MyWorkspace\Src $/Src https://devops.mydomain.ch/MyTfsRoot
                                                 Assert $tfsPath.StartsWith("$/") "expected tfsPath=`"$tfsPath`" begins with $/.";
                                                 AssertNotEmpty $wsdir "wsdir";
-                                                FileAppendLineWithTs $tfsLogFile "TfsGetNewestNoOverwrite(`"$wsdir`",`"$tfsPath`")";
+                                                $wsDir = FsEntryGetAbsolutePath $wsDir;
+                                                OutProgress "TfsGetNewestNoOverwrite `"$wsdir`" `"$tfsPath`" $url";
+                                                FileAppendLineWithTs $tfsLogFile "TfsGetNewestNoOverwrite(`"$wsdir`",`"$tfsPath`",$url )";
                                                 if( (FsEntryFindInParents $wsdir "`$tf") -eq "" ){
-                                                  OutProgress "Not found dir `"`$tf`", so calling init workspace.";
+                                                  OutProgress "Not found dir `"`$tf`" in parents of `"$wsdir`", so calling init workspace.";
                                                   ToolTfsInitLocalWorkspaceIfNotDone $url (FsEntryGetParentDir $wsdir);
                                                 }
                                                 if( FileNotExists $wsdir ){ DirCreate $wsdir; }
