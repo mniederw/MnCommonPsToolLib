@@ -4,6 +4,7 @@
 Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
 Current version can be requested by: $MnCommonPsToolLibVersion
 
+2020-08-09  V5.13  Added GitShowBranch, GitShowChanges. Fix ProcessStart.
 2020-07-30  V5.12  Doc.
 2020-07-28  V5.11  Improve tfs functions.
 2020-07-16  V5.10  Deprecate FsEntryMakeAbsolutePath. extend tfs-path. added FsEntryFindInParents, StringRemoveOptEnclosingDblQuotes, Tfs-functions.

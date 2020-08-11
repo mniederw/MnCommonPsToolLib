@@ -48,7 +48,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $MnCommonPsToolLibVersion = "5.12"; # more see Releasenotes.txt
+[String] $MnCommonPsToolLibVersion = "5.13"; # more see Releasenotes.txt
 
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 
@@ -270,7 +270,9 @@ function ConsoleSetGuiProperties              (){ # set standard sizes which mak
                                                 $w = (get-host).ui.rawui; # refresh values, maybe meanwhile windows was resized
                                                 [Object] $buf = $w.buffersize; 
                                                 $buf.height = 9999; 
-                                                $buf.width = [math]::max(300,[System.Console]::WindowWidth);
+                                                if( ((get-host).ui.rawui).WindowSize -ne $null ){
+                                                  $buf.width = [math]::max(300,[System.Console]::WindowWidth); # on ise calling WindowWidth would throw: System.IO.IOException: Das Handle ist ungültig.
+                                                }
                                                 try{
                                                   $w.buffersize = $buf;
                                                 }catch{ # seldom we got: PSArgumentOutOfRangeException: Cannot set the buffer size because the size specified is too large or too small.
@@ -451,6 +453,7 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 # Return output as string. If stderr is not empty then it throws its text. 
                                                 # But if ErrorActionPreference is Continue or $careStdErrAsOut is true then stderr is simply appended to output.
                                                 # If it fails with an error then it will OutProgress the non empty lines of output before throwing.
+                                                # You can use StringSplitIntoLines on output to get lines.
                                                 AssertRcIsOk;
                                                 [String] $traceInfo = "`"$cmd`""; $cmdArgs | Where-Object { $_ -ne $null } | ForEach-Object{ $traceInfo += " `"$_`""; };
                                                 OutProgress $traceInfo; 
@@ -477,7 +480,7 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 $pr.WaitForExit();
                                                 Unregister-Event -SourceIdentifier $eventStdOut.Name; $eventStdOut.Dispose();
                                                 Unregister-Event -SourceIdentifier $eventStdErr.Name; $eventStdErr.Dispose();
-                                                [String[]] $out = $bufStdOut.ToString();
+                                                [String] $out = $bufStdOut.ToString();
                                                 [String] $err = $bufStdErr.ToString().Trim();
                                                 [Boolean] $hasStdErrToThrow = $err -ne ""; if( $careStdErrAsOut -or $Global:ErrorActionPreference -eq "Continue" ){ $hasStdErrToThrow = $false; }
                                                 if( $Global:ErrorActionPreference -ne "Continue" -and ($pr.ExitCode -ne 0 -or $hasStdErrToThrow) ){
@@ -486,7 +489,7 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 }
                                                 if( $err -ne "" ){ $out += $err; }
                                                 $pr.Dispose();
-                                                return [String[]] $out; }
+                                                return [String] $out; }
 function ProcessEnvVarGet                     ( [String] $name, [System.EnvironmentVariableTarget] $scope = [System.EnvironmentVariableTarget]::Process ){ return [String] [Environment]::GetEnvironmentVariable($name,$scope); }
 function ProcessEnvVarSet                     ( [String] $name, [String] $val, [System.EnvironmentVariableTarget] $scope = [System.EnvironmentVariableTarget]::Process ){ OutProgress "SetEnvironmentVariable $name=`"$val`" scope=$scope"; [Environment]::SetEnvironmentVariable($name,$val,$scope); }
 function JobStart                             ( [ScriptBlock] $scr, [Object[]] $scrArgs = $null, [String] $name = "Job" ){ # Return job object of type PSRemotingJob, the returned object of the script block can later be requested.
@@ -1162,7 +1165,7 @@ function FsEntryFindInParents                 ( [String] $fromFsEntry, [String] 
                                                 }
 function DriveFreeSpace                       ( [String] $drive ){ 
                                                 return [Int64] (Get-PSDrive $drive | Select-Object -ExpandProperty Free); }
-function DirExists                            ( [String] $dir ){ 
+function DirExists                            ( [String] $dir ){
                                                 try{ return [Boolean] (Test-Path -PathType Container -LiteralPath $dir); }catch{ throw [Exception] "$(ScriptGetCurrentFunc)($dir) failed because $($_.Exception.Message)"; } }
 function DirAssertExists                      ( [String] $dir, [String] $text = "Assertion" ){
                                                 if( -not (DirExists $dir) ){ throw [Exception] "$text failed because dir not exists: `"$dir`"."; } }
@@ -1946,24 +1949,31 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                 FileAppendLineWithTs $logf $state;
                                                 OutProgress $state; }
 <# Script local variable: gitLogFile #>       [String] $script:gitLogFile = "$script:LogDir\Git.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
-function GitBuildLocalDirFromUrl              ( [String] $tarRootDir, [String] $urlAndBranch ){
-                                                # Note for branches: Our standard is to expect .../reponame#branchname in url and map this to local dir ...\reponame#branchname 
-                                                # ex: GitBuildLocalDirFromUrl(".\gitdir","http://myhost/mydir1/dir2") == "C:\gitdir\mydir1\dir2";
-                                                return [String] (FsEntryGetAbsolutePath (Join-Path $tarRootDir (([System.Uri]$urlAndBranch).AbsolutePath+([System.Uri]$urlAndBranch).Fragment).Replace("/","\"))); }
-function GitCmd                               ( [String] $cmd, [String] $tarRootDir, [String] $urlAndBranch, [Boolean] $errorAsWarning = $false ){
-                                                # ex: GitCmd Clone "C:\WorkGit"          "https://github.com/mniederw/MnCommonPsToolLib"
-                                                # ex: GitCmd Clone "C:\WorkGit\Branches" "https://github.com/mniederw/MnCommonPsToolLib#V1.0"
-                                                # $cmd == "Clone": target dir must not exist. Branch can be optionally specified.
-                                                # $cmd == "Fetch": target dir must exist. Branch can be optionally specified.
-                                                # $cmd == "Pull" : target dir must exist. Branch can be optionally specified.
-                                                #   [git pull] is the same as [git fetch] and then [git merge FETCH_HEAD]. [git pull -rebase] runs [git rebase] instead of [git merge].
-                                                # $urlAndBranch defines url and with sharp-char separated a branch which is used if you do not need the standard remote HEAD is pointing to, usually the master branch.
+function GitBuildLocalDirFromUrl              ( [String] $tarRootDir, [String] $url ){
+                                                # Maps a root dir and an url to a target repo dir by containing all url fragments below the hostname.
+                                                # ex: (GitBuildLocalDirFromUrl "C:\WorkGit\" "https://github.com/mniederw/MnCommonPsToolLib")          == "C:\WorkGit\mniederw\MnCommonPsToolLib";
+                                                # ex: (GitBuildLocalDirFromUrl "C:\WorkGit\" "https://github.com/mniederw/MnCommonPsToolLib#MyBranch") == "C:\WorkGit\mniederw\MnCommonPsToolLib#MyBranch";
+                                                return [String] (FsEntryGetAbsolutePath (Join-Path $tarRootDir (([System.Uri]$url).AbsolutePath+([System.Uri]$url).Fragment).Replace("/","\"))); }
+function GitCmd                               ( [String] $cmd, [String] $tarRootDir, [String] $urlAndOptionalBranch, [Boolean] $errorAsWarning = $false ){
+                                                # For commands:
+                                                #   "Clone": Creates a full local copy of specified repo. Target dir must not exist.
+                                                #            Branch can be optionally specified, in that case it also will switch to this branch.
+                                                #            Default branch name is where the standard remote HEAD is pointing to, usually "master".
+                                                #   "Fetch": Get all changes from specified repo to local repo but without touching current working files.
+                                                #            Target dir must exist. Branch can be optionally specified but no switching will be done.
+                                                #   "Pull" : As Fetch but also integrates current branch into current working files.
+                                                #            Target dir must exist. Branch can be optionally specified but no switching will be done.
+                                                # For paths see GitBuildLocalDirFromUrl.
+                                                # $urlAndOptionalBranch defines url optionally with a sharp-char separated branch name 
+                                                #   which is used for local dir and for clone command to switch to this branch.
+                                                # ex: GitCmd Clone "C:\WorkGit" "https://github.com/mniederw/MnCommonPsToolLib"
+                                                # ex: GitCmd Clone "C:\WorkGit" "https://github.com/mniederw/MnCommonPsToolLib#MyBranch"
                                                 if( @("Clone","Fetch","Pull") -notcontains $cmd ){ throw [Exception] "Expected one of (Clone,Fetch,Pull) instead of: $cmd"; }
-                                                [String[]] $urlOpt = @()+(StringSplitToArray "#" $urlAndBranch);
+                                                [String[]] $urlOpt = @()+(StringSplitToArray "#" $urlAndOptionalBranch);
                                                 [String] $url = $urlOpt[0];
-                                                [String] $branch = ""; if( $urlOpt.Count -gt 1 ){ $branch = $urlOpt[1]; AssertNotEmpty $branch "branch in urlAndBranch=`"$urlAndBranch`". "; }
-                                                if( $urlOpt.Count -gt 2 ){ throw [Exception] "Unknown third param in urlAndBranch=`"$urlAndBranch`". "; }
-                                                [String] $dir = FsEntryGetAbsolutePath (GitBuildLocalDirFromUrl $tarRootDir $urlAndBranch);
+                                                [String] $branch = ""; if( $urlOpt.Count -gt 1 ){ $branch = $urlOpt[1]; AssertNotEmpty $branch "branch in urlAndBranch=`"$urlAndOptionalBranch`". "; }
+                                                if( $urlOpt.Count -gt 2 ){ throw [Exception] "Unknown third param in urlAndBranch=`"$urlAndOptionalBranch`". "; }
+                                                [String] $dir = (GitBuildLocalDirFromUrl $tarRootDir $urlAndOptionalBranch);
                                                 GitAssertAutoCrLfIsDisabled;
                                                 try{
                                                   [Object] $usedTime = [System.Diagnostics.Stopwatch]::StartNew();
@@ -1983,7 +1993,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                     if( $branch -ne "" ){ $gitArgs += @( $branch ); }
                                                   }else{ throw [Exception] "Unknown git cmd=`"$cmd`""; }
                                                   # ex: "git" "-C" "C:\Temp\mniederw\myrepo" "--git-dir=.git" "pull" "--quiet" "--no-stat" "https://github.com/mniederw/myrepo"
-                                                  FileAppendLineWithTs $gitLogFile "GitCmd(`"$tarRootDir`",$urlAndBranch) git $gitArgs";
+                                                  FileAppendLineWithTs $gitLogFile "GitCmd(`"$tarRootDir`",$urlAndOptionalBranch) git $gitArgs";
                                                   [String] $out = ProcessStart "git" $gitArgs $true; # care stderr as stdout
                                                   # Skip known unused strings which are written to stderr as:
                                                   # - "Checking out files:  47% (219/463)" or "Checking out files: 100% (463/463), done."
@@ -2028,19 +2038,29 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   if( -not $errorAsWarning ){ throw [Exception] $msg; }
                                                   OutWarning $msg;
                                                 } }
-function GitCloneOrFetchOrPull                ( [String] $tarRootDir, [String] $urlAndBranch, [Boolean] $usePullNotFetch = $false, [Boolean] $errorAsWarning = $false ){
+function GitShowBranch                        ( [String] $repoDir ){
+                                                # return current branch (example: "master").
+                                                [String] $out = ProcessStart "git" @( "-C", $repoDir, "--git-dir=.git", "branch");
+                                                Assert ($out.StartsWith("* ")) "expected result of git branch command begins with `"* `" but got `"$out`"";
+                                                return [String] (StringRemoveLeft $out "* ").Trim(); }
+function GitShowChanges                       ( [String] $repoDir ){
+                                                # return changed, deleted and new files or dirs. Per entry one line prefixed with a change code.
+                                                [String] $out = ProcessStart "git" @( "-C", $repoDir, "--git-dir=.git", "status", "--short");
+                                                [String[]] $res = @()+(StringSplitIntoLines $out | Where-Object{ -not [String]::IsNullOrWhiteSpace($_); });
+                                                return [String[]] $res; }
+function GitCloneOrFetchOrPull                ( [String] $tarRootDir, [String] $urlAndOptionalBranch, [Boolean] $usePullNotFetch = $false, [Boolean] $errorAsWarning = $false ){
                                                 # Extracts path of url below host as relative dir, uses this path below target root dir to create or update git; 
                                                 # ex: GitCloneOrFetchOrPull "C:\WorkGit"          "https://github.com/mniederw/MnCommonPsToolLib"
                                                 # ex: GitCloneOrFetchOrPull "C:\WorkGit\Branches" "https://github.com/mniederw/MnCommonPsToolLib#V1.0"
-                                                [String] $tarDir = (GitBuildLocalDirFromUrl $tarRootDir $urlAndBranch);
+                                                [String] $tarDir = (GitBuildLocalDirFromUrl $tarRootDir $urlAndOptionalBranch);
                                                 if( (DirExists $tarDir) ){
                                                   if( $usePullNotFetch ){
-                                                    GitCmd "Pull" $tarRootDir $urlAndBranch $errorAsWarning;
+                                                    GitCmd "Pull" $tarRootDir $urlAndOptionalBranch $errorAsWarning;
                                                   }else{
-                                                    GitCmd "Fetch" $tarRootDir $urlAndBranch $errorAsWarning;
+                                                    GitCmd "Fetch" $tarRootDir $urlAndOptionalBranch $errorAsWarning;
                                                   }
                                                 }else{
-                                                  GitCmd "Clone" $tarRootDir $urlAndBranch $errorAsWarning;
+                                                  GitCmd "Clone" $tarRootDir $urlAndOptionalBranch $errorAsWarning;
                                                 } }
 function GitCloneOrFetchIgnoreError           ( [String] $tarRootDir, [String] $url ){ GitCloneOrFetchOrPull $tarRootDir $url $false $true; }
 function GitCloneOrPullIgnoreError            ( [String] $tarRootDir, [String] $url ){ GitCloneOrFetchOrPull $tarRootDir $url $true  $true; }
@@ -2489,9 +2509,10 @@ function TfsShowAllWorkspaces                 ( [String] $url, [Boolean] $showPa
                                                 #   Technische Informationen (für Administrator):  Die Verbindung mit dem Remoteserver kann nicht hergestellt werden.
                                                 #   Ein Verbindungsversuch ist fehlgeschlagen, da die Gegenstelle nach einer bestimmten Zeitspanne nicht richtig reagiert hat, 
                                                 #     oder die hergestellte Verbindung war fehlerhaft, da der verbundene Host nicht reagiert hat 123.123.123.123:8080
-                                                # Manual see: https://docs.microsoft.com/en-us/azure/devops/repos/tfvc/workspaces-command?view=azure-devops
-                                                # for future use: https://docs.microsoft.com/en-us/azure/devops/repos/tfvc/decide-between-using-local-server-workspace?view=azure-devops
-                                                # for future use: https://docs.microsoft.com/en-us/azure/devops/repos/tfvc/workfold-command?view=azure-devops
+                                                # for future use:
+                                                #   https://docs.microsoft.com/en-us/azure/devops/repos/tfvc/workspaces-command?view=azure-devops
+                                                #   https://docs.microsoft.com/en-us/azure/devops/repos/tfvc/decide-between-using-local-server-workspace?view=azure-devops
+                                                #   https://docs.microsoft.com/en-us/azure/devops/repos/tfvc/workfold-command?view=azure-devops
                                                 }
 function TfsShowLocalCachedWorkspaces         (){ # works without access an url
                                                 OutProgress "Show local cached tfs workspaces";
