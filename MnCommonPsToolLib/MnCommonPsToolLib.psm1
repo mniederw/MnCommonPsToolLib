@@ -48,7 +48,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $MnCommonPsToolLibVersion = "5.13"; # more see Releasenotes.txt
+[String] $MnCommonPsToolLibVersion = "5.19"; # more see Releasenotes.txt
 
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 
@@ -110,7 +110,7 @@ Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; pu
 # Statement extensions
 function ForEachParallel {
   # Based on https://powertoe.wordpress.com/2012/05/03/foreach-parallel/  
-  # ex: (0..20) | ForEachParallel { echo "Nr: $_"; Start-Sleep 1; }; (0..5) | ForEachParallel -MaxThreads 2 { echo "Nr: $_"; Start-Sleep 1; }
+  # ex: (0..20) | ForEachParallel { Write-Output "Nr: $_"; Start-Sleep -Seconds 1; }; (0..5) | ForEachParallel -MaxThreads 2 { Write-Output "Nr: $_"; Start-Sleep -Seconds 1; }
   param( [Parameter(Mandatory=$true,position=0)]              [System.Management.Automation.ScriptBlock] $ScriptBlock,
          [Parameter(Mandatory=$true,ValueFromPipeline=$true)] [PSObject]                                 $InputObject,
          [Parameter(Mandatory=$false)]                        [Int32]                                    $MaxThreads=8 )
@@ -356,7 +356,7 @@ function AssertRcIsOk                         ( [String[]] $linesToOutProgress =
                                                   [String] $msg = "Last operation failed [rc=$rc]. "; 
                                                   if( $useLinesAsExcMessage ){ $msg = $(switch($rc -eq 1 -and $out -ne ""){($true){""}default{$msg}}) + ([String]$linesToOutProgress).Trim(); }
                                                   try{ OutProgress "Dump of logfile=$($logFileToOutProgressIfFailed):"; 
-                                                    FileReadContentAsLines $logFileToOutProgressIfFailed $encodingIfNoBom | ForEach-Object { OutProgress "  $_"; } }catch{}                                               
+                                                    FileReadContentAsLines $logFileToOutProgressIfFailed $encodingIfNoBom | ForEach-Object{ OutProgress "  $_"; } }catch{}                                               
                                                   throw [Exception] $msg; } }
 function ScriptImportModuleIfNotDone          ( [String] $moduleName ){ if( -not (Get-Module $moduleName) ){ OutProgress "Import module $moduleName (can take some seconds on first call)"; Import-Module -NoClobber $moduleName -DisableNameChecking; } }
 function ScriptGetCurrentFunc                 (){ return [String] ((Get-Variable MyInvocation -Scope 1).Value.MyCommand.Name); }
@@ -442,8 +442,8 @@ function ProcessIsRunning                     ( [String] $processName ){ return 
 function ProcessKill                          ( [String] $processName ){ # kill all with the specified name, note if processes are not from owner then it requires to previously call ProcessRestartInElevatedAdminMode
                                                 [System.Diagnostics.Process[]] $p = Get-Process ($processName -replace ".exe","") -ErrorAction SilentlyContinue; 
                                                 if( $p -ne $null ){ OutProgress "ProcessKill $processName"; $p.Kill(); } }
-function ProcessSleepSec                      ( [Int32] $sec ){ Start-Sleep -s $sec; }
-function ProcessListInstalledAppx             (){ return [String[]] (Get-AppxPackage | Select-Object PackageFullName | Sort PackageFullName); }
+function ProcessSleepSec                      ( [Int32] $sec ){ Start-Sleep -Seconds $sec; }
+function ProcessListInstalledAppx             (){ return [String[]] (Get-AppxPackage | Select-Object PackageFullName | Sort-Object PackageFullName); }
 function ProcessGetCommandInEnvPathOrAltPaths ( [String] $commandNameOptionalWithExtension, [String[]] $alternativePaths = @(), [String] $downloadHintMsg = ""){
                                                 [System.Management.Automation.CommandInfo] $cmd = Get-Command -CommandType Application -Name $commandNameOptionalWithExtension -ErrorAction SilentlyContinue | Select-Object -First 1;
                                                 if( $cmd -ne $null ){ return [String] $cmd.Path; }
@@ -455,7 +455,7 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 # If it fails with an error then it will OutProgress the non empty lines of output before throwing.
                                                 # You can use StringSplitIntoLines on output to get lines.
                                                 AssertRcIsOk;
-                                                [String] $traceInfo = "`"$cmd`""; $cmdArgs | Where-Object { $_ -ne $null } | ForEach-Object{ $traceInfo += " `"$_`""; };
+                                                [String] $traceInfo = "`"$cmd`""; $cmdArgs | Where-Object{ $_ -ne $null } | ForEach-Object{ $traceInfo += " `"$_`""; };
                                                 OutProgress $traceInfo; 
                                                 # We use an implementation which stores stdout and stderr internally to variables and not temporary files.
                                                 $prInfo = New-Object System.Diagnostics.ProcessStartInfo; 
@@ -512,7 +512,7 @@ function OsIsWin7OrHigher                     (){ return [Boolean] ([Environment
 function OsIs64BitOs                          (){ return [Boolean] (Get-WmiObject -Class Win32_OperatingSystem -ComputerName $ComputerName -ea 0).OSArchitecture -eq "64-Bit"; }
 function OsInfoMainboardPhysicalMemorySum     (){ return [Int64] (Get-WMIObject -class Win32_PhysicalMemory |Measure-Object -Property capacity -Sum).Sum; }
 function OsWindowsFeatureGetInstalledNames    (){ # Requires windows-server-os or at least Win10Prof with installed RSAT https://www.microsoft.com/en-au/download/details.aspx?id=45520
-                                                  Import-Module ServerManager; return [String[]] (Get-WindowsFeature | Where-Object { $_.InstallState -eq "Installed" } | Foreach-Object { $_.Name }); } # states: Installed, Available, Removed.
+                                                  Import-Module ServerManager; return [String[]] (Get-WindowsFeature | Where-Object{ $_.InstallState -eq "Installed" } | ForEach-Object{ $_.Name }); } # states: Installed, Available, Removed.
 function OsWindowsFeatureDoInstall            ( [String] $name ){ # ex: Web-Server, Web-Mgmt-Console, Web-Scripting-Tools, Web-Basic-Auth, Web-Windows-Auth, NET-FRAMEWORK-45-Core, NET-FRAMEWORK-45-ASPNET, Web-HTTP-Logging, Web-NET-Ext45, Web-ASP-Net45, Telnet-Server, Telnet-Client.
                                                 Import-Module ServerManager; # Used for Install-WindowsFeature; Requires at least Win10Prof: RSAT https://www.microsoft.com/en-au/download/details.aspx?id=45520
                                                 OutProgress "Install-WindowsFeature -name $name -IncludeManagementTools";
@@ -548,7 +548,23 @@ function PrivFsRuleCreate                     ( [System.Security.Principal.Ident
 function PrivFsRuleCreateFullControl          ( [System.Security.Principal.IdentityReference] $account, [Boolean] $useInherit ){ # for dirs usually inherit is used
                                                 [System.Security.AccessControl.InheritanceFlags] $inh = switch($useInherit){ ($false){[System.Security.AccessControl.InheritanceFlags]::None} ($true){[System.Security.AccessControl.InheritanceFlags]"ContainerInherit,ObjectInherit"} };
                                                 [System.Security.AccessControl.PropagationFlags] $prf = switch($useInherit){ ($false){[System.Security.AccessControl.PropagationFlags]::None} ($true){[System.Security.AccessControl.PropagationFlags]::None                          } }; # alternative [System.Security.AccessControl.PropagationFlags]::InheritOnly
-                                                return (PrivFsRuleCreate $account ([System.Security.AccessControl.FileSystemRights]::FullControl) $inh $prf ([System.Security.AccessControl.AccessControlType]::Allow)); }
+                                                return [System.Security.AccessControl.FileSystemAccessRule] (PrivFsRuleCreate $account ([System.Security.AccessControl.FileSystemRights]::FullControl) $inh $prf ([System.Security.AccessControl.AccessControlType]::Allow)); }
+function PrivFsRuleCreateByString             ( [System.Security.Principal.IdentityReference] $account, [String] $s ){
+                                                # format:  access inherit rights ; access = ('+'|'-') ; rights = ('F' | { ('R'|'M'|'W'|'X'|...) [','] } ) ; inherit = ('/'|'') ; 
+                                                # examples: "+F", "+F/", "-M", "+RM", "+RW"
+                                                [System.Security.AccessControl.AccessControlType] $access = 0;
+                                                [String] $a = (StringLeft $s 1);
+                                                if    ( $a -eq "+" ){ $access = [System.Security.AccessControl.AccessControlType]::Allow; }
+                                                elseif( $a -eq "-" ){ $access = [System.Security.AccessControl.AccessControlType]::Deny ; }
+                                                else{ throw [Exception] "Invalid permission-right string, missing '+' or '-' at beginning of: `"$s`""; }
+                                                $s = $s.Substring(1);
+                                                [Boolean] $useInherit = $false;
+                                                if( (StringRight $s 1) -eq "/" ){ $useInherit = $true; $s = $s.Substring(0,$s.Length-1); }
+                                                [String[]] $r = (StringSplitToArray "," $s $true);
+                                                [System.Security.AccessControl.FileSystemRights] $rights = (PrivAclFsRightsFromString $r);
+                                                [System.Security.AccessControl.InheritanceFlags] $inh = switch($useInherit){ ($false){[System.Security.AccessControl.InheritanceFlags]::None} ($true){[System.Security.AccessControl.InheritanceFlags]"ContainerInherit,ObjectInherit"} };
+                                                [System.Security.AccessControl.PropagationFlags] $prf = switch($useInherit){ ($false){[System.Security.AccessControl.PropagationFlags]::None} ($true){[System.Security.AccessControl.PropagationFlags]::None                          } }; # alternative [System.Security.AccessControl.PropagationFlags]::InheritOnly
+                                                return [System.Security.AccessControl.FileSystemAccessRule] (PrivFsRuleCreate $account $rights $inh $prf $access); }
 function PrivDirSecurityCreateFullControl     ( [System.Security.Principal.IdentityReference] $account ){
                                                 [System.Security.AccessControl.DirectorySecurity] $result = New-Object System.Security.AccessControl.DirectorySecurity;
                                                 $result.AddAccessRule((PrivFsRuleCreateFullControl $account $true));
@@ -720,6 +736,83 @@ function RegistryPrivRuleCreate               ( [System.Security.Principal.Ident
                                                 $pro = [System.Security.AccessControl.PropagationFlags]::None;
                                                 return New-Object System.Security.AccessControl.RegistryAccessRule($account,[System.Security.AccessControl.RegistryRights]$regRight,$inh,$pro,[System.Security.AccessControl.AccessControlType]::Allow); }
                                                 # alternative: "ObjectInherit,ContainerInherit"
+function PrivAclFsRightsToString              ( [System.Security.AccessControl.FileSystemRights] $r ){ # as ICACLS https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/icacls
+                                                [String] $result = "";
+                                                # https://referencesource.microsoft.com/#mscorlib/system/security/accesscontrol/filesecurity.cs  https://docs.microsoft.com/en-us/dotnet/api/system.security.accesscontrol.filesystemrights?view=netframework-4.8
+                                                if(   $r -band [System.Security.AccessControl.FileSystemRights]::FullControl                        ){ $s += "F,"   ; } # exert full control over a folder or file, and to modify access control and audit rules. This value represents the right to do anything with a file and is the combination of all rights in this enumeration.
+                                                else{
+                                                  [Boolean] $notR = -not ($r -band [System.Security.AccessControl.FileSystemRights]::Read);
+                                                  [Boolean] $notM = -not ($r -band [System.Security.AccessControl.FileSystemRights]::Modify);
+                                                  [Boolean] $notW = -not ($r -band [System.Security.AccessControl.FileSystemRights]::Write);
+                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::Read                               ){ $s += "R,"   ; } # Same as ReadData|ReadExtendedAttributes|ReadAttributes|ReadPermissions. open and copy folders or files as read-only.
+                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::Modify                             ){ $s += "M,"   ; } # Same as Read|ExecuteFile|Write|Delete.                                  read, write, list folder contents, delete folders and files, and run application files.
+                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::Write                              ){ $s += "W,"   ; } # Same as WriteData|AppendData|WriteExtendedAttributes|WriteAttributes.   create folders and files, and to add or remove data from files.
+                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::ExecuteFile                        ){ $s += "X,"   ; } # run an application file. For directories: list the contents of a folder and to run applications contained within that folder.
+                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::Synchronize                        ){ $s += "s,"   ; } # whether the application can wait for a file handle to synchronize with the completion of an I/O operation. This value is automatically set when allowing access and automatically excluded when denying access.
+                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::Delete                  -and $notM ){ $s += "d,"   ; } # delete a folder or file.
+                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::ReadData                -and $notR ){ $s += "rd,"  ; } # open and copy a file or folder. This does not include the right to read file system attributes, extended file system attributes, or access and audit rules. For directories: read the contents of a directory.
+                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::ReadExtendedAttributes  -and $notR ){ $s += "rea," ; } # open and copy extended file system attributes from a folder or file. For example, this value specifies the right to view author and content information. This does not include the right to read data, file system attributes, or access and audit rules.
+                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::ReadAttributes          -and $notR ){ $s += "ra,"  ; } # open and copy file system attributes from a folder or file. For example, this value specifies the right to view the file creation or modified date. This does not include the right to read data, extended file system attributes, or access and audit rules.
+                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::ReadPermissions         -and $notR ){ $s += "rc,"  ; } # read control, open and copy access and audit rules from a folder or file. This does not include the right to read data, file system attributes, and extended file system attributes.
+                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::WriteData               -and $notW ){ $s += "wd,"  ; } # open and write to a file or folder. This does not include the right to open and write file system attributes, extended file system attributes, or access and audit rules. For directories: create a file. This right requires the Synchronize value.
+                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::AppendData              -and $notW ){ $s += "ad,"  ; } # append data to the end of a file. For directories: create a folder This right requires the Synchronize value.
+                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::WriteExtendedAttributes -and $notW ){ $s += "wea," ; } # open and write extended file system attributes to a folder or file. This does not include the ability to write data, attributes, or access and audit rules.
+                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::WriteAttributes         -and $notW ){ $s += "wa,"  ; } # open and write file system attributes to a folder or file. This does not include the ability to write data, extended attributes, or access and audit rules.
+                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles       ){ $s += "dc,"  ; } # delete a folder and any files contained within that folder. It only makes sense on directories, but the shell explicitly sets it for files in its UI. So its includeed in FullControl.
+                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::ChangePermissions                  ){ $s += "wdac,"; } # change the security and audit rules associated with a file or folder.
+                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::TakeOwnership                      ){ $s += "wo,"  ; } # change the owner of a folder or file. Note that owners of a resource have full access to that resource.
+                                                  if( $r -band 0x10000000                                                                           ){ $s += "ga,"  ; } # generic all
+                                                  if( $r -band 0x80000000                                                                           ){ $s += "gr,"  ; } # generic read
+                                                  if( $r -band 0x20000000                                                                           ){ $s += "ge,"  ; } # generic execute
+                                                  if( $r -band 0x40000000                                                                           ){ $s += "gw,"  ; } # generic write
+                                                  # Not yet used: ListDirectory=ReadData; Traverse=ExecuteFile; CreateFiles=WriteData; CreateDirectories=AppendData; ReadAndExecute=Read|ExecuteFile=RX(=open and copy folders or files as read-only, and to run application files. This right includes the Read right and the ExecuteFile right).
+                                                }
+                                                return [String] $s; }
+function PrivAclFsRightsFromString            ( [String] $s ){ # inverse of PrivAclFsRightsToString
+                                                [System.Security.AccessControl.FileSystemRights] $result = 0x00000000;
+                                                [String[]] $r = (StringSplitToArray "," $s $true);
+                                                $r | ForEach-Object{
+                                                  [String] $w = switch($_){
+                                                    "F"   {"FullControl"}
+                                                    "R"   {"Read"}
+                                                    "M"   {"Modify"}
+                                                    "W"   {"Write"}
+                                                    "X"   {"ExecuteFile"}
+                                                    "s"   {"Synchronize"}
+                                                    "d"   {"Delete"}
+                                                    "rd"  {"ReadData"}
+                                                    "rea" {"ReadExtendedAttributes"}
+                                                    "ra"  {"ReadAttributes"}
+                                                    "rc"  {"ReadPermissions"}
+                                                    "wd"  {"WriteData"}
+                                                    "ad"  {"AppendData"}
+                                                    "wea" {"WriteExtendedAttributes"}
+                                                    "wa"  {"WriteAttributes"}
+                                                    "dc"  {"DeleteSubdirectoriesAndFiles"}
+                                                    "wdac"{"ChangePermissions"}
+                                                    "wo"  {"TakeOwnership"}
+                                                    default {""}};
+                                                  if( $w -eq "" ){ throw [Exception] "Invalid FileSystemRight-Code `"$_`"."; }
+                                                  $result = $result -bor ([System.Security.AccessControl.FileSystemRights]$w);
+                                                }; return $result; }
+function PrivAclRegRightsToString              ( [System.Security.AccessControl.RegistryRights] $r ){
+                                                [String] $result = "";
+                                                # https://docs.microsoft.com/en-us/dotnet/api/system.security.accesscontrol.registryrights?view=netframework-4.8
+                                                if(   $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::FullControl         ){ $s += "F,"; } # exert full control over a registry key, and to modify its access rules and audit rules.
+                                                else{
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::ReadKey             ){ $s += "R,"; } # query the name/value pairs in a registry key, to request notification of changes, to enumerate its subkeys, and to read its access rules and audit rules.
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::WriteKey            ){ $s += "W,"; } # create, delete, and set the name/value pairs in a registry key, to create or delete subkeys, to request notification of changes, to enumerate its subkeys, and to read its access rules and audit rules.
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::CreateSubKey        ){ $s += "C,"; } # create subkeys of a registry key.
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::Delete              ){ $s += "D,"; } # delete a registry key.
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::TakeOwnership       ){ $s += "O,"; } # change the owner of a registry key.
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::EnumerateSubKeys    ){ $s += "L,"; } # list the subkeys of a registry key.
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::QueryValues         ){ $s += "r,"; } # query the name/value pairs in a registry key.
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::SetValue            ){ $s += "w,"; } # create, delete, or set name/value pairs in a registry key.
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::ReadPermissions     ){ $s += "p,"; } # open and copy the access rules and audit rules for a registry key.
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::ChangePermissions   ){ $s += "c,"; } # change the access rules and audit rules associated with a registry key.
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::Notify              ){ $s += "n,"; } # request notification of changes on a registry key.
+                                                  # Not used:  CreateLink=Reserved for system use. ExecuteKey=Same as ReadKey.
+                                                } return $result; }
 function RegistryPrivRuleToString             ( [System.Security.AccessControl.RegistryAccessRule] $rule ){
                                                 # ex: RegistryPrivRuleToString (RegistryPrivRuleCreate (PrivGetGroupAdministrators) "FullControl")
                                                 [String] $s = "$($rule.IdentityReference.ToString()):"; # ex: VORDEFINIERT\Administratoren
@@ -736,19 +829,8 @@ function RegistryPrivRuleToString             ( [System.Security.AccessControl.R
                                                     if( $rule.PropagationFlags -band [System.Security.AccessControl.PropagationFlags]::InheritOnly       ){ $s += "PI,"; }
                                                   }
                                                 }
-                                                if(   $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::FullControl         ){ $s += "F,"; }else{
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::ReadKey             ){ $s += "R,"; }
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::WriteKey            ){ $s += "W,"; }
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::CreateSubKey        ){ $s += "C,"; }
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::Delete              ){ $s += "D,"; }
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::TakeOwnership       ){ $s += "O,"; }
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::EnumerateSubKeys    ){ $s += "L,"; }
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::QueryValues         ){ $s += "r,"; }
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::SetValue            ){ $s += "w,"; }
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::ReadPermissions     ){ $s += "p,"; }
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::ChangePermissions   ){ $s += "c,"; }
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.FileSystemRights]::Notify              ){ $s += "n,"; }
-                                                } return [String] $s; }
+                                                s += (PrivAclRegRightsToString $rule.RegistryRights);
+                                                return [String] $s; }
 function RegistryKeySetOwner                  ( [String] $key, [System.Security.Principal.IdentityReference] $account ){
                                                 # ex: "HKLM:\Software\MyManufactor" (PrivGetGroupAdministrators);
                                                 # Changes only if owner is not yet the required one.
@@ -863,7 +945,7 @@ function ServiceMapHiddenToCurrentName        ( [String] $serviceName ){
                                                 [String[]] $a = @( "MessagingService_######", "PimIndexMaintenanceSvc_######", "UnistoreSvc_######", "UserDataSvc_######", "WpnUserService_######", "CDPUserSvc_######", "OneSyncSvc_######" );
                                                 if( $a -notcontains $serviceName ){ return $serviceName; }
                                                 [String] $mask = $serviceName -replace "_######","_*";
-                                                [String] $result = (Get-Service * | ForEach-Object Name | Where-Object{ $_ -like $mask } | Sort | Select -First 1);
+                                                [String] $result = (Get-Service * | ForEach-Object{ Name } | Where-Object{ $_ -like $mask } | Sort-Object | Select-Object -First 1);
                                                 if( $result -eq "" ){ $result = $serviceName;}
                                                 return [String] $result; }
 function TaskList                             (){ 
@@ -946,6 +1028,7 @@ function FsEntryFindFlatSingleByPattern       ( [String] $fsEntryPattern, [Boole
 function FsEntryFsInfoFullNameDirWithBackSlash( [System.IO.FileSystemInfo] $fsInfo ){ return [String] ($fsInfo.FullName+$(switch($fsInfo.PSIsContainer){($true){"\"}default{""}})); }
 function FsEntryListAsFileSystemInfo          ( [String] $fsEntryPattern, [Boolean] $recursive = $true, [Boolean] $includeDirs = $true, [Boolean] $includeFiles = $true, [Boolean] $inclTopDir = $false ){
                                                 # List entries specified by a pattern, which applies to files and directories and which can contain wildards (*,?). 
+                                                # Internally it uses Get-Item and Get-ChildItem.
                                                 # If inclTopDir is true (and includeDirs is true and no wildcards are used and so a single dir is specified) then the dir itself is included. 
                                                 # Examples for fsEntryPattern: "C:\*.tmp", ".\dir\*.tmp", "dir\te?*.tmp", "*\dir\*.tmp", "dir\*", "bin\".
                                                 # Output is unsorted. Ignores case and access denied conditions. If not found an entry then an empty array is returned.
@@ -958,13 +1041,15 @@ function FsEntryListAsFileSystemInfo          ( [String] $fsEntryPattern, [Boole
                                                 #     and if pattern matches a dir (".\dir") its content is listed flat.
                                                 #     In recursive mode the last backslash separated part of the pattern ("f.txt" or "dir") is searched in two steps,
                                                 #     first if it matches a file (".\f.txt") then it is listed, and if matches a dir (".\dir") then its content is listed deeply,
-                                                #     second if pattern was not yet found then searches it recursively but if it is a dir then its content is not listed.
+                                                #     second if pattern was not yet found then it searches for it recursively and lists the found entries but even if it is a dir then its content is not listed.
                                                 # Trailing backslashes:  Are handled in powershell quite curious: 
                                                 #   In non-recursive mode they are handled as they are not present, so files are also matched ("*\myfile\").
                                                 #   In recursive mode they wrongly match only files and not directories ("*\myfile\") and
                                                 #   so parent dir parts (".\*\dir\" or "d1\dir\") would not be found for unknown reasons.
+                                                #   Very strange is that (CD "D:\tmp"; CD "C:"; Get-Item "D:";) does not list D:\ but it lists the current directory of that drive.
                                                 #   So we interpret a trailing backslash as it would not be present with the exception that
-                                                #   if pattern contains a trailing backslash then pattern "\*\" will be replaced by ("\.\").
+                                                #     If pattern contains a trailing backslash then pattern "\*\" will be replaced by ("\.\").
+                                                #   If pattern is a drive as "C:" then a trailing backslash is added to avoid the unexpected listing of current dir of that drive.
                                                 AssertNotEmpty $fsEntryPattern "pattern";
                                                 [String] $pa = $fsEntryPattern;
                                                 [Boolean] $trailingBackslashMode = (FsEntryHasTrailingBackslash $pa);
@@ -977,6 +1062,7 @@ function FsEntryListAsFileSystemInfo          ( [String] $fsEntryPattern, [Boole
                                                   # enable that ".\*\dir\" can also find dir as top dir
                                                   $pa = $pa.Replace("\*\","\.\"); # Otherwise Get-ChildItem would find dirs.
                                                 }
+                                                if( $pa.Length -eq 2 -and $pa.EndsWith(":") -and $pa -match "[a-z]" ){ $pa += "\"; }
                                                 if( $inclTopDir -and $includeDirs -and -not ($pa -eq "*" -or $pa.EndsWith("\*")) ){
                                                   $result += (Get-Item -Force -ErrorAction SilentlyContinue -Path $pa) | Where-Object{ $_.PSIsContainer } | Where-Object{ $_ -ne $null };
                                                 }
@@ -1107,9 +1193,9 @@ function FsEntryTrySetOwnerAndAclsIfNotSet    ( [String] $fsEntry, [System.Secur
                                                   $acl = FsEntryAclGet $fsEntry;
                                                 }
                                                 [Boolean] $isDir = FsEntryIsDir $fsEntry;
-                                                $rule = (PrivFsRuleCreateFullControl $account $isDir);
+                                                [System.Security.AccessControl.FileSystemAccessRule] $rule = (PrivFsRuleCreateFullControl $account $isDir);
                                                 if( -not (PrivAclHasFullControl $acl $account $isDir) ){
-                                                  FsEntryAclRuleWrite Set $fsEntry $rule $false;
+                                                  FsEntryAclRuleWrite "Set" $fsEntry $rule $false;
                                                 }
                                                 if( $recursive -and $isDir ){
                                                   FsEntryListAsStringArray "$fsEntry\*" $false | ForEach-Object{ FsEntryTrySetOwnerAndAclsIfNotSet $_ $account $true };
@@ -1124,7 +1210,7 @@ function FsEntryTryForceRenaming              ( [String] $fsEntry, [String] $ext
                                                     # ex: System.UnauthorizedAccessException: Der Zugriff auf den Pfad wurde verweigert. bei System.IO.__Error.WinIOError(Int32 errorCode, String maybeFullPath) bei System.IO.FileInfo.MoveTo(String destFileName)
                                                     OutProgress "Force set owner to administrators and retry because FsEntryRename($fsEntry,$newFileName) failed because $($_.Exception.Message)";
                                                     [System.Security.Principal.IdentityReference] $account = PrivGetGroupAdministrators; 
-                                                    [System.Security.AccessControl.FileSystemAccessRule] $rule = PrivFsRuleCreateFullControl $account (FsEntryIsDir $fsEntry); 
+                                                    [System.Security.AccessControl.FileSystemAccessRule] $rule = (PrivFsRuleCreateFullControl $account (FsEntryIsDir $fsEntry));
                                                     try{
                                                       # Maybe for future: PrivEnableTokenPrivilege SeTakeOwnershipPrivilege; PrivEnableTokenPrivilege SeRestorePrivilege; PrivEnableTokenPrivilege SeBackupPrivilege;
                                                       [System.Security.AccessControl.FileSystemSecurity] $acl = FsEntryAclGet $fsEntry; 
@@ -1371,12 +1457,12 @@ function ShareGetTypeNr                       ( [String] $typeName ){
                                                 return [UInt32] $(switch($typeName){ "DiskDrive"{0} "PrintQueue"{1} "Device"{2} "IPC"{3} 
                                                 "DiskDriveAdmin"{2147483648} "PrintQueueAdmin"{2147483649} "DeviceAdmin"{2147483650} "IPCAdmin"{2147483651} default{4294967295} }); }
 function ShareExists                          ( [String] $shareName ){
-                                                return [Boolean] ((Get-SMBShare | Where-Object { $shareName -ne "" -and $_.Name -eq $shareName }) -ne $null); }
+                                                return [Boolean] ((Get-SMBShare | Where-Object{ $shareName -ne "" -and $_.Name -eq $shareName }) -ne $null); }
 function ShareListAll                         ( [String] $selectShareName = "" ){
                                                 # uses newer module SmbShare
                                                 OutVerbose "List shares selectShareName=`"$selectShareName`"";
                                                 # Ex: ShareState: Online, ...; ShareType: InterprocessCommunication, PrintQueue, FileSystemDirectory;
-                                                return [Object] (Get-SMBShare | where { $selectShareName -eq "" -or $_.Name -eq $selectShareName } | Select-Object Name, ShareType, Path, Description, ShareState, ConcurrentUserLimit, CurrentUsers | Sort-Object TypeName, Name); }
+                                                return [Object] (Get-SMBShare | Where-Object{ $selectShareName -eq "" -or $_.Name -eq $selectShareName } | Select-Object Name, ShareType, Path, Description, ShareState, ConcurrentUserLimit, CurrentUsers | Sort-Object TypeName, Name); }
 function ShareListAllByWmi                    ( [String] $selectShareName = "" ){
                                                 # As ShareListAll but uses older wmi and not newer module SmbShare
                                                 [String] $computerName = ".";
@@ -1389,7 +1475,7 @@ function ShareListAllByWmi                    ( [String] $selectShareName = "" )
                                                   Sort-Object TypeName, Name); }
 function ShareLocksList                       ( [String] $path = "" ){ # list currenty read or readwrite locked open files of a share, requires elevated admin mode
                                                 ProcessRestartInElevatedAdminMode;
-                                                return [Object] (Get-SmbOpenFile | Where-Object { $_.Path.StartsWith($path,"OrdinalIgnoreCase") } | 
+                                                return [Object] (Get-SmbOpenFile | Where-Object{ $_.Path.StartsWith($path,"OrdinalIgnoreCase") } | 
                                                   Select-Object FileId, SessionId, Path, ClientComputerName, ClientUserName, Locks | Sort-Object Path); }
 function ShareLocksClose                      ( [String] $path = "" ){ # closes locks, ex: $path="D:\Transfer\" or $path="D:\Transfer\MyFile.txt"
                                                 ProcessRestartInElevatedAdminMode;
@@ -1999,8 +2085,8 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   # - "Checking out files:  47% (219/463)" or "Checking out files: 100% (463/463), done."
                                                   # - warning: You appear to have cloned an empty repository.
                                                   # - The string "Already up to date." is presumebly suppressed by quiet option.
-                                                  StringSplitIntoLines $out | Where-Object{ -not [String]::IsNullOrWhiteSpace($_) } | ForEach-Object { $_.Trim() } |
-                                                    Where-Object { -not ($_.StartsWith("Checking out files: ") -and ($_.EndsWith(")") -or $_.EndsWith(", done."))) } |
+                                                  StringSplitIntoLines $out | Where-Object{ -not [String]::IsNullOrWhiteSpace($_) } | ForEach-Object{ $_.Trim() } |
+                                                    Where-Object{ -not ($_.StartsWith("Checking out files: ") -and ($_.EndsWith(")") -or $_.EndsWith(", done."))) } |
                                                     ForEach-Object{ OutProgress $_; }
                                                   OutSuccess "  Ok, usedTimeInSec=$([Int64]($usedTime.Elapsed.TotalSeconds+0.999)).";
                                                 }catch{
@@ -2098,21 +2184,21 @@ function GitListCommitComments                ( [String] $tarDir, [String] $loca
                                                 GitGetLog ""          "$tarDir\$prefix$repoName.CommittedComments$fileExtension";
                                                 GitGetLog "--summary" "$tarDir\$prefix$repoName.CommittedChangedFiles$fileExtension"; }
 function GitAssertAutoCrLfIsDisabled          (){ # use this before using git
-                                                [String] $line = git config --list --global | Where-Object { $_ -like "core.autocrlf=false" };
+                                                [String] $line = git config --list --global | Where-Object{ $_ -like "core.autocrlf=false" };
                                                 if( $line -ne "" ){ OutVerbose "ok, git-global-autocrlf is defined as false."; return; }
-                                                $line = git config --list --global | Where-Object { $_ -like "core.autocrlf=*" };
+                                                $line = git config --list --global | Where-Object{ $_ -like "core.autocrlf=*" };
                                                 if( $line -eq "" ){ OutVerbose "ok, git-global-autocrlf is undefined."; return; }
                                                 throw [Exception] "Git is globally configured to use auto crlf conversions, it is strongly recommended never use this because unexpected state and merge behaviours. Please change it by calling GitDisableAutoCrLf and then retry."; }
 function GitDisableAutoCrLf                   (){ # no output if nothing done.
-                                                [String] $line = git config --list --global | Where-Object { $_ -like "core.autocrlf=false" };
+                                                [String] $line = git config --list --global | Where-Object{ $_ -like "core.autocrlf=false" };
                                                 if( $line -ne "" ){ OutVerbose "ok, git-global-autocrlf is defined as false."; return; }
-                                                $line = git config --list --global | Where-Object { $_ -like "core.autocrlf=*" };
+                                                $line = git config --list --global | Where-Object{ $_ -like "core.autocrlf=*" };
                                                 if( $line -eq "" ){ OutVerbose "ok, git-global-autocrlf is undefined."; return; }
                                                 OutProgress "Setting git-global-autocrlf to false because current value was: `"$line`"";
                                                 . git config --global core.autocrlf false; <# maybe later: git config --global --unset core.autocrlf #> }
 function GitCloneOrPullUrls                   ( [String[]] $listOfRepoUrls, [String] $tarRootDirOfAllRepos, [Boolean] $errorAsWarning = $false, [Boolean] $onErrorContinueWithOthers = $false ){
                                                 [String[]] $errorLines = @();
-                                                $listOfRepoUrls | ForEach-Object {
+                                                $listOfRepoUrls | ForEach-Object{
                                                   try{
                                                     GitCloneOrFetchOrPull $tarRootDirOfAllRepos $_ $true $errorAsWarning;
                                                   }catch{
@@ -2303,11 +2389,11 @@ function SvnStatus                            ( [String] $workDir, [Boolean] $sh
                                                 [String[]] $out = @()+(& (SvnExe) "status" $workDir); AssertRcIsOk $out;
                                                 FileAppendLines $svnLogFile (StringArrayInsertIndent $out 2);
                                                 [Int32] $nrOfPendingChanges = $out.Count;
-                                                [Int32] $nrOfCommitRelevantChanges = ([String[]](@()+($out | Where-Object {$_ -ne $null -and -not $_.StartsWith("!") }))).Count; # ignore lines with leading '!' because these would not occurre in commit dialog
+                                                [Int32] $nrOfCommitRelevantChanges = ([String[]](@()+($out | Where-Object{ $_ -ne $null -and -not $_.StartsWith("!") }))).Count; # ignore lines with leading '!' because these would not occurre in commit dialog
                                                 OutProgress "NrOfPendingChanged=$nrOfPendingChanges;  NrOfCommitRelevantChanges=$nrOfCommitRelevantChanges;";
                                                 FileAppendLineWithTs $svnLogFile "  NrOfPendingChanges=$nrOfPendingChanges;  NrOfCommitRelevantChanges=$nrOfCommitRelevantChanges;";
                                                 [Boolean] $hasAnyChange = $nrOfCommitRelevantChanges -gt 0;
-                                                if( $showFiles -and $hasAnyChange ){ $out | %{ OutProgress $_; }; }
+                                                if( $showFiles -and $hasAnyChange ){ $out | ForEach-Object{ OutProgress $_; }; }
                                                 return [Boolean] $hasAnyChange; }
 function SvnRevert                            ( [String] $workDir, [String[]] $relativeRevertFsEntries ){
                                                 # Undo the specified fs-entries if they have any pending change.
@@ -2347,7 +2433,7 @@ function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url
                                                   else               { $opt = @( "checkout") + $opt + @( $url, $workDir ); }
                                                   FileAppendLineWithTs $svnLogFile "`"$(SvnExe)`" $opt";
                                                   try{
-                                                    & (SvnExe) $opt 2> $tmp | %{ FileAppendLineWithTs $svnLogFile ("  "+$_); OutProgress $_ 2; };
+                                                    & (SvnExe) $opt 2> $tmp | ForEach-Object{ FileAppendLineWithTs $svnLogFile ("  "+$_); OutProgress $_ 2; };
                                                     [String] $encodingIfNoBom = "Default";
                                                     AssertRcIsOk (FileReadContentAsLines $tmp $encodingIfNoBom) $true;
                                                     # ex: svn: E170013: Unable to connect to a repository at URL 'https://mycomp/svn/Work/mydir'
@@ -2477,8 +2563,8 @@ function TfsShowAllWorkspaces                 ( [String] $url, [Boolean] $showPa
                                                 [String] $mach = "*"; if( $currentMachineOnly ){ $mach = $env:COMPUTERNAME; }
                                                 OutProgress                                "& `"$(TfsExe)`" vc workspaces /noprompt /format:$fmt /owner:* /computer:$mach /collection:$url";
                                                 [String[]] $out = (StringArrayInsertIndent (&    (TfsExe)   vc workspaces /noprompt /format:$fmt /owner:* /computer:$mach /collection:$url) 2); ScriptResetRc;
-                                                $out | ForEach-Object { $_ -replace "--------------------------------------------------", "-" } | 
-                                                       ForEach-Object { $_ -replace "==================================================", "=" } | ForEach-Object { OutProgress $_ };
+                                                $out | ForEach-Object{ $_ -replace "--------------------------------------------------", "-" } | 
+                                                       ForEach-Object{ $_ -replace "==================================================", "=" } | ForEach-Object{ OutProgress $_ };
                                                 # Example1:
                                                 #   Sammlung: https://devops.mydomain.ch/MyTfsRoot
                                                 #   Arbeitsbereich Besitzer                                     Computer   Kommentar
@@ -2518,7 +2604,7 @@ function TfsShowLocalCachedWorkspaces         (){ # works without access an url
                                                 OutProgress "Show local cached tfs workspaces";
                                                 OutProgress                                "& `"$(TfsExe)`" vc workspaces /noprompt /format:Brief";
                                                 [String[]] $out = (StringArrayInsertIndent (&    (TfsExe)   vc workspaces /noprompt /format:Brief) 2); AssertRcIsOk $out;
-                                                $out | ForEach-Object { $_ -replace "--------------------------------------------------", "-" } | ForEach-Object { OutProgress $_ };
+                                                $out | ForEach-Object{ $_ -replace "--------------------------------------------------", "-" } | ForEach-Object{ OutProgress $_ };
                                                 # Format Detailed is only allowed if collection is specified
                                                 # Example1:
                                                 #   Auf dem Computer "MYCOMPUTER" ist kein entsprechender Arbeitsbereich "*;John Doe" für den Azure DevOps Server-Computer "https://devops.mydomain.ch/MyTfsRoot" vorhanden.
@@ -2536,8 +2622,8 @@ function TfsHasLocalMachWorkspace             ( [String] $url ){ # we support on
                                                 OutProgress "Check if local tfs workspaces with name identic to computername exists";
                                                 OutProgress           "  & `"$(TfsExe)`" vc workspaces /noprompt /format:Brief /owner:* /computer:$mach /collection:$url";
                                                 [String[]] $out = @()+(&    (TfsExe)   vc workspaces /noprompt /format:Brief /owner:* /computer:$mach /collection:$url 2>&1 | 
-                                                  Select-Object -Skip 2 | Where-Object { $_.StartsWith("$wsName ") }); ScriptResetRc;
-                                                $out | ForEach-Object { $_ -replace "--------------------------------------------------", "-" } | ForEach-Object { OutProgress $_ };
+                                                  Select-Object -Skip 2 | Where-Object{ $_.StartsWith("$wsName ") }); ScriptResetRc;
+                                                $out | ForEach-Object{ $_ -replace "--------------------------------------------------", "-" } | ForEach-Object{ OutProgress $_ };
                                                 return [Boolean] $out.Length -gt 0; }
 function ToolTfsInitLocalWorkspaceIfNotDone   ( [String] $url, [String] $rootDir ){
                                                 # also creates the directory ".\$tf\".
@@ -2580,13 +2666,13 @@ function TfsGetNewestNoOverwrite              ( [String] $wsdir, [String] $tfsPa
                                                   OutProgress "CD `"$wsdir`"; & `"$(TfsExe)`" vc get /recursive /version:T `"$tfsPath`" ";
                                                   [String[]] $out = @()+(     &    (TfsExe)   vc get /recursive /version:T   $tfsPath); AssertRcIsOk $out;
                                                   # Output: "Alle Dateien sind auf dem neuesten Stand."
-                                                  if( $out.Count -gt 0 ){ $out | ForEach-Object { OutProgress "  $_"; }; }
+                                                  if( $out.Count -gt 0 ){ $out | ForEach-Object{ OutProgress "  $_"; }; }
                                                 }finally{ Set-Location $cd; } }
 function TfsListOwnLocks                      ( [String] $wsdir, [String] $tfsPath ){
                                                 [String] $cd = (Get-Location); Set-Location $wsdir; try{
                                                   OutProgress "CD `"$wsdir`"; & `"$(TfsExe)`" vc status /noprompt /recursive /format:brief `"$tfsPath`" ";
                                                   [String[]] $out = @()+((    &    (TfsExe)   vc status /noprompt /recursive /format:brief   $tfsPath 2>&1 ) | 
-                                                    Select-Object -Skip 2 | Where-Object { -not [String]::IsNullOrWhiteSpace($_) }); AssertRcIsOk $out;
+                                                    Select-Object -Skip 2 | Where-Object{ -not [String]::IsNullOrWhiteSpace($_) }); AssertRcIsOk $out;
                                                   # ex:
                                                   #    Dateiname    Ändern     Lokaler Pfad
                                                   #    ------------ ---------- -------------------------------------
@@ -2600,7 +2686,7 @@ function TfsListOwnLocks                      ( [String] $wsdir, [String] $tfsPa
 function TfsAssertNoLocksInDir                ( [String] $wsdir, [String] $tfsPath ){ # ex: "C:\MyWorkspace" "$/Src";
                                                 [String[]] $allLocks = @()+(TfsListOwnLocks $wsdir $tfsPath);
                                                 if( $allLocks.Count -gt 0 ){
-                                                  $allLocks | Foreach { OutProgress "Found Lock: $_"; };
+                                                  $allLocks | ForEach-Object{ OutProgress "Found Lock: $_"; };
                                                   throw [Exception] "Assertion failed because there exists pending locks under `"$tfsPath`""; 
                                                 } }
 function TfsMergeDir                          ( [String] $wsdir, [String] $tfsPath, [String] $tfsTargetBranch ){
@@ -2615,7 +2701,7 @@ function TfsMergeDir                          ( [String] $wsdir, [String] $tfsPa
                                                   #    The item $/Src/MyBranch1/MyFile2.txt is locked for check-out by MyDomain\MyUser in workspace MYMACH.
                                                   #    
                                                   #    ---- Zusammenfassung: 31 Konflikte, 0 Warnungen, 0 Fehler ----
-                                                  # does not work: | Where-Object { $_ -contains "---- Zusammenfassung:*" }
+                                                  # does not work: | Where-Object{ $_ -contains "---- Zusammenfassung:*" }
                                                   #
                                                   #return [String[]] $out;
                                                 #}catch{ ScriptResetRc; OutProgress "Ignoring Error: $($_.Exception)";
@@ -2676,9 +2762,9 @@ function SqlPerformFile                       ( [String] $connectionString, [Str
                                                 if( $logFileToAppend -ne "" ){ FileAppendLineWithTs $logFileToAppend $traceInfo; }
                                                 try{
                                                   Invoke-Sqlcmd -ConnectionString $connectionString -AbortOnError -Verbose:$showPrint -OutputSqlErrors $true -QueryTimeout $queryTimeoutInSec -InputFile $sqlFile |
-                                                    ForEach-Object { 
+                                                    ForEach-Object{ 
                                                       [String] $line = $_;
-                                                      if( $_.GetType() -eq [System.Data.DataRow] ){ $line = ""; if( $showRows ){ $_.ItemArray | ForEach-Object { $line += '"'+$_.ToString()+'",'; } } }
+                                                      if( $_.GetType() -eq [System.Data.DataRow] ){ $line = ""; if( $showRows ){ $_.ItemArray | ForEach-Object{ $line += '"'+$_.ToString()+'",'; } } }
                                                       if( $line -ne "" ){ OutProgress $line; } if( $logFileToAppend -ne "" ){ FileAppendLineWithTs $logFileToAppend $line; } }
                                                 }catch{ [String] $msg = "$traceInfo failed because $($_.Exception.Message)"; if( $logFileToAppend -ne "" ){ FileAppendLineWithTs $logFileToAppend $msg; } throw [Exception] $msg; } }
 function SqlPerformCmd                        ( [String] $connectionString, [String] $cmd, [Boolean] $showPrint = $false, [Int32] $queryTimeoutInSec = 0 ){
@@ -2757,15 +2843,15 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                   #  # ex: ExtendedTypeSystemException: The following exception occurred while trying to enumerate the collection: "An exception occurred while executing a Transact-SQL statement or batch.".
                                                   #  throw [Exception] "Accessing database $dbName failed because $_";
                                                   #}
-                                                  [Array] $tables              = @()+($db.Tables               | Where-Object {$_ -ne $null} | Where-Object {$_.IsSystemObject -eq $false}); # including unique indexes
-                                                  [Array] $views               = @()+($db.Views                | Where-Object {$_ -ne $null} | Where-Object {$_.IsSystemObject -eq $false});
-                                                  [Array] $storedProcedures    = @()+($db.StoredProcedures     | Where-Object {$_ -ne $null} | Where-Object {$_.IsSystemObject -eq $false});
-                                                  [Array] $userDefFunctions    = @()+($db.UserDefinedFunctions | Where-Object {$_ -ne $null} | Where-Object {$_.IsSystemObject -eq $false});
-                                                  [Array] $dbSchemas           = @()+($db.Schemas              | Where-Object {$_ -ne $null} | Where-Object {$_.IsSystemObject -eq $false});
-                                                  [Array] $dbTriggers          = @()+($db.Triggers             | Where-Object {$_ -ne $null} | Where-Object {$_.IsSystemObject -eq $false});
-                                                  [Array] $dbRoles             = @()+($db.Roles                | Where-Object {$_ -ne $null});
-                                                  [Array] $tableTriggers       = @()+($tables                  | Where-Object {$_ -ne $null} | ForEach-Object {$_.triggers } | Where-Object {$_ -ne $null});
-                                                  [Array] $indexesNonUnique    = @()+($tables                  | Where-Object {$_ -ne $null} | ForEach-Object {$_.indexes  } | Where-Object {$_ -ne $null} | Where-Object {-not $_.IsUnique});
+                                                  [Array] $tables              = @()+($db.Tables               | Where-Object{$_ -ne $null} | Where-Object{$_.IsSystemObject -eq $false}); # including unique indexes
+                                                  [Array] $views               = @()+($db.Views                | Where-Object{$_ -ne $null} | Where-Object{$_.IsSystemObject -eq $false});
+                                                  [Array] $storedProcedures    = @()+($db.StoredProcedures     | Where-Object{$_ -ne $null} | Where-Object{$_.IsSystemObject -eq $false});
+                                                  [Array] $userDefFunctions    = @()+($db.UserDefinedFunctions | Where-Object{$_ -ne $null} | Where-Object{$_.IsSystemObject -eq $false});
+                                                  [Array] $dbSchemas           = @()+($db.Schemas              | Where-Object{$_ -ne $null} | Where-Object{$_.IsSystemObject -eq $false});
+                                                  [Array] $dbTriggers          = @()+($db.Triggers             | Where-Object{$_ -ne $null} | Where-Object{$_.IsSystemObject -eq $false});
+                                                  [Array] $dbRoles             = @()+($db.Roles                | Where-Object{$_ -ne $null});
+                                                  [Array] $tableTriggers       = @()+($tables                  | Where-Object{$_ -ne $null} | ForEach-Object{$_.triggers } | Where-Object{$_ -ne $null});
+                                                  [Array] $indexesNonUnique    = @()+($tables                  | Where-Object{$_ -ne $null} | ForEach-Object{$_.indexes  } | Where-Object{$_ -ne $null} | Where-Object{-not $_.IsUnique});
                                                   [Int64] $spaceUsedDataInMB   = [Math]::Ceiling(($db.DataSpaceUsage + $db.IndexSpaceUsage) / 1000000);
                                                   [Int64] $spaceUsedIndexInMB  = [Math]::Ceiling( $db.IndexSpaceUsage                       / 1000000);
                                                   [Int64] $spaceAvailableInMB  = [Math]::Ceiling( $db.SpaceAvailable                        / 1000000);
@@ -2794,21 +2880,21 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                     "TabTriggers=$($tableTriggers.Count); "+"IndexesNonUnique=$($indexesNonUnique.Count); ");
                                                   OutProgressText "  Process: ";
                                                   OutProgressText "Schemas ";
-                                                  Foreach ($i in $dbSchemas){
+                                                  foreach( $i in $dbSchemas ){
                                                     [String] $name = FsEntryMakeValidFileName $i.Name;
                                                     $options.FileName = "$tarDir\Schema.$name.sql";
                                                     New-Item $options.FileName -type file -force | Out-Null;
                                                     $scr.Script($i);
                                                   }
                                                   OutProgressText "Roles ";
-                                                  Foreach ($i in $dbRoles){
+                                                  foreach( $i in $dbRoles ){
                                                     [String] $name = FsEntryMakeValidFileName $i.Name;
                                                     $options.FileName = "$tarDir\Role.$name.sql";
                                                     New-Item $options.FileName -type file -force | Out-Null;
                                                     $scr.Script($i);
                                                   }
                                                   OutProgressText "DbTriggers ";
-                                                  foreach ($i in $dbTriggers){
+                                                  foreach( $i in $dbTriggers ){
                                                     [String] $name = FsEntryMakeValidFileName $i.Name;
                                                     $options.FileName = "$tarDir\DbTrigger.$name.sql";
                                                     New-Item $options.FileName -type file -force | Out-Null;
@@ -2819,24 +2905,24 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                     }
                                                   }
                                                   OutProgressText "Tables "; # inclusive unique indexes
-                                                  Foreach ($i in $tables){
+                                                  foreach( $i in $tables ){
                                                     [String] $name = FsEntryMakeValidFileName "$($i.Schema).$($i.Name)";
                                                     $options.FileName = "$tarDir\Table.$name.sql";
                                                     New-Item $options.FileName -type file -force | Out-Null;
                                                     $smoObjects = New-Object Microsoft.SqlServer.Management.Smo.UrnCollection;
                                                     $smoObjects.Add($i.Urn);
-                                                    $i.indexes | Where-Object {$_ -ne $null -and $_.IsUnique} | ForEach-Object { $smoObjects.Add($_.Urn); };
+                                                    $i.indexes | Where-Object{$_ -ne $null -and $_.IsUnique} | ForEach-Object{ $smoObjects.Add($_.Urn); };
                                                     $scr.Script($smoObjects);
                                                   }
                                                   OutProgressText "Views ";
-                                                  Foreach ($i in $views){
+                                                  foreach( $i in $views ){
                                                     [String] $name = FsEntryMakeValidFileName "$($i.Schema).$($i.Name)";
                                                     $options.FileName = "$tarDir\View.$name.sql";
                                                     New-Item $options.FileName -type file -force | Out-Null;
                                                     $scr.Script($i);
                                                   }
                                                   OutProgressText "StoredProcedures";
-                                                  Foreach ($i in $storedProcedures){
+                                                  foreach( $i in $storedProcedures ){
                                                     [String] $name = FsEntryMakeValidFileName "$($i.Schema).$($i.Name)";
                                                     $options.FileName = "$tarDir\StoredProcedure.$name.sql";
                                                     New-Item $options.FileName -type file -force | Out-Null;
@@ -2847,7 +2933,7 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                     }
                                                   }
                                                   OutProgressText "UserDefinedFunctions ";
-                                                  Foreach ($i in $userDefFunctions){
+                                                  foreach( $i in $userDefFunctions ){
                                                     [String] $name = FsEntryMakeValidFileName "$($i.Schema).$($i.Name)";
                                                     $options.FileName = "$tarDir\UserDefinedFunction.$name.sql";
                                                     New-Item $options.FileName -type file -force | Out-Null;
@@ -2858,7 +2944,7 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                     }
                                                   }
                                                   OutProgressText "TableTriggers ";
-                                                  Foreach ($i in $tableTriggers){
+                                                  foreach( $i in $tableTriggers ){
                                                     [String] $name = FsEntryMakeValidFileName "$($i.Parent.Schema).$($i.Parent.Name).$($i.Name)";
                                                     $options.FileName = "$tarDir\TableTrigger.$name.sql";
                                                     New-Item $options.FileName -type file -force | Out-Null;
@@ -2869,7 +2955,7 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                     }
                                                   }
                                                   OutProgressText "IndexesNonUnique ";
-                                                  Foreach ($i in $indexesNonUnique){
+                                                  foreach( $i in $indexesNonUnique ){
                                                     [String] $name = FsEntryMakeValidFileName "$($i.Parent.Schema).$($i.Parent.Name).$($i.Name)";
                                                     $options.FileName = "$tarDir\IndexesNonUnique.$name.sql";
                                                     New-Item $options.FileName -type file -force | Out-Null;
@@ -2991,7 +3077,7 @@ function InfoAboutSystemInfo                  (){
                                                 # For future use:
                                                 # - powercfg /lastwake
                                                 # - powercfg /waketimers
-                                                # - Get-ScheduledTask | where{ $_.settings.waketorun }
+                                                # - Get-ScheduledTask | Where-Object{ $_.settings.waketorun }
                                                 # - change:
                                                 #   - Dism /online /Enable-Feature /FeatureName:TFTP /All
                                                 #   - import:   ev.:  Dism.exe /Image:C:\test\offline /Import-DefaultAppAssociations:\\Server\Share\AppAssoc.xml
@@ -3021,12 +3107,12 @@ function InfoGetInstalledDotNetVersion        ( [Boolean] $alsoOutInstalledClrAn
                                                 if( $alsoOutInstalledClrAndRunningProc ){
                                                   [String[]] $a = @();
                                                   $a += "List Installed DotNet CLRs (clrver.exe):"; 
-                                                  $a += . "clrver.exe"        | Where-Object { $_.Trim() -ne "" -and -not $_.StartsWith("Copyright (c) Microsoft Corporation.  All rights reserved.") -and 
-                                                    -not $_.StartsWith("Microsoft (R) .NET CLR Version Tool") -and -not $_.StartsWith("Versions installed on the machine:") } | ForEach-Object { "  Installed CLRs: $_" };
+                                                  $a += . "clrver.exe"        | Where-Object{ $_.Trim() -ne "" -and -not $_.StartsWith("Copyright (c) Microsoft Corporation.  All rights reserved.") -and 
+                                                    -not $_.StartsWith("Microsoft (R) .NET CLR Version Tool") -and -not $_.StartsWith("Versions installed on the machine:") } | ForEach-Object{ "  Installed CLRs: $_" };
                                                   $a += "List running DotNet Processes (clrver.exe -all):";
-                                                  $a += . "clrver.exe" "-all" | Where-Object { $_.Trim() -ne "" -and -not $_.StartsWith("Copyright (c) Microsoft Corporation.  All rights reserved.") -and 
-                                                    -not $_.StartsWith("Microsoft (R) .NET CLR Version Tool") -and -not $_.StartsWith("Versions installed on the machine:") } | ForEach-Object { "  Running Processes and its CLR: $_" };
-                                                  $a | Foreach-Object { OutProgress $_; };
+                                                  $a += . "clrver.exe" "-all" | Where-Object{ $_.Trim() -ne "" -and -not $_.StartsWith("Copyright (c) Microsoft Corporation.  All rights reserved.") -and 
+                                                    -not $_.StartsWith("Microsoft (R) .NET CLR Version Tool") -and -not $_.StartsWith("Versions installed on the machine:") } | ForEach-Object{ "  Running Processes and its CLR: $_" };
+                                                  $a | ForEach-Object{ OutProgress $_; };
                                                 }
                                                 [Int32] $relKey = (Get-ItemProperty "HKLM:SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full").Release;
                                                 # see: https://docs.microsoft.com/en-us/dotnet/framework/migration-guide/how-to-determine-which-versions-are-installed
@@ -3270,12 +3356,12 @@ function ToolSetAssocFileExtToCmd             ( [String[]] $fileExtensions, [Str
                                                 [String] $exec = $cmd; if( -not $cmd.StartsWith("`"") ){ $exec = "`"$cmd`" `"%1`"";}
                                                 [String] $traceInfo = "ToolSetAssocFileExtToCmd($fileExtensions,`"$cmd`",$ftype,$assertPrgExists)";
                                                 if( $assertPrgExists -and $cmd -ne "" -and (FileNotExists $prg) ){ throw [Exception] "$traceInfo failed because not exists: `"$prg`""; }
-                                                $fileExtensions | ForEach-Object { 
+                                                $fileExtensions | ForEach-Object{ 
                                                   if( -not $_.StartsWith(".") ){ throw [Exception] "$traceInfo failed because file ext not starts with dot: `"$_`""; };
                                                   if( $_.Contains(" ") ){ throw [Exception] "$traceInfo failed because file ext contains blank: `"$_`""; };
                                                   if( $_.Contains(",") ){ throw [Exception] "$traceInfo failed because file ext contains blank: `"$_`""; };
                                                 };
-                                                $fileExtensions | ForEach-Object {
+                                                $fileExtensions | ForEach-Object{
                                                   [String] $ext = $_; # ex: ".ps1"
                                                   if( $cmd -eq "" ){
                                                     OutProgress "DelFileAssociation ext=$ext :  cmd /c assoc $ext=";
@@ -3461,12 +3547,12 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #     Add-Type -TypeDefinition "public struct MyStruct {public string MyVar;}"; Assert( (New-Object MyStruct).MyVar -eq $null );
 #   - GetFullPath() works not with the current dir but with the working dir where powershell was started (ex. when running as administrator).
 #     http://stackoverflow.com/questions/4071775/why-is-powershell-resolving-paths-from-home-instead-of-the-current-directory/4072205
-#     powershell.exe         ; pwd <# ex: C:\Users\myuser     #>; echo hi > .\a.tmp ; [System.IO.Path]::GetFullPath(".\a.tmp")     <# is correct "C:\Users\myuser\a.tmp"     #>;
-#     powershell.exe as Admin; pwd <# ex: C:\WINDOWS\system32 #>; cd C:\Users\myuser; [System.IO.Path]::GetFullPath(".\a.tmp")     <# is wrong   "C:\WINDOWS\system32\a.tmp" #>;
-#                                                                                     [System.IO.Directory]::GetCurrentDirectory() <# is         "C:\WINDOWS\system32"       #>;
-#                                                                                     (get-location).Path                          <# is         "C:\Users\myuser"           #>;
-#                                                                                     Resolve-Path .\a.tmp                         <# is correct "C:\Users\myuser\a.tmp"     #>;
-#                                                                                     (Get-Item -Path ".\a.tmp" -Verbose).FullName <# is correct "C:\Users\myuser\a.tmp"     #>;
+#     powershell.exe         ; Get-Location <# ex: C:\Users\myuser     #>; Write-Output hi > .\a.tmp   ; [System.IO.Path]::GetFullPath(".\a.tmp")     <# is correct "C:\Users\myuser\a.tmp"     #>;
+#     powershell.exe as Admin; Get-Location <# ex: C:\WINDOWS\system32 #>; Set-Location C:\Users\myuser; [System.IO.Path]::GetFullPath(".\a.tmp")     <# is wrong   "C:\WINDOWS\system32\a.tmp" #>;
+#                                                                                                        [System.IO.Directory]::GetCurrentDirectory() <# is         "C:\WINDOWS\system32"       #>;
+#                                                                                                        (get-location).Path                          <# is         "C:\Users\myuser"           #>;
+#                                                                                                        Resolve-Path .\a.tmp                         <# is correct "C:\Users\myuser\a.tmp"     #>;
+#                                                                                                        (Get-Item -Path ".\a.tmp" -Verbose).FullName <# is correct "C:\Users\myuser\a.tmp"     #>;
 #     Possible reasons: PS can have a regkey as current location. GetFullPath works with [System.IO.Directory]::GetCurrentDirectory().
 #     Recommendation: do not use [System.IO.Path]::GetFullPath, use Resolve-Path.
 #   - ForEach-Object iterates once with $null in pipeline:    
@@ -3485,7 +3571,7 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #     if( $r -eq $null ){ write-host "never reached"; }   if( -not ($r -eq $null) ){ write-host "ok reached"; }
 #     if( $r -ne $null ){ write-host "never reached"; }   if( -not ($r -ne $null) ){ write-host "ok reached"; }
 #     Recommendation: Make sure an array variable is never null.
-#   - Variable name conflict: ... | ForEach-Object { [String[]] $a = $_; ... }; [Array] $a = ...;
+#   - Variable name conflict: ... | ForEach-Object{ [String[]] $a = $_; ... }; [Array] $a = ...;
 #     Can result in:  SessionStateUnauthorizedAccessException: Cannot overwrite variable a because the variable has been optimized. 
 #       Try using the New-Variable or Set-Variable cmdlet (without any aliases), 
 #       or dot-source the command that you are using to set the variable.
@@ -3495,7 +3581,7 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #       Select-Object -Property Field1,
 #       @{Name="Field2";Expression={if($_.Field1 -eq "a" ){ "is_a"; }else{ throw [Exception] "This exc is ignored and instead of throwing up the stack the result of the Expression statement is $null."; } }};
 #     $a[0].Field2 -eq "is_a" -and $a[1].Field2 -eq $null;  # this is true
-#     $a | ForEach { if( $_.Field2 -eq $null ){ throw [Exception] "Field2 is null"; } } # this does the throw
+#     $a | ForEach-Object{ if( $_.Field2 -eq $null ){ throw [Exception] "Field2 is null"; } } # this does the throw
 #     Recommendation: After creation of the list do iterate through it and assert non-null values.
 #   - String without comparison as condition:  Assert ( "anystring" ); Assert ( "$false" );
 # - Standard module paths:
@@ -3544,7 +3630,7 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #       Invoke-Expression [-command] string [CommonParameters]
 #     Very important: It performs string expansion before running, so it can be a severe problem if the string contains character $.
 #     This behaviour is very bad and so avoid using Invoke-Expression and use & or . operators instead.
-#     Ex: $cmd1 = "echo `$PSHome"; $cmd2 = "echo $PSHome"; Invoke-Expression $cmd1; Invoke-Expression $cmd2;
+#     Ex: $cmd1 = "Write-Output `$PSHome"; $cmd2 = "Write-Output $PSHome"; Invoke-Expression $cmd1; Invoke-Expression $cmd2;
 #   - Run a script or command remotely. See http://ss64.com/ps/invoke-command.html
 #     Invoke-Command 
 #     If you use Invoke-Command to run a script or command on a remote computer, 

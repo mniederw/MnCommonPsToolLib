@@ -19,7 +19,7 @@ function FsEntryRemoveTrailingBackslash       ( [String] $fsEntry ){ [String] $r
 function FsEntryGetAbsolutePath               ( [String] $fsEntry ){ return [String] ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($fsEntry)); }
 function PsModulePathList                     (){ return [String[]] ([Environment]::GetEnvironmentVariable($envVar, "Machine").
                                                   Split(";",[System.StringSplitOptions]::RemoveEmptyEntries)); }
-function PsModulePathContains                 ( [String] $d ){ [String[]] $a = (PsModulePathList | ForEach-Object { FsEntryRemoveTrailingBackslash $_ });
+function PsModulePathContains                 ( [String] $d ){ [String[]] $a = (PsModulePathList | ForEach-Object{ FsEntryRemoveTrailingBackslash $_ });
                                                 return [Boolean] ($a -contains (FsEntryRemoveTrailingBackslash $d)); }
 function PsModulePathAdd                      ( [String] $d ){ if( PsModulePathContains $d ){ return; }
                                                 PsModulePathSet ((PsModulePathList)+@( (FsEntryRemoveTrailingBackslash $d) )); }
