@@ -1,10 +1,10 @@
 # Common powershell tool library
-# 2013-2019 produced by Marc Niederwieser, Switzerland. Licensed under GPL3. This is freeware.
+# 2013-2020 produced by Marc Niederwieser, Switzerland. Licensed under GPL3. This is freeware.
 # Published at: https://github.com/mniederw/MnCommonPsToolLib
 #
 # This library encapsulates many common commands for the purpose of:
 #   Making behaviour compatible for usage with powershell.exe and powershell_ise.exe,
-#   fixing problems, supporting tracing information and simplifying commands for documentation.
+#   fixing problems, supporting tracing information, simplifying commands and acts as documentation.
 #
 # Notes about common approaches:
 # - Typesafe: Functions and its arguments and return values are always specified with its type to assert type reliablility.
@@ -12,6 +12,8 @@
 #   They are read in ANSI if they have no BOM (byte order mark) or otherwise according to BOM.
 # - Indenting format of this file: The statements of the functions below are indented in the given way because function names should be easy readable as documentation.
 # - On writing or appending files they automatically create its path parts.
+# - After calling a powershell function returning an array you should always preceed it with 
+#   an empty array (@()+f()) to avoid null values or alternatively use append operator (... += f).
 # - Notes about tracing information lines:
 #   - Progress : Any change of the system will be notified with (Write-Host -ForegroundColor DarkGray). Is enabled as default.
 #   - Verbose  : Some read io will be notified with (Write-Verbose) which can be enabled by VerbosePreference.
@@ -48,7 +50,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $MnCommonPsToolLibVersion = "5.20"; # more see Releasenotes.txt
+[String] $MnCommonPsToolLibVersion = "5.21"; # more see Releasenotes.txt
 
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 
@@ -189,7 +191,7 @@ function StringRemoveRightNr                  ( [String] $s, [Int32] $len ){ ret
 function StringPadRight                       ( [String] $s, [Int32] $len, [Boolean] $doQuote = $false  ){ [String] $r = $s; if( $doQuote ){ $r = '"'+$r+'"'; } return [String] $r.PadRight($len); }
 function StringSplitIntoLines                 ( [String] $s ){ return [String[]] (($s -replace "`r`n", "`n") -split "`n"); } # for empty string it returns an array with one item.
 function StringReplaceNewlines                ( [String] $s, [String] $repl = " " ){ return [String] ($s -replace "`r`n", "`n" -replace "`r", "" -replace "`n", $repl); }
-function StringSplitToArray                   ( [String] $sepChars, [String] $s, [Boolean] $removeEmptyEntries = $true ){ return [String[]] (@()+$s.Split($sepChars,$(switch($removeEmptyEntries){($true){[System.StringSplitOptions]::RemoveEmptyEntries}default{[System.StringSplitOptions]::None}}))); }
+function StringSplitToArray                   ( [String] $sep, [String] $s, [Boolean] $removeEmptyEntries = $true ){ return [String[]] $s.Split($sep,$(switch($removeEmptyEntries){($true){[System.StringSplitOptions]::RemoveEmptyEntries}default{[System.StringSplitOptions]::None}})); }
 function StringReplaceEmptyByTwoQuotes        ( [String] $str ){ return [String] $(switch((StringIsNullOrEmpty $str)){($true){"`"`""}default{$str}}); }
 function StringRemoveLeft                     ( [String] $str, [String] $strLeft , [Boolean] $ignoreCase = $true ){ [String] $s = StringLeft  $str $strLeft.Length; return [String] $(switch(($ignoreCase -and $s -eq $strLeft) -or $s -ceq $strLeft){ ($true){$str.Substring($strLeft.Length,$str.Length-$strLeft.Length)} default{$str} }); }
 function StringRemoveRight                    ( [String] $str, [String] $strRight, [Boolean] $ignoreCase = $true ){ [String] $s = StringRight $str $strRight.Length; return [String] $(switch(($ignoreCase -and $s -eq $strRight) -or $s -ceq $strRight){ ($true){StringRemoveRightNr $str $strRight.Length} default{$str} }); }
@@ -232,6 +234,17 @@ function StringCommandLineToArray             ( [String] $commandLine ){
                                                   while( $i -lt $line.Length -and ($line[$i] -eq ' ' -or $line[$i] -eq [Char]9) ){ $i++; }
                                                 }
                                                 return [String[]] $result; }
+function StringNormalizeAsVersion             ( [String] $versionString ){
+                                                # For comparison the first 4 dot separated parts are cared and the rest after a blank is ignored.
+                                                # Each component which begins with a digit is filled with leading zeros to a length of 5
+                                                # A leading "V" or "v" is optional and will be removed.
+                                                # Ex: "12.3.40" => "00012.00003.00040"; "12.20" => "00012.00002"; "12.3.beta.40.5 descrtext" => "00012.00003.beta.00040";
+                                                #     "V12.3" => "00012.00003"; "v12.3" => "00012.00003"; "" => ""; "a" => "a"; " b" => ""; 
+                                                return [String] ( ( (StringSplitToArray "." (@()+(StringSplitToArray " " (StringRemoveLeft $versionString "V") $false))[0]) | Select-Object -First 4 | 
+                                                  ForEach-Object{ if( $_ -match "^[0-9].*$" ){ $_.PadLeft(5,'0') }else{ $_ } }) -join "."); }
+function StringCompareVersionIsMinimum        ( [String] $version, [String] $minVersion ){ 
+                                                # Return true if version is equal of higher than a given minimum version (also see StringNormalizeAsVersion).
+                                                return [Boolean] ((StringNormalizeAsVersion $version) -ge (StringNormalizeAsVersion $minVersion)); }
 function DateTimeAsStringIso                  ( [DateTime] $ts, [String] $fmt = "yyyy-MM-dd HH:mm:ss" ){ return [String] $ts.ToString($fmt); }
 function DateTimeNowAsStringIso               ( [String] $fmt = "yyyy-MM-dd HH:mm:ss" ){ return [String] (Get-Date -format $fmt); }
 function DateTimeNowAsStringIsoDate           (){ return [String] (Get-Date -format "yyyy-MM-dd"); }
@@ -560,7 +573,7 @@ function PrivFsRuleCreateByString             ( [System.Security.Principal.Ident
                                                 $s = $s.Substring(1);
                                                 [Boolean] $useInherit = $false;
                                                 if( (StringRight $s 1) -eq "/" ){ $useInherit = $true; $s = $s.Substring(0,$s.Length-1); }
-                                                [String[]] $r = (StringSplitToArray "," $s $true);
+                                                [String[]] $r = @()+(StringSplitToArray "," $s $true);
                                                 [System.Security.AccessControl.FileSystemRights] $rights = (PrivAclFsRightsFromString $r);
                                                 [System.Security.AccessControl.InheritanceFlags] $inh = switch($useInherit){ ($false){[System.Security.AccessControl.InheritanceFlags]::None} ($true){[System.Security.AccessControl.InheritanceFlags]"ContainerInherit,ObjectInherit"} };
                                                 [System.Security.AccessControl.PropagationFlags] $prf = switch($useInherit){ ($false){[System.Security.AccessControl.PropagationFlags]::None} ($true){[System.Security.AccessControl.PropagationFlags]::None                          } }; # alternative [System.Security.AccessControl.PropagationFlags]::InheritOnly
@@ -725,7 +738,7 @@ function RegistryKeyGetHkey                   ( [String] $key ){
 function RegistryKeyGetSubkey                 ( [String] $key ){ 
                                                 $key = RegistryMapToShortKey $key;
                                                 if( $key.Contains(":\\") ){ throw [Exception] "Must not contain double backslashes after colon in `"$key`""; }
-                                                [String[]] $s = ($key -split ":\\",2); # means only one backslash
+                                                [String[]] $s = @()+($key -split ":\\",2); # means only one backslash
                                                 if( $s.Count -le 1 ){ throw [Exception] "Missing `":\`" in `"$key`""; }
                                                 return [String] $s[1]; }
 function RegistryPrivRuleCreate               ( [System.Security.Principal.IdentityReference] $account, [String] $regRight = "" ){
@@ -770,7 +783,7 @@ function PrivAclFsRightsToString              ( [System.Security.AccessControl.F
                                                 return [String] $s; }
 function PrivAclFsRightsFromString            ( [String] $s ){ # inverse of PrivAclFsRightsToString
                                                 [System.Security.AccessControl.FileSystemRights] $result = 0x00000000;
-                                                [String[]] $r = (StringSplitToArray "," $s $true);
+                                                [String[]] $r = @()+(StringSplitToArray "," $s $true);
                                                 $r | ForEach-Object{
                                                   [String] $w = switch($_){
                                                     "F"   {"FullControl"}
@@ -992,7 +1005,7 @@ function FsEntryMakeTrailingBackslash         ( [String] $fsEntry ){
 function FsEntryJoinRelativePatterns          ( [String] $rootDir, [String[]] $relativeFsEntriesPatternsSemicolonSeparated ){
                                                 # Create an array ex: @( "c:\myroot\bin\", "c:\myroot\obj\", "c:\myroot\*.tmp", ... ) from input as @( "bin\;obj\;", ";*.tmp;*.suo", ".\dir\d1?\", ".\dir\file*.txt");
                                                 # If an fs entry specifies a dir patterns then it must be specified by a trailing backslash. 
-                                                [String[]] $a = @(); $relativeFsEntriesPatternsSemicolonSeparated | ForEach-Object{ $a += StringSplitToArray ";" $_; };
+                                                [String[]] $a = @(); $relativeFsEntriesPatternsSemicolonSeparated | ForEach-Object{ $a += (StringSplitToArray ";" $_); };
                                                 return  ($a | ForEach-Object{ "$rootDir\$_" }); }
 function FsEntryGetFileNameWithoutExt         ( [String] $fsEntry ){ 
                                                 return [String] [System.IO.Path]::GetFileNameWithoutExtension((FsEntryRemoveTrailingBackslash $fsEntry)); }
@@ -1073,11 +1086,10 @@ function FsEntryListAsFileSystemInfo          ( [String] $fsEntryPattern, [Boole
                                                 }catch [System.UnauthorizedAccessException] { # BUG: why is this not handled by SilentlyContinue?
                                                   OutWarning "Ignoring UnauthorizedAccessException for Get-ChildItem -Force -ErrorAction SilentlyContinue -Recurse:$recursive -Path `"$pa`"";
                                                 } return $result; }
-                                                
 function FsEntryListAsStringArray             ( [String] $fsEntryPattern, [Boolean] $recursive = $true, [Boolean] $includeDirs = $true, [Boolean] $includeFiles = $true, [Boolean] $inclTopDir = $false ){
                                                 # Output of directories will have a trailing backslash. more see FsEntryListAsFileSystemInfo.
-                                                return [String[]] (@() + (FsEntryListAsFileSystemInfo $fsEntryPattern $recursive $includeDirs $includeFiles $inclTopDir |
-                                                  ForEach-Object{ FsEntryFsInfoFullNameDirWithBackSlash $_} )); }
+                                                return [String[]] (FsEntryListAsFileSystemInfo $fsEntryPattern $recursive $includeDirs $includeFiles $inclTopDir |
+                                                  ForEach-Object{ FsEntryFsInfoFullNameDirWithBackSlash $_} ); }
 function FsEntryDelete                        ( [String] $fsEntry ){ 
                                                 if( $fsEntry.EndsWith("\") ){ DirDelete $fsEntry; }else{ FileDelete $fsEntry; } }
 function FsEntryDeleteToRecycleBin            ( [String] $fsEntry ){
@@ -1417,7 +1429,7 @@ function CredentialWriteToFile                ( [System.Management.Automation.PS
 function CredentialRemoveFile                 ( [String] $secureCredentialFile ){ 
                                                 OutProgress "CredentialRemoveFile `"$secureCredentialFile`""; FileDelete $secureCredentialFile; }
 function CredentialReadFromFile               ( [String] $secureCredentialFile ){
-                                                [String[]] $s = StringSplitIntoLines (FileReadContentAsString $secureCredentialFile "Default");
+                                                [String[]] $s = @()+(StringSplitIntoLines (FileReadContentAsString $secureCredentialFile "Default"));
                                                 try{ [String] $us = $s[0]; [System.Security.SecureString] $pwSecure = CredentialGetSecureStrFromHexString $s[1];
                                                   # alternative: New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $User, (Get-Content -Encoding Default -LiteralPath $secureCredentialFile | ConvertTo-SecureString)
                                                   return (New-Object System.Management.Automation.PSCredential((CredentialStandardizeUserWithDomain $us), $pwSecure));
@@ -2132,8 +2144,7 @@ function GitShowBranch                        ( [String] $repoDir ){
 function GitShowChanges                       ( [String] $repoDir ){
                                                 # return changed, deleted and new files or dirs. Per entry one line prefixed with a change code.
                                                 [String] $out = ProcessStart "git" @( "-C", $repoDir, "--git-dir=.git", "status", "--short");
-                                                [String[]] $res = @()+(StringSplitIntoLines $out | Where-Object{ -not [String]::IsNullOrWhiteSpace($_); });
-                                                return [String[]] $res; }
+                                                return [String[]] (StringSplitIntoLines $out | Where-Object{ -not [String]::IsNullOrWhiteSpace($_); }); }
 function GitCloneOrFetchOrPull                ( [String] $tarRootDir, [String] $urlAndOptionalBranch, [Boolean] $usePullNotFetch = $false, [Boolean] $errorAsWarning = $false ){
                                                 # Extracts path of url below host as relative dir, uses this path below target root dir to create or update git; 
                                                 # ex: GitCloneOrFetchOrPull "C:\WorkGit"          "https://github.com/mniederw/MnCommonPsToolLib"
@@ -2270,11 +2281,11 @@ function SvnEnvInfoGet                        ( [String] $workDir ){
                                                 # Svn can cache more than one server connection option, so we need to find the correct one by matching the realmPattern in realmstring which identifies a server connection.
                                                 [String] $svnCachedAuthorizationDir = "$env:APPDATA\Subversion\auth\svn.simple";
                                                 # Care only file names like "25ff84926a354d51b4e93754a00064d6"
-                                                [String[]] $files = FsEntryListAsStringArray "$svnCachedAuthorizationDir\*" $false $false | 
-                                                    Where-Object{ (FsEntryGetFileName $_) -match "^[0-9a-f]{32}$" } | Sort-Object;
+                                                [String[]] $files = @()+(FsEntryListAsStringArray "$svnCachedAuthorizationDir\*" $false $false | 
+                                                    Where-Object{ (FsEntryGetFileName $_) -match "^[0-9a-f]{32}$" } | Sort-Object);
                                                 [String] $encodingIfNoBom = "Default";
                                                 foreach( $f in $files ){
-                                                  [String[]] $lines = FileReadContentAsLines $f $encodingIfNoBom;
+                                                  [String[]] $lines = @()+(FileReadContentAsLines $f $encodingIfNoBom);
                                                   # filecontent example:
                                                   #   K 8
                                                   #   passtype
@@ -2386,7 +2397,7 @@ function SvnStatus                            ( [String] $workDir, [Boolean] $sh
                                                 # If the item is a tree conflict victim, an additional line is printed after the item's status line, explaining the nature of the conflict.
                                                 FileAppendLineWithTs $svnLogFile "SvnStatus(`"$workDir`")";
                                                 OutVerbose "SvnStatus - List pending changes";
-                                                [String[]] $out = @()+(& (SvnExe) "status" $workDir); AssertRcIsOk $out;
+                                                [String[]] $out = (& (SvnExe) "status" $workDir); AssertRcIsOk $out;
                                                 FileAppendLines $svnLogFile (StringArrayInsertIndent $out 2);
                                                 [Int32] $nrOfPendingChanges = $out.Count;
                                                 [Int32] $nrOfCommitRelevantChanges = ([String[]](@()+($out | Where-Object{ $_ -ne $null -and -not $_.StartsWith("!") }))).Count; # ignore lines with leading '!' because these would not occurre in commit dialog
@@ -2561,8 +2572,8 @@ function TfsShowAllWorkspaces                 ( [String] $url, [Boolean] $showPa
                                                 OutProgress "Show all tfs workspaces (showPaths=$showPaths,currentMachineOnly=$currentMachineOnly)";
                                                 [String] $fmt = "Brief"; if( $showPaths ){ $fmt = "Detailed"; }
                                                 [String] $mach = "*"; if( $currentMachineOnly ){ $mach = $env:COMPUTERNAME; }
-                                                OutProgress                                "& `"$(TfsExe)`" vc workspaces /noprompt /format:$fmt /owner:* /computer:$mach /collection:$url";
-                                                [String[]] $out = (StringArrayInsertIndent (&    (TfsExe)   vc workspaces /noprompt /format:$fmt /owner:* /computer:$mach /collection:$url) 2); ScriptResetRc;
+                                                OutProgress                                    "& `"$(TfsExe)`" vc workspaces /noprompt /format:$fmt /owner:* /computer:$mach /collection:$url";
+                                                [String[]] $out = @()+(StringArrayInsertIndent (&    (TfsExe)   vc workspaces /noprompt /format:$fmt /owner:* /computer:$mach /collection:$url) 2); ScriptResetRc;
                                                 $out | ForEach-Object{ $_ -replace "--------------------------------------------------", "-" } | 
                                                        ForEach-Object{ $_ -replace "==================================================", "=" } | ForEach-Object{ OutProgress $_ };
                                                 # Example1:
@@ -2602,8 +2613,8 @@ function TfsShowAllWorkspaces                 ( [String] $url, [Boolean] $showPa
                                                 }
 function TfsShowLocalCachedWorkspaces         (){ # works without access an url
                                                 OutProgress "Show local cached tfs workspaces";
-                                                OutProgress                                "& `"$(TfsExe)`" vc workspaces /noprompt /format:Brief";
-                                                [String[]] $out = (StringArrayInsertIndent (&    (TfsExe)   vc workspaces /noprompt /format:Brief) 2); AssertRcIsOk $out;
+                                                OutProgress                                    "& `"$(TfsExe)`" vc workspaces /noprompt /format:Brief";
+                                                [String[]] $out = @()+(StringArrayInsertIndent (&    (TfsExe)   vc workspaces /noprompt /format:Brief) 2); AssertRcIsOk $out;
                                                 $out | ForEach-Object{ $_ -replace "--------------------------------------------------", "-" } | ForEach-Object{ OutProgress $_ };
                                                 # Format Detailed is only allowed if collection is specified
                                                 # Example1:
@@ -3107,10 +3118,10 @@ function InfoGetInstalledDotNetVersion        ( [Boolean] $alsoOutInstalledClrAn
                                                 if( $alsoOutInstalledClrAndRunningProc ){
                                                   [String[]] $a = @();
                                                   $a += "List Installed DotNet CLRs (clrver.exe):"; 
-                                                  $a += . "clrver.exe"        | Where-Object{ $_.Trim() -ne "" -and -not $_.StartsWith("Copyright (c) Microsoft Corporation.  All rights reserved.") -and 
+                                                  $a += & "clrver.exe"        | Where-Object{ $_.Trim() -ne "" -and -not $_.StartsWith("Copyright (c) Microsoft Corporation.  All rights reserved.") -and 
                                                     -not $_.StartsWith("Microsoft (R) .NET CLR Version Tool") -and -not $_.StartsWith("Versions installed on the machine:") } | ForEach-Object{ "  Installed CLRs: $_" };
                                                   $a += "List running DotNet Processes (clrver.exe -all):";
-                                                  $a += . "clrver.exe" "-all" | Where-Object{ $_.Trim() -ne "" -and -not $_.StartsWith("Copyright (c) Microsoft Corporation.  All rights reserved.") -and 
+                                                  $a += & "clrver.exe" "-all" | Where-Object{ $_.Trim() -ne "" -and -not $_.StartsWith("Copyright (c) Microsoft Corporation.  All rights reserved.") -and 
                                                     -not $_.StartsWith("Microsoft (R) .NET CLR Version Tool") -and -not $_.StartsWith("Versions installed on the machine:") } | ForEach-Object{ "  Running Processes and its CLR: $_" };
                                                   $a | ForEach-Object{ OutProgress $_; };
                                                 }
@@ -3227,9 +3238,9 @@ function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [St
                                                 Assert ($srcFileExtMenuLink    -ne "" -or (-not $srcFileExtMenuLink.EndsWith("\")   )) "srcMenuLinkFileExt=`"$srcFileExtMenuLink`" is empty or has trailing backslash";
                                                 Assert ($srcFileExtMenuLinkOpt -ne "" -or (-not $srcFileExtMenuLinkOpt.EndsWith("\"))) "srcMenuLinkOptFileExt=`"$srcFileExtMenuLinkOpt`" is empty or has trailing backslash";
                                                 if( -not (DirExists $sdir) ){ OutWarning "Ignoring dir not exists: `"$sdir`""; }
-                                                [String[]] $menuLinkFiles =  (FsEntryListAsStringArray "$sdir\*$srcFileExtMenuLink"    $true $false);
-                                                           $menuLinkFiles += (FsEntryListAsStringArray "$sdir\*$srcFileExtMenuLinkOpt" $true $false);
-                                                           $menuLinkFiles = $menuLinkFiles | Sort-Object;
+                                                [String[]] $menuLinkFiles = @()+(FsEntryListAsStringArray "$sdir\*$srcFileExtMenuLink"    $true $false);
+                                                           $menuLinkFiles +=    (FsEntryListAsStringArray "$sdir\*$srcFileExtMenuLinkOpt" $true $false);
+                                                           $menuLinkFiles = @()+($menuLinkFiles | Sort-Object);
                                                 foreach( $f in $menuLinkFiles ){ # ex: "...\MyProg .menulinkoptional.txt"
                                                   [String] $d = FsEntryGetParentDir $f; # ex: "D:\MyPortableProgs\Appl\Graphic"  
                                                   [String] $relBelowSrcDir = FsEntryMakeRelative $d $sdir; # ex: "Appl\Graphic" or "."
@@ -3244,11 +3255,11 @@ function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [St
                                                   [Boolean] $forceRecreate = FileNotExistsOrIsOlder $lnkFile $f;
                                                   [Boolean] $ignoreIfSrcFileNotExists = $f.EndsWith($srcFileExtMenuLinkOpt);
                                                   try{
-                                                    [String[]] $ar = StringCommandLineToArray $cmdLine; # can throw: Expected blank or tab char or end of string but got char ...
+                                                    [String[]] $ar = @()+(StringCommandLineToArray $cmdLine); # can throw: Expected blank or tab char or end of string but got char ...
                                                     if( $ar.Length -eq 0 ){ throw [Exception] "Missing a command line at first line in file=`"$f`" cmdline=`"$cmdLine`""; }
                                                     if( ($ar.Length-1) -gt 999 ){ throw [Exception] "Command line has more than the allowed 999 arguments at first line infile=`"$f`" nrOfArgs=$($ar.Length) cmdline=`"$cmdLine`""; }
                                                     [String] $srcFile = FsEntryGetAbsolutePath ([System.IO.Path]::Combine($d,$ar[0])); # ex: "D:\MyPortableProgs\Manufactor ProgramName\AnyProgram.exe"
-                                                    [String[]] $arguments = $ar | Select-Object -Skip 1;
+                                                    [String[]] $arguments = @()+($ar | Select-Object -Skip 1);
                                                     $addTraceInfo = "and calling (ToolCreateLnkIfNotExists $forceRecreate `"$workDir`" `"$lnkFile`" `"$srcFile`" `"$arguments`" $false $ignoreIfSrcFileNotExists) ";
                                                     ToolCreateLnkIfNotExists $forceRecreate $workDir $lnkFile $srcFile $arguments $false $ignoreIfSrcFileNotExists;
                                                   }catch{
@@ -3313,7 +3324,7 @@ function ToolGithubApiDownloadLatestReleaseDir( [String] $repoUrl ){
                                                 # ex: $apiUrl = "https://api.github.com/repos/mniederw/MnCommonPsToolLib"
                                                 [String] $url = "$apiUrl/releases/latest";
                                                 OutProgress "Download: $url";
-                                                [Object] $apiObj = (. "curl.exe" -s $url) | ConvertFrom-Json;
+                                                [Object] $apiObj = (& "curl.exe" -s $url) | ConvertFrom-Json;
                                                 [String] $relName = "$($apiObj.name) [$($apiObj.target_commitish),$($apiObj.created_at.Substring(0,10)),$($apiObj.tag_name)]";
                                                 OutProgress "Selected: `"$relName`"";
                                                 # ex: $apiObj.zipball_url = "https://api.github.com/repos/mniederw/MnCommonPsToolLib/zipball/V4.9"
@@ -3329,7 +3340,7 @@ function ToolGithubApiDownloadLatestReleaseDir( [String] $repoUrl ){
                                                 ToolUnzip $tarZip $tarDir; # Ex: ./mniederw-MnCommonPsToolLib-25dbfb0/*
                                                 FileDelete $tarZip;
                                                  # list flat dirs, ex: "C:\Temp\User_u2\MnCoPsToLib_catkmrpnfdp\mniederw-MnCommonPsToolLib-25dbfb0\"
-                                                [String[]] $dirs = FsEntryListAsStringArray $tarDir $false $true $false;
+                                                [String[]] $dirs = @()+(FsEntryListAsStringArray $tarDir $false $true $false);
                                                 if( $dirs.Count -ne 1 ){ throw [Exception] "Expected one dir in `"$tarDir`" instead of: $dirs"; }
                                                 [String] $dir0 = $dirs[0];
                                                 FsEntryMoveByPatternToDir "$dir0\*" $tarDir;
@@ -3444,55 +3455,9 @@ function MnCommonPsToolLibSelfUpdate          ( [Boolean] $doWaitForEnterKeyIfFa
                                                 [Boolean] $dummyResult = ToolPerformFileUpdateAndIsActualized $moduleFile $url $requireElevatedAdminMode $doWaitForEnterKeyIfFailed $additionalOkUpdMsg $assertFilePreviouslyExists $performPing;
                                               }
 
-function MnLibCommonSelfTest(){ # perform some tests
-  Assert ( "$anyUnknownVar".Length -eq 0 -and '$anyUnknownVar'.Length -gt 0 ); # within single quotes parameters were not replaced.
-  Assert ((2 + 3) -eq 5);
-  Assert ([Math]::Min(-5,-9) -eq -9);
-  Assert ("xyz".substring(1,0) -eq "");
-  Assert ((DateTimeFromStringIso "2011-12-31"             ) -eq (Get-Date -Date "2011-12-31 00:00:00"    ));
-  Assert ((DateTimeFromStringIso "2011-12-31 23:59"       ) -eq (Get-Date -Date "2011-12-31 23:59:00"    ));
-  Assert ((DateTimeFromStringIso "2011-12-31 23:59:59"    ) -eq (Get-Date -Date "2011-12-31 23:59:59"    ));
-  Assert ((DateTimeFromStringIso "2011-12-31 23:59:59."   ) -eq (Get-Date -Date "2011-12-31 23:59:59"    ));
-  Assert ((DateTimeFromStringIso "2011-12-31 23:59:59.0"  ) -eq (Get-Date -Date "2011-12-31 23:59:59.0"  ));
-  Assert ((DateTimeFromStringIso "2011-12-31 23:59:59.9"  ) -eq (Get-Date -Date "2011-12-31 23:59:59.9"  ));
-  Assert ((DateTimeFromStringIso "2011-12-31 23:59:59.99" ) -eq (Get-Date -Date "2011-12-31 23:59:59.99" ));
-  Assert ((DateTimeFromStringIso "2011-12-31 23:59:59.999") -eq (Get-Date -Date "2011-12-31 23:59:59.999"));
-  Assert ((DateTimeFromStringIso "2011-12-31T23:59:59.999") -eq (Get-Date -Date "2011-12-31 23:59:59.999"));
-  Assert (("abc" -split ",").Count -eq 1 -and "abc,".Split(",").Count -eq 2 -and ",abc".Split(",").Count -eq 2);
-  Assert ((ByteArraysAreEqual @()               @()              ) -eq $true );
-  Assert ((ByteArraysAreEqual @(0x00,0x01,0xFF) @(0x00,0x01,0xFF)) -eq $true );
-  Assert ((ByteArraysAreEqual @(0x00,0x01,0xFF) @(0x00,0x02,0xFF)) -eq $false);
-  Assert ((ByteArraysAreEqual @(0x00,0x01,0xFF) @(0x00,0x01     )) -eq $false);
-  Assert ((FsEntryMakeRelative "C:\MyDir\Dir1\Dir2" "C:\MyDir") -eq "Dir1\Dir2");
-  Assert ((FsEntryMakeRelative "C:\MyDir\Dir1\Dir2" "C:\MyDir" $true) -eq ".\Dir1\Dir2");
-  Assert ((FsEntryMakeRelative "C:\MyDir" "C:\MyDir\") -eq ".");
-  Assert ((Int32Clip -5 0 9) -eq 0 -and (Int32Clip 5 0 9) -eq 5 -and (Int32Clip 15 0 9) -eq 9);
-  Assert ((StringRemoveRight "abc" "c") -eq "ab");
-  Assert ((StringLeft          "abc" 5) -eq "abc" -and (StringLeft          "abc" 2) -eq "ab");
-  Assert ((StringRight         "abc" 5) -eq "abc" -and (StringRight         "abc" 2) -eq "bc");
-  Assert ((StringRemoveRightNr "abc" 5) -eq ""    -and (StringRemoveRightNr "abc" 1) -eq "ab");
-  Assert (( StringArrayIsEqual $null      @("a")                 ) -eq $false);
-  Assert (( StringArrayIsEqual $null      @("")                  ) -eq $false);
-  Assert (( StringArrayIsEqual @()        @("a")                 ) -eq $false);
-  Assert (( StringArrayIsEqual $null      @()                    ) -eq $true );
-  Assert (( StringArrayIsEqual @()        $null                  ) -eq $true );
-  Assert (( StringArrayIsEqual @()        @()                    ) -eq $true );
-  Assert (( StringArrayIsEqual @("")      @("")                  ) -eq $true );
-  Assert (( StringArrayIsEqual @("a")     @("a")                 ) -eq $true );
-  Assert (( StringArrayIsEqual @("a","b") @("a")                 ) -eq $false);
-  Assert (( StringArrayIsEqual @("a","b") @("a","b")             ) -eq $true );
-  Assert (( StringArrayIsEqual @("a","b") @("b","a")             ) -eq $false);
-  Assert (( StringArrayIsEqual @("a","b") @("a","B")             ) -eq $false);
-  Assert (( StringArrayIsEqual @("a","b") @("a","B") $false $true) -eq $true );
-  Assert (( StringArrayIsEqual @("a","b") @("b","a") $true       ) -eq $true );
-  Assert (( StringArrayIsEqual @("a","b") @("b","c") $true       ) -eq $false);
-  AssertNotEmpty "this-string-is-not-empty" "test fail msg";
-  OutSuccess "Ok";
-} # MnLibCommonSelfTest; # currently not run because it needs some time and we know it works :-)
-
 # DEPRECATED
 function FsEntryMakeAbsolutePath              ( [String] $dirWhenFsEntryIsRelative, [String] $fsEntryRelativeOrAbsolute = ""){
-  OutWarn "[FsEntryMakeAbsolutePath a b] is Deprecated (function will be removed in next version), replace it as soon as possible by: [FsEntryGetAbsolutePath ([System.IO.Path]::Combine(a,b))]";
+  OutWarn "[FsEntryMakeAbsolutePath a b] is Deprecated (function will be removed in next version V6), replace it as soon as possible by: [FsEntryGetAbsolutePath ([System.IO.Path]::Combine(a,b))]";
   return [String] (FsEntryGetAbsolutePath ([System.IO.Path]::Combine($dirWhenFsEntryIsRelative,$fsEntryRelativeOrAbsolute))); }
 
 # ----------------------------------------------------------------------------------------------------
@@ -3561,7 +3526,8 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #     But:  @() | ForEach-Object{ write-host "ok not reached." }
 #     Workaround if array variable can be null, then use:  
 #       $null | Where-Object{ $_ -ne $null } | ForEach-Object{ write-host "ok not reached." }
-#     Alternative: $null | ForEach-Object -Begin{if($_ -eq $null){continue}} -Process {do your stuff here}
+#     Alternative:
+#       $null | ForEach-Object -Begin{if($_ -eq $null){continue}} -Process {do your stuff here}
 #     Recommendation: Make sure an array variable is never null.
 #   - Empty array in pipeline is converted to $null:  
 #     $r = ([String[]]@()) | Where-Object{ $_ -ne "bla" }; if( $r -eq $null ){ write-host "ok reached" };
@@ -3576,6 +3542,13 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #       Try using the New-Variable or Set-Variable cmdlet (without any aliases), 
 #       or dot-source the command that you are using to set the variable.
 #     Recommendation: Rename one of the variables.
+#   - A powershell function cannot return empty array instead it will return $null.
+#     see https://stackoverflow.com/questions/18476634/powershell-doesnt-return-an-empty-array-as-an-array
+#       function ReturnArray(){ [String[]] $a = @(); return $a; }  if( (ReturnArray) -eq $null ){ write-host "ok reached"; }
+#     Recommendation: After a call of a function which return an array then add an empty array
+#       function ReturnArray(){ [String[]] $a = @(); return $a; }  if( -not( ([String[]]((ReturnArray)+@())) -eq $null) ){ write-host "ok reached"; }
+#   - DotNet functions as Split() can return empty arrays:
+#       [String[]] $a = "".Split(";",[System.StringSplitOptions]::RemoveEmptyEntries); if( $a.Count -eq 0 ){ write-host "ok reached"; }
 #   - Exceptions are always catched within Expression statement and instead of expecting the throw it returns $null:
 #     [Object[]] $a = @( "a", "b" ) | Select-Object -Property @{Name="Field1";Expression={$_}} | 
 #       Select-Object -Property Field1,
@@ -3607,13 +3580,13 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 # - Run a script:
 #   - runs script in script scope, variables and functions do not persists in shell after script end:
 #       ".\myscript.ps1"
-#   - runs script in local scope, variables and functions persists in shell after script end, used to include ps artefacts:
+#   - Dot Sourcing Operator (.) runs script in local scope, variables and functions persists in shell after script end, used to include ps artefacts:
 #       . ".\myscript.ps1"
 #       . { Write-Host "Test"; }    
 #       powershell.exe -command ". .\myscript.ps1" 
-#       powershell.exe -file ".\myscript.ps1"
-#   - Call operator, runs a script, executable, function or scriptblock, 
-#     - Creates a new script scope which is deleted after script end. Changes to global variables are also lost.
+#       powershell.exe -file      ".\myscript.ps1"
+#   - Call operator (&), runs a script, executable, function or scriptblock, 
+#     - Creates a new script scope which is deleted after script end. Is side effect safe. Changes to global variables are also lost.
 #         & "./myscript.ps1" ...arguments... ; & $mycmd ...args... ; & { mycmd1; mycmd2 }
 #     - Use quotes when calling non-powershell executables. 
 #     - Very important: if an empty argument should be specified then two quotes as '' or "" or $null 
@@ -3659,7 +3632,3 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #   - Alternative for Split-Path has problems: 
 #       [System.IO.Path]::GetDirectoryName("c:\") -eq $null; 
 #       [System.IO.Path]::GetDirectoryName("\\mymach\myshare\") -eq "\\mymach\myshare\";
-#   - Split():
-#       [String[]] $a = "".Split(";",[System.StringSplitOptions]::RemoveEmptyEntries); 
-#       # returns correctly an empty array and not null: $a.Count -eq 0;
-#     Usually Split is used with the option RemoveEmptyEntries.

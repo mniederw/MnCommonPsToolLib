@@ -20,7 +20,7 @@ function TestFsEntries(){
   OutInfo "Test file system entry functions";
   OutProgress "Current dir is: $(FsEntryGetAbsolutePath '.')";
   [String] $d = "C:\Users\u4\Documents";
-  [String[]] $a = FsEntryListAsStringArray $d $true $false $true;
+  [String[]] $a = @()+(FsEntryListAsStringArray $d $true $false $true);
   OutProgress "The folder '$d' contains $($a.Count) number of files";
   [String[]] $a2 = $a | Select-Object -First 2;
   [Object[]] $o2 = $a2 | Select-Object @{Name="FileName";Expression={("`"$_`"")}};
