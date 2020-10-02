@@ -359,7 +359,9 @@ function StdInAskAndAssertExpectedAnswer      ( [String] $line = "Are you sure (
                                                 [String] $answer = StdInReadLine $line; if( $answer -ne $expectedAnswer ){ StdOutRedLineAndPerformExit "Aborted"; } }
 function StdOutEndMsgCareInteractiveMode      ( [Int32] $delayInSec = 1 ){ if( $global:ModeDisallowInteractions -or $global:ModeNoWaitForEnterAtEnd ){ 
                                                 OutSuccess "Ok, done. Ending in $delayInSec second(s)."; ProcessSleepSec $delayInSec; }else{ OutSuccess "Ok, done. Press Enter to Exit;"; StdInReadLine; } }
-function Assert                               ( [Boolean] $cond, [String] $failReason = "" ){ if( -not $cond ){ throw [Exception] "Assertion failed because $failReason"; } }
+function Assert                               ( [Boolean] $cond, [String] $failReason = "" ){ if( -not $cond ){ 
+                                                throw [Exception] "Assertion failed because $failReason";
+                                                } }
 function AssertNotEmpty                       ( [String] $s, [String] $varName ){ Assert ($s -ne "") "not allowed empty string for $varName."; }
 function AssertRcIsOk                         ( [String[]] $linesToOutProgress = $null, [Boolean] $useLinesAsExcMessage = $false, [String] $logFileToOutProgressIfFailed = "", [String] $encodingIfNoBom = "Default" ){
                                                 # Can also be called with a single string; only nonempty progress lines are given out.
@@ -899,8 +901,8 @@ function OsIsHibernateEnabled                 (){
                                                 if( OsIsWin7OrHigher ){ return [Boolean] (RegistryGetValueAsString "HKLM:\SYSTEM\CurrentControlSet\Control\Power" "HibernateEnabled") -eq "1"; }
                                                 # win7     ex: Die folgenden Standbymodusfunktionen sind auf diesem System verfügbar: Standby ( S1 S3 ) Ruhezustand Hybrider Standbymodus
                                                 # winVista ex: Die folgenden Ruhezustandfunktionen sind auf diesem System verfügbar: Standby ( S3 ) Ruhezustand Hybrider Standbymodus
-                                                [String] $out = & "$env:SystemRoot\system32\POWERCFG.EXE" "-AVAILABLESLEEPSTATES" | Where-Object{
-                                                  $_ -like "Die folgenden Standbymodusfunktionen sind auf diesem System verf*" -or $_ -like "Die folgenden Ruhezustandfunktionen sind auf diesem System verf*" }; 
+                                                [String] $out = @()+(& "$env:SystemRoot\system32\POWERCFG.EXE" "-AVAILABLESLEEPSTATES" | Where-Object{
+                                                  $_ -like "Die folgenden Standbymodusfunktionen sind auf diesem System verf*" -or $_ -like "Die folgenden Ruhezustandfunktionen sind auf diesem System verf*" }); 
                                                 AssertRcIsOk; return [Boolean] ((($out.Contains("Ruhezustand") -or $out.Contains("Hibernate"))) -and (FileExists "$env:SystemDrive\hiberfil.sys")); }
 function ServiceListRunnings                  (){ 
                                                 return (Get-Service * | Where-Object{ $_.Status -eq "Running" } | Sort-Object Name | Format-Table -auto -HideTableHeaders " ",Name,DisplayName | StreamToStringDelEmptyLeadAndTrLines); }
@@ -1656,11 +1658,11 @@ function NetPingHostIsConnectable             ( [String] $hostName, [Boolean] $d
                                                 try{ [System.Net.Dns]::GetHostByName($hostName); }catch{}
                                                 # nslookup $hostName -ErrorAction SilentlyContinue | out-null;
                                                 return [Boolean] (Test-Connection -Cn $hostName -BufferSize 16 -Count 1 -ea 0 -quiet); }
-function NetGetIpConfig                       (){ [String[]] $out = & "IPCONFIG.EXE" "/ALL"          ; AssertRcIsOk $out; return $out; }
-function NetGetNetView                        (){ [String[]] $out = & "NET.EXE" "VIEW" $ComputerName ; AssertRcIsOk $out; return $out; }
-function NetGetNetStat                        (){ [String[]] $out = & "NETSTAT.EXE" "/A"             ; AssertRcIsOk $out; return $out; }
-function NetGetRoute                          (){ [String[]] $out = & "ROUTE.EXE" "PRINT"            ; AssertRcIsOk $out; return $out; }
-function NetGetNbtStat                        (){ [String[]] $out = & "NBTSTAT.EXE" "-N"             ; AssertRcIsOk $out; return $out; }
+function NetGetIpConfig                       (){ [String[]] $out = @()+(& "IPCONFIG.EXE" "/ALL"          ); AssertRcIsOk $out; return $out; }
+function NetGetNetView                        (){ [String[]] $out = @()+(& "NET.EXE" "VIEW" $ComputerName ); AssertRcIsOk $out; return $out; }
+function NetGetNetStat                        (){ [String[]] $out = @()+(& "NETSTAT.EXE" "/A"             ); AssertRcIsOk $out; return $out; }
+function NetGetRoute                          (){ [String[]] $out = @()+(& "ROUTE.EXE" "PRINT"            ); AssertRcIsOk $out; return $out; }
+function NetGetNbtStat                        (){ [String[]] $out = @()+(& "NBTSTAT.EXE" "-N"             ); AssertRcIsOk $out; return $out; }
 <# Type: ServerCertificateValidationCallback #> Add-Type -TypeDefinition "using System;using System.Net;using System.Net.Security;using System.Security.Cryptography.X509Certificates; public class ServerCertificateValidationCallback { public static void Ignore() { ServicePointManager.ServerCertificateValidationCallback += delegate( Object obj, X509Certificate certificate, X509Chain chain, SslPolicyErrors errors ){ return true; }; } } ";
 function NetWebRequestLastModifiedFailSafe    ( [String] $url ){ # Requests metadata from a downloadable file. Return DateTime.MaxValue in case of any problem
                                                 [net.WebResponse] $resp = $null;
@@ -1931,7 +1933,7 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                 FileAppendLineWithTs $logf "$curlExe $opt --url $url";
                                                 OutProgress "  Logfile: `"$logf`"";
                                                 try{
-                                                  [String[]] $out = & $curlExe $opt "--url" $url;
+                                                  [String[]] $out = @()+(& $curlExe $opt "--url" $url);
                                                   if( $LASTEXITCODE -eq 60 ){
                                                     # Curl: (60) SSL certificate problem: unable to get local issuer certificate. More details here: http://curl.haxx.se/docs/sslcerts.html
                                                     # Curl performs SSL certificate verification by default, using a "bundle" of Certificate Authority (CA) public keys (CA certs). 
@@ -2037,7 +2039,7 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                 # alternative would be for wget: Invoke-WebRequest
                                                 [String] $wgetExe = ProcessGetCommandInEnvPathOrAltPaths "wget"; # ex: D:\Work\PortableProg\Tool\...
                                                 FileAppendLineWithTs $logf "& `"$wgetExe`" `"$url`" $opt --password=*** ";
-                                                OutProgress "  & `"$wgetExe`" `"$url`"";
+                                                OutProgress              "  & `"$wgetExe`" `"$url`"";
                                                 & $wgetExe $url $opt "--password=$pw" "--append-output=$logf";
                                                 [Int32] $rc = ScriptGetAndClearLastRc; if( $rc -ne 0 ){
                                                   [String] $err = switch($rc){ 0 {"OK"} 1 {"Generic"} 2 {"CommandLineOption"} 3 {"FileIo"} 4 {"Network"} 5 {"SslVerification"} 6 {"Authentication"} 7 {"Protocol"} 8 {"ServerIssuedSomeResponse(ex:404NotFound)"} default {"Unknown(rc=$rc)"} };
@@ -2177,7 +2179,7 @@ function GitListCommitComments                ( [String] $tarDir, [String] $loca
                                                     OutProgressText "git $options ; ";
                                                     [String[]] $out = @();
                                                     try{
-                                                      $out = & "git" $options 2>&1; AssertRcIsOk $out;
+                                                      $out = @()+(& "git" $options 2>&1); AssertRcIsOk $out;
                                                     }catch{
                                                       # ex: "warning: inexact rename detection was skipped due to too many files."
                                                       if( $_.Exception.Message -eq "fatal: your current branch 'master' does not have any commits yet" ){ # Last operation failed [rc=128]
@@ -2241,9 +2243,9 @@ function SvnEnvInfoGet                        ( [String] $workDir ){
                                                 #   Last Changed Author: xy
                                                 #   Last Changed Rev: 1234
                                                 #   Last Changed Date: 2013-12-31 23:59:59 +0100 (Mi, 31 Dec 2013)
-                                                [String[]] $out = & (SvnExe) "info" $workDir; AssertRcIsOk $out;
+                                                [String[]] $out = @()+(& (SvnExe) "info" $workDir); AssertRcIsOk $out;
                                                 FileAppendLines $svnLogFile (StringArrayInsertIndent $out 2);
-                                                [String[]] $out2 = & (SvnExe) "propget" "svn:ignore" "-R" $workDir; AssertRcIsOk $out2;
+                                                [String[]] $out2 = @()+(& (SvnExe) "propget" "svn:ignore" "-R" $workDir); AssertRcIsOk $out2;
                                                 # Example:
                                                 #   work\Users\MyName - test?.txt
                                                 #   test2*.txt
@@ -2352,7 +2354,7 @@ function SvnCleanup                           ( [String] $workDir ){
                                                 # Cleanup a previously failed checkout, update or commit operation.
                                                 FileAppendLineWithTs $svnLogFile "SvnCleanup(`"$workDir`")";
                                                 # For future alternative option: --trust-server-cert-failures unknown-ca,cn-mismatch,expired,not-yet-valid,other
-                                                [String[]] $out = & (SvnExe) "cleanup" --non-interactive $workDir; AssertRcIsOk $out;
+                                                [String[]] $out = @()+(& (SvnExe) "cleanup" --non-interactive $workDir); AssertRcIsOk $out;
                                                 FileAppendLines $svnLogFile (StringArrayInsertIndent $out 2); }
 function SvnStatus                            ( [String] $workDir, [Boolean] $showFiles ){
                                                 # Return true if it has any pending changes, otherwise false.
@@ -2397,7 +2399,7 @@ function SvnStatus                            ( [String] $workDir, [Boolean] $sh
                                                 # If the item is a tree conflict victim, an additional line is printed after the item's status line, explaining the nature of the conflict.
                                                 FileAppendLineWithTs $svnLogFile "SvnStatus(`"$workDir`")";
                                                 OutVerbose "SvnStatus - List pending changes";
-                                                [String[]] $out = (& (SvnExe) "status" $workDir); AssertRcIsOk $out;
+                                                [String[]] $out = @()+(& (SvnExe) "status" $workDir); AssertRcIsOk $out;
                                                 FileAppendLines $svnLogFile (StringArrayInsertIndent $out 2);
                                                 [Int32] $nrOfPendingChanges = $out.Count;
                                                 [Int32] $nrOfCommitRelevantChanges = ([String[]](@()+($out | Where-Object{ $_ -ne $null -and -not $_.StartsWith("!") }))).Count; # ignore lines with leading '!' because these would not occurre in commit dialog
@@ -2410,7 +2412,7 @@ function SvnRevert                            ( [String] $workDir, [String[]] $r
                                                 # Undo the specified fs-entries if they have any pending change.
                                                 foreach( $f in $relativeRevertFsEntries ){
                                                   FileAppendLineWithTs $svnLogFile "SvnRevert(`"$workDir\$f`")";
-                                                  [String[]] $out = & (SvnExe) "revert" "--recursive" "$workDir\$f"; AssertRcIsOk $out;
+                                                  [String[]] $out = @()+(& (SvnExe) "revert" "--recursive" "$workDir\$f"); AssertRcIsOk $out;
                                                   FileAppendLines $svnLogFile (StringArrayInsertIndent $out 2);
                                                 } }
 function SvnTortoiseCommit                    ( [String] $workDir ){
@@ -2480,9 +2482,9 @@ function SvnPreCommitCleanupRevertAndDelFiles ( [String] $workDir, [String[]] $r
                                                   FileDelete $svnRequiresCleanup;
                                                 }
                                                 OutProgress "Remove known unused temp, cache and log directories and files";
-                                                FsEntryJoinRelativePatterns $workDir $relativeDelFsEntryPatterns | 
-                                                  ForEach-Object{ FsEntryListAsStringArray $_ } | Where-Object{ $_ -ne "" } |
-                                                  ForEach-Object{ FileAppendLines $svnLogFile "  Delete: `"$_`""; FsEntryDelete $_; };
+                                                FsEntryJoinRelativePatterns $workDir $relativeDelFsEntryPatterns | ForEach-Object{ 
+                                                  FsEntryListAsStringArray $_ | Where-Object{ $_ -ne $null } | ForEach-Object{ 
+                                                    FileAppendLines $svnLogFile "  Delete: `"$_`""; FsEntryDelete $_; }; };
                                                 OutProgress "SvnRevert - Restore known unwanted changes of directories and files";
                                                 SvnRevert $workDir $relativeRevertFsEntries; }
 function SvnTortoiseCommitAndUpdate           ( [String] $workDir, [String] $svnUrl, [String] $svnUser, [Boolean] $ignoreIfHostNotReachable, [String] $pw = "" ){
@@ -2642,8 +2644,8 @@ function ToolTfsInitLocalWorkspaceIfNotDone   ( [String] $url, [String] $rootDir
                                                 OutProgress "Init local tfs workspaces with name identic to computername if not yet done of $url to `"$rootDir`"";
                                                 if( TfsHasLocalMachWorkspace $url ){ OutProgress "Init-Workspace not nessessary because has already workspace identic to computername."; return; }
                                                 [String] $cd = (Get-Location); Set-Location $rootDir; try{
-                                                    OutProgress    "& `"$(TfsExe)`" vc workspace /new /noprompt /location:local /collection:$url $wsName";
-                                                    [String] $out = &    (TfsExe)   vc workspace /new /noprompt /location:local /collection:$url $wsName; AssertRcIsOk $out;
+                                                    OutProgress         "& `"$(TfsExe)`" vc workspace /new /noprompt /location:local /collection:$url $wsName";
+                                                    [String] $out = @()+(&    (TfsExe)   vc workspace /new /noprompt /location:local /collection:$url $wsName); AssertRcIsOk $out;
                                                     # The workspace MYCOMPUTER;John Doe already exists on computer MYCOMPUTER.
                                                 }finally{ Set-Location $cd; } }
 function TfsDeleteLocalMachWorkspace          ( [String] $url ){ # we support only workspace name identic to computername
@@ -2651,8 +2653,8 @@ function TfsDeleteLocalMachWorkspace          ( [String] $url ){ # we support on
                                                 if( -not (TfsHasLocalMachWorkspace $url) ){ OutProgress "Delete-Workspace not nessessary because has no workspace of name identic to computername."; return; }
                                                 [string] $wsName = $env:COMPUTERNAME;
                                                 # also deletes the directory ".\$tf\".
-                                                OutProgress    "& `"$(TfsExe)`" vc workspace /noprompt /delete $wsName /collection:$url";
-                                                [String] $out = &    (TfsExe)   vc workspace /noprompt /delete $wsName /collection:$url; AssertRcIsOk $out;
+                                                OutProgress         "& `"$(TfsExe)`" vc workspace /noprompt /delete $wsName /collection:$url";
+                                                [String] $out = @()+(&    (TfsExe)   vc workspace /noprompt /delete $wsName /collection:$url); AssertRcIsOk $out;
                                                 OutProgress $out;
                                                 # Example1:
                                                 #   TF14061: The workspace MYCOMPUTER;John Doe does not exist.
@@ -2703,7 +2705,7 @@ function TfsAssertNoLocksInDir                ( [String] $wsdir, [String] $tfsPa
 function TfsMergeDir                          ( [String] $wsdir, [String] $tfsPath, [String] $tfsTargetBranch ){
                                                 [String] $cd = (Get-Location); Set-Location $wsdir; try{
                                                   OutProgress "CD `"$wsdir`"; & `"$(TfsExe)`" vc merge /noprompt /recursive /format:brief /version:T `"$tfsPath`" `"$tfsTargetBranch`" ";
-                                                  [String[]] $out = (         &    (TfsExe)   vc merge /noprompt /recursive /format:brief /version:T   $tfsPath     $tfsTargetBranch); # later we would like to suppress stderr
+                                                  [String[]] $out = @()+(     &    (TfsExe)   vc merge /noprompt /recursive /format:brief /version:T   $tfsPath     $tfsTargetBranch); # later we would like to suppress stderr
                                                   ScriptResetRc;
                                                   # ex:
                                                   #    Konflikt ("mergen, bearbeiten"): $/Src/MyBranch1/MyFile.txt;C123~C129 -> $/Src/MyBranch2/MyFile.txt;C121
@@ -2721,7 +2723,7 @@ function TfsResolveMergeConflict              ( [String] $wsdir, [String] $tfsPa
                                                 [String] $resolveMode = switch( $keepTargetAndNotTakeSource ){ $true{"TakeTheirs"} $false{"AcceptYours"} };
                                                 [String] $cd = (Get-Location); Set-Location $wsdir; try{
                                                   OutProgress "CD `"$wsdir`"; & `"$(TfsExe)`" vc resolve /noprompt /recursive /auto:$resolveMode `"$tfsPath`" ";
-                                                  [String[]] $out = (         &    (TfsExe)   vc resolve /noprompt /recursive /auto:$resolveMode   $tfsPath ); AssertRcIsOk $out;
+                                                  [String[]] $out = @()+(     &    (TfsExe)   vc resolve /noprompt /recursive /auto:$resolveMode   $tfsPath ); AssertRcIsOk $out;
                                                 #}catch{ ScriptResetRc; OutProgress "Ignoring Error: $($_.Exception)";
                                                 }finally{ Set-Location $cd; } }
 function TfsCheckinDirWhenNoConflict          ( [String] $wsdir, [String] $tfsPath, [String] $comment, [Boolean] $handleErrorsAsWarnings ){
@@ -2730,7 +2732,7 @@ function TfsCheckinDirWhenNoConflict          ( [String] $wsdir, [String] $tfsPa
                                                   # Note: sometimes it seem to write this to stderror:
                                                   #  "Es sind keine ausstehenden Änderungen vorhanden, die mit den angegebenen Elementen übereinstimmen.\nEs wurden keine Dateien eingecheckt."
                                                   OutProgress "CD `"$wsdir`"; & `"$(TfsExe)`" vc checkin /noprompt /recursive /noautoresolve /comment:`"$comment`" `"$tfsPath`" ";
-                                                  [String[]] $out = (         &    (TfsExe)   vc checkin /noprompt /recursive /noautoresolve /comment:"$comment"     $tfsPath);
+                                                  [String[]] $out = @()+(     &    (TfsExe)   vc checkin /noprompt /recursive /noautoresolve /comment:"$comment"     $tfsPath);
                                                   ScriptResetRc;
                                                   return $true;
                                                 }catch{
@@ -2739,8 +2741,8 @@ function TfsCheckinDirWhenNoConflict          ( [String] $wsdir, [String] $tfsPa
                                                   return $false;
                                                 }finally{ Set-Location $cd; } }
 function TfsUndoAllLocksInDir                 ( [String] $dir ){ # Undo all locks below dir to cleanup a previous failed operation as from merging.
-                                                OutProgress "& `"$(TfsExe)`" vc undo /noprompt /recursive `"$dir`"";
-                                                             &    (TfsExe)   vc undo /noprompt /recursive   $dir; AssertRcIsOk $out; }
+                                                OutProgress           "& `"$(TfsExe)`" vc undo /noprompt /recursive `"$dir`"";
+                                                [String[]] $out = @()+(&    (TfsExe)   vc undo /noprompt /recursive   $dir); AssertRcIsOk $out; }
 function SqlGetCmdExe                         (){ # old style. It is recommended to use: SqlPerformFile
                                                 [String] $k1 = "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\130\Tools\ClientSetup"; # sql server 2016
                                                 [String] $k2 = "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\120\Tools\ClientSetup"; # sql server 2014
@@ -3068,7 +3070,7 @@ function InfoAboutExistingShares              (){
                                                 return [String[]] $result; }
 function InfoAboutSystemInfo                  (){
                                                 ProcessAssertInElevatedAdminMode; # because DISM.exe
-                                                [String[]] $out = & "systeminfo.exe"; AssertRcIsOk $out;
+                                                [String[]] $out = @()+(& "systeminfo.exe"); AssertRcIsOk $out;
                                                 # Get default associations for file extensions to programs for windows 10, this can be used later for imports.
                                                 # configuring: Control Panel->Default Programs-> Set Default Program.  Choos program and "set this program as default."
                                                 # View:        Control Panel->Programs-> Default Programs-> Set Association.
@@ -3104,8 +3106,8 @@ function InfoAboutRunningProcessesAndServices (){
                                                 ); }
 function InfoHdSpeed                          (){ 
                                                 ProcessRestartInElevatedAdminMode;
-                                                [String[]] $out1 = & "winsat.exe" "disk" "-seq" "-read"  "-drive" "c"; AssertRcIsOk $out1;
-                                                [String[]] $out2 = & "winsat.exe" "disk" "-seq" "-write" "-drive" "c"; AssertRcIsOk $out2; return [String[]] @( $out1, $out2 ); }
+                                                [String[]] $out1 = @()+(& "winsat.exe" "disk" "-seq" "-read"  "-drive" "c"); AssertRcIsOk $out1;
+                                                [String[]] $out2 = @()+(& "winsat.exe" "disk" "-seq" "-write" "-drive" "c"); AssertRcIsOk $out2; return [String[]] @( $out1, $out2 ); }
 function InfoAboutNetConfig                   (){ 
                                                 return [String[]] @( "InfoAboutNetConfig:", ""
                                                 ,"NetGetIpConfig:"      ,(NetGetIpConfig)                           ,""
