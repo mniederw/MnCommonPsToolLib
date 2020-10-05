@@ -20,10 +20,10 @@ function TestFsEntries(){
   OutInfo "Test file system entry functions";
   OutProgress "Current dir is: $(FsEntryGetAbsolutePath '.')";
   [String] $d = "C:\Users\u4\Documents";
-  [String[]] $a = @()+(FsEntryListAsStringArray $d $true $false $true);
+  [String[]] $a = @()+(FsEntryListAsStringArray $d $true $false $true | Where-Object{$null -ne $_});
   OutProgress "The folder '$d' contains $($a.Count) number of files";
-  [String[]] $a2 = $a | Select-Object -First 2;
-  [Object[]] $o2 = $a2 | Select-Object @{Name="FileName";Expression={("`"$_`"")}};
+  [String[]] $a2 = @()+($a | Select-Object -First 2);
+  [Object[]] $o2 = @()+($a2 | Select-Object @{Name="FileName";Expression={("`"$_`"")}});
   OutProgress "The folder '$d' has the following first two files: $a2";
   OutProgress "View these files in xml  format: $(StringReplaceNewlines ($a2 | StreamToXmlString))";
   OutProgress "View these files in json format: $(StringReplaceNewlines ($a2 | StreamToJsonString))";

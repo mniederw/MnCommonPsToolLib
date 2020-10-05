@@ -4,6 +4,7 @@
 Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
 Current version can be requested by: $MnCommonPsToolLibVersion
 
+2020-10-05  V5.22  fixed null problems for arrays. Extend unitest. Added return type of functions.
 2020-10-01  V5.21  added StringNormalizeAsVersion, moved unittest, fixed null for arrays.
 2020-10-01  V5.20  fix RegistryPrivRuleToString
 2020-09-23  V5.19  Unify usage without aliases
