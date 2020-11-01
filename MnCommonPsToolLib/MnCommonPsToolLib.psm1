@@ -55,7 +55,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $MnCommonPsToolLibVersion = "5.22"; # more see Releasenotes.txt
+[String] $MnCommonPsToolLibVersion = "5.24"; # more see Releasenotes.txt
 
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 
@@ -121,7 +121,7 @@ function ForEachParallel {
   param( [Parameter(Mandatory=$true,position=0)]              [System.Management.Automation.ScriptBlock] $ScriptBlock,
          [Parameter(Mandatory=$true,ValueFromPipeline=$true)] [PSObject]                                 $InputObject,
          [Parameter(Mandatory=$false)]                        [Int32]                                    $MaxThreads=8 )
-  # Note: for some unknown reason we sometimes get a red line "One or more errors occurred." but it continuous successfully.
+  # Note: for some unknown reason we sometimes get a red line "One or more errors occurred." and maybe "Collection was modified; enumeration operation may not execute." but it continuous successfully.
   BEGIN{
     try{
       $iss = [System.Management.Automation.Runspaces.Initialsessionstate]::CreateDefault();
@@ -430,9 +430,10 @@ function StreamToCsvFile                      ( [String] $file, [Boolean] $overw
                                                 $input | Export-Csv -Force:$overwrite -NoClobber:$(-not $overwrite) -NoTypeInformation -Encoding $encoding -Path (FsEntryEsc $file); }
 function StreamToXmlFile                      ( [String] $file, [Boolean] $overwrite = $false, [String] $encoding = "UTF8" ){ # If overwrite is false then nothing done if target already exists.
                                                 $input | Export-Clixml -Force:$overwrite -NoClobber:$(-not $overwrite) -Depth 999999999 -Encoding $encoding -Path (FsEntryEsc $file); }
-function StreamToDataRowsString               ( [String[]] $propertyNames ){ if( $propertyNames.Count -eq 0 ){ $propertyNames = @("*"); } 
+function StreamToDataRowsString               ( [String[]] $propertyNames = @() ){
+                                                if( $propertyNames.Count -eq 0 ){ $propertyNames = @("*"); } 
                                                 $input | Format-Table -Wrap -Force -autosize -HideTableHeaders $propertyNames | StreamToStringDelEmptyLeadAndTrLines; }
-function StreamToTableString                  ( [String[]] $propertyNames ){ # Note: For a simple string array as ex: @("one","two")|StreamToCsvStrings  it results with 3 lines "Length","one","two".
+function StreamToTableString                  ( [String[]] $propertyNames = @() ){ # Note: For a simple string array as ex: @("one","two")|StreamToCsvStrings  it results with 3 lines "Length","one","two".
                                                 if( $propertyNames.Count -eq 0 ){ $propertyNames = @("*"); }
                                                 $input | Format-Table -Wrap -Force -autosize $propertyNames | StreamToStringDelEmptyLeadAndTrLines; }
 function OutInfo                              ( [String] $line ){ Write-Host -ForegroundColor $InfoLineColor -NoNewline "$line`r`n"; } # NoNewline is used because on multi threading usage line text and newline can be interrupted between.
@@ -2109,8 +2110,8 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                     $gitArgs = @( "-C", $dir, "--git-dir=.git", "fetch", "--quiet", $url);
                                                     if( $branch -ne "" ){ $gitArgs += @( $branch ); }
                                                   }elseif( $cmd -eq "Pull" ){
-                                                    # Defaults: "--no-rebase" "origin"; 
-                                                    $gitArgs = @( "-C", $dir, "--git-dir=.git", "pull", "--quiet", "--no-stat", $url);
+                                                    # Defaults: "origin"; 
+                                                    $gitArgs = @( "-C", $dir, "--git-dir=.git", "pull", "--quiet", "--no-stat", "--no-rebase", $url);
                                                     if( $branch -ne "" ){ $gitArgs += @( $branch ); }
                                                   }else{ throw [Exception] "Unknown git cmd=`"$cmd`""; }
                                                   # ex: "git" "-C" "C:\Temp\mniederw\myrepo" "--git-dir=.git" "pull" "--quiet" "--no-stat" "https://github.com/mniederw/myrepo"
