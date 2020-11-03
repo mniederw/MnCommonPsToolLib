@@ -700,7 +700,7 @@ function RegistryExistsKey                    ( [String] $key ){
 function RegistryExistsValue                  ( [String] $key, [String] $name = ""){
                                                 $key = RegistryMapToShortKey $key; RegistryAssertIsKey $key; if( $name -eq "" ){ $name = "(default)"; } 
                                                 [Object] $k = Get-Item -Path $key -ErrorAction SilentlyContinue; 
-                                                return [Boolean] $k -and $null -ne $k.GetValue($name, $null); }
+                                                return [Boolean] ($k -and $null -ne $k.GetValue($name, $null)); }
 function RegistryCreateKey                    ( [String] $key ){  # creates key if not exists
                                                 $key = RegistryMapToShortKey $key; RegistryAssertIsKey $key; 
                                                 if( ! (RegistryExistsKey $key) ){ OutProgress "RegistryCreateKey `"$key`""; RegistryRequiresElevatedAdminMode $key; New-Item -Force -Path $key | Out-Null; } }
@@ -1005,6 +1005,13 @@ function FsEntryGetAbsolutePath               ( [String] $fsEntry ){ # works wit
                                                     # maybe this is not working for psdrives. Solve this if it occurrs.
                                                     throw [Exception] "[IO.Path]::GetFullPath(`"$fsEntry`") failed because $($_.Exception.Message)";
                                                   } } }
+function FsEntryGetUncShare                   ( [String] $fsEntry ){ # return "\\host\sharename\" of a given unc path, return empty string if fs entry is not an unc path
+                                                try{ [System.Uri] $u = (New-Object System.Uri -ArgumentList $fsEntry);
+                                                  if( $u.IsUnc -and $u.Segments.Count -ge 2 -and $u.Segments[0] -eq "/" ){
+                                                    return [String] "\\$($u.Host)\$(StringRemoveRight $u.Segments[1] '/')\";
+                                                  }
+                                                }catch{ $error.clear(); } # ex: "Ungültiger URI: Das URI-Format konnte nicht bestimmt werden.", "Ungültiger URI: Der URI ist leer."
+                                                return [String] ""; }
 function FsEntryMakeValidFileName             ( [String] $str ){ [System.IO.Path]::GetInvalidFileNameChars() | ForEach-Object{ $str = $str.Replace($_,'_') }; return [String] $str; }
 function FsEntryMakeRelative                  ( [String] $fsEntry, [String] $belowDir, [Boolean] $prefixWithDotDir = $false ){
                                                 # Works without IO to file system; if $fsEntry is not equal or below dir then it throws;
@@ -1582,7 +1589,7 @@ function MountPointLocksListAll               (){
                                                 OutVerbose "List all mount point locks"; return [Object] (Get-SmbConnection | 
                                                 Select-Object ServerName,ShareName,UserName,Credential,NumOpens,ContinuouslyAvailable,Encrypted,PSComputerName,Redirected,Signed,SmbInstance,Dialect | 
                                                 Sort-Object ServerName, ShareName, UserName, Credential); }
-function MountPointListAll                    (){ 
+function MountPointListAll                    (){ # we define mountpoint as a share mapped to a local path
                                                 return [Object] (Get-SmbMapping | Select-Object LocalPath, RemotePath, Status); }
 function MountPointGetByDrive                 ( [String] $drive ){ # return null if not found
                                                 if( -not $drive.EndsWith(":") ){ throw [Exception] "Expected drive=`"$drive`" with trailing colon"; }
