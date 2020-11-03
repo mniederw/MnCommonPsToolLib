@@ -4,7 +4,7 @@
 Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
 Current version can be requested by: $MnCommonPsToolLibVersion
 
-2020-11-02  V5.25  added FsEntryGetUncShare.
+2020-11-03  V5.26  added FsEntryGetUncShare, extend FsEntryNotExistsOrIsOlderThanNrDays.
 2020-11-01  V5.24  fix default arg.
 2020-10-19  V5.23  git --no-rebase
 2020-10-05  V5.22  fixed null problems for arrays. Extend unitest. Added return type of functions.
