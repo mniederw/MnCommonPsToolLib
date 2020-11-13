@@ -55,7 +55,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $MnCommonPsToolLibVersion = "5.26"; # more see Releasenotes.txt
+[String] $MnCommonPsToolLibVersion = "5.27"; # more see Releasenotes.txt
 
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 
@@ -1056,9 +1056,9 @@ function FsEntryAssertNotExists               ( [String] $fsEntry, [String] $tex
                                                 if(  (FsEntryExists $fsEntry) ){ throw [Exception] "$text because fs entry already exists: `"$fsEntry`""; } }
 function FsEntryGetLastModified               ( [String] $fsEntry ){ 
                                                 return [DateTime] (Get-Item -Force -LiteralPath $fsEntry).LastWriteTime; }
-function FsEntryNotExistsOrIsOlderThanNrDays  ( [String] $fsEntry, [Int32] $maxAgeInDays, [Int32] $maxAgeInHours = 0 ){
-                                                return [Boolean] ((FsEntryNotExists $fsEntry) -or ((FsEntryGetLastModified $fsEntry).AddDays($maxAgeInDays).AddHours($maxAgeInHours) -lt (Get-Date))); }
-function FsEntrySetAttributeReadOnly          ( [String] $fsEntry, [Boolean] $val ){ 
+function FsEntryNotExistsOrIsOlderThanNrDays  ( [String] $fsEntry, [Int32] $maxAgeInDays, [Int32] $maxAgeInHours = 0, [Int32] $maxAgeInMinutes = 0 ){
+                                                return [Boolean] ((FsEntryNotExists $fsEntry) -or ((FsEntryGetLastModified $fsEntry).AddDays($maxAgeInDays).AddHours($maxAgeInHours).AddMinutes($maxAgeInMinutes) -lt (Get-Date))); }
+function FsEntrySetAttributeReadOnly          ( [String] $fsEntry, [Boolean] $val ){ # use false for $val to make file writable
                                                 OutProgress "FsFileSetAttributeReadOnly $fsEntry $val"; Set-ItemProperty (FsEntryEsc $fsEntry) -name IsReadOnly -value $val; }
 function FsEntryFindFlatSingleByPattern       ( [String] $fsEntryPattern, [Boolean] $allowNotFound = $false ){
                                                 # it throws if file not found or more than one file exists. if allowNotFound is true then if return empty if not found.
@@ -3198,6 +3198,31 @@ function ToolHibernateModeDisable             (){
                                                   & "$env:SystemRoot\system32\POWERCFG.EXE" "-HIBERNATE" "OFF"; AssertRcIsOk;
                                                 }
                                               }
+function ToolActualizeHostsFileByMaster       ( [String] $srcHostsFile ){
+                                                OutInfo "Actualize hosts file by a master file";
+                                                # regular manually way: run notepad.exe with admin rights, open the file, edit, save.
+                                                [String] $tarHostsFile = "$env:SystemRoot\System32\drivers\etc\hosts";
+                                                [String] $tardir = RegistryGetValueAsString "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "DataBasePath";
+                                                if( $tardir -ne (FsEntryGetParentDir $tarHostsFile) ){
+                                                  throw [Exception] "Expected HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters:DataBasePath='$tardir' equal to dir of: '$tarHostsFile'";
+                                                }
+                                                if( -not (FileContentsAreEqual $srcHostsFile $tarHostsFile $true) ){
+                                                  ProcessRestartInElevatedAdminMode;
+                                                  [String] $tmp = "";
+                                                  if( (FsEntryGetFileName $srcHostsFile) -eq "hosts" ){
+                                                     # Note: Its stupid but the name cannot be `"hosts`" because MS-Defender, so we need to copy it first to a temp file";
+                                                     # https://www.microsoft.com/en-us/wdsi/threats/malware-encyclopedia-description?name=SettingsModifier%3aWin32%2fHostsFileHijack&threatid=265754
+                                                     $tmp = (FileGetTempFile);
+                                                     FileCopy $srcHostsFile $tmp $true;
+                                                     FsEntrySetAttributeReadOnly $tmp $false;
+                                                     $srcHostsFile = $tmp;
+                                                  }
+                                                  FileCopy $srcHostsFile $tarHostsFile $true;
+                                                  if( $tmp -ne "" ){ FileDelete $tmp; }
+                                                }else{
+                                                  OutProgress "Ok, content is already correct.";
+                                                } 
+                                              }
 function ToolCreate7zip                       ( [String] $srcDirOrFile, [String] $tar7zipFile ){
                                                 [String] $src = "";
                                                 [String] $recursiveOption = "";
@@ -3207,13 +3232,15 @@ function ToolCreate7zip                       ( [String] $srcDirOrFile, [String]
                                                 # Options: -ms=4g : use limit of solid block 4GB; -mmt=4 : try use nr of threads; -w : use windows temp; -r : recursively; -r- : not-recursively;
                                                 [Array] $arguments = "-t7z", "-mx=9", "-ms=4g", "-mmt=4", "-w", $recursiveOption, "a", "$tar7zipFile", $src;
                                                 OutProgress "$Prog7ZipExe $arguments";
-                                                [String] $out = & $Prog7ZipExe $arguments; AssertRcIsOk $out; }
+                                                [String] $out = & $Prog7ZipExe $arguments; AssertRcIsOk $out;
+                                              }
 function ToolUnzip                            ( [String] $srcZipFile, [String] $tarDir ){ # tarDir is created if it not exists, no overwriting, requires DotNetFX4.5.
                                                 Add-Type -AssemblyName "System.IO.Compression.FileSystem";
                                                 $srcZipFile = FsEntryGetAbsolutePath $srcZipFile; $tarDir = FsEntryGetAbsolutePath $tarDir;
                                                 OutProgress "Unzip `"$srcZipFile`" to `"$tarDir`"";
                                                 # alternative: in PS5 there is: Expand-Archive zipfile -DestinationPath tardir
-                                                [System.IO.Compression.ZipFile]::ExtractToDirectory($srcZipFile, $tarDir); }
+                                                [System.IO.Compression.ZipFile]::ExtractToDirectory($srcZipFile, $tarDir);
+                                              }
 function ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [String] $workDir, [String] $lnkFile, [String] $srcFile, [String[]] $arguments = @(), [Boolean] $runElevated = $false, [Boolean] $ignoreIfSrcFileNotExists = $false ){
                                                 # ex: ToolCreateLnkIfNotExists $false "" "$env:USERPROFILE\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\LinkToNotepad.lnk" "C:\Windows\notepad.exe";
                                                 # ex: ToolCreateLnkIfNotExists $false "" "$env:USERPROFILE\AppData\Roaming\Microsoft\Internet Explorer\Quick Launch\LinkToNotepad.lnk" "C:\Windows\notepad.exe";
@@ -3436,7 +3463,8 @@ function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $
                                                 #   once to check for differences and once after switching to elevated admin mode.
                                                 # Example: ToolPerformFileUpdateAndIsActualized "C:\Temp\a.psm1" "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/master/MnCommonPsToolLib/MnCommonPsToolLib.psm1" $true $true "Please restart" $false $true;
                                                 try{
-                                                  OutInfo "Update file `"$targetFile`" `n  from $url";
+                                                  OutInfo "Update file `"$targetFile`"";
+                                                  OutProgress "FromUrl: $url";
                                                   [String] $hashInstalled = "";
                                                   [Boolean] $targetFileExists = (FileExists $targetFile);
                                                   if( $assertFilePreviouslyExists -and (-not $targetFileExists) ){
