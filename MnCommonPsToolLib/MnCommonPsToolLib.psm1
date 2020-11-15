@@ -55,7 +55,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $MnCommonPsToolLibVersion = "5.27"; # more see Releasenotes.txt
+[String] $MnCommonPsToolLibVersion = "5.28"; # more see Releasenotes.txt
 
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 
@@ -2210,13 +2210,21 @@ function GitListCommitComments                ( [String] $tarDir, [String] $loca
                                                     try{
                                                       $out = @()+(& "git" $options 2>&1); AssertRcIsOk $out;
                                                     }catch{
-                                                      # ex: "warning: inexact rename detection was skipped due to too many files."
                                                       if( $_.Exception.Message -eq "fatal: your current branch 'master' does not have any commits yet" ){ # Last operation failed [rc=128]
                                                         $out += "Info: your current branch 'master' does not have any commits yet.";
                                                         OutProgressText "Info: empty master.";
                                                       }else{
-                                                        $out += "Warning: GitListCommitComments($localRepoDir) failed because $($_.Exception.Message)";
-                                                        OutProgressText $out;
+                                                        $out += "Warning: (GitListCommitComments `"$tarDir`" `"$localRepoDir`" $fileExtension $prefix $doOnlyIfOlderThanAgeInDays) failed because $($_.Exception.Message)";
+                                                        if( $_.Exception.Message -eq "warning: inexact rename detection was skipped due to too many files." ){
+                                                          $out += "  The reason is that the config value of diff.renamelimit with its default of 100 is too small. ";
+                                                          $out += "Before a next retry you should either add the two lines (`"[diff]`",`"  renamelimit = 999999`") to .git/config file, ";
+                                                          $out += "or run (git `"--git-dir=$dir\.git`" config diff.renamelimit 999999) ";
+                                                          $out += "or run (git config --global diff.renamelimit 999999). Instead of 999999 you can also try a lower value as 200,400, etc. ";
+                                                        }else{
+                                                          $out += "  Outfile `"$fout`" is probably not correctly filled.";
+                                                        }
+                                                        OutProgress "";
+                                                        OutWarning $out;
                                                       }
                                                       ScriptResetRc;
                                                     }
