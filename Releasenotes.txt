@@ -4,6 +4,8 @@
 Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
 Current version can be requested by: $MnCommonPsToolLibVersion
 
+2020-11-27  V5.30  Add retry in CredentialReadFromFile when pw changed
+2020-11-15  V5.29  Doc NetDownloadFile
 2020-11-15  V5.28  Improve warning of git log
 2020-11-13  V5.27  added ToolActualizeHostsFileByMaster
 2020-11-03  V5.26  added FsEntryGetUncShare, extend FsEntryNotExistsOrIsOlderThanNrDays.

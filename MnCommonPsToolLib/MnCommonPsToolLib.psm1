@@ -55,7 +55,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $MnCommonPsToolLibVersion = "5.28"; # more see Releasenotes.txt
+[String] $MnCommonPsToolLibVersion = "5.29"; # more see Releasenotes.txt
 
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 
@@ -1463,7 +1463,7 @@ function CredentialReadFromFile               ( [String] $secureCredentialFile )
                                                 try{ [String] $us = $s[0]; [System.Security.SecureString] $pwSecure = CredentialGetSecureStrFromHexString $s[1];
                                                   # alternative: New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $User, (Get-Content -Encoding Default -LiteralPath $secureCredentialFile | ConvertTo-SecureString)
                                                   return [System.Management.Automation.PSCredential] (New-Object System.Management.Automation.PSCredential((CredentialStandardizeUserWithDomain $us), $pwSecure));
-                                                }catch{ throw [Exception] "Credential file `"$secureCredentialFile`" has not expected format for credentials, you may remove it and retry"; } }
+                                                }catch{ throw [Exception] "Credential file `"$secureCredentialFile`" has not expected format for decoding credentials, maybe you changed password of current user or current machine id, in that case you may remove it and retry"; } }
 function CredentialCreate                     ( [String] $username = "", [String] $password = "", [String] $accessShortDescription = "" ){ 
                                                 [String] $us = $username;
                                                 [String] $descr = switch($accessShortDescription -eq ''){($true){''}default{(' for '+$accessShortDescription)}};
@@ -1482,7 +1482,13 @@ function CredentialGetAndStoreIfNotExists     ( [String] $secureCredentialFile, 
                                                 AssertNotEmpty $secureCredentialFile "secureCredentialFile";
                                                 [System.Management.Automation.PSCredential] $cred = $null;
                                                 if( FileExists $secureCredentialFile ){
-                                                  $cred = CredentialReadFromFile $secureCredentialFile;
+                                                  try{
+                                                    $cred = CredentialReadFromFile $secureCredentialFile;
+                                                  }catch{ [String] $msg = $_.Exception.Message; # ... you changed pw ... may remove it ...
+                                                    OutWarning $msg;
+                                                    if( -not (StdInAskForBoolean "Do you want to remove the credential file and recreate it (y=delete/n=abort)?") ){ throw; }
+                                                    FileDelete $secureCredentialFile;
+                                                  }
                                                   if( $username -ne "" -and (CredentialGetUsername $cred) -ne (CredentialStandardizeUserWithDomain $username)){ $cred = $null; }
                                                 }
                                                 if( $null -eq $cred ){
@@ -1707,6 +1713,7 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                 # Download a single file by overwrite it (as NetDownloadFileByCurl), powershell internal implementation of curl or wget which works for http, https and ftp only. 
                                                 # Cares http response code 3xx for auto redirections.
                                                 # If url not exists then it will throw.
+                                                [String] $authMethod = "Basic"; # Current implemented authMethods: "Basic". Maybe later: OAuth. Ex: https://docs.github.com/en/free-pro-team@latest/rest/overview/other-authentication-methods
                                                 AssertNotEmpty $url "NetDownloadFile.url"; # alternative check: -or $url.EndsWith("/")
                                                 if( $us -ne "" ){ AssertNotEmpty $pw "password for username=$us"; }
                                                 OutProgress "NetDownloadFile $url";
@@ -1733,7 +1740,6 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                 [String] $logf = "$LogDir\Download.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
                                                 DirCreate $tarDir;
                                                 OutProgress "  Logfile: `"$logf`"";
-                                                FileAppendLineWithTs $logf "WebClient.DownloadFile(url=$url,tar=$tarFile)";
                                                 $webclient = new-object System.Net.WebClient;
                                                 # Defaults: AllowAutoRedirect is true.
                                                 $webclient.Headers.Add("User-Agent",$userAgent);
@@ -1744,19 +1750,23 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                   $webclient.Credentials = $cred;
                                                 }
                                                 try{
-                                                  [Boolean] $useWebclient = $false; # we use now Invoke-WebRequest
+                                                  [Boolean] $useWebclient = $false; # we currently use Invoke-WebRequest
                                                   if( $useWebclient ){
-                                                    $webclient.DownloadFile($url,$tarFile);
+                                                    FileAppendLineWithTs $logf "WebClient.DownloadFile(url=$url,tar=`"$tarFile`")";
+                                                    $webclient.DownloadFile($url,$tarFile); # use DotNet function WebClient.downloadFile (maybe we also would have to implement basic header for example when using api.github.com)
                                                   }else{
                                                     # For future use: -UseDefaultCredentials, -Method, -Body, -ContentType, -TransferEncoding, -InFile
                                                     if( $us -ne "" ){
-                                                      $base64 = [System.Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes("${us}:$pw"));
-                                                      $headers = @{ Authorization = "Basic $base64" };
-                                                      # Note: on api.github.com the $cred were ignored, so it requires the basic auth in header, but we also add $cred maybe for other servers. By the way curl -u works.
-                                                      FileAppendLineWithTs $logf "Invoke-WebRequest -Uri `"$url`" -OutFile `"$tarFile`" -MaximumRedirection 2 -TimeoutSec 70 -UserAgent `"$userAgent`" -Headers `"$headers`" (Credential-User=`"$us`");";
+                                                      If( $authMethod -cne "Basic" ){ throw [Exception] "Currently authMethod Basic is only implemented, unknown: `"$authMethod`""; }
+                                                      # https://www.ietf.org/rfc/rfc2617.txt
+                                                      [String] $base64 = [System.Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes("${us}:$pw"));
+                                                      [Hashtable] $headers = @{ Authorization = "Basic $base64" };
+                                                      # Note: on api.github.com the -Credential option is ignored (see https://docs.github.com/en/free-pro-team@latest/rest/overview/other-authentication-methods ),
+                                                      # so it requires the basic auth in header, but we also add $cred maybe for other servers. By the way curl -u works.
+                                                      FileAppendLineWithTs $logf "Invoke-WebRequest -Uri `"$url`" -OutFile `"$tarFile`" -MaximumRedirection 2 -TimeoutSec 70 -UserAgent `"$userAgent`" -Headers `"$headers`" (Credential-User=`"$us`",authMethod=$authMethod);";
                                                       Invoke-WebRequest -Uri $url -OutFile $tarFile -MaximumRedirection 2 -TimeoutSec 70 -UserAgent $userAgent -Headers $headers -Credential $cred;
                                                     }else{
-                                                      FileAppendLineWithTs $logf "Invoke-WebRequest -Uri $url -OutFile $tarFile -MaximumRedirection 2 -TimeoutSec 70 -UserAgent $userAgent;";
+                                                      FileAppendLineWithTs $logf "Invoke-WebRequest -Uri `"$url`" -OutFile `"$tarFile`" -MaximumRedirection 2 -TimeoutSec 70 -UserAgent `"$userAgent`";";
                                                       Invoke-WebRequest -Uri $url -OutFile $tarFile -MaximumRedirection 2 -TimeoutSec 70 -UserAgent $userAgent;
                                                     }
                                                   }
@@ -3357,12 +3367,12 @@ function ToolSignDotNetAssembly               ( [String] $keySnk, [String] $srcD
                                                 [String] $tarXml = (StringRemoveRightNr $tarDllOrExe 4) + ".xml";
                                                 if( FileExists $srcXml ){ FileCopy $srcXml $tarXml $true; }
                                                 }
-function ToolGithubApiListOrgRepos            ( [String] $org, [System.Management.Automation.PSCredential] $cred ){
+function ToolGithubApiListOrgRepos            ( [String] $org, [System.Management.Automation.PSCredential] $cred = $null ){
                                                 # List all repos which an org has on github, if user is specified 
                                                 # then not only public but also private repos are listed. Ordered by archived, Url.
                                                 [String] $us = CredentialGetUsername $cred;
                                                 [String] $pw = CredentialGetPassword $cred;
-                                                OutInfo "List all github repos from $org with user=$us.";
+                                                OutProgress "List all github repos from $org with user=`"$us`"";
                                                 [Array] $result = @();
                                                 for( [Int32] $i = 1; $i -lt 100; $i++ ){
                                                   # REST API doc: https://developer.github.com/v3/repos/
@@ -3370,13 +3380,13 @@ function ToolGithubApiListOrgRepos            ( [String] $org, [System.Managemen
                                                   # ex: https://api.github.com/orgs/arduino/repos?type=all&sort=id&per_page=100&page=2&affiliation=owner,collaborator,organization_member
                                                   [String] $url = "https://api.github.com/orgs/$org/repos?per_page=100&page=$i";
                                                   [Object] $json = NetDownloadToString $url $us $pw | ConvertFrom-Json;
-                                                  [Array] $a = $json | Select-Object @{N='Url';E={$_.html_url}}, archived, private, fork, forks, language, 
+                                                  [Array] $a = @()+($json | Select-Object @{N='Url';E={$_.html_url}}, archived, private, fork, forks, language, 
                                                     @{N='CreatedAt';E={$_.created_at.SubString(0,10)}}, @{N='UpdatedAt';E={$_.updated_at.SubString(0,10)}}, 
                                                     @{N='PermAdm';E={$_.permissions.admin}}, @{N='PermPush';E={$_.permissions.push}}, @{N='PermPull';E={$_.permissions.pull}},
                                                     default_branch, @{N='LicName';E={$_.license.name}},
-                                                    @{N='Description';E={$_.description.SubString(0,200)}};
+                                                    @{N='Description';E={$_.description.SubString(0,200)}});
                                                   if( $a.Count -eq 0 ){ break; }
-                                                  $result +=$a;
+                                                  $result += $a;
                                                 } return [Array] $result | Sort-Object archived, Url; }
 function ToolGithubApiAssertValidRepoUrl      ( [String] $repoUrl ){ # Example repoUrl="https://github.com/mniederw/MnCommonPsToolLib/"
                                                 [String] $githubUrl = "https://github.com/";
@@ -3647,7 +3657,8 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #       @{Name="Field2";Expression={if($_.Field1 -eq "a" ){ "is_a"; }else{ throw [Exception] "This exc is ignored and instead of throwing up the stack the result of the Expression statement is $null."; } }};
 #     $a[0].Field2 -eq "is_a" -and $null -eq $a[1].Field2;  # this is true
 #     $a | ForEach-Object{ if( $null -eq $_.Field2 ){ throw [Exception] "Field2 is null"; } } # this does the throw
-#     Recommendation: After creation of the list do iterate through it and assert non-null values.
+#     Recommendation: After creation of the list do iterate through it and assert non-null values 
+#       or redo the expression within a ForEach-Object loop to get correct throwed message.
 #   - String without comparison as condition:  Assert ( "anystring" ); Assert ( "$false" );
 # - Standard module paths:
 #   - %windir%\system32\WindowsPowerShell\v1.0\Modules    location for windows modules for all users
