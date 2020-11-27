@@ -1486,7 +1486,9 @@ function CredentialGetAndStoreIfNotExists     ( [String] $secureCredentialFile, 
                                                     $cred = CredentialReadFromFile $secureCredentialFile;
                                                   }catch{ [String] $msg = $_.Exception.Message; # ... you changed pw ... may remove it ...
                                                     OutWarning $msg;
-                                                    if( -not (StdInAskForBoolean "Do you want to remove the credential file and recreate it (y=delete/n=abort)?") ){ throw; }
+                                                    if( -not (StdInAskForBoolean "Do you want to remove the credential file and recreate it (y=delete/n=abort)?") ){
+                                                      throw [Exception] "Aborted, please fix credential file `"$secureCredentialFile`".";
+                                                    }
                                                     FileDelete $secureCredentialFile;
                                                   }
                                                   if( $username -ne "" -and (CredentialGetUsername $cred) -ne (CredentialStandardizeUserWithDomain $username)){ $cred = $null; }
