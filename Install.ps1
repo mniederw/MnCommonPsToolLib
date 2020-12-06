@@ -6,7 +6,6 @@ Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including unin
 $Global:ErrorActionPreference = "Stop";
 $PSModuleAutoLoadingPreference = "none"; # disable autoloading modules
 trap [Exception] { $Host.UI.WriteErrorLine($_); Read-Host; break; }
-[String] $envVar = "PSModulePath";
 function OutInfo                              ( [String] $line ){ Write-Host -ForegroundColor White               $line; }
 function OutProgress                          ( [String] $line ){ Write-Host -ForegroundColor DarkGray            $line; }
 function OutProgressText                      ( [String] $line ){ Write-Host -ForegroundColor DarkGray -NoNewLine $line; }
@@ -17,15 +16,16 @@ function FsEntryRemoveTrailingBackslash       ( [String] $fsEntry ){ [String] $r
                                                 while( $result.Length -gt 1 -and $result.EndsWith("\") ){ $result = $result.Remove($result.Length-1); } 
                                                 return [String] $result; }
 function FsEntryGetAbsolutePath               ( [String] $fsEntry ){ return [String] ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($fsEntry)); }
-function PsModulePathList                     (){ return [String[]] ([Environment]::GetEnvironmentVariable($envVar, "Machine").
+function OsPsModulePathList                   (){ return [String[]] ([Environment]::GetEnvironmentVariable("PSModulePath", "Machine").
                                                   Split(";",[System.StringSplitOptions]::RemoveEmptyEntries)); }
-function PsModulePathContains                 ( [String] $d ){ [String[]] $a = (PsModulePathList | ForEach-Object{ FsEntryRemoveTrailingBackslash $_ });
-                                                return [Boolean] ($a -contains (FsEntryRemoveTrailingBackslash $d)); }
-function PsModulePathAdd                      ( [String] $d ){ if( PsModulePathContains $d ){ return; }
-                                                PsModulePathSet ((PsModulePathList)+@( (FsEntryRemoveTrailingBackslash $d) )); }
-function PsModulePathDel                      ( [String] $d ){ PsModulePathSet (PsModulePathList | 
-                                                Where-Object{ (FsEntryRemoveTrailingBackslash $_) -ne (FsEntryRemoveTrailingBackslash $d) }); }
-function PsModulePathSet                      ( [String[]] $a ){ [Environment]::SetEnvironmentVariable($envVar, ($a -join ";"), "Machine"); }
+function OsPsModulePathContains               ( [String] $dir ){ # ex: "D:\WorkGit\myaccount\MyPsLibRepoName"
+                                                [String[]] $a = (OsPsModulePathList | ForEach-Object{ FsEntryRemoveTrailingBackslash $_ });
+                                                return [Boolean] ($a -contains (FsEntryRemoveTrailingBackslash $dir)); }
+function OsPsModulePathAdd                    ( [String] $dir ){ if( OsPsModulePathContains $dir ){ return; }
+                                                OsPsModulePathSet ((OsPsModulePathList)+@( (FsEntryRemoveTrailingBackslash $dir) )); }
+function OsPsModulePathDel                    ( [String] $dir ){ OsPsModulePathSet (OsPsModulePathList | 
+                                                Where-Object{ (FsEntryRemoveTrailingBackslash $_) -ne (FsEntryRemoveTrailingBackslash $dir) }); }
+function OsPsModulePathSet                    ( [String[]] $pathList ){ [Environment]::SetEnvironmentVariable("PSModulePath", ($pathList -join ";"), "Machine"); }
 function DirExists                            ( [String] $dir ){ try{ return [Boolean] (Test-Path -PathType Container -LiteralPath $dir ); }
                                                 catch{ throw [Exception] "DirExists($dir) failed because $($_.Exception.Message)"; } }
 function DirListDirs                          ( [String] $d ){ return [String[]] (@()+(Get-ChildItem -Force -Directory -Path $d | ForEach-Object{ $_.FullName })); }
@@ -46,13 +46,13 @@ function ProcessRestartInElevatedAdminMode    (){ if( -not (ProcessIsRunningInEl
 function UninstallDir                         ( [String] $d ){ OutProgress "RemoveDir '$d'. "; 
                                                 if( DirExists $d ){ ProcessRestartInElevatedAdminMode; Remove-Item -Force -Recurse -LiteralPath $d; } }
 function UninstallSrcPath                     ( [String] $d ){ OutProgress "UninstallSrcPath '$d'. "; 
-                                                if( (PsModulePathContains $d) ){ ProcessRestartInElevatedAdminMode; PsModulePathDel $d; } }
+                                                if( (OsPsModulePathContains $d) ){ ProcessRestartInElevatedAdminMode; OsPsModulePathDel $d; } }
 function InstallDir                           ( [String] $srcDir, [String] $tarParDir ){ OutProgress "Copy '$srcDir' `n  to '$tarParDir'. "; 
                                                 ProcessRestartInElevatedAdminMode; Copy-Item -Force -Recurse -LiteralPath $srcDir -Destination $tarParDir; }
-function InstallSrcPathToPsModulePathIfNotInst( [String] $srcDir ){ OutProgress "Change environment system variable $envVar by appending '$srcDir'. "; 
-                                                if( (PsModulePathContains $srcDir) ){ OutProgress "Already installed so environment variable not changed."; }
-                                                else{ ProcessRestartInElevatedAdminMode; PsModulePathAdd $srcDir; } }
-function IsInstalledInStandardMode            ( [String] $srcRootDir ){ return [Boolean] (PsModulePathContains $srcRootDir); }
+function InstallSrcPathToPsModulePathIfNotInst( [String] $srcDir ){ OutProgress "Change environment system variable PSModulePath by appending '$srcDir'. "; 
+                                                if( (OsPsModulePathContains $srcDir) ){ OutProgress "Already installed so environment variable not changed."; }
+                                                else{ ProcessRestartInElevatedAdminMode; OsPsModulePathAdd $srcDir; } }
+function IsInstalledInStandardMode            ( [String] $srcRootDir ){ return [Boolean] (OsPsModulePathContains $srcRootDir); }
 function OutCurrentInstallState               ( [String] $srcRootDir, [String] $moduleTarDir, [String] $color = "White" ){
                                                 [Boolean] $moduleTarDirExists = DirExists $moduleTarDir;
                                                 [String] $installedText = switch((IsInstalledInStandardMode $srcRootDir)){ ($true){"Installed-for-Developers. "} 
@@ -81,7 +81,7 @@ OutProgress     "  An installation in standard mode does first an uninstallation
 OutProgress     "  installation it copies the ps module folder to the common ps module folder ";
 OutProgress     "  for all users. An alternative installation for developers does also first an ";
 OutProgress     "  uninstallation and then it adds the path of the module folder as entry to ";
-OutProgress     "  the ps module path environment variable ($envVar). ";
+OutProgress     "  the ps module path environment variable PSModulePath. ";
 OutProgress     "  An uninstallation does both, it removes the copied folder from the common ps ";
 OutProgress     "  module folder for all users and it removes the path entry from the ps module ";
 OutProgress     "  path environment variable. ";
@@ -94,7 +94,7 @@ OutProgress     "  ";
 OutProgress     "  Current environment:";
 OutProgress     "    IsInElevatedAdminMode = $(ProcessIsRunningInElevatedAdminMode).";
 OutProgress     "    SrcRootDir = '$srcRootDir'. ";
-OutProgress     "    PsModulePath contains SrcRootDir = $(PsModulePathContains $srcRootDir). ";
+OutProgress     "    PsModulePath contains SrcRootDir = $(OsPsModulePathContains $srcRootDir). ";
 OutProgress     "    PsModuleFolder for All Users = '$tarRootDir'. ";
 OutProgressText "    "; OutCurrentInstallState $srcRootDir $moduleTarDir $(switch($sel -ne ""){($true){"DarkGray"}default{"White"}});
 OutInfo         "";

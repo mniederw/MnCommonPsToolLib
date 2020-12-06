@@ -55,7 +55,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $MnCommonPsToolLibVersion = "5.29"; # more see Releasenotes.txt
+[String] $MnCommonPsToolLibVersion = "5.31"; # more see Releasenotes.txt
 
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 
@@ -556,6 +556,16 @@ function OsWindowsFeatureDoInstall            ( [String] $name ){ # ex: Web-Serv
 function OsWindowsFeatureDoUninstall          ( [String] $name ){ Import-Module ServerManager; OutProgress "Uninstall-WindowsFeature -name $name"; [Object] $res = Uninstall-WindowsFeature -name $name; 
                                                 [String] $out = "Result: IsSuccess=$($res.Success) RequiresRestart=$($res.RestartNeeded) ExitCode=$($res.ExitCode) FeatureResult=$($res.FeatureResult)";
                                                 OutProgress $out; if( -not $res.Success ){ throw [Exception] "Uninstall $name was not successful, please solve manually. $out"; } }
+function OsPsModulePathList                   (){ return [String[]] ([Environment]::GetEnvironmentVariable("PSModulePath", "Machine").
+                                                  Split(";",[System.StringSplitOptions]::RemoveEmptyEntries)); }
+function OsPsModulePathContains               ( [String] $dir ){ # ex: "D:\WorkGit\myaccount\MyPsLibRepoName"
+                                                [String[]] $a = (OsPsModulePathList | ForEach-Object{ FsEntryRemoveTrailingBackslash $_ });
+                                                return [Boolean] ($a -contains (FsEntryRemoveTrailingBackslash $dir)); }
+function OsPsModulePathAdd                    ( [String] $dir ){ if( OsPsModulePathContains $dir ){ return; }
+                                                OsPsModulePathSet ((OsPsModulePathList)+@( (FsEntryRemoveTrailingBackslash $dir) )); }
+function OsPsModulePathDel                    ( [String] $dir ){ OsPsModulePathSet (OsPsModulePathList | 
+                                                Where-Object{ (FsEntryRemoveTrailingBackslash $_) -ne (FsEntryRemoveTrailingBackslash $dir) }); }
+function OsPsModulePathSet                    ( [String[]] $pathList ){ [Environment]::SetEnvironmentVariable("PSModulePath", ($pathList -join ";"), "Machine"); }
 function PrivGetUserFromName                  ( [String] $username ){ # optionally as domain\username
                                                 return [System.Security.Principal.NTAccount] $username; }
 function PrivGetUserCurrent                   (){ return [System.Security.Principal.IdentityReference] ([System.Security.Principal.WindowsIdentity]::GetCurrent().User); } # alternative: PrivGetUserFromName "$env:userdomain\$env:username"
