@@ -4,6 +4,7 @@
 Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
 Current version can be requested by: $MnCommonPsToolLibVersion
 
+2021-04-26  V5.32  Adding installation and uninstallation for both 32 and 64 bit environments.
 2020-12-07  V5.31  Add OsPsModule functions
 2020-11-27  V5.30  Add retry in CredentialReadFromFile when pw changed
 2020-11-15  V5.29  Doc NetDownloadFile

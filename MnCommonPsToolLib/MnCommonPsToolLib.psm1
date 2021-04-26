@@ -55,7 +55,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $MnCommonPsToolLibVersion = "5.31"; # more see Releasenotes.txt
+[String] $MnCommonPsToolLibVersion = "5.32"; # more see Releasenotes.txt
 
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 
@@ -3674,8 +3674,9 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #   - String without comparison as condition:  Assert ( "anystring" ); Assert ( "$false" );
 # - Standard module paths:
 #   - %windir%\system32\WindowsPowerShell\v1.0\Modules    location for windows modules for all users
-#   - %ProgramW6432%\WindowsPowerShell\Modules\           location for any modules     for all users
-#   - %ProgramFiles%\WindowsPowerShell\Modules\           location for any modules     for all users but on PowerShell-32bit only, PowerShell-64bit does not have this path
+#   - %ProgramW6432%\WindowsPowerShell\Modules\           location for any modules     for all users and             64bit environment (ex: "C:\Program Files")
+#   - %ProgramFiles(x86)%\WindowsPowerShell\Modules\      location for any modules     for all users and             32bit environment (ex: "C:\Program Files (x86")
+#   - %ProgramFiles%\WindowsPowerShell\Modules\           location for any modules     for all users and current 64/32 bit environment (ex: "C:\Program Files (x86)" or "C:\Program Files")
 #   - %USERPROFILE%\Documents\WindowsPowerShell\Modules   location for any modules     for current users
 # - Scopes for variables, aliases, functions and psdrives:
 #   - Local           : Current scope, is one of the other scopes: global, script, private, numbered scopes.
