@@ -956,7 +956,7 @@ function ServiceGetState                      ( [String] $serviceName ){
                                                 # ServiceControllerStatus: "","ContinuePending","Paused","PausePending","Running","StartPending","Stopped","StopPending".
 function ServiceStop                          ( [String] $serviceName, [Boolean] $ignoreIfFailed = $false ){
                                                 [String] $s = ServiceGetState $serviceName; if( $s -eq "" -or $s -eq "stopped" ){ return; }
-                                                OutProgress "ServiceStop $serviceName $(switch($ignoreIfFailed){($true){''}default{'ignoreIfFailed'}})";
+                                                OutProgress "ServiceStop $serviceName $(switch($ignoreIfFailed){($true){'ignoreIfFailed'}default{''}})";
                                                 ProcessRestartInElevatedAdminMode;
                                                 try{ Stop-Service -Name $serviceName; } # Instead of check for stopped service we could also use -PassThru.
                                                 catch{ # ex: ServiceCommandException: Service 'Check Point Endpoint Security VPN (TracSrvWrapper)' cannot be stopped due to the following error: Cannot stop TracSrvWrapper service on computer '.'.
@@ -3684,8 +3684,9 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #   - PS is poisoning the current scope by its aliases. List all aliases by: alias; For example: Alias curl -> Invoke-WebRequest ; Alias wget -> Invoke-WebRequest ; Alias diff -> Compare-Object ;
 # - Standard module paths:
 #   - %windir%\system32\WindowsPowerShell\v1.0\Modules    location for windows modules for all users
-#   - %ProgramW6432%\WindowsPowerShell\Modules\           location for any modules     for all users
-#   - %ProgramFiles%\WindowsPowerShell\Modules\           location for any modules     for all users but on PowerShell-32bit only, PowerShell-64bit does not have this path
+#   - %ProgramW6432%\WindowsPowerShell\Modules\           location for any modules     for all users and             64bit environment (ex: "C:\Program Files")
+#   - %ProgramFiles(x86)%\WindowsPowerShell\Modules\      location for any modules     for all users and             32bit environment (ex: "C:\Program Files (x86")
+#   - %ProgramFiles%\WindowsPowerShell\Modules\           location for any modules     for all users and current 64/32 bit environment (ex: "C:\Program Files (x86)" or "C:\Program Files")
 #   - %USERPROFILE%\Documents\WindowsPowerShell\Modules   location for any modules     for current users
 # - Scopes for variables, aliases, functions and psdrives:
 #   - Local           : Current scope, is one of the other scopes: global, script, private, numbered scopes.
