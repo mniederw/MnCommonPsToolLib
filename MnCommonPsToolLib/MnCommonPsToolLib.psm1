@@ -55,7 +55,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $MnCommonPsToolLibVersion = "5.31"; # more see Releasenotes.txt
+[String] $MnCommonPsToolLibVersion = "5.33"; # more see Releasenotes.txt
 
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 
@@ -144,7 +144,12 @@ function ForEachParallel {
             if( $threads[$i].handle.iscompleted ){
               try{
                 $threads[$i].instance.endinvoke($threads[$i].handle);
-              }catch{ [String] $msg = $_; $error.clear(); Write-Host -ForegroundColor DarkGray "ForEachParallel-endinvoke: Ignoring $msg"; }
+              }catch{
+                [String] $msg = $_; $error.clear(); 
+                # msg example: Exception calling "EndInvoke" with "1" argument(s): "Der ausgeführte Befehl wurde beendet, da die Einstellungsvariable "ErrorActionPreference" 
+                #              oder ein allgemeiner Parameter auf "Stop" festgelegt ist: Es ist ein allgemeiner Fehler aufgetreten, für den kein spezifischerer Fehlercode verfügbar ist.."
+                Write-Host -ForegroundColor DarkGray "ForEachParallel-endinvoke: Ignoring $msg";
+              }
               $threads[$i].instance.dispose(); 
               $threads[$i].handle = $null; 
               [gc]::Collect();
@@ -949,10 +954,14 @@ function ServiceGet                           ( [String] $serviceName ){
 function ServiceGetState                      ( [String] $serviceName ){ 
                                                 [Object] $s = ServiceGet $serviceName; if( $null -eq $s ){ return [String] ""; } return [String] $s.Status; }
                                                 # ServiceControllerStatus: "","ContinuePending","Paused","PausePending","Running","StartPending","Stopped","StopPending".
-function ServiceStop                          ( [String] $serviceName ){
+function ServiceStop                          ( [String] $serviceName, [Boolean] $ignoreIfFailed = $false ){
                                                 [String] $s = ServiceGetState $serviceName; if( $s -eq "" -or $s -eq "stopped" ){ return; }
-                                                OutProgress "ServiceStop $serviceName"; ProcessRestartInElevatedAdminMode;
-                                                Stop-Service -Name $serviceName; } # Instead of check for stopped service we could also use -PassThru.
+                                                OutProgress "ServiceStop $serviceName $(switch($ignoreIfFailed){($true){''}default{'ignoreIfFailed'}})";
+                                                ProcessRestartInElevatedAdminMode;
+                                                try{ Stop-Service -Name $serviceName; } # Instead of check for stopped service we could also use -PassThru.
+                                                catch{ # ex: ServiceCommandException: Service 'Check Point Endpoint Security VPN (TracSrvWrapper)' cannot be stopped due to the following error: Cannot stop TracSrvWrapper service on computer '.'.
+                                                  if( $ignoreIfFailed ){ OutWarning "Stopping service failed, ignored: $($_.Exception.Message)"; }else{ throw; }
+                                                } }
 function ServiceStart                         ( [String] $serviceName ){ 
                                                 OutVerbose "Check if either service $ServiceName is running or otherwise go in elevate mode and start service"; 
                                                 [String] $s = ServiceGetState $serviceName; if( $s -eq "" ){ throw [Exception] "Service not exists: `"$serviceName`""; } if( $s -eq "Running" ){ return; } 
@@ -3672,6 +3681,7 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #     Recommendation: After creation of the list do iterate through it and assert non-null values 
 #       or redo the expression within a ForEach-Object loop to get correct throwed message.
 #   - String without comparison as condition:  Assert ( "anystring" ); Assert ( "$false" );
+#   - PS is poisoning the current scope by its aliases. List all aliases by: alias; For example: Alias curl -> Invoke-WebRequest ; Alias wget -> Invoke-WebRequest ; Alias diff -> Compare-Object ;
 # - Standard module paths:
 #   - %windir%\system32\WindowsPowerShell\v1.0\Modules    location for windows modules for all users
 #   - %ProgramW6432%\WindowsPowerShell\Modules\           location for any modules     for all users
