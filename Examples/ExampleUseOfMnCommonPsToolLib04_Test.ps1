@@ -5,7 +5,6 @@ Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version
 function TestAssertions{
   OutInfo "Test assertions";
   Assert ((2 + 3) -eq 5);
-  MnLibCommonSelfTest;
   OutSuccess "Ok, done.";
 }
 
