@@ -35,8 +35,8 @@ jobs:
               Write-Output "There were $($errors.Count) errors and $($warnings.Count) warnings total."
           }
 
-      - name: Test import
-        run: Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"
+      # - name: Test import
+      #  run: Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"
 
       - name: Message for future use
         run: echo Later add testings here
