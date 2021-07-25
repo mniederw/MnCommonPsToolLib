@@ -6,14 +6,15 @@ Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including unin
 $Global:ErrorActionPreference = "Stop";
 $PSModuleAutoLoadingPreference = "none"; # disable autoloading modules
 trap [Exception] { $Host.UI.WriteErrorLine($_); Read-Host; break; }
-function OutInfo                              ( [String] $line ){ Write-Host -ForegroundColor White               $line; }
-function OutProgress                          ( [String] $line ){ Write-Host -ForegroundColor DarkGray            $line; }
-function OutProgressText                      ( [String] $line ){ Write-Host -ForegroundColor DarkGray -NoNewLine $line; }
-function OutQuestion                          ( [String] $line ){ Write-Host -ForegroundColor Cyan     -NoNewline $line; }
-function FsEntryMakeTrailingBackslash         ( [String] $fsEntry ){ [String] $result = $fsEntry; 
+function OutStr                               ( [String] $color, [String] $line, [Boolean] $noNewLine ){ Write-Host -ForegroundColor $color -NoNewline:$noNewLine $line; }
+function OutInfo                              ( [String] $line ){ OutStr "White"    $line $false; }
+function OutProgress                          ( [String] $line ){ OutStr "DarkGray" $line $false; }
+function OutProgressText                      ( [String] $line ){ OutStr "DarkGray" $line $true ; }
+function OutQuestion                          ( [String] $line ){ OutStr "Cyan"     $line $true ; }
+function FsEntryMakeTrailingBackslash         ( [String] $fsEntry ){ [String] $result = $fsEntry;
                                                 if( -not $result.EndsWith("\") ){ $result += "\"; } return [String] $result; }
-function FsEntryRemoveTrailingBackslash       ( [String] $fsEntry ){ [String] $result = $fsEntry; 
-                                                while( $result.Length -gt 1 -and $result.EndsWith("\") ){ $result = $result.Remove($result.Length-1); } 
+function FsEntryRemoveTrailingBackslash       ( [String] $fsEntry ){ [String] $result = $fsEntry;
+                                                while( $result.Length -gt 1 -and $result.EndsWith("\") ){ $result = $result.Remove($result.Length-1); }
                                                 return [String] $result; }
 function FsEntryGetAbsolutePath               ( [String] $fsEntry ){ return [String] ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($fsEntry)); }
 function OsPsModulePathList                   (){ return [String[]] ([Environment]::GetEnvironmentVariable("PSModulePath", "Machine").
@@ -23,36 +24,36 @@ function OsPsModulePathContains               ( [String] $dir ){ # ex: "D:\WorkG
                                                 return [Boolean] ($a -contains (FsEntryRemoveTrailingBackslash $dir)); }
 function OsPsModulePathAdd                    ( [String] $dir ){ if( OsPsModulePathContains $dir ){ return; }
                                                 OsPsModulePathSet ((OsPsModulePathList)+@( (FsEntryRemoveTrailingBackslash $dir) )); }
-function OsPsModulePathDel                    ( [String] $dir ){ OsPsModulePathSet (OsPsModulePathList | 
+function OsPsModulePathDel                    ( [String] $dir ){ OsPsModulePathSet (OsPsModulePathList |
                                                 Where-Object{ (FsEntryRemoveTrailingBackslash $_) -ne (FsEntryRemoveTrailingBackslash $dir) }); }
 function OsPsModulePathSet                    ( [String[]] $pathList ){ [Environment]::SetEnvironmentVariable("PSModulePath", ($pathList -join ";"), "Machine"); }
 function DirExists                            ( [String] $dir ){ try{ return [Boolean] (Test-Path -PathType Container -LiteralPath $dir ); }
                                                 catch{ throw [Exception] "DirExists($dir) failed because $($_.Exception.Message)"; } }
 function DirListDirs                          ( [String] $d ){ return [String[]] (@()+(Get-ChildItem -Force -Directory -Path $d | ForEach-Object{ $_.FullName })); }
-function DirHasFiles                          ( [String] $d, [String] $filePattern ){ 
+function DirHasFiles                          ( [String] $d, [String] $filePattern ){
                                                 return [Boolean] ($null -ne (Get-ChildItem -Force -Recurse -File -ErrorAction SilentlyContinue -Path "$d\$filePattern")); }
-function ScriptGetTopCaller                   (){ [String] $f = $global:MyInvocation.MyCommand.Definition.Trim(); 
-                                                if( $f -eq "" -or $f -eq "ScriptGetTopCaller" ){ return ""; } 
-                                                if( $f.StartsWith("&") ){ $f = $f.Substring(1,$f.Length-1).Trim(); } 
-                                                if( ($f -match "^\'.+\'$") -or ($f -match "^\`".+\`"$") ){ $f = $f.Substring(1,$f.Length-2); } 
+function ScriptGetTopCaller                   (){ [String] $f = $global:MyInvocation.MyCommand.Definition.Trim();
+                                                if( $f -eq "" -or $f -eq "ScriptGetTopCaller" ){ return ""; }
+                                                if( $f.StartsWith("&") ){ $f = $f.Substring(1,$f.Length-1).Trim(); }
+                                                if( ($f -match "^\'.+\'$") -or ($f -match "^\`".+\`"$") ){ $f = $f.Substring(1,$f.Length-2); }
                                                 return [String] $f; } # return empty if called interactive.
 function ProcessIsRunningInElevatedAdminMode  (){ return [Boolean] ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).
                                                   IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"); }
-function ProcessRestartInElevatedAdminMode    (){ if( -not (ProcessIsRunningInElevatedAdminMode) ){ 
-                                                [String[]] $cmd = @( (ScriptGetTopCaller) ) + $sel; 
-                                                OutProgress "Not running in elevated administrator mode so elevate current script and exit: `n  $cmd"; 
-                                                Start-Process -Verb "RunAs" -FilePath "powershell.exe" -ArgumentList "& `"$cmd`" "; 
+function ProcessRestartInElevatedAdminMode    (){ if( -not (ProcessIsRunningInElevatedAdminMode) ){
+                                                [String[]] $cmd = @( (ScriptGetTopCaller) ) + $sel;
+                                                OutProgress "Not running in elevated administrator mode so elevate current script and exit: `n  $cmd";
+                                                Start-Process -Verb "RunAs" -FilePath "powershell.exe" -ArgumentList "& `"$cmd`" ";
                                                 [Environment]::Exit("0"); throw [Exception] "Exit done, but it did not work, so it throws now an exception."; } }
 function ShellSessionIs64not32Bit             (){ if( "${env:ProgramFiles}" -eq "$env:ProgramW6432"        ){ return [Boolean] $true ; }
                                                 elseif( "${env:ProgramFiles}" -eq "${env:ProgramFiles(x86)}" ){ return [Boolean] $false; }
                                                 else{ throw [Exception] "Expected ProgramFiles=`"${env:ProgramFiles}`" to be equals to ProgramW6432=`"$env:ProgramW6432`" or ProgramFilesx86=`"${env:ProgramFiles(x86)}`" "; } }
-function UninstallDir                         ( [String] $d ){ OutProgress "RemoveDir '$d'. "; 
+function UninstallDir                         ( [String] $d ){ OutProgress "RemoveDir '$d'. ";
                                                 if( DirExists $d ){ ProcessRestartInElevatedAdminMode; Remove-Item -Force -Recurse -LiteralPath $d; } }
-function UninstallSrcPath                     ( [String] $d ){ OutProgress "UninstallSrcPath '$d'. "; 
+function UninstallSrcPath                     ( [String] $d ){ OutProgress "UninstallSrcPath '$d'. ";
                                                 if( (OsPsModulePathContains $d) ){ ProcessRestartInElevatedAdminMode; OsPsModulePathDel $d; } }
-function InstallDir                           ( [String] $srcDir, [String] $tarParDir ){ OutProgress "Copy '$srcDir' `n  to '$tarParDir'. "; 
+function InstallDir                           ( [String] $srcDir, [String] $tarParDir ){ OutProgress "Copy '$srcDir' `n  to '$tarParDir'. ";
                                                 ProcessRestartInElevatedAdminMode; Copy-Item -Force -Recurse -LiteralPath $srcDir -Destination $tarParDir; }
-function InstallSrcPathToPsModulePathIfNotInst( [String] $srcDir ){ OutProgress "Change environment system variable PSModulePath by appending '$srcDir'. "; 
+function InstallSrcPathToPsModulePathIfNotInst( [String] $srcDir ){ OutProgress "Change environment system variable PSModulePath by appending '$srcDir'. ";
                                                 if( (OsPsModulePathContains $srcDir) ){ OutProgress "Already installed so environment variable not changed."; }
                                                 else{ ProcessRestartInElevatedAdminMode; OsPsModulePathAdd $srcDir; } }
 function SelfUpdate                           (){ $PSModuleAutoLoadingPreference = "All"; # none=Disabled. All=Auto load when cmd not found.
@@ -72,13 +73,13 @@ if( $dirsWithPsm1Files.Count -ne 1 ){ throw [Exception] "Tool is designed for wo
 [String] $moduleTarDir64bit = "$tarRootDir64bit\$moduleName";
 
 function CurrentInstallationModes( [String] $color = "White" ){
-  if( DirExists $moduleTarDir64bit       ){ Write-Host -NoNewline -ForegroundColor $color "Installed-in-Standard-Mode-for-64bit "; }else{ Write-Host -NoNewline -ForegroundColor "DarkGray" "Not-Installed-in-Standard-Mode-for-64bit "; }
-  if( DirExists $moduleTarDir32bit       ){ Write-Host -NoNewline -ForegroundColor $color "Installed-in-Standard-Mode-for-32bit "; }else{ Write-Host -NoNewline -ForegroundColor "DarkGray" "Not-Installed-in-Standard-Mode-for-32bit "; }
-  if( OsPsModulePathContains $srcRootDir ){ Write-Host -NoNewline -ForegroundColor $color "Installed-for-Developers "            ; }else{ Write-Host -NoNewline -ForegroundColor "DarkGray" "Not-Installed-for-Developers "; }
-  Write-Host "";
+  if( DirExists $moduleTarDir64bit       ){ OutStr $color "Installed-in-Standard-Mode-for-64bit " $true; }else{ OutStr "DarkGray" "Not-Installed-in-Standard-Mode-for-64bit " $true; }
+  if( DirExists $moduleTarDir32bit       ){ OutStr $color "Installed-in-Standard-Mode-for-32bit " $true; }else{ OutStr "DarkGray" "Not-Installed-in-Standard-Mode-for-32bit " $true; }
+  if( OsPsModulePathContains $srcRootDir ){ OutStr $color "Installed-for-Developers "             $true; }else{ OutStr "DarkGray" "Not-Installed-for-Developers "             $true; }
+  OutInfo "";
 }
 
-[Boolean] $isDev = DirExists "$srcRootDir\.git";
+# for future use: [Boolean] $isDev = DirExists "$srcRootDir\.git";
 OutInfo         "Install Menu for Powershell Module - $moduleName";
 OutInfo         "-------------------------------------$("-"*($moduleName.Length))`n";
 OutProgress     "  For installation or uninstallation the elevated administrator mode is ";
@@ -128,8 +129,8 @@ if( $sel -eq "N" ){ UninstallDir $moduleTarDir32bit;
 if( $sel -eq "I" ){ UninstallDir $moduleTarDir32bit;
                     UninstallDir $moduleTarDir64bit;
                     UninstallSrcPath $srcRootDir;
-                    InstallDir $moduleSrcDir $tarRootDir32bit; 
-                    InstallDir $moduleSrcDir $tarRootDir64bit; 
+                    InstallDir $moduleSrcDir $tarRootDir32bit;
+                    InstallDir $moduleSrcDir $tarRootDir64bit;
                     OutProgressText "Current installation modes: "; CurrentInstallationModes "Green"; }
 if( $sel -eq "A" ){ UninstallDir $moduleTarDir32bit;
                     UninstallDir $moduleTarDir64bit;

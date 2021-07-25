@@ -1,4 +1,4 @@
-# Test module MnCommonPsToolLib
+ï»¿# Test module MnCommonPsToolLib
 
 Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 
@@ -33,7 +33,7 @@ function MnLibCommonSelfTest(){ # perform some tests
   Assert ( $null -eq (TestReturnEmptyArray2));
   Assert ( $null -eq (TestReturnEmptyArray3));
   Assert ( $null -eq (TestReturnNullArray  ));
-  
+
   # adding null to array inserts it.
   Assert ((@()+($null | Where-Object{$null -ne $_})).Count -eq 0);
   Assert ((@()+(@()                               )).Count -eq 0);
@@ -56,7 +56,7 @@ function MnLibCommonSelfTest(){ # perform some tests
   [Int32] $n = 0; @()   | ForEach-Object{ $n++; }; Assert ($n -eq 0); # empty array not iterates to pipelining
 
   # compare non-null array with null must be done by preceeding null
-  [String[]] $a = @()  ; Assert        ( -not ($a -eq $null) ); # If we would use AssertIsFalse then: Die Argumenttransformation für den Parameter "cond" kann nicht verarbeitet werden. Der Wert "System.Object[]" kann nicht in den Typ "System.Boolean" konvertiert werden. Boolesche Parameter akzeptieren nur boolesche Werte oder Zahlen wie "$True", "$False", "1" oder "0".
+  [String[]] $a = @()  ; Assert        ( -not ($a -eq $null) ); # If we would use AssertIsFalse then: Die Argumenttransformation fÃ¼r den Parameter "cond" kann nicht verarbeitet werden. Der Wert "System.Object[]" kann nicht in den Typ "System.Boolean" konvertiert werden. Boolesche Parameter akzeptieren nur boolesche Werte oder Zahlen wie "$True", "$False", "1" oder "0".
   [String[]] $a = @()  ; Assert        ( -not ($a -ne $null) ); # Is something as a know BUG.
   [String[]] $a = $null; Assert        ( $a -eq $null );
   [String[]] $a = $null; AssertIsFalse ( $a -ne $null );
@@ -126,11 +126,11 @@ function MnLibCommonSelfTest(){ # perform some tests
   Assert         ((StringArrayIsEqual @("a","b") @("b","a") $true       ) -eq $true );
   Assert         ((StringArrayIsEqual @("a","b") @("b","c") $true       ) -eq $false);
 
-  # todo StringFromException         
-  # todo StringCommandLineToArray    
+  # todo StringFromException
+  # todo StringCommandLineToArray
 
   Assert         ((StringNormalizeAsVersion ""                        ) -eq ""                       );
-  Assert         ((StringNormalizeAsVersion "a"                       ) -eq "a"                      ); 
+  Assert         ((StringNormalizeAsVersion "a"                       ) -eq "a"                      );
   Assert         ((StringNormalizeAsVersion "0"                       ) -eq "00000"                  );
   Assert         ((StringNormalizeAsVersion "a.0"                     ) -eq "a.00000"                );
   Assert         ((StringNormalizeAsVersion " b"                      ) -eq ""                       );
@@ -142,10 +142,10 @@ function MnLibCommonSelfTest(){ # perform some tests
   Assert         (StringCompareVersionIsMinimum "V1.20" "V1.3");
   Assert         ((Int32Clip -5 0 9) -eq 0 -and (Int32Clip 5 0 9) -eq 5 -and (Int32Clip 15 0 9) -eq 9);
 
-  # todo DateTimeAsStringIso            
-  # todo DateTimeNowAsStringIso         
-  # todo DateTimeNowAsStringIsoDate     
-  # todo DateTimeNowAsStringIsoMonth    
+  # todo DateTimeAsStringIso
+  # todo DateTimeNowAsStringIso
+  # todo DateTimeNowAsStringIsoDate
+  # todo DateTimeNowAsStringIsoMonth
   # todo DateTimeNowAsStringIsoInMinutes
 
   Assert         ((DateTimeFromStringIso "2011-12-31"             ) -eq (Get-Date -Date "2011-12-31 00:00:00"    ));
@@ -158,7 +158,7 @@ function MnLibCommonSelfTest(){ # perform some tests
   Assert         ((DateTimeFromStringIso "2011-12-31 23:59:59.999") -eq (Get-Date -Date "2011-12-31 23:59:59.999"));
   Assert         ((DateTimeFromStringIso "2011-12-31T23:59:59.999") -eq (Get-Date -Date "2011-12-31 23:59:59.999"));
 
-  # todo ArrayIsNullOrEmpty             
+  # todo ArrayIsNullOrEmpty
 
   Assert         ((ByteArraysAreEqual @()               @()              ) -eq $true );
   Assert         ((ByteArraysAreEqual @(0x00,0x01,0xFF) @(0x00,0x01,0xFF)) -eq $true );
@@ -207,7 +207,7 @@ function MnLibCommonSelfTest(){ # perform some tests
   # for later:
   # trap [Exception] { OutProgress "Ignored trap: $_"; continue; } # temporary ignore
   # # Count is for all classes defined when exceptions are ignored but otherwise it throws
-  # Assert ( ($false   ).Count -eq 1 ); # Throws: Die Eigenschaft "Count" wurde für dieses Objekt nicht gefunden. Vergewissern Sie sich, dass die Eigenschaft vorhanden ist.
+  # Assert ( ($false   ).Count -eq 1 ); # Throws: Die Eigenschaft "Count" wurde fÃ¼r dieses Objekt nicht gefunden. Vergewissern Sie sich, dass die Eigenschaft vorhanden ist.
   # Assert ( (123      ).Count -eq 1 );
   # Assert ( ("ab"     ).Count -eq 1 );
   # Assert ( ($null    ).Count -eq 0 );
