@@ -3492,6 +3492,18 @@ function ToolSetAssocFileExtToCmd             ( [String[]] $fileExtensions, [Str
                                                     OutProgress "SetFileAssociation ext=$($ext.PadRight(6)) ftype=$($ft.PadRight(20)) cmd=$exec";
                                                   }
                                                 }; }
+function ToolVs2019UserFolderGetLatestUsed    (){
+                                                # return the current visual studio 2019 config folder or empty string if it not exits.
+                                                # example: "C:\Users\MyUser\AppData\Local\Microsoft\VisualStudio\16.0_d70392ef\"
+                                                [String] $result = "";
+                                                # we internally locate the private registry file used by vs2019, later maybe we use https://github.com/microsoft/vswhere
+                                                [String[]] $a = FsEntryListAsStringArray "$HOME\AppData\Local\Microsoft\VisualStudio\16.0_*\privateregistry.bin" $false $false;
+                                                if( $a.Count -gt 0 ){
+                                                  $result = $a[0];
+                                                  $a | Select-Object -Skip 1 | ForEach-Object { if( FileExistsAndIsNewer $_ $result ){ $result = $_; } }
+                                                  $result = FsEntryMakeTrailingBackslash (FsEntryGetParentDir $result);
+                                                }
+                                                return [String] $result; }
 function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $url, [Boolean] $requireElevatedAdminMode = $false,
                                                   [Boolean] $doWaitIfFailed = $false, [String] $additionalOkUpdMsg = "",
                                                   [Boolean] $assertFilePreviouslyExists = $true, [Boolean] $performPing = $true ){

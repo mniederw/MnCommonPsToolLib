@@ -4,106 +4,107 @@
 Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
 Current version can be requested by: $MnCommonPsToolLibVersion
 
+2021-09-28  V5.35  Added ToolVs2019UserFolderGetLatestUsed, unified releasenote comments
 2021-07-25  V5.34  Fixed lint issues, added github action
 2021-05-06  V5.33  Extend ServiceStop
-2021-01-05  V5.32  Add exc info, Adding installation and uninstallation for both 32 and 64 bit environments.
-2020-12-07  V5.31  Add OsPsModule functions
-2020-11-27  V5.30  Add retry in CredentialReadFromFile when pw changed
+2021-01-05  V5.32  Added exc info, Adding installation and uninstallation for both 32 and 64 bit environments.
+2020-12-07  V5.31  Added OsPsModule functions
+2020-11-27  V5.30  Added retry in CredentialReadFromFile when pw changed
 2020-11-15  V5.29  Doc NetDownloadFile
 2020-11-15  V5.28  Improve warning of git log
-2020-11-13  V5.27  added ToolActualizeHostsFileByMaster
-2020-11-03  V5.26  added FsEntryGetUncShare, extend FsEntryNotExistsOrIsOlderThanNrDays.
-2020-11-01  V5.24  fix default arg.
-2020-10-19  V5.23  git --no-rebase
-2020-10-05  V5.22  fixed null problems for arrays. Extend unitest. Added return type of functions.
-2020-10-01  V5.21  added StringNormalizeAsVersion, moved unittest, fixed null for arrays.
-2020-10-01  V5.20  fix RegistryPrivRuleToString
-2020-09-23  V5.19  Unify usage without aliases
+2020-11-13  V5.27  Added ToolActualizeHostsFileByMaster
+2020-11-03  V5.26  Added FsEntryGetUncShare, extend FsEntryNotExistsOrIsOlderThanNrDays.
+2020-11-01  V5.24  Fixed default arg.
+2020-10-19  V5.23  Added git --no-rebase
+2020-10-05  V5.22  Fixed null problems for arrays. Extend unitest. Added return type of functions.
+2020-10-01  V5.21  Added StringNormalizeAsVersion, moved unittest, fixed null for arrays.
+2020-10-01  V5.20  Fixed RegistryPrivRuleToString
+2020-09-23  V5.19  Unified usage without aliases
 2020-09-09  V5.18  Added PrivFsRuleCreateByString, PrivAclFsRightsToString, PrivAclFsRightsFromString, PrivAclRegRightsToString. Fix FsEntryListAsFileSystemInfo.
 2020-08-09  V5.13  Added GitShowBranch, GitShowChanges. Fix ProcessStart.
-2020-07-30  V5.12  Doc.
-2020-07-28  V5.11  Improve tfs functions.
-2020-07-16  V5.10  Deprecate FsEntryMakeAbsolutePath. extend tfs-path. added FsEntryFindInParents, StringRemoveOptEnclosingDblQuotes, Tfs-functions.
+2020-07-30  V5.12  Added Doc.
+2020-07-28  V5.11  Improved tfs functions.
+2020-07-16  V5.10  Deprecated FsEntryMakeAbsolutePath. Extend tfs-path. Added FsEntryFindInParents, StringRemoveOptEnclosingDblQuotes, Tfs-functions.
 2020-07-15  V5.9   Added GitCloneOrPullUrls
 2020-07-06  V5.8   Added GitAssertAutoCrLfIsDisabled, GitDisableAutoCrLf.
 2020-05-01  V5.7   Added StringArrayIsEqual.
-2020-04-25  V5.6   Doc.
+2020-04-25  V5.6   Added Doc.
 2020-04-17  V5.5   Improved NetDownloadSite for utf8. NetUrlUnescape.
 2020-04-14  V5.4   Improved git-pull.
 2020-04-10  V5.3   Added ProcessEnvVarGet, ProcessEnvVarGet, OsWindowsFeatureDoInstall, OsWindowsFeatureDoUninstall, NetDownloadIsSuccessful.
 2020-04-06  V5.2   Extended DirAssertExists, improve ShareCreate.
-2020-03-02  V5.1   ShareListAllByWmi changed caption to Description.
-2020-02-25  V5.0   Change and simplify ShareListAll, ShareCreate, ShareRemove, ShareListAll. Add ShareExists, ShareListAllByWmi, ShareRemoveByWmi, ShareCreateByWmi, ShareLocksList, ShareLocksClose.
+2020-03-02  V5.1   Changed ShareListAllByWmi caption to Description.
+2020-02-25  V5.0   Changed and simplifyed ShareListAll, ShareCreate, ShareRemove, ShareListAll. Add ShareExists, ShareListAllByWmi, ShareRemoveByWmi, ShareCreateByWmi, ShareLocksList, ShareLocksClose.
 
-2020-02-18  V4.11  improve ConsoleSetGuiProperties, tf options
-2020-02-15  V4.10  add ToolGithubApiDownloadLatestReleaseDir, ToolUnzip, fix FsEntryMoveByPatternToDir.
-2020-02-13  V4.9   add HelpListOfAllExportedCommands, extend wget comment. improved ProcessRestartInElevatedAdminMode, MnCommonPsToolLibSelfUpdate, ToolPerformFileUpdateAndIsActualized.
-2020-01-14  V4.8   add StringRemoveLeft
-2019-12-04  V4.7   extended tfs path
-2019-11-15  V4.6   added ToolSetAssocFileExtToCmd, simplify word-count. 
-2019-11-11  V4.5   Extend GitCmd by branch. Extend GitBuildLocalDirFromUrl by branch.
-2019-10-16  V4.4   Fix FsEntryGetAbsolutePath drive not found. Fix RegistryKeySetAclRule. Improve checkings in RegistryKeyGetSubkey, handle 404 in NetDownloadFile and NetDownloadFileByCurl.
-2019-09-04  V4.3   improve FsEntryListAsFileSystemInfo for unauthorized.
-2019-08-31  V4.2   extend exc msg, improve get credentials, added OutError. StdOutRedLine is now deprecated.
-2019-08-20  V4.1   fix exc msg.
+2020-02-18  V4.11  Improved ConsoleSetGuiProperties, tf options
+2020-02-15  V4.10  Added ToolGithubApiDownloadLatestReleaseDir, ToolUnzip, fix FsEntryMoveByPatternToDir.
+2020-02-13  V4.9   Added HelpListOfAllExportedCommands, extend wget comment. improved ProcessRestartInElevatedAdminMode, MnCommonPsToolLibSelfUpdate, ToolPerformFileUpdateAndIsActualized.
+2020-01-14  V4.8   Added StringRemoveLeft
+2019-12-04  V4.7   Extended tfs path
+2019-11-15  V4.6   Added ToolSetAssocFileExtToCmd, simplify word-count. 
+2019-11-11  V4.5   Extended GitCmd by branch. Extended GitBuildLocalDirFromUrl by branch.
+2019-10-16  V4.4   Fixed FsEntryGetAbsolutePath drive not found. Fix RegistryKeySetAclRule. Improve checkings in RegistryKeyGetSubkey, handle 404 in NetDownloadFile and NetDownloadFileByCurl.
+2019-09-04  V4.3   Improved FsEntryListAsFileSystemInfo for unauthorized.
+2019-08-31  V4.2   Extended exc msg, improve get credentials, added OutError. StdOutRedLine is now deprecated.
+2019-08-20  V4.1   Fixed exc msg.
 
-2019-08-18  V4.0   improved get-sql-db-schema, fixed optional menu link file of ToolCreateMenuLinksByMenuItemRefFile, 
-                   improve reg key priv methods, replaced RegistryKeySetOwnerForced by RegistryKeySetOwner, 
-                   renamed RegistryKeySetAccessRule by RegistryKeySetAclRule, rename RegistryKeySetAcl by RegistryKeySetAclRight.
+2019-08-18  V4.0   Improved get-sql-db-schema, fixed optional menu link file of ToolCreateMenuLinksByMenuItemRefFile, 
+                   Improved reg key priv methods, replaced RegistryKeySetOwnerForced by RegistryKeySetOwner, 
+                   Renamed RegistryKeySetAccessRule by RegistryKeySetAclRule, rename RegistryKeySetAcl by RegistryKeySetAclRight.
 
-2019-05-11  V3.4   extend FsEntryFindFlatSingleByPattern, extend TfsCheckinDirWhenNoConflict, added StdInAskAndAssertExpectedAnswer, 
+2019-05-11  V3.4   Extended FsEntryFindFlatSingleByPattern, extend TfsCheckinDirWhenNoConflict, added StdInAskAndAssertExpectedAnswer, 
                    do ConsoleSetGuiProperties only once per shell, added StringIsInt32/64, StringAsInt32/64.
 
-2019-05-06  V3.3   set doublequotes instead of quotes in log strings, improve svn changes detections for committing, git pull used time, fix console buffer sizes.
+2019-05-06  V3.3   Set doublequotes instead of quotes in log strings, improve svn changes detections for committing, git pull used time, fix console buffer sizes.
 
-2019-04-29  V3.2   add tfs functions.
+2019-04-29  V3.2   Added tfs functions.
 
-2019-04-21  V3.1   add progress to reg functions, fix RegistrySetValue, fix createlnk for filenames with brackets, git-pull ok if repo hs no content, add log for git.
+2019-04-21  V3.1   Added progress to reg functions, fix RegistrySetValue, fix createlnk for filenames with brackets, git-pull ok if repo hs no content, add log for git.
 
-2019-03-23  V3.0   change ProcessStart return string instead of string array and remove outToProgress param, 
-                   replace StringReplaceNewlinesBySpaces by StringReplaceNewlines(with space as default arg), improve git pull.
+2019-03-23  V3.0   Changed ProcessStart return string instead of string array and remove outToProgress param, 
+                   Replaced StringReplaceNewlinesBySpaces by StringReplaceNewlines(with space as default arg), improve git pull.
 
-2019-02-22  V2.0   remove unused var ModeDisallowElevation, replace var CurrentMonthIsoString by function DateTimeNowAsStringIsoMonth(), 
+2019-02-22  V2.0   Removed unused var ModeDisallowElevation, replace var CurrentMonthIsoString by function DateTimeNowAsStringIsoMonth(), 
                    new ConsoleSetPos, refactor MnCommonPsToolLibSelfUpdate by using github release, removed ToolPerformFileUpdateAndIsActualized.
 
-2019-01-16  V1.32  add SqlGenerateFullDbSchemaFiles, add check, care gitstderr as out.
+2019-01-16  V1.32  Added SqlGenerateFullDbSchemaFiles, add check, care gitstderr as out.
 
-2019-01-06  V1.29  doc, InfoGetInstalledDotNetVersion, rename SvnCommitAndGet to SvnTortoiseCommitAndUpdate, rename SvnCommit to SvnTortoiseCommit, 
-                   improve ProcessStart, rename RdpConnect to ToolRdpConnect, rename WgetDownloadSite to NetDownloadSite, 
-                   rename PsWebRequestLastModifiedFailSafe to NetWebRequestLastModifiedFailSafe, rename PsDownloadFile to NetDownloadFile, 
-                   rename PsDownloadToString to NetDownloadToString, rename CurlDownloadFile to NetDownloadFileByCurl, 
-                   rename CurlDownloadToString to NetDownloadToStringByCurl.
-2018-12-30  V1.28  improve download exc, add encoding as param for FileReadContent functions, 
-                   renamed from CredentialGetPasswordTextFromCred to CredentialGetPassword, new CredentialGetUsername, 
-                   rename CredentialReadFromParamOrInput to CredentialCreate
-2018-12-16  V1.27  suppress import-module warnings, improve ToolCreateLnkIfNotExists, rename FsEntryPrivAclAsString to PrivAclAsString, 
-                   rename PrivFsSecurityHasFullControl to PrivAclHasFullControl, new: FsEntryCreateSymLink, FsEntryCreateHardLink, CredentialReadUserFromFile; 
-2018-12-16  V1.26  doc
-2018-10-08  V1.25  improve git logging, add ProcessStart
-2018-09-27  V1.24  fix FsEntryMakeRelative for equal dirs
-2018-09-26  V1.23  fix logfile of SqlPerformFile
-2018-09-26  V1.22  improved logging of SqlPerformFile
-2018-09-26  V1.21  improved FsEntryMakeRelative
-2018-09-26  V1.20  add: ScriptImportModuleIfNotDone, SqlPerformFile;
-2018-09-07  V1.19  remove deprecated: DirExistsAssert (use DirAssertExists instead), DateTimeFromStringAsFormat (use DateTimeFromStringIso instead), 
+2019-01-06  V1.29  Added doc, InfoGetInstalledDotNetVersion, rename SvnCommitAndGet to SvnTortoiseCommitAndUpdate, rename SvnCommit to SvnTortoiseCommit, 
+                   Improved ProcessStart, rename RdpConnect to ToolRdpConnect, rename WgetDownloadSite to NetDownloadSite, 
+                   Renamed PsWebRequestLastModifiedFailSafe to NetWebRequestLastModifiedFailSafe, rename PsDownloadFile to NetDownloadFile, 
+                   Renamed PsDownloadToString to NetDownloadToString, rename CurlDownloadFile to NetDownloadFileByCurl, 
+                   Renamed CurlDownloadToString to NetDownloadToStringByCurl.
+2018-12-30  V1.28  Improved download exc, add encoding as param for FileReadContent functions, 
+                   Renamed from CredentialGetPasswordTextFromCred to CredentialGetPassword, new CredentialGetUsername, 
+                   Renamed CredentialReadFromParamOrInput to CredentialCreate
+2018-12-16  V1.27  Suppressed import-module warnings, improve ToolCreateLnkIfNotExists, rename FsEntryPrivAclAsString to PrivAclAsString, 
+                   Renamed PrivFsSecurityHasFullControl to PrivAclHasFullControl, new: FsEntryCreateSymLink, FsEntryCreateHardLink, CredentialReadUserFromFile; 
+2018-12-16  V1.26  Added doc
+2018-10-08  V1.25  Improved git logging, add ProcessStart
+2018-09-27  V1.24  Fixed FsEntryMakeRelative for equal dirs
+2018-09-26  V1.23  Fixed logfile of SqlPerformFile
+2018-09-26  V1.22  Improved logging of SqlPerformFile
+2018-09-26  V1.21  Improved FsEntryMakeRelative
+2018-09-26  V1.20  Added ScriptImportModuleIfNotDone, SqlPerformFile;
+2018-09-07  V1.19  Removed deprecated: DirExistsAssert (use DirAssertExists instead), DateTimeFromStringAsFormat (use DateTimeFromStringIso instead), 
                    DateTimeAsStringForFileName (use DateTimeNowAsStringIso instead), fix DateTimeFromStringIso formats. 
                    Added FsEntryFsInfoFullNameDirWithBackSlash, FsEntryResetTs. Ignore Import err. Use ps module sqlserver instead sqlps and now with connectstring.
-2018-09-06  V1.18  add ConsoleSetGuiProperties, GetExtension.
-2018-08-14  V1.17  fix git err msg.
-2018-08-07  V1.16  add tool for sign assemblies, DirCreateTemp.
-2018-07-26  V1.15  improve handling of git, improve createLnk, ads functions, add doc.
-2018-03-26  V1.14  add ToolTailFile, FsEntryDeleteToRecycleBin.
-2018-02-23  V1.13  renamed deprecated DateTime* functions, new FsEntryGetLastModified, improve PsDownload, fixed DateTimeAsStringIso.
-2018-02-14  V1.12  add StdInAskForBoolean. DirExistsAssert is deprecated, use DirAssertExists instead.
-2018-02-06  V1.11  extend functions, fix FsEntryGetFileName.
-2018-01-18  V1.10  add HelpListOfAllModules, version var, improve ForEachParallel, improve log file names. 
-2018-01-09  V1.09  unify error messages, improved elevation, PsDownloadFile.
-2017-12-30  V1.08  improve RemoveSmb, renamed SvnCheckout to SvnCheckoutAndUpdate and implement retry.
-2017-12-16  V1.07  fix WgetDownloadSite.
-2017-12-02  V1.06  improved self-update hash handling, improve touch.
-2017-11-22  V1.05  extend functions, improved self-update by hash.
-2017-10-22  V1.04  extend functions, improve FileContentsAreEqual, self-update.
-2017-10-10  V1.03  extend functions.
-2017-09-08  V1.02  extend by jobs, parallel.
-2017-08-11  V1.01  update.
-2017-06-25  V1.00  published as open source to github.
+2018-09-06  V1.18  Added ConsoleSetGuiProperties, GetExtension.
+2018-08-14  V1.17  Fixed git err msg.
+2018-08-07  V1.16  Added tool for sign assemblies, DirCreateTemp.
+2018-07-26  V1.15  Improved handling of git, improve createLnk, ads functions, add doc.
+2018-03-26  V1.14  Added ToolTailFile, FsEntryDeleteToRecycleBin.
+2018-02-23  V1.13  Renamed deprecated DateTime* functions, new FsEntryGetLastModified, improve PsDownload, fixed DateTimeAsStringIso.
+2018-02-14  V1.12  Added StdInAskForBoolean. DirExistsAssert is deprecated, use DirAssertExists instead.
+2018-02-06  V1.11  Extended functions, fix FsEntryGetFileName.
+2018-01-18  V1.10  Added HelpListOfAllModules, version var, improve ForEachParallel, improve log file names. 
+2018-01-09  V1.09  Unified error messages, improved elevation, PsDownloadFile.
+2017-12-30  V1.08  Improved RemoveSmb, renamed SvnCheckout to SvnCheckoutAndUpdate and implement retry.
+2017-12-16  V1.07  Fixed WgetDownloadSite.
+2017-12-02  V1.06  Improved self-update hash handling, improve touch.
+2017-11-22  V1.05  Extended functions, improved self-update by hash.
+2017-10-22  V1.04  Extended functions, improve FileContentsAreEqual, self-update.
+2017-10-10  V1.03  Extended functions.
+2017-09-08  V1.02  Extended by jobs, parallel.
+2017-08-11  V1.01  Updated
+2017-06-25  V1.00  Published as open source to github.
