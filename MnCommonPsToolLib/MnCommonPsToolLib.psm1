@@ -55,7 +55,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "5.34"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "5.36"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -3504,6 +3504,32 @@ function ToolVs2019UserFolderGetLatestUsed    (){
                                                   $result = FsEntryMakeTrailingBackslash (FsEntryGetParentDir $result);
                                                 }
                                                 return [String] $result; }
+function ToolWin10PackageGetState             ( [String] $packageName ){ # ex: for "OpenSSH.Client" return "Installed","NotPresent".
+                                                if( $packageName -eq "" ){ throw [Exception] "Missing packageName"; }
+                                                ProcessRestartInElevatedAdminMode;
+                                                return [String] ((Get-WindowsCapability -Online | Where-Object name -like "${packageName}~*").State); }
+function ToolWin10PackageInstall              ( [String] $packageName ){ # ex: "OpenSSH.Client"
+                                                ProcessRestartInElevatedAdminMode;
+                                                OutProgress "Install Win10 Package: `"$packageName`"";
+                                                if( (ToolWin10PackageGetState $packageName) -eq "Installed" ){
+                                                  OutInfo "Ok, `"$packageName`" is already installed."; }
+                                                else{
+                                                  [String] $name = (Get-WindowsCapability -Online | Where-Object name -like "${packageName}~*").Name;
+                                                  [String] $out = Add-WindowsCapability -Online -name $name; # example output: "Path          :\nOnline        : True\nRestartNeeded : False"
+                                                  [String] $restartNeeded = (Get-WindowsCapability -Online -name $packageName).RestartNeeded;
+                                                  OutInfo "Ok, installation done, current state=$(ToolWin10PackageGetState $packageName) RestartNeeded=$restartNeeded Name=$name";
+                                                } }
+function ToolWin10PackageDeinstall            ( [String] $packageName ){
+                                                ProcessRestartInElevatedAdminMode;
+                                                OutProgress "Deinstall Win10 Package: `"$packageName`"";
+                                                if( (ToolWin10PackageGetState $packageName) -ne "Installed" ){
+                                                  OutInfo "Ok, `"$packageName`" is already deinstalled."; }
+                                                else{
+                                                  [String] $name = (Get-WindowsCapability -Online | Where-Object name -like "${packageName}~*").Name;
+                                                  [String] $out = Remove-WindowsCapability -Online -name $name;
+                                                  [String] $restartNeeded = (Get-WindowsCapability -Online -name $packageName).RestartNeeded;
+                                                  OutInfo "Ok, deinstallation done, current state=$(ToolWin10PackageGetState $packageName) RestartNeeded=$restartNeeded Name=$name";
+                                                } }
 function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $url, [Boolean] $requireElevatedAdminMode = $false,
                                                   [Boolean] $doWaitIfFailed = $false, [String] $additionalOkUpdMsg = "",
                                                   [Boolean] $assertFilePreviouslyExists = $true, [Boolean] $performPing = $true ){

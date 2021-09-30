@@ -205,6 +205,10 @@ function MnLibCommonSelfTest(){ # perform some tests
 
   Assert         ((ToolVs2019UserFolderGetLatestUsed -eq "") -or (ToolVs2019UserFolderGetLatestUsed.Contains("\\AppData\\Local\\Microsoft\\VisualStudio\\16.0")));
 
+  OutProgress "ToolWin10PackageGetState of OpenSSH.Client: $(ToolWin10PackageGetState "OpenSSH.Client")"
+  # ToolWin10PackageInstall "OpenSSH.Client"
+  # ToolWin10PackageDeinstall "OpenSSH.Client"
+
   # OutProgress "Test when ignoring traps";
   # for later:
   # trap [Exception] { OutProgress "Ignored trap: $_"; continue; } # temporary ignore
