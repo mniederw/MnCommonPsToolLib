@@ -55,7 +55,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "5.36"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "5.37"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -3512,7 +3512,7 @@ function ToolWin10PackageInstall              ( [String] $packageName ){ # ex: "
                                                 ProcessRestartInElevatedAdminMode;
                                                 OutProgress "Install Win10 Package: `"$packageName`"";
                                                 if( (ToolWin10PackageGetState $packageName) -eq "Installed" ){
-                                                  OutInfo "Ok, `"$packageName`" is already installed."; }
+                                                  OutProgress "Ok, `"$packageName`" is already installed."; }
                                                 else{
                                                   [String] $name = (Get-WindowsCapability -Online | Where-Object name -like "${packageName}~*").Name;
                                                   [String] $out = Add-WindowsCapability -Online -name $name; # example output: "Path          :\nOnline        : True\nRestartNeeded : False"
@@ -3523,7 +3523,7 @@ function ToolWin10PackageDeinstall            ( [String] $packageName ){
                                                 ProcessRestartInElevatedAdminMode;
                                                 OutProgress "Deinstall Win10 Package: `"$packageName`"";
                                                 if( (ToolWin10PackageGetState $packageName) -ne "Installed" ){
-                                                  OutInfo "Ok, `"$packageName`" is already deinstalled."; }
+                                                  OutProgress "Ok, `"$packageName`" is already deinstalled."; }
                                                 else{
                                                   [String] $name = (Get-WindowsCapability -Online | Where-Object name -like "${packageName}~*").Name;
                                                   [String] $out = Remove-WindowsCapability -Online -name $name;
