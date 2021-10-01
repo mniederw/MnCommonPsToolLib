@@ -4,6 +4,7 @@
 Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
 Current version can be requested by: $MnCommonPsToolLibVersion
 
+2021-10-01  V5.38  Added DateTimeGetBeginOf, FsEntryNotExistsOrIsOlderThanBeginOf, FsEntryExistsAndIsNewerThanBeginOf
 2021-10-01  V5.37  Changed output type of ToolWin10Package
 2021-09-30  V5.36  Added ToolWin10PackageGetState, ToolWin10PackageInstall, ToolWin10PackageDeinstall
 2021-09-28  V5.35  Added ToolVs2019UserFolderGetLatestUsed, unified releasenote comments

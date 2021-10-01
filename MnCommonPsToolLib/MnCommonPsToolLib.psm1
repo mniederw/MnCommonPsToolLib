@@ -55,7 +55,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "5.37"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "5.38"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -262,6 +262,16 @@ function StringCompareVersionIsMinimum        ( [String] $version, [String] $min
                                                 return [Boolean] ((StringNormalizeAsVersion $version) -ge (StringNormalizeAsVersion $minVersion)); }
 function Int32Clip                            ( [Int32] $i, [Int32] $lo, [Int32] $hi ){ if( $i -lt $lo ){ return [Int32] $lo; } elseif( $i -gt $hi ){ return [Int32] $hi; }else{ return [Int32] $i; } }
 function DateTimeAsStringIso                  ( [DateTime] $ts, [String] $fmt = "yyyy-MM-dd HH:mm:ss" ){ return [String] $ts.ToString($fmt); }
+function DateTimeGetBeginOf                   ( [String] $beginOf, [DateTime] $ts = (Get-Date) ){
+                                                if( $beginOf -eq "Year"     ){ return [DateTime] (New-Object DateTime ($ts.Year),1,1); }
+                                                if( $beginOf -eq "Semester" ){ return [DateTime] (New-Object DateTime ($ts.Year),(1+6*[Math]::Floor((($ts.Month)-1)/6)),1); }
+                                                if( $beginOf -eq "Quarter"  ){ return [DateTime] (New-Object DateTime ($ts.Year),(1+4*[Math]::Floor((($ts.Month)-1)/4)),1); }
+                                                if( $beginOf -eq "TwoMonth" ){ return [DateTime] (New-Object DateTime ($ts.Year),(1+2*[Math]::Floor((($ts.Month)-1)/2)),1); }
+                                                if( $beginOf -eq "Month"    ){ return [DateTime] (New-Object DateTime ($ts.Year),($ts.Month),1); }
+                                                if( $beginOf -eq "Week"     ){ return [DateTime] $ts.Date.AddDays(-[Int32]$ts.DayOfWeek+[Int32][DayOfWeek]::Monday); }
+                                                if( $beginOf -eq "Hour"     ){ return [DateTime] (New-Object DateTime ($ts.Year),($ts.Month),($ts.Day),($ts.Hour),0,0); }
+                                                if( $beginOf -eq "Minute"   ){ return [DateTime] (New-Object DateTime ($ts.Year),($ts.Month),($ts.Day),($ts.Hour),($ts.Minute),0); }
+                                                throw [Exception] "Unknown beginOf=`"$beginOf`", expected one of: [Year,Semester,Quarter,TwoMonth,Month,Week,Hour,Minute]."; }
 function DateTimeNowAsStringIso               ( [String] $fmt = "yyyy-MM-dd HH:mm:ss" ){ return [String] (Get-Date -format $fmt); }
 function DateTimeNowAsStringIsoDate           (){ return [String] (Get-Date -format "yyyy-MM-dd"); }
 function DateTimeNowAsStringIsoMonth          (){ return [String] (Get-Date -format "yyyy-MM"); }
@@ -1078,6 +1088,10 @@ function FsEntryGetLastModified               ( [String] $fsEntry ){
                                                 return [DateTime] (Get-Item -Force -LiteralPath $fsEntry).LastWriteTime; }
 function FsEntryNotExistsOrIsOlderThanNrDays  ( [String] $fsEntry, [Int32] $maxAgeInDays, [Int32] $maxAgeInHours = 0, [Int32] $maxAgeInMinutes = 0 ){
                                                 return [Boolean] ((FsEntryNotExists $fsEntry) -or ((FsEntryGetLastModified $fsEntry).AddDays($maxAgeInDays).AddHours($maxAgeInHours).AddMinutes($maxAgeInMinutes) -lt (Get-Date))); }
+function FsEntryNotExistsOrIsOlderThanBeginOf ( [String] $fsEntry, [String] $beginOf ){ # more see: DateTimeGetBeginOf
+                                                return [Boolean] ((FsEntryNotExists $fsEntry) -or ((FsEntryGetLastModified $fsEntry) -lt (DateTimeGetBeginOf $beginOf))); }
+function FsEntryExistsAndIsNewerThanBeginOf   ( [String] $fsEntry, [String] $beginOf ){ # more see: DateTimeGetBeginOf
+                                                return [Boolean] (-not (FsEntryNotExistsOrIsOlderThanBeginOf $fsEntry $beginOf)); }
 function FsEntrySetAttributeReadOnly          ( [String] $fsEntry, [Boolean] $val ){ # use false for $val to make file writable
                                                 OutProgress "FsFileSetAttributeReadOnly $fsEntry $val"; Set-ItemProperty (FsEntryEsc $fsEntry) -name IsReadOnly -value $val; }
 function FsEntryFindFlatSingleByPattern       ( [String] $fsEntryPattern, [Boolean] $allowNotFound = $false ){

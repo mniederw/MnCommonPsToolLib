@@ -177,7 +177,6 @@ function MnLibCommonSelfTest(){ # perform some tests
     [String[]] $a99 = @();
      [Boolean] $r = ($a99 -eq $null); # Throws: Der Wert "System.Object[]" kann nicht in den Typ "System.Boolean" konvertiert werden. Boolesche Parameter akzeptieren nur boolesche Werte oder Zahlen wie "$True", "$False", "1" oder "0".
   }catch{ $isOk = $true; }
-  #Assert $isOk;
   if( -not $isOk ){
     OutProgress "  IsInteractive=$(ScriptIsProbablyInteractive); Trap=Enabled; Note: Exception was not throwed and catch block not reached. We found out this happens in batch only for unknown reason. If runing interactive then works ok. Analyse it later.";
   }
@@ -188,7 +187,6 @@ function MnLibCommonSelfTest(){ # perform some tests
      # if compare argument null would be on the left side then it would work successful
      [Boolean] $r = @() -eq $null; # Throws: Der Wert "System.Object[]" kann nicht in den Typ "System.Boolean" konvertiert werden. Boolesche Parameter akzeptieren nur boolesche Werte oder Zahlen wie "$True", "$False", "1" oder "0".
   }catch{ $isOk = $true; }
-  #Assert $isOk;
   if( -not $isOk ){
     OutProgress "  IsInteractive=$(ScriptIsProbablyInteractive); Trap=Enabled; Note: Exception was not throwed and catch block not reached. We found out this happens in batch only for unknown reason. If runing interactive then works ok. Analyse it later.";
   }
@@ -198,7 +196,6 @@ function MnLibCommonSelfTest(){ # perform some tests
   try{
     [Boolean] $r = "anystring"; # ArgumentTransformationMetadataException: Cannot convert value "System.String" to type "System.Boolean". Boolean parameters accept only Boolean values and numbers, such as $True, $False, 1 or 0.
   }catch{ $isOk = $true; }
-  #Assert $isOk;
   if( -not $isOk ){
     OutProgress "  IsInteractive=$(ScriptIsProbablyInteractive); Trap=Enabled; Note: Exception was not throwed and catch block not reached. We found out this happens in batch only for unknown reason. If runing interactive then works ok. Analyse it later.";
   }
@@ -206,8 +203,20 @@ function MnLibCommonSelfTest(){ # perform some tests
   Assert         ((ToolVs2019UserFolderGetLatestUsed -eq "") -or (ToolVs2019UserFolderGetLatestUsed.Contains("\\AppData\\Local\\Microsoft\\VisualStudio\\16.0")));
 
   OutProgress "ToolWin10PackageGetState of OpenSSH.Client: $(ToolWin10PackageGetState "OpenSSH.Client")"
-  # ToolWin10PackageInstall "OpenSSH.Client"
-  # ToolWin10PackageDeinstall "OpenSSH.Client"
+  # Discard non-readonly test for: ToolWin10PackageInstall "OpenSSH.Client"
+  # Discard non-readonly test for: ToolWin10PackageDeinstall "OpenSSH.Client"
+
+  OutProgress "DateTimeGetBeginOf Year     : $(DateTimeGetBeginOf "Year"     )";
+  OutProgress "DateTimeGetBeginOf Semester : $(DateTimeGetBeginOf "Semester" )";
+  OutProgress "DateTimeGetBeginOf Quarter  : $(DateTimeGetBeginOf "Quarter"  )";
+  OutProgress "DateTimeGetBeginOf TwoMonth : $(DateTimeGetBeginOf "TwoMonth" )";
+  OutProgress "DateTimeGetBeginOf Month    : $(DateTimeGetBeginOf "Month"    )";
+  OutProgress "DateTimeGetBeginOf Week     : $(DateTimeGetBeginOf "Week"     )";
+  OutProgress "DateTimeGetBeginOf Hour     : $(DateTimeGetBeginOf "Hour"     )";
+  OutProgress "DateTimeGetBeginOf Minute   : $(DateTimeGetBeginOf "Minute"   )";
+
+  # later test: FsEntryNotExistsOrIsOlderThanBeginOf
+  # later test: FsEntryExistsAndIsNewerThanBeginOf
 
   # OutProgress "Test when ignoring traps";
   # for later:
