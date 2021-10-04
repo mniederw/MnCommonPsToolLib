@@ -55,7 +55,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "5.39"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "5.40"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -378,7 +378,7 @@ function StdOutBegMsgCareInteractiveMode      ( [String] $mode = "" ){ # Availab
                                                 # Usually this is the first statement in a script after an info line. So you can give your scripts a standard styling.
                                                 if( $mode -eq "" ){ $mode = "DoRequestAtBegin"; }
                                                 ScriptResetRc; [String[]] $modes = @()+($mode -split "," | Where-Object{$null -ne $_} | ForEach-Object{ $_.Trim() });
-                                                Assert ((@()+($modes | Where-Object{$null -ne $_} | Where-Object{ $_ -ne "DoRequestAtBegin" -and $_ -ne "NoRequestAtBegin" -and $_ -ne "NoWaitAtEnd" -and $_ -ne "MinimizeConsole"})).Count -eq 0 ) "StdOutBegMsgCareInteractiveMode was called with unknown mode='$mode'";
+                                                Assert ((@()+($modes | Where-Object{$null -ne $_} | Where-Object{ $_ -ne "DoRequestAtBegin" -and $_ -ne "NoRequestAtBegin" -and $_ -ne "NoWaitAtEnd" -and $_ -ne "MinimizeConsole"})).Count -eq 0 ) "StdOutBegMsgCareInteractiveMode was called with unknown mode=`"$mode`"";
                                                 $Global:ModeNoWaitForEnterAtEnd = $modes -contains "NoWaitAtEnd";
                                                 if( -not $global:ModeDisallowInteractions -and $modes -notcontains "NoRequestAtBegin" ){ StdInAskForAnswerWhenInInteractMode; }
                                                 if( $modes -contains "MinimizeConsole" ){ OutProgress "Minimize console"; ProcessSleepSec 0; ConsoleMinimize; } }
@@ -768,7 +768,7 @@ function RegistryImportFile                   ( [String] $regFile ){
                                                 OutProgress "RegistryImportFile `"$regFile`""; FileAssertExists $regFile;
                                                 try{ <# stupid, it writes success to stderr #> & "$env:SystemRoot\system32\reg.exe" "IMPORT" $regFile 2>&1 | Out-Null; AssertRcIsOk;
                                                 }catch{ <# ignore always: System.Management.Automation.RemoteException Der Vorgang wurde erfolgreich beendet. #> [String] $expectedMsg = "Der Vorgang wurde erfolgreich beendet.";
-                                                  if( $_.Exception.Message -ne $expectedMsg ){ throw [Exception] "$(ScriptGetCurrentFunc)(`"$regFile`") failed. We expected an exc but this must match '$expectedMsg' but we got: '$($_.Exception.Message)'"; } ScriptResetRc; } }
+                                                  if( $_.Exception.Message -ne $expectedMsg ){ throw [Exception] "$(ScriptGetCurrentFunc)(`"$regFile`") failed. We expected an exc but this must match `"$expectedMsg`" but we got: `"$($_.Exception.Message)`""; } ScriptResetRc; } }
 function RegistryKeyGetAcl                    ( [String] $key ){
                                                 $key = RegistryMapToShortKey $key;
                                                 return [System.Security.AccessControl.RegistrySecurity] (Get-Acl -Path $key); } # must be called with shortkey form
@@ -1042,7 +1042,7 @@ function FsEntryGetUncShare                   ( [String] $fsEntry ){ # return "\
                                                   }
                                                 }catch{ $error.clear(); } # ex: "Ungültiger URI: Das URI-Format konnte nicht bestimmt werden.", "Ungültiger URI: Der URI ist leer."
                                                 return [String] ""; }
-function FsEntryMakeValidFileName             ( [String] $str ){ [System.IO.Path]::GetInvalidFileNameChars() | ForEach-Object{ $str = $str.Replace($_,'_') }; return [String] $str; }
+function FsEntryMakeValidFileName             ( [String] $str ){ [System.IO.Path]::GetInvalidFileNameChars() | ForEach-Object{ $str = $str.Replace($_,"_") }; return [String] $str; }
 function FsEntryMakeRelative                  ( [String] $fsEntry, [String] $belowDir, [Boolean] $prefixWithDotDir = $false ){
                                                 # Works without IO to file system; if $fsEntry is not equal or below dir then it throws;
                                                 # if fs-entry is equal the below-dir then it returns a dot;
@@ -1093,7 +1093,7 @@ function FsEntryNotExistsOrIsOlderThanBeginOf ( [String] $fsEntry, [String] $beg
 function FsEntryExistsAndIsNewerThanBeginOf   ( [String] $fsEntry, [String] $beginOf ){ # more see: DateTimeGetBeginOf
                                                 return [Boolean] (-not (FsEntryNotExistsOrIsOlderThanBeginOf $fsEntry $beginOf)); }
 function FsEntrySetAttributeReadOnly          ( [String] $fsEntry, [Boolean] $val ){ # use false for $val to make file writable
-                                                OutProgress "FsFileSetAttributeReadOnly $fsEntry $val"; Set-ItemProperty (FsEntryEsc $fsEntry) -name IsReadOnly -value $val; }
+                                                OutProgress "FsFileSetAttributeReadOnly `"$fsEntry`" $val"; Set-ItemProperty (FsEntryEsc $fsEntry) -name IsReadOnly -value $val; }
 function FsEntryFindFlatSingleByPattern       ( [String] $fsEntryPattern, [Boolean] $allowNotFound = $false ){
                                                 # it throws if file not found or more than one file exists. if allowNotFound is true then if return empty if not found.
                                                 [System.IO.FileSystemInfo[]] $r = @()+(Get-ChildItem -Force -ErrorAction SilentlyContinue -Path $fsEntryPattern | Where-Object{$null -ne $_});
@@ -1159,8 +1159,8 @@ function FsEntryDeleteToRecycleBin            ( [String] $fsEntry ){
                                                 [String] $e = FsEntryGetAbsolutePath $fsEntry;
                                                 OutProgress "FsEntryDeleteToRecycleBin `"$e`"";
                                                 FsEntryAssertExists $e "Not exists: `"$e`"";
-                                                if( FsEntryIsDir $e ){ [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory($e,'OnlyErrorDialogs','SendToRecycleBin');
-                                                }else{                 [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($e,'OnlyErrorDialogs','SendToRecycleBin'); } }
+                                                if( FsEntryIsDir $e ){ [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory($e,"OnlyErrorDialogs","SendToRecycleBin");
+                                                }else{                 [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($e,"OnlyErrorDialogs","SendToRecycleBin"); } }
 function FsEntryRename                        ( [String] $fsEntryFrom, [String] $fsEntryTo ){
                                                 # for files or dirs, relative or absolute, origin must exists, directory parts must be identic.
                                                 OutProgress "FsEntryRename `"$fsEntryFrom`" `"$fsEntryTo`"";
@@ -1215,12 +1215,12 @@ function FsEntryAclSetInheritance             ( [String] $fsEntry ){
                                                 } }
 function FsEntryAclRuleWrite                  ( [String] $modeSetAddOrDel, [String] $fsEntry, [System.Security.AccessControl.FileSystemAccessRule] $rule, [Boolean] $recursive = $false ){
                                                 # $modeSetAddOrDel = "Set", "Add", "Del".
-                                                OutProgress "FsEntryAclRuleWrite $modeSetAddOrDel `"$fsEntry`" '$(PrivFsRuleAsString $rule)'";
+                                                OutProgress "FsEntryAclRuleWrite $modeSetAddOrDel `"$fsEntry`" `"$(PrivFsRuleAsString $rule)`"";
                                                 [System.Security.AccessControl.FileSystemSecurity] $acl = FsEntryAclGet $fsEntry;
                                                 if    ( $modeSetAddOrDel -eq "Set" ){ $acl.SetAccessRule($rule); }
                                                 elseif( $modeSetAddOrDel -eq "Add" ){ $acl.AddAccessRule($rule); }
                                                 elseif( $modeSetAddOrDel -eq "Del" ){ $acl.RemoveAccessRule($rule); }
-                                                else{ throw [Exception] "For modeSetAddOrDel expected 'Set', 'Add' or 'Del' but got '$modeSetAddOrDel'"; }
+                                                else{ throw [Exception] "For modeSetAddOrDel expected 'Set', 'Add' or 'Del' but got `"$modeSetAddOrDel`""; }
                                                 Set-Acl -Path (FsEntryEsc $fsEntry) -AclObject $acl; <# Set-Acl does set or add #>
                                                 if( $recursive -and (FsEntryIsDir $fsEntry) ){
                                                   FsEntryListAsStringArray "$fsEntry\*" $false | Where-Object{$null -ne $_} |
@@ -1464,8 +1464,8 @@ function FileUpdateItsHashSha2FileIfNessessary( [String] $srcFile ){
                                                 } }
 function FileNtfsAlternativeDataStreamAdd     ( [String] $srcFile, [String] $adsName, [String] $val ){ Add-Content -Path $srcFile -Value $val -Stream $adsName; }
 function FileNtfsAlternativeDataStreamDel     ( [String] $srcFile, [String] $adsName ){ Clear-Content -Path $srcFile -Stream $adsName; }
-function FileAdsDownloadedFromInternetAdd     ( [String] $srcFile ){ FileNtfsAlternativeDataStreamAdd $srcFile 'Zone.Identifier' "[ZoneTransfer]`nZoneId=3"; }
-function FileAdsDownloadedFromInternetDel     ( [String] $srcFile ){ FileNtfsAlternativeDataStreamDel $srcFile 'Zone.Identifier'; } # alternative: Unblock-File -LiteralPath $file
+function FileAdsDownloadedFromInternetAdd     ( [String] $srcFile ){ FileNtfsAlternativeDataStreamAdd $srcFile "Zone.Identifier" "[ZoneTransfer]`nZoneId=3"; }
+function FileAdsDownloadedFromInternetDel     ( [String] $srcFile ){ FileNtfsAlternativeDataStreamDel $srcFile "Zone.Identifier"; } # alternative: Unblock-File -LiteralPath $file
 function DriveMapTypeToString                 ( [UInt32] $driveType ){
                                                 return [String] $(switch($driveType){ 1{"NoRootDir"} 2{"RemovableDisk"} 3{"LocalDisk"} 4{"NetworkDrive"} 5{"CompactDisk"} 6{"RamDisk"} default{"UnknownDriveType=driveType"}}); }
 function DriveList                            (){
@@ -1501,7 +1501,7 @@ function CredentialReadFromFile               ( [String] $secureCredentialFile )
                                                 }catch{ throw [Exception] "Credential file `"$secureCredentialFile`" has not expected format for decoding credentials, maybe you changed password of current user or current machine id, in that case you may remove it and retry"; } }
 function CredentialCreate                     ( [String] $username = "", [String] $password = "", [String] $accessShortDescription = "" ){
                                                 [String] $us = $username;
-                                                [String] $descr = switch($accessShortDescription -eq ''){($true){''}default{(' for '+$accessShortDescription)}};
+                                                [String] $descr = switch($accessShortDescription -eq ""){($true){""}default{(" for $accessShortDescription")}};
                                                 while( $us -eq "" ){ $us = StdInReadLine "Enter username$($descr): "; }
                                                 if( $username -eq "" ){ $descr = ""; <# display descr only once #> }
                                                 [System.Security.SecureString] $pwSecure = $null;
@@ -3259,7 +3259,7 @@ function ToolActualizeHostsFileByMaster       ( [String] $srcHostsFile ){
                                                 [String] $tarHostsFile = "$env:SystemRoot\System32\drivers\etc\hosts";
                                                 [String] $tardir = RegistryGetValueAsString "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "DataBasePath";
                                                 if( $tardir -ne (FsEntryGetParentDir $tarHostsFile) ){
-                                                  throw [Exception] "Expected HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters:DataBasePath='$tardir' equal to dir of: '$tarHostsFile'";
+                                                  throw [Exception] "Expected HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters:DataBasePath=`"$tardir`" equal to dir of: `"$tarHostsFile`"";
                                                 }
                                                 if( -not (FileContentsAreEqual $srcHostsFile $tarHostsFile $true) ){
                                                   ProcessRestartInElevatedAdminMode;

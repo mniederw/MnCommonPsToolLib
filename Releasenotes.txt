@@ -4,6 +4,7 @@
 Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
 Current version can be requested by: $MnCommonPsToolLibVersion
 
+2021-10-04  V5.40  Replaced quotes by doublequotes
 2021-10-01  V5.39  Added DirNotExists
 2021-10-01  V5.38  Added DateTimeGetBeginOf, FsEntryNotExistsOrIsOlderThanBeginOf, FsEntryExistsAndIsNewerThanBeginOf
 2021-10-01  V5.37  Changed output type of ToolWin10Package
