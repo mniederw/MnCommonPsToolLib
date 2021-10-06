@@ -55,7 +55,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "5.40"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "5.41"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -574,7 +574,7 @@ function OsWindowsFeatureDoUninstall          ( [String] $name ){ Import-Module 
                                                 OutProgress $out; if( -not $res.Success ){ throw [Exception] "Uninstall $name was not successful, please solve manually. $out"; } }
 function OsPsModulePathList                   (){ return [String[]] ([Environment]::GetEnvironmentVariable("PSModulePath", "Machine").
                                                   Split(";",[System.StringSplitOptions]::RemoveEmptyEntries)); }
-function OsPsModulePathContains               ( [String] $dir ){ # ex: "D:\WorkGit\myaccount\MyPsLibRepoName"
+function OsPsModulePathContains               ( [String] $dir ){ # ex: "D:\MyGitRoot\MyGitAccount\MyPsLibRepoName"
                                                 [String[]] $a = (OsPsModulePathList | ForEach-Object{ FsEntryRemoveTrailingBackslash $_ });
                                                 return [Boolean] ($a -contains (FsEntryRemoveTrailingBackslash $dir)); }
 function OsPsModulePathAdd                    ( [String] $dir ){ if( OsPsModulePathContains $dir ){ return; }
@@ -1974,7 +1974,7 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                   # --tlsv1                                  # Use => TLSv1 (SSL)
                                                   # --tlsv1.0                                # Use TLSv1.0 (SSL)
                                                   # --tlsv1.1                                # Use TLSv1.1 (SSL)
-                                                  # --tlsv1.2                                # Use TLSv1.2 (SSL)
+                                                  ,"--tlsv1.2"                               # Use TLSv1.2 (SSL)
                                                   # --trace FILE                             # Write a debug trace to FILE
                                                   # --trace-ascii FILE                       # Like --trace, but without hex output
                                                   # --trace-time                             # Add time stamps to trace/verbose output
@@ -2000,6 +2000,12 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                 if( $onlyIfNewer -and (FileExists $tarFile) ){ $opt += @( "--time-cond", $tarFile); }
                                                 [String] $curlExe = ProcessGetCommandInEnvPathOrAltPaths "curl.exe" @() "Please download it from http://curl.haxx.se/download.html and install it and add dir to path env var.";
                                                 [String] $curlCaCert = "$(FsEntryGetParentDir $curlExe)\curl-ca-bundle.crt";
+                                                # 2021-10: Because windows has its own curl.exe and windows-system32 folder is one of the first folders in path var 
+                                                #   and does not care a file curl-ca-bundle.crt next to the exe as it is descripted in https://curl.se/docs/sslcerts.html we need a solution for it.
+                                                #   So we self are looking for it in path var.
+                                                if( $curlExe -eq "$env:SystemRoot\System32\curl.exe" ){
+                                                  Get-Command -CommandType Application -Name curl-ca-bundle.crt -ErrorAction SilentlyContinue | Select-Object -First 1 | Foreach-Object { $curlCaCert = $_.Path; };
+                                                }
                                                 if( -not $url.StartsWith("http:") -and (FileExists $curlCaCert) ){ $opt += @( "--cacert", $curlCaCert); }
                                                 OutProgress "NetDownloadFileByCurl $url";
                                                 OutProgress "  to `"$tarFile`"";
@@ -2024,6 +2030,9 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                   }elseif( $LASTEXITCODE -eq 22 ){
                                                     # curl: (22) The requested URL returned error: 404 Not Found
                                                     throw [Exception] "file not found.";
+                                                  }elseif( $LASTEXITCODE -eq 77 ){
+                                                    # curl: (77) schannel: next InitializeSecurityContext failed: SEC_E_UNTRUSTED_ROOT (0x80090325) - Die Zertifikatkette wurde von einer nicht vertrauenswürdigen Zertifizierungsstelle ausgestellt.
+                                                    throw [Exception] "SEC_E_UNTRUSTED_ROOT certificate chain not trustworthy (alternatively use insecure option or add server to curl-ca-bundle.crt next to curl.exe).";
                                                   }elseif( $LASTEXITCODE -ne 0 ){
                                                     throw [Exception] "LastExitCode=$LASTEXITCODE.";
                                                   }
@@ -2188,12 +2197,14 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   # ex:              fatal: Not a git repository: 'D:\WorkGit\mniederw\UnknownRepo\.git'
                                                   # ex:              error: unknown option `anyUnknownOption'
                                                   # ex: Pull  rc=128 fatal: refusing to merge unrelated histories
+                                                  # ex: Pull  rc=128 error: Pulling is not possible because you have unmerged files. - hint: Fix them up in the work tree, and then use 'git add/rm <file>' - fatal: Exiting because of an unresolved conflict. - hint: as appropriate to mark resolution and make a commit.
+                                                  # ex: Pull  rc=128 fatal: Exiting because of an unresolved conflict. - error: Pulling is not possible because you have unmerged files. - hint: as appropriate to mark resolution and make a commit. - hint: Fix them up in the work tree, and then use 'git add/rm <file>'
                                                   # ex: Pull  rc=1   fatal: Couldn't find remote ref HEAD    (in case the repo contains no content)
                                                   # ex:              error: Your local changes to the following files would be overwritten by merge:   (Then the lines: "        ...file..." "Aborting" "Please commit your changes or stash them before you merge.")
                                                   # ex:              error: The following untracked working tree files would be overwritten by merge:   (Then the lines: "        ....file..." "Please move or remove them before you merge." "Aborting")
-                                                  # ex: Pull  rc=128 error: Pulling is not possible because you have unmerged files. - hint: Fix them up in the work tree, and then use 'git add/rm <file>' - fatal: Exiting because of an unresolved conflict. - hint: as appropriate to mark resolution and make a commit.
-                                                  # ex: Pull  rc=128 fatal: Exiting because of an unresolved conflict. - error: Pulling is not possible because you have unmerged files. - hint: as appropriate to mark resolution and make a commit. - hint: Fix them up in the work tree, and then use 'git add/rm <file>'
                                                   # ex: Pull  rc=1   Auto-merging dir1/file1  CONFLICT (add/add): Merge conflict in dir1/file1  Automatic merge failed; fix conflicts and then commit the result.\nwarning: Cannot merge binary files: dir1/file1 (HEAD vs. ab654...)
+                                                  # ex: Pull  rc=1   fatal: unable to access 'https://github.com/anyUser/anyGitRepo/': Failed to connect to github.com port 443: Timed out
+                                                  # ex: Pull  rc=1   fatal: TaskCanceledException encountered. -    Eine Aufgabe wurde abgebrochen. - bash: /dev/tty: No such device or address - error: failed to execute prompt script (exit code 1) - fatal: could not read Username for 'https://github.com': No such file or directory
                                                   $msg = "$(ScriptGetCurrentFunc)($cmd,$tarRootDir,$url) failed because $(StringReplaceNewlines $_.Exception.Message ' - ')";
                                                   ScriptResetRc;
                                                   if( $cmd -eq "Pull" -and ( $msg.Contains("error: Your local changes to the following files would be overwritten by merge:") -or
@@ -2504,7 +2515,7 @@ function SvnTortoiseCommit                    ( [String] $workDir ){
                                                 [String] $tortoiseExe = (RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseSVN" "Directory") + ".\bin\TortoiseProc.exe";
                                                 Start-Process -NoNewWindow -Wait -FilePath "$tortoiseExe" -ArgumentList @("/closeonend:2","/command:commit","/path:`"$workDir`""); AssertRcIsOk; }
 function SvnUpdate                            ( [String] $workDir, [String] $user ){ SvnCheckoutAndUpdate $workDir "" $user $true; }
-function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url, [String] $user, [Boolean] $doUpdateOnly = $false, [String] $pw = "" ){
+function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url, [String] $user, [Boolean] $doUpdateOnly = $false, [String] $pw = "", [Boolean] $ignoreSslCheck = $false ){
                                                 # Init working copy and get (init and update) last changes. If pw is empty then it uses svn-credential-cache.
                                                 # If specified update-only then no url is nessessary but if given then it verifies it.
                                                 # Note: we do not use svn-update because svn-checkout does the same (the difference is only the use of an url).
@@ -2523,6 +2534,7 @@ function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url
                                                   # For future alternative option: --trust-server-cert-failures unknown-ca,cn-mismatch,expired,not-yet-valid,other
                                                   # For future alternative option: --quite
                                                   [String[]] $opt = @( "--non-interactive", "--ignore-externals" );
+                                                  if( $ignoreSslCheck ){ $opt += "--trust-server-cert"; }
                                                   if( $user -ne "" ){ $opt += @( "--username", $user ); }
                                                   if( $pw -ne "" ){ $opt += @( "--password", $pw, "--no-auth-cache" ); } # is visible in process list.
                                                   # Alternative for checkout: tortoiseExe /closeonend:2 /command:checkout /path:$workDir /url:$url
@@ -2533,22 +2545,32 @@ function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url
                                                     & (SvnExe) $opt 2> $tmp | ForEach-Object{ FileAppendLineWithTs $svnLogFile ("  "+$_); OutProgress $_ 2; };
                                                     [String] $encodingIfNoBom = "Default";
                                                     AssertRcIsOk (FileReadContentAsLines $tmp $encodingIfNoBom) $true;
-                                                    # ex: svn: E170013: Unable to connect to a repository at URL 'https://mycomp/svn/Work/mydir'
-                                                    #     svn: E230001: Server SSL certificate verification failed: issuer is not trusted   Exception: Last operation failed [rc=1].
                                                     break;
                                                   }catch{
+                                                    # ex: "svn: E170013: Unable to connect to a repository at URL 'https://mycomp/svn/Work/mydir'"
+                                                    # ex: "svn: E230001: Server SSL certificate verification failed: issuer is not trusted"
                                                     # ex: "svn: E120106: ra_serf: The server sent a truncated HTTP response body"
                                                     # ex: "svn: E155037: Previous operation has not finished; run 'cleanup' if it was interrupted"
                                                     # ex: "svn: E155004: Run 'svn cleanup' to remove locks (type 'svn help cleanup' for details)"
                                                     # ex: "svn: E175002: REPORT request on '/svn/Work/!svn/me' failed"
-                                                    # ex: "svn: E170013: Unable to connect to a repository at URL 'https://myserver/svn/myrepo'."
                                                     # ex: "svn: E200014: Checksum mismatch for '...file...'"
                                                     # ex: "svn: E200030: sqlite[S10]: disk I/O error, executing statement 'VACUUM '"
                                                     # ex: "svn: E205000: Try 'svn help checkout' for more information"
+                                                    # Note: if throwed then tmp file is empty.
                                                     [String] $m = $_.Exception.Message;
+                                                    if( $m.Contains(" E170013:") ){
+                                                      $m += " Note for E170013: Possibly a second error line with E230001=Server-SSL-certificate-verification-failed is given to output " +
+                                                        "but if powershell trapping is enabled then this second error line is not given to exception message, so this information is lost " +
+                                                        "and so after third retry it stops. Alternatively you may use insecure option ignoreSslCheck " +
+                                                        "or use 'svn list https://...' to get certification issuer, organize its pem file " +
+                                                        "and add it to file `"$HOME\AppData\Roaming\Subversion\servers`" under [global] ssl-authority-files=f1.pem;f2.pem . ";
+                                                        # more: https://svnbook.red-bean.com/en/1.4/svn.serverconfig.httpd.html#svn.serverconfig.httpd.authn.sslcerts
+                                                      if( $nrOfTries -ge 3 ){ $nrOfTries = $maxNrOfTries; }
+                                                    }
                                                     [String] $msg = "$(ScriptGetCurrentFunc)(dir=`"$workDir`",url=$url,user=$user) failed because $m. Logfile=`"$svnLogFile`".";
                                                     FileAppendLineWithTs $svnLogFile $msg;
-                                                    [Boolean] $isKnownProblemToSolveWithRetry = $m.Contains(" E120106:") -or $m.Contains(" E155037:") -or $m.Contains(" E155004:") -or $m.Contains(" E170013:") -or $m.Contains(" E175002:") -or $m.Contains(" E200014:") -or $m.Contains(" E200030:");
+                                                    [Boolean] $isKnownProblemToSolveWithRetry = $m.Contains(" E120106:") -or $m.Contains(" E155037:") -or 
+                                                      $m.Contains(" E155004:") -or $m.Contains(" E170013:") -or $m.Contains(" E175002:") -or $m.Contains(" E200014:") -or $m.Contains(" E200030:");
                                                     if( -not $isKnownProblemToSolveWithRetry -or $nrOfTries -ge $maxNrOfTries ){ throw [Exception] $msg; }
                                                     [String] $msg2 = "Is try nr $nrOfTries of $maxNrOfTries, will do cleanup, wait 30 sec and if not reached max then retry.";
                                                     OutWarning "$msg $msg2";
