@@ -55,7 +55,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "5.41"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "5.42"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -485,9 +485,19 @@ function ProcessRestartInElevatedAdminMode    (){ if( (ProcessIsRunningInElevate
                                                   throw [Exception] "Exit done, but it did not work, so it throws now an exception.";
                                                 } }
 function ProcessGetCurrentThreadId            (){ return [Int32] [Threading.Thread]::CurrentThread.ManagedThreadId; }
+function ProcessGetNrOfCores                  (){ return [Int32] (Get-WMIObject Win32_ComputerSystem).NumberOfLogicalProcessors; }
 function ProcessListRunnings                  (){ return [Object[]] (@()+(Get-Process * | Where-Object{$null -ne $_} | Where-Object{ $_.Id -ne 0 } | Sort-Object ProcessName)); }
+function ProcessListRunningsFormatted         (){ return [Object[]] (@()+( ProcessListRunnings | Select Name, Id, 
+                                                    @{Name="CpuMSec";Expression={[Decimal]::Floor($_.TotalProcessorTime.TotalMilliseconds).ToString().PadLeft(7,' ')}}, 
+                                                    StartTime, @{Name="Prio";Expression={($_.BasePriority)}}, @{Name="WorkSet";Expression={($_.WorkingSet64)}}, Path | StreamToTableString  )); }
 function ProcessListRunningsAsStringArray     (){ return [String[]] (@()+(ProcessListRunnings | Where-Object{$null -ne $_} | Format-Table -auto -HideTableHeaders " ",ProcessName,ProductVersion,Company | StreamToStringDelEmptyLeadAndTrLines)); }
 function ProcessIsRunning                     ( [String] $processName ){ return [Boolean] ($null -ne (Get-Process -ErrorAction SilentlyContinue ($processName -replace ".exe",""))); }
+function ProcessCloseMainWindow               ( [String] $processName ){ # enter name without exe extension.
+                                                while( (ProcessIsRunning $processName) ){ 
+                                                  Get-Process $processName | ForEach-Object { 
+                                                    OutProgress "CloseMainWindows `"$processName`""; 
+                                                    $_.CloseMainWindow() | Out-Null; 
+                                                    ProcessSleepSec 1; }; } }
 function ProcessKill                          ( [String] $processName ){ # kill all with the specified name, note if processes are not from owner then it requires to previously call ProcessRestartInElevatedAdminMode
                                                 [System.Diagnostics.Process[]] $p = Get-Process ($processName -replace ".exe","") -ErrorAction SilentlyContinue;
                                                 if( $null -ne $p ){ OutProgress "ProcessKill $processName"; $p.Kill(); } }

@@ -4,6 +4,7 @@
 Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
 Current version can be requested by: $MnCommonPsToolLibVersion
 
+2021-10-22  V5.42  Added ProcessGetNrOfCores, ProcessListRunningsFormatted, ProcessCloseMainWindow
 2021-10-05  V5.41  Improve retry handling of SvnCheckoutAndUpdate
 2021-10-04  V5.40  Replaced quotes by doublequotes
 2021-10-01  V5.39  Added DirNotExists
