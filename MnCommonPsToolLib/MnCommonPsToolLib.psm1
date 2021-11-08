@@ -55,7 +55,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "5.42"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "5.43"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -2328,7 +2328,7 @@ function GitCloneOrPullUrls                   ( [String[]] $listOfRepoUrls, [Str
 <# Type: SvnEnvInfo #>                        Add-Type -TypeDefinition "public struct SvnEnvInfo {public string Url; public string Path; public string RealmPattern; public string CachedAuthorizationFile; public string CachedAuthorizationUser; public string Revision; }";
                                                 # ex: Url="https://myhost/svn/Work"; Path="D:\Work"; RealmPattern="https://myhost:443";
                                                 # CachedAuthorizationFile="$env:APPDATA\Subversion\auth\svn.simple\25ff84926a354d51b4e93754a00064d6"; CachedAuthorizationUser="myuser"; Revision="1234"
-function SvnExe                               (){
+function SvnExe                               (){ # Note: if certificate is not accepted then a pem file (for example lets-encrypt-r3.pem) can be added to file "$HOME\AppData\Roaming\Subversion\servers"
                                                 return [String] ((RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseSVN" "Directory") + ".\bin\svn.exe"); }
 <# Script local variable: svnLogFile #>       [String] $script:svnLogFile = "$script:LogDir\Svn.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
 function SvnEnvInfoGet                        ( [String] $workDir ){
@@ -2572,7 +2572,7 @@ function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url
                                                       $m += " Note for E170013: Possibly a second error line with E230001=Server-SSL-certificate-verification-failed is given to output " +
                                                         "but if powershell trapping is enabled then this second error line is not given to exception message, so this information is lost " +
                                                         "and so after third retry it stops. Alternatively you may use insecure option ignoreSslCheck " +
-                                                        "or use 'svn list https://...' to get certification issuer, organize its pem file " +
+                                                        "or use 'svn list https://...' to get certification issuer, organize its pem file (for example E170013lets-encrypt-r3.pem) " +
                                                         "and add it to file `"$HOME\AppData\Roaming\Subversion\servers`" under [global] ssl-authority-files=f1.pem;f2.pem . ";
                                                         # more: https://svnbook.red-bean.com/en/1.4/svn.serverconfig.httpd.html#svn.serverconfig.httpd.authn.sslcerts
                                                       if( $nrOfTries -ge 3 ){ $nrOfTries = $maxNrOfTries; }
@@ -2650,6 +2650,7 @@ function SvnTortoiseCommitAndUpdate           ( [String] $workDir, [String] $svn
                                                   FileAppendLineWithTs $svnLogFile (StringFromException $_.Exception);
                                                   throw;
                                                 } }
+# for future use: function SvnList ( [String] $svnUrlAndPath ) # flat list folder; Sometimes: svn: E170013: Unable to connect to a repository at URL '...' svn: E175003: The server at '...' does not support the HTTP/DAV protocol
 function TfsExe                               (){ # return tfs executable
                                                 [String] $tfExe = "CommonExtensions\Microsoft\TeamFoundation\Team Explorer\TF.exe";
                                                 [String[]] $a = @(
@@ -3577,6 +3578,23 @@ function ToolWin10PackageDeinstall            ( [String] $packageName ){
                                                   [String] $restartNeeded = (Get-WindowsCapability -Online -name $packageName).RestartNeeded;
                                                   OutInfo "Ok, deinstallation done, current state=$(ToolWin10PackageGetState $packageName) RestartNeeded=$restartNeeded Name=$name";
                                                 } }
+function ToolOsWindowsResetSystemFileIntegrity(){ # uses about 4 min
+                                                ProcessRestartInElevatedAdminMode;
+                                                [String] $f = "$env:SystemRoot\Logs\CBS\CBS.log"; 
+                                                OutProgress "Check and repair missing, corrupted or ownership-settings of system files and afterwards dump last lines of logfile '$f'";
+                                                # https://support.microsoft.com/de-ch/help/929833/use-the-system-file-checker-tool-to-repair-missing-or-corrupted-system
+                                                # https://support.microsoft.com/en-us/kb/929833
+                                                OutProgress "Run: sfc.exe /scannow";
+                                                & "sfc.exe" "/SCANNOW"; ScriptResetRc; # system-file-checker-tool; usually rc=-1; alternative: sfc.exe /VERIFYONLY;
+                                                OutProgress "Run: Dism.exe /Online /Cleanup-Image /ScanHealth ";
+                                                & "Dism.exe" "/Online" "/Cleanup-Image" "/ScanHealth"   ; ScriptResetRc; # uses about 2 min
+                                                OutProgress "Run: Dism.exe /Online /Cleanup-Image /CheckHealth ";
+                                                & "Dism.exe" "/Online" "/Cleanup-Image" "/CheckHealth"  ; ScriptResetRc; # uses about 2 sec
+                                                OutProgress "Run: Dism.exe /Online /Cleanup-Image /RestoreHealth ";
+                                                & "Dism.exe" "/Online" "/Cleanup-Image" "/RestoreHealth"; ScriptResetRc; # uses about 2 min; also repairs autoupdate;
+                                                OutProgress "Dump last lines of logfile '$f':";
+                                                FileGetLastLines $f 100 | Foreach-Object{ OutProgress "  $_"; }; 
+                                                OutInfo "Ok, checked and repaired missing, corrupted or ownership-settings of system files and logged to '$env:Windows\Logs\CBS\CBS.log'"; }
 function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $url, [Boolean] $requireElevatedAdminMode = $false,
                                                   [Boolean] $doWaitIfFailed = $false, [String] $additionalOkUpdMsg = "",
                                                   [Boolean] $assertFilePreviouslyExists = $true, [Boolean] $performPing = $true ){
