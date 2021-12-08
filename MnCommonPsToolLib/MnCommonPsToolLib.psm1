@@ -55,7 +55,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "5.43"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "5.44"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -3365,21 +3365,22 @@ function ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [Strin
                                                   if( $runElevated ){
                                                     [Byte[]] $bytes = [IO.File]::ReadAllBytes($lnkFile); $bytes[0x15] = $bytes[0x15] -bor 0x20; [IO.File]::WriteAllBytes($lnkFile,$bytes);  # set bit 6 of byte nr 21
                                                   } } }
-function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [String] $sourceDir, [String] $srcFileExtMenuLink = ".menulink.txt",
-                                                  [String] $srcFileExtMenuLinkOpt = ".menulinkoptional.txt" ){
-                                                # Create menu entries based on files below a dir.
-                                                # ex: ToolCreateMenuLinksByMenuItemRefFile "$env:APPDATA\Microsoft\Windows\Start Menu\MyPortableProg" "D:\MyPortableProgs" ".menulink.txt";
-                                                # Find all files below sourceDir with the extension (ex: ".menulink.txt"),
-                                                # which we call them menu-item-reference-file.
-                                                # For each of these files it will create a menu item below the target menu root dir
-                                                # (ex: "$env:APPDATA\Microsoft\Windows\Start Menu\MyPortableProg").
-                                                # The name of the target menu item (ex: "Manufactor ProgramName V1") will be taken
-                                                # from the name of the menu-item-reference-file (...\Manufactor ProgramName V1.menulink.txt)
-                                                # without the extension (ex: ".menulink.txt") and the sub menu folder will be taken
-                                                # from the relative location of the menu-item-reference-file below the sourceDir.
-                                                # The command for the target menu will be taken from the first line
-                                                # (ex: "D:\MyPortableProgs\Manufactor ProgramName\AnyProgram.exe")
-                                                # of the content of the menu-item-reference-file. If target lnkfile already exists it does nothing.
+function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [String] $sourceDir, 
+                                                [String] $srcFileExtMenuLink    = ".menulink.txt",
+                                                [String] $srcFileExtMenuLinkOpt = ".menulinkoptional.txt" ){
+                                                # Create menu entries based on menu-item-linkfiles below a dir.
+                                                # - targetMenuRootDir      : target start menu folder, example: "$env:APPDATA\Microsoft\Windows\Start Menu\Apps"
+                                                # - sourceDir              : Used to finds all files below sourceDir with the extension (ex: ".menulink.txt").
+                                                #                            For each of these files it will create a menu item below the target menu root dir.
+                                                # - srcFileExtMenuLink     : Extension for mandatory menu linkfiles. The containing referenced command (in general an executable) must exist.
+                                                # - $srcFileExtMenuLinkOpt : Extension for optional  menu linkfiles. Menu item is created only if the containing referenced executable will exist.
+                                                # The name of the target menu item (ex: "Manufactor ProgramName V1") will be taken from the name 
+                                                #   of the menu-item-linkfile (ex: ...\Manufactor ProgramName V1.menulink.txt) without the extension (ex: ".menulink.txt") 
+                                                #   and the sub menu folder will be taken from the relative location of the menu-item-linkfile below the sourceDir.
+                                                # The command for the target menu will be taken from the first line (ex: "D:\MyApps\Manufactor ProgramName\AnyProgram.exe")
+                                                #   of the content of the menu-item-linkfile. 
+                                                # If target lnkfile already exists it does nothing.
+                                                # Example: ToolCreateMenuLinksByMenuItemRefFile "$env:APPDATA\Microsoft\Windows\Start Menu\Apps" "D:\MyApps" ".menulink.txt";
                                                 [String] $m = FsEntryGetAbsolutePath $targetMenuRootDir; # ex: "C:\Users\u1\AppData\Roaming\Microsoft\Windows\Start Menu\MyPortableProg"
                                                 [String] $sdir = FsEntryGetAbsolutePath $sourceDir; # ex: "D:\MyPortableProgs"
                                                 OutProgress "Create menu links to `"$m`" from files below `"$sdir`" with extension `"$srcFileExtMenuLink`" or `"$srcFileExtMenuLinkOpt`" files";
