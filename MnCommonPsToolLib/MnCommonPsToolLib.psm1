@@ -55,7 +55,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "5.45"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "5.46"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -1450,9 +1450,22 @@ function FileContentsAreEqual                 ( [String] $f1, [String] $f2, [Boo
                                                     } return [Boolean] $true;
                                                   }finally{ $fs1.Close(); $fs2.Close(); } }
                                                 }
-function FileDelete                           ( [String] $file, [Boolean] $ignoreReadonly = $true ){
-                                                if( (FileExists $file) ){ OutProgress "FileDelete$(switch($ignoreReadonly){($true){''}default{'CareReadonly'}}) `"$file`"";
-                                                  Remove-Item -Force:$ignoreReadonly -LiteralPath $file; } }
+function FileDelete                           ( [String] $file, [Boolean] $ignoreReadonly = $true, [Boolean] $ignoreAccessDenied = $false ){
+                                                # for hidden files it is also required to set ignoreReadonly=true.
+                                                # In case the file is used by another process it waits some time between a retries.
+                                                if( (FileExists $file) ){ OutProgress "FileDelete$(switch($ignoreReadonly){($true){''}default{'CareReadonly'}}) `"$file`""; }
+                                                [Int32] $nrOfTries = 0; while($true){ $nrOfTries++;
+                                                  try{ Remove-Item -Force:$ignoreReadonly -LiteralPath $file; return;
+                                                  }catch [System.Management.Automation.ItemNotFoundException] { # example: ItemNotFoundException: Cannot find path 'C:\Users\myuser\myfile.lnk' because it does not exist.
+                                                    return; #
+                                                  }catch [System.UnauthorizedAccessException] { # example: Access to the path 'C:\Users\myuser\Desktop\desktop.ini' is denied.
+                                                    if( -not $ignoreAccessDenied ){ throw; }
+                                                    OutWarning "Ignoring UnauthorizedAccessException for Remove-Item -Force:$ignoreReadonly -LiteralPath `"$file`""; return;
+                                                  }catch{ # ex: IOException: The process cannot access the file 'C:\Users\myuser\myprog.lnk' because it is being used by another process.
+                                                    [Boolean] $isUsedByAnotherProc = $_.Exception -is [System.IO.IOException] -and $_.Exception.Message.Contains("The process cannot access the file ") -and $_.Exception.Message.Contains(" because it is being used by another process.");
+                                                    if( -not $isUsedByAnotherProc ){ throw; }
+                                                    if( $nrRetries -ge 5 ){ throw; }
+                                                    Start-Sleep -Milliseconds $(switch($nrOfTries){1{50}2{100}3{200}4{400}default{800}}); } } }
 function FileCopy                             ( [String] $srcFile, [String] $tarFile, [Boolean] $overwrite = $false ){
                                                 OutProgress "FileCopy(Overwrite=$overwrite) `"$srcFile`" to `"$tarFile`" $(switch($(FileExists $(FsEntryEsc $tarFile))){($true){'(Target exists)'}default{''}})";
                                                 FsEntryCreateParentDir $tarFile; Copy-Item -Force:$overwrite (FsEntryEsc $srcFile) (FsEntryEsc $tarFile); }
@@ -2550,7 +2563,8 @@ function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url
                                                   # Alternative for checkout: tortoiseExe /closeonend:2 /command:checkout /path:$workDir /url:$url
                                                   if( $doUpdateOnly ){ $opt = @( "update"  ) + $opt + @(       $workDir ); }
                                                   else               { $opt = @( "checkout") + $opt + @( $url, $workDir ); }
-                                                  FileAppendLineWithTs $svnLogFile "`"$(SvnExe)`" $opt";
+                                                  [String] $logline = $opt; $logline = $logline -replace "--password $pw", "--password ...";
+                                                  FileAppendLineWithTs $svnLogFile "`"$(SvnExe)`" $logline";
                                                   try{
                                                     & (SvnExe) $opt 2> $tmp | ForEach-Object{ FileAppendLineWithTs $svnLogFile ("  "+$_); OutProgress $_ 2; };
                                                     [String] $encodingIfNoBom = "Default";
@@ -2571,9 +2585,12 @@ function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url
                                                     if( $m.Contains(" E170013:") ){
                                                       $m += " Note for E170013: Possibly a second error line with E230001=Server-SSL-certificate-verification-failed is given to output " +
                                                         "but if powershell trapping is enabled then this second error line is not given to exception message, so this information is lost " +
-                                                        "and so after third retry it stops. Alternatively you may use insecure option ignoreSslCheck " +
-                                                        "or use 'svn list https://...' to get certification issuer, organize its pem file (for example E170013lets-encrypt-r3.pem) " +
-                                                        "and add it to file `"$HOME\AppData\Roaming\Subversion\servers`" under [global] ssl-authority-files=f1.pem;f2.pem . ";
+                                                        "and so after third retry it stops. Now you have the following three options in recommended order: " +
+                                                        "Use 'svn list $url' to get certification issuer, and then if it is not a self signed " +
+                                                        "then you may organize its pem file (for example get https://letsencrypt.org/certs/lets-encrypt-r3.pem) " +
+                                                        "and add it to file `"$HOME\AppData\Roaming\Subversion\servers`" under [global] ssl-authority-files=f1.pem;f2.pem. " +
+                                                        "Or you call manually 'svn list $url' and accept permanently the issuer which adds its key to `"${env:AppData}\Subversion\auth\svn.ssl.server`". " +
+                                                        "Or you may use insecure option ignoreSslCheck=true. ";
                                                         # more: https://svnbook.red-bean.com/en/1.4/svn.serverconfig.httpd.html#svn.serverconfig.httpd.authn.sslcerts
                                                       if( $nrOfTries -ge 3 ){ $nrOfTries = $maxNrOfTries; }
                                                     }
