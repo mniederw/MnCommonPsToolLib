@@ -55,7 +55,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "5.44"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "5.45"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -2012,7 +2012,7 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                 [String] $curlCaCert = "$(FsEntryGetParentDir $curlExe)\curl-ca-bundle.crt";
                                                 # 2021-10: Because windows has its own curl.exe and windows-system32 folder is one of the first folders in path var 
                                                 #   and does not care a file curl-ca-bundle.crt next to the exe as it is descripted in https://curl.se/docs/sslcerts.html we need a solution for it.
-                                                #   So we self are looking for it in path var.
+                                                #   So if the current curl.exe is that from system32 folder then we self are looking for crt file in path var and use it for https requests.
                                                 if( $curlExe -eq "$env:SystemRoot\System32\curl.exe" ){
                                                   Get-Command -CommandType Application -Name curl-ca-bundle.crt -ErrorAction SilentlyContinue | Select-Object -First 1 | Foreach-Object { $curlCaCert = $_.Path; };
                                                 }
@@ -3436,11 +3436,11 @@ function ToolSignDotNetAssembly               ( [String] $keySnk, [String] $srcD
                                                 #   if( FileExists $srcPdb ){ FileCopy $srcPdb $tarPdb $true; }
                                                 [String] $srcXml = (StringRemoveRightNr $srcDllOrExe 4) + ".xml";
                                                 [String] $tarXml = (StringRemoveRightNr $tarDllOrExe 4) + ".xml";
-                                                if( FileExists $srcXml ){ FileCopy $srcXml $tarXml $true; }
-                                                }
+                                                if( FileExists $srcXml ){ FileCopy $srcXml $tarXml $true; } }
 function ToolGithubApiListOrgRepos            ( [String] $org, [System.Management.Automation.PSCredential] $cred = $null ){
-                                                # List all repos which an org has on github, if user is specified
-                                                # then not only public but also private repos are listed. Ordered by archived, Url.
+                                                # List all repos (ordered by archived and url) from an org on github.
+                                                # If user and its Personal-Access-Token PAT instead of password is specified then not only public
+                                                # but also private repos are listed.
                                                 [String] $us = CredentialGetUsername $cred;
                                                 [String] $pw = CredentialGetPassword $cred;
                                                 OutProgress "List all github repos from $org with user=`"$us`"";
@@ -3459,13 +3459,14 @@ function ToolGithubApiListOrgRepos            ( [String] $org, [System.Managemen
                                                   if( $a.Count -eq 0 ){ break; }
                                                   $result += $a;
                                                 } return [Array] $result | Sort-Object archived, Url; }
-function ToolGithubApiAssertValidRepoUrl      ( [String] $repoUrl ){ # Example repoUrl="https://github.com/mniederw/MnCommonPsToolLib/"
+function ToolGithubApiAssertValidRepoUrl      ( [String] $repoUrl ){
+                                                # Example repoUrl="https://github.com/mniederw/MnCommonPsToolLib/"
                                                 [String] $githubUrl = "https://github.com/";
                                                 Assert $repoUrl.StartsWith($githubUrl) "expected url begins with $githubUrl but got: $repoUrl";
                                                 [String[]] $a = @()+(StringSplitToArray "/" (StringRemoveLeft (StringRemoveRight $repoUrl "/") $githubUrl $false));
                                                 Assert ($a.Count -eq 2 -and $a[0].Length -ge 2 -and $a[1].Length -ge 2) "expected url contains user/reponame but got: $repoUrl"; }
 function ToolGithubApiDownloadLatestReleaseDir( [String] $repoUrl ){
-                                                # Creates a unique temp dir, downloads zip, return folder of extracted zip; You shoud remove dir after usage.
+                                                # Creates a unique temp dir, downloads zip, return folder of extracted zip; You should remove dir after usage.
                                                 # Latest release is the most recent non-prerelease, non-draft release, sorted by its last commit-date.
                                                 # Example repoUrl="https://github.com/mniederw/MnCommonPsToolLib/"
                                                 ToolGithubApiAssertValidRepoUrl $repoUrl;
