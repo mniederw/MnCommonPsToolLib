@@ -55,7 +55,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "5.46"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "6.00"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -109,65 +109,16 @@ $Global:OutputEncoding                = [Console]::OutputEncoding ; # for pipe t
 #   The specified module 'ScheduledTasks'/'SmbShare' was not loaded because no valid module file was found in any module directory.
 if( $null -ne (Import-Module -NoClobber -Name "ScheduledTasks" -ErrorAction Continue 2>&1) ){ $error.clear(); Write-Host -ForegroundColor Yellow "Ignored failing of Import-Module ScheduledTasks because it will fail later if a function is used from it."; }
 if( $null -ne (Import-Module -NoClobber -Name "SmbShare"       -ErrorAction Continue 2>&1) ){ $error.clear(); Write-Host -ForegroundColor Yellow "Ignored failing of Import-Module SmbShare       because it will fail later if a function is used from it."; }
-# For later usage: Import-Module -NoClobber -Name "SmbWitness";
+# Import-Module "SmbWitness"; # for later usage
+# Import-Module "ServerManager"; # Is not always available, requires windows-server-os or at least Win10Prof with installed RSAT. Because seldom used we do not try to load it here.
+# Import-Module "SqlServer"; # not always used so we dont load it here.
 
 # types
 Add-Type -Name Window -Namespace Console -MemberDefinition '[DllImport("Kernel32.dll")] public static extern IntPtr GetConsoleWindow(); [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, Int32 nCmdShow);';
 Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class Window { [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect); [DllImport("User32.dll")] public extern static bool MoveWindow(IntPtr handle, int x, int y, int width, int height, bool redraw); } public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }';
 
-# Statement extensions
-function ForEachParallel {
-  # Based on https://powertoe.wordpress.com/2012/05/03/foreach-parallel/
-  # ex: (0..20) | ForEachParallel { Write-Output "Nr: $_"; Start-Sleep -Seconds 1; }; (0..5) | ForEachParallel -MaxThreads 2 { Write-Output "Nr: $_"; Start-Sleep -Seconds 1; }
-  param( [Parameter(Mandatory=$true,position=0)]              [System.Management.Automation.ScriptBlock] $ScriptBlock,
-         [Parameter(Mandatory=$true,ValueFromPipeline=$true)] [PSObject]                                 $InputObject,
-         [Parameter(Mandatory=$false)]                        [Int32]                                    $MaxThreads=8 )
-  # Note: for some unknown reason we sometimes get a red line "One or more errors occurred." and maybe "Collection was modified; enumeration operation may not execute." but it continuous successfully.
-  BEGIN{
-    try{
-      $iss = [System.Management.Automation.Runspaces.Initialsessionstate]::CreateDefault();
-      $pool = [Runspacefactory]::CreateRunspacePool(1,$maxthreads,$iss,$host); $pool.open();
-      $threads = @();
-      $ScriptBlock = $ExecutionContext.InvokeCommand.NewScriptBlock("param(`$_)`r`n"+$Scriptblock.ToString());
-    }catch{ $Host.UI.WriteErrorLine("ForEachParallel-BEGIN: $($_)"); }
-  }PROCESS{
-    try{
-      $powershell = [powershell]::Create().addscript($scriptblock).addargument($InputObject);
-      $powershell.runspacepool = $pool;
-      $threads += @{ instance = $powershell; handle = $powershell.begininvoke(); };
-    }catch{ $Host.UI.WriteErrorLine("ForEachParallel-PROCESS: $($_)"); }
-  }END{
-    try{
-      [Boolean] $notdone = $true; while( $notdone ){ $notdone = $false;
-        [System.Threading.Thread]::Sleep(250); # polling interval in msec
-        for( [Int32] $i = 0; $i -lt $threads.count; $i++ ){
-          if( $threads[$i].handle ){
-            if( $threads[$i].handle.iscompleted ){
-              try{
-                $threads[$i].instance.endinvoke($threads[$i].handle);
-              }catch{
-                [String] $msg = $_; $error.clear();
-                # msg example: Exception calling "EndInvoke" with "1" argument(s): "Der ausgeführte Befehl wurde beendet, da die Einstellungsvariable "ErrorActionPreference"
-                #              oder ein allgemeiner Parameter auf "Stop" festgelegt ist: Es ist ein allgemeiner Fehler aufgetreten, für den kein spezifischerer Fehlercode verfügbar ist.."
-                Write-Host -ForegroundColor DarkGray "ForEachParallel-endinvoke: Ignoring $msg";
-              }
-              $threads[$i].instance.dispose();
-              $threads[$i].handle = $null;
-              [gc]::Collect();
-            }else{ $notdone = $true; }
-          }
-        }
-      }
-    }catch{
-      $Host.UI.WriteErrorLine("ForEachParallel-END: $($_)"); # ex: 2018-07: Exception calling "EndInvoke" with "1" argument(s) "Der ausgeführte Befehl wurde beendet, da die Einstellungsvariable "ErrorActionPreference" oder ein allgemeiner Parameter auf "Stop" festgelegt ist: Es ist ein allgemeiner Fehler aufgetreten, für den kein spezifischerer Fehlercode verfügbar ist.."
-    }
-    $error.clear();
-  }
-}
-
-
 # Set some self defined constant global variables
-if( $null -eq (Get-Variable -Scope global -ErrorAction SilentlyContinue -Name ComputerName) ){ # check wether last variable already exists because reload safe
+if( $null -eq (Get-Variable -Scope global -ErrorAction SilentlyContinue -Name ComputerName) -or $null -eq $global:InfoLineColor ){ # check wether last variable already exists because reload safe
   New-Variable -option Constant -scope global -name CurrentMonthAndWeekIsoString -value ([String]((Get-Date -format "yyyy-MM-")+(Get-Date -uformat "W%V")));
   New-Variable -option Constant -scope global -name UserQuickLaunchDir           -value ([String]"$env:APPDATA\Microsoft\Internet Explorer\Quick Launch");
   New-Variable -option Constant -scope global -name UserSendToDir                -value ([String]"$env:APPDATA\Microsoft\Windows\SendTo");
@@ -176,6 +127,92 @@ if( $null -eq (Get-Variable -Scope global -ErrorAction SilentlyContinue -Name Co
   New-Variable -option Constant -scope global -name AllUsersMenuDir              -value ([String]"$env:ALLUSERSPROFILE\Microsoft\Windows\Start Menu");
   New-Variable -option Constant -scope global -name InfoLineColor                -Value $(switch($Host.Name -eq "Windows PowerShell ISE Host"){($true){"Gray"}default{"White"}}); # ise is white so we need a contrast color
   New-Variable -option Constant -scope global -name ComputerName                 -value ([String]"$env:computername".ToLower());
+}
+
+# Statement extensions
+function ForEachParallel {
+  # Note: In the statement block no functions or variables of the script where it is embedded can be used. Only from loaded modules.
+  #   You can also not base on Auto-Load-Module in your script, so generally use Load-Module for each used module.
+  # ex: (0..20) | ForEachParallel { Write-Output "Nr: $_"; Start-Sleep -Seconds 1; };
+  # ex: (0..5)  | ForEachParallel -MaxThreads 2 { Write-Output "Nr: $_"; Start-Sleep -Seconds 1; };
+  # Based on https://powertoe.wordpress.com/2012/05/03/foreach-parallel/
+  param( [Parameter(Mandatory=$true,position=0)]              [System.Management.Automation.ScriptBlock] $ScriptBlock,
+         [Parameter(Mandatory=$true,ValueFromPipeline=$true)] [PSObject]                                 $InputObject,
+         [Parameter(Mandatory=$false)]                        [Int32]                                    $MaxThreads=8 )
+  # Note: for some unknown reason we sometimes get a red line "One or more errors occurred." 
+  # and maybe "Collection was modified; enumeration operation may not execute." but it continuous successfully.
+  BEGIN{
+    try{
+      $iss = [System.Management.Automation.Runspaces.Initialsessionstate]::CreateDefault();
+      # found no change of behaviour if following is used:
+      #   # Import functions from the current session into the RunspacePool sessionstate for sharing for example host
+      #   Get-ChildItem Function:\ | Where-Object {$_.name -notlike "*:*"} | Select-Object name -ExpandProperty name | ForEach-Object {
+      #     $Definition = Get-Content "function:\$_";
+      #     # Create a sessionstate function with the same name and code and add it to sess state
+      #     $ssf = New-Object System.Management.Automation.Runspaces.SessionStateFunctionEntry -ArgumentList "$_", $Definition;
+      #     $iss.Commands.Add($ssf);
+      #   }
+      # Note: for sharing data we need someting as:
+      #   $sharedArray = [System.Collections.ArrayList]::Synchronized([System.Collections.ArrayList]::new());
+      #   $sharedQueue = [System.Collections.Queue]::Synchronized([System.Collections.Queue]::new());
+      $pool = [Runspacefactory]::CreateRunspacePool(1,$maxthreads,$iss,$host); $pool.open();
+      # alternative: $pool = [Runspacefactory]::CreateRunspacePool($iss); $pool.SetMinRunspaces(1) | Out-Null; $pool.SetMaxRunspaces($maxthreads) | Out-Null;
+      # no effect: $pool.ApartmentState = "MTA"; 
+      $threads = @();
+      $ScriptBlock = $ExecutionContext.InvokeCommand.NewScriptBlock("param(`$_)`r`n"+$Scriptblock.ToString());
+    }catch{ $Host.UI.WriteErrorLine("ForEachParallel-BEGIN: $($_)"); }
+  }PROCESS{
+    try{
+      # alternative:
+      #   [System.Management.Automation.PSDataCollection[PSObject]] $pipelineInputs = New-Object System.Management.Automation.PSDataCollection[PSObject];
+      #   [System.Management.Automation.PSDataCollection[PSObject]] $pipelineOutput = New-Object System.Management.Automation.PSDataCollection[PSObject];
+      $powershell = [powershell]::Create().addscript($scriptblock).addargument($InputObject);
+      $powershell.runspacepool = $pool;
+      $threads += @{ instance = $powershell; handle = $powershell.BeginInvoke(); }; # $pipelineInputs,$pipelineOutput
+    }catch{ $Host.UI.WriteErrorLine("ForEachParallel-PROCESS: $($_)"); }
+    [gc]::Collect();
+  }END{
+    try{
+      [Boolean] $notdone = $true; while( $notdone ){ $notdone = $false;
+        [System.Threading.Thread]::Sleep(250); # polling interval in msec
+        for( [Int32] $i = 0; $i -lt $threads.count; $i++ ){
+          if( $null -ne $threads[$i].handle ){
+            if( $threads[$i].handle.iscompleted ){
+              try{
+                # Note: Internally we sometimes get the following progress text for which we don't know why and on which statement this happens:
+                #   "parent = -1 id = 0 act = Module werden für erstmalige Verwendung vorbereitet. stat =   cur =  pct = -1 sec = -1 type = Processing/Completed "
+                #   Because that we write this to verbose and not to progress because for progress a popup window would occurre which does not disappear.
+                $threads[$i].instance.EndInvoke($threads[$i].handle);
+              }catch{
+                [String] $msg = $_; $error.clear();
+                # msg example: Exception calling "EndInvoke" with "1" argument(s): "Der ausgeführte Befehl wurde beendet, da die
+                #              Einstellungsvariable "ErrorActionPreference" oder ein allgemeiner Parameter auf "Stop" festgelegt ist:
+                #              Es ist ein allgemeiner Fehler aufgetreten, für den kein spezifischerer Fehlercode verfügbar ist.."
+                Write-Host -ForegroundColor DarkGray "ForEachParallel-endinvoke: Ignoring $msg";
+              }
+              [String] $outEr = $threads[$i].instance.Streams.Error      ; if( $outEr -ne "" ){ Write-Error       "Error: $outEr"; }
+              [String] $outWa = $threads[$i].instance.Streams.Warning    ; if( $outWa -ne "" ){ Write-Warning     "Warning: $outWa"; }
+              [String] $outIn = $threads[$i].instance.Streams.Information; if( $outIn -ne "" ){ Write-Information "Info: $outIn"; }
+              [String] $outPr = $threads[$i].instance.Streams.Progress   ; if( $outPr -ne "" ){ Write-Verbose     "Progress: $outPr"; } # we write to verbose not progress
+              [String] $outVe = $threads[$i].instance.Streams.Verbose    ; if( $outVe -ne "" ){ Write-Verbose     "Verbose: $outVe"; }
+              [String] $outDe = $threads[$i].instance.Streams.Debug      ; if( $outDe -ne "" ){ Write-Debug       "Debug: $outDe"; }
+              $threads[$i].instance.dispose();
+              $threads[$i].handle = $null;
+              [gc]::Collect();
+
+            }else{ $notdone = $true; }
+          }
+        }
+      }
+    }catch{
+      # ex: 2018-07: Exception calling "EndInvoke" with "1" argument(s) "Der ausgeführte Befehl wurde beendet, da die 
+      #              Einstellungsvariable "ErrorActionPreference" oder ein allgemeiner Parameter auf "Stop" festgelegt ist: 
+      #              Es ist ein allgemeiner Fehler aufgetreten, für den kein spezifischerer Fehlercode verfügbar ist.."
+      $Host.UI.WriteErrorLine("ForEachParallel-END: $($_)");
+    }
+    $error.clear();
+    [gc]::Collect();
+  }
 }
 
 # Script local variables
@@ -304,8 +341,8 @@ function ConsoleSetGuiProperties              (){ # set standard sizes which mak
                                                 $w.windowtitle = "$PSCommandPath $(switch(ProcessIsRunningInElevatedAdminMode){($true){'- Elevated Admin Mode'}default{'';}})";
                                                 $w.foregroundcolor = "Gray";
                                                 $w.backgroundcolor = switch(ProcessIsRunningInElevatedAdminMode){($true){"DarkMagenta"}default{"DarkBlue";}};
-                                                # for future use: $ = $host.PrivateData; $.VerboseForegroundColor = "white"; $.VerboseBackgroundColor = "blue";
-                                                #   $.WarningForegroundColor = "yellow"; $.WarningBackgroundColor = "darkgreen"; $.ErrorForegroundColor = "white"; $.ErrorBackgroundColor = "red";
+                                                # for future use: $ = $host.PrivateData; $.VerboseForegroundColor = "White"; $.VerboseBackgroundColor = "Blue";
+                                                #   $.WarningForegroundColor = "Yellow"; $.WarningBackgroundColor = "DarkGreen"; $.ErrorForegroundColor = "White"; $.ErrorBackgroundColor = "Red";
                                                 # set buffer sizes before setting window sizes otherwise PSArgumentOutOfRangeException: Window cannot be wider than the screen buffer.
                                                 $w = (get-host).ui.rawui; # refresh values, maybe meanwhile windows was resized
                                                 [Object] $buf = $w.buffersize;
@@ -343,8 +380,8 @@ function StdInAskForBoolean                   ( [String] $msg = "Enter Yes or No
                                                  if( $answer -eq $strForNo  ){ return [Boolean] $false; } } }
 function StdInWaitForAKey                     (){ StdInAssertAllowInteractions; $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") | Out-Null; } # does not work in powershell-ise, so in general do not use it, use StdInReadLine()
 function StdOutLine                           ( [String] $line ){ $Host.UI.WriteLine($line); } # Writes an stdout line in default color, normally not used, rather use OutInfo because it gives more information what to output.
-function StdOutRedLine                        ( [String] $line ){ OutError $line; } # deprecated
-function StdOutRedLineAndPerformExit          ( [String] $line, [Int32] $delayInSec = 1 ){ OutError $line; if( $global:ModeDisallowInteractions ){ ProcessSleepSec $delayInSec; }else{ StdInReadLine "Press Enter to Exit"; }; Exit 1; }
+function StdOutRedLineAndPerformExit          ( [String] $line, [Int32] $delayInSec = 1 ){ #
+                                                OutError $line; if( $global:ModeDisallowInteractions ){ ProcessSleepSec $delayInSec; }else{ StdInReadLine "Press Enter to Exit"; }; Exit 1; }
 function StdErrHandleExc                      ( [System.Management.Automation.ErrorRecord] $er, [Int32] $delayInSec = 1 ){
                                                 # Output full error information in red lines and then either wait for pressing enter or otherwise if interactions are globally disallowed then wait specified delay
                                                 [String] $msg = "$(StringFromException $er.Exception)"; # ex: "ArgumentOutOfRangeException: Specified argument was out of the range of valid values. Parameter name: times  at ..."
@@ -452,7 +489,7 @@ function StreamToDataRowsString               ( [String[]] $propertyNames = @() 
 function StreamToTableString                  ( [String[]] $propertyNames = @() ){ # Note: For a simple string array as ex: @("one","two")|StreamToCsvStrings  it results with 3 lines "Length","one","two".
                                                 if( $propertyNames.Count -eq 0 ){ $propertyNames = @("*"); }
                                                 $input | Format-Table -Wrap -Force -autosize $propertyNames | StreamToStringDelEmptyLeadAndTrLines; }
-function OutInfo                              ( [String] $line ){ Write-Host -ForegroundColor $InfoLineColor -NoNewline "$line`r`n"; } # NoNewline is used because on multi threading usage line text and newline can be interrupted between.
+function OutInfo                              ( [String] $line ){ Write-Host -ForegroundColor $global:InfoLineColor -NoNewline "$line`r`n"; } # NoNewline is used because on multi threading usage line text and newline can be interrupted between.
 function OutSuccess                           ( [String] $line ){ Write-Host -ForegroundColor Green -NoNewline "$line`r`n"; }
 function OutWarning                           ( [String] $line, [Int32] $indentLevel = 1 ){ Write-Host -ForegroundColor Yellow -NoNewline (("  "*$indentLevel)+$line+"`r`n"); }
 function OutError                             ( [String] $line ){ $Host.UI.WriteErrorLine($line); } # Writes an stderr line in red.
@@ -550,7 +587,7 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 $pr.Dispose();
                                                 return [String] $out; }
 function ProcessEnvVarGet                     ( [String] $name, [System.EnvironmentVariableTarget] $scope = [System.EnvironmentVariableTarget]::Process ){ return [String] [Environment]::GetEnvironmentVariable($name,$scope); }
-function ProcessEnvVarSet                     ( [String] $name, [String] $val, [System.EnvironmentVariableTarget] $scope = [System.EnvironmentVariableTarget]::Process ){ OutProgress "SetEnvironmentVariable $name=`"$val`" scope=$scope"; [Environment]::SetEnvironmentVariable($name,$val,$scope); }
+function ProcessEnvVarSet                     ( [String] $name, [String] $val, [System.EnvironmentVariableTarget] $scope = [System.EnvironmentVariableTarget]::Process ){ OutProgress "SetEnvironmentVariable scope=$scope $name=`"$val`""; [Environment]::SetEnvironmentVariable($name,$val,$scope); }
 function JobStart                             ( [ScriptBlock] $scr, [Object[]] $scrArgs = $null, [String] $name = "Job" ){ # Return job object of type PSRemotingJob, the returned object of the script block can later be requested.
                                                 return [System.Management.Automation.Job] (Start-Job -name $name -ScriptBlock $scr -ArgumentList $scrArgs); }
 function JobGet                               ( [String] $id ){ return [System.Management.Automation.Job] (Get-Job -Id $id); } # Return job object.
@@ -2327,16 +2364,19 @@ function GitDisableAutoCrLf                   (){ # no output if nothing done.
                                                 if( $line -eq "" ){ OutVerbose "ok, git-global-autocrlf is undefined."; return; }
                                                 OutProgress "Setting git-global-autocrlf to false because current value was: `"$line`"";
                                                 . git config --global core.autocrlf false; <# maybe later: git config --global --unset core.autocrlf #> }
-function GitCloneOrPullUrls                   ( [String[]] $listOfRepoUrls, [String] $tarRootDirOfAllRepos, [Boolean] $errorAsWarning = $false, [Boolean] $onErrorContinueWithOthers = $false ){
+function GitCloneOrPullUrls                   ( [String[]] $listOfRepoUrls, [String] $tarRootDirOfAllRepos, [Boolean] $errorAsWarning = $false ){
+                                                # Works later multithreaded and errors are written out, collected and throwed at the end.
+                                                # If you want single threaded then call it with only one item in the list. 
                                                 [String[]] $errorLines = @();
-                                                $listOfRepoUrls | Where-Object{$null -ne $_} | ForEach-Object{
+                                                function GetOne( [String] $url ){
                                                   try{
-                                                    GitCloneOrFetchOrPull $tarRootDirOfAllRepos $_ $true $errorAsWarning;
+                                                    GitCloneOrFetchOrPull $tarRootDirOfAllRepos $url $true $errorAsWarning;
                                                   }catch{
-                                                    if( -not $onErrorContinueWithOthers ){ throw; }
                                                     [String] $msg = $_.Exception.Message; OutError $msg; $errorLines += $msg;
                                                   }
                                                 }
+                                                if( $listOfRepoUrls.Count -eq 1 ){ GetOne $listOfRepoUrls[0]; }
+                                                else{ $listOfRepoUrls | Where-Object{$null -ne $_} | ForEach-Object { GetOne $_; } }
                                                 if( $errorLines.Count ){ throw [Exception] (StringArrayConcat $errorLines); } }
 <# Type: SvnEnvInfo #>                        Add-Type -TypeDefinition "public struct SvnEnvInfo {public string Url; public string Path; public string RealmPattern; public string CachedAuthorizationFile; public string CachedAuthorizationUser; public string Revision; }";
                                                 # ex: Url="https://myhost/svn/Work"; Path="D:\Work"; RealmPattern="https://myhost:443";
@@ -2644,9 +2684,9 @@ function SvnTortoiseCommitAndUpdate           ( [String] $workDir, [String] $svn
                                                   if( $r.CachedAuthorizationUser -eq "" ){ throw [Exception] "This script asserts that configured SvnUser=$svnUser matches last accessed user because it requires stored credentials, but last user was not saved, please call svn-repo-browser, login, save authentication and then retry."; }
                                                   if( $svnUser -ne $r.CachedAuthorizationUser ){ throw [Exception] "Configured SvnUser=$svnUser does not match last accessed user=$($r.CachedAuthorizationUser), please call svn-settings, clear cached authentication-data, call svn-repo-browser, login, save authentication and then retry."; }
                                                   #
-                                                  [String] $host = NetExtractHostName $svnUrl;
-                                                  if( $ignoreIfHostNotReachable -and -not (NetPingHostIsConnectable $host) ){
-                                                    OutWarning "Host $host is not reachable, so ignored.";
+                                                  [String] $hostname = NetExtractHostName $svnUrl;
+                                                  if( $ignoreIfHostNotReachable -and -not (NetPingHostIsConnectable $hostname) ){
+                                                    OutWarning "Host $hostname is not reachable, so ignored.";
                                                     return;
                                                   }
                                                   #
@@ -3638,9 +3678,9 @@ function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $
                                                   }
                                                   if( $performPing ){
                                                     OutProgress "Checking host of url wether it is reachable by ping";
-                                                    [String] $host = (NetExtractHostName $url);
-                                                    if( -not (NetPingHostIsConnectable $host) ){
-                                                      throw [Exception] "Host $host is not pingable.";
+                                                    [String] $hostname = (NetExtractHostName $url);
+                                                    if( -not (NetPingHostIsConnectable $hostname) ){
+                                                      throw [Exception] "Host $hostname is not pingable.";
                                                     }
                                                   }
                                                   [String] $tmp = (FileGetTempFile); NetDownloadFile $url $tmp;
@@ -3678,10 +3718,8 @@ function MnCommonPsToolLibSelfUpdate          ( [Boolean] $doWaitForEnterKeyIfFa
                                                 [Boolean] $dummyResult = ToolPerformFileUpdateAndIsActualized $moduleFile $url $requireElevatedAdminMode $doWaitForEnterKeyIfFailed $additionalOkUpdMsg $assertFilePreviouslyExists $performPing;
                                               }
 
-# DEPRECATED
-function FsEntryMakeAbsolutePath              ( [String] $dirWhenFsEntryIsRelative, [String] $fsEntryRelativeOrAbsolute = ""){
-  OutWarn "[FsEntryMakeAbsolutePath a b] is Deprecated (function will be removed in next version V6), replace it as soon as possible by: [FsEntryGetAbsolutePath ([System.IO.Path]::Combine(a,b))]";
-  return [String] (FsEntryGetAbsolutePath ([System.IO.Path]::Combine($dirWhenFsEntryIsRelative,$fsEntryRelativeOrAbsolute))); }
+# DEPRECATED: currently none.
+
 
 # ----------------------------------------------------------------------------------------------------
 

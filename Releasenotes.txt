@@ -2,7 +2,11 @@
 ------------
 
 Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
+See description of major version with minor equal zero about breaking changes as removed deprecated functions or changed behavious.
 Current version can be requested by: $MnCommonPsToolLibVersion
+
+2021-12-17  V6.00  Removed deprecated FsEntryMakeAbsolutePath, from GitCloneOrPullUrls removed param onErrorContinueWithOthers. Improve ForEachParallel.
+                   Removed deprecated StdOutRedLine.
 
 2021-12-16  V5.46  Improved FileDelete exc-handling
 2021-12-16  V5.45  Improved Doc NetDownloadFileByCurl
@@ -36,50 +40,43 @@ Current version can be requested by: $MnCommonPsToolLibVersion
 2020-07-30  V5.12  Added Doc.
 2020-07-28  V5.11  Improved tfs functions.
 2020-07-16  V5.10  Deprecated FsEntryMakeAbsolutePath. Extend tfs-path. Added FsEntryFindInParents, StringRemoveOptEnclosingDblQuotes, Tfs-functions.
-2020-07-15  V5.9   Added GitCloneOrPullUrls
-2020-07-06  V5.8   Added GitAssertAutoCrLfIsDisabled, GitDisableAutoCrLf.
-2020-05-01  V5.7   Added StringArrayIsEqual.
-2020-04-25  V5.6   Added Doc.
-2020-04-17  V5.5   Improved NetDownloadSite for utf8. NetUrlUnescape.
-2020-04-14  V5.4   Improved git-pull.
-2020-04-10  V5.3   Added ProcessEnvVarGet, ProcessEnvVarGet, OsWindowsFeatureDoInstall, OsWindowsFeatureDoUninstall, NetDownloadIsSuccessful.
-2020-04-06  V5.2   Extended DirAssertExists, improve ShareCreate.
-2020-03-02  V5.1   Changed ShareListAllByWmi caption to Description.
-2020-02-25  V5.0   Changed and simplifyed ShareListAll, ShareCreate, ShareRemove, ShareListAll. Add ShareExists, ShareListAllByWmi, ShareRemoveByWmi, ShareCreateByWmi, ShareLocksList, ShareLocksClose.
+2020-07-15  V5.09  Added GitCloneOrPullUrls
+2020-07-06  V5.08  Added GitAssertAutoCrLfIsDisabled, GitDisableAutoCrLf.
+2020-05-01  V5.07  Added StringArrayIsEqual.
+2020-04-25  V5.06  Added Doc.
+2020-04-17  V5.05  Improved NetDownloadSite for utf8. NetUrlUnescape.
+2020-04-14  V5.04  Improved git-pull.
+2020-04-10  V5.03  Added ProcessEnvVarGet, ProcessEnvVarGet, OsWindowsFeatureDoInstall, OsWindowsFeatureDoUninstall, NetDownloadIsSuccessful.
+2020-04-06  V5.02  Extended DirAssertExists, improve ShareCreate.
+2020-03-02  V5.01  Changed ShareListAllByWmi caption to Description.
+2020-02-25  V5.00  Changed and simplifyed ShareListAll, ShareCreate, ShareRemove, ShareListAll. Add ShareExists, ShareListAllByWmi, ShareRemoveByWmi, ShareCreateByWmi, ShareLocksList, ShareLocksClose.
 
 2020-02-18  V4.11  Improved ConsoleSetGuiProperties, tf options
 2020-02-15  V4.10  Added ToolGithubApiDownloadLatestReleaseDir, ToolUnzip, fix FsEntryMoveByPatternToDir.
-2020-02-13  V4.9   Added HelpListOfAllExportedCommands, extend wget comment. improved ProcessRestartInElevatedAdminMode, MnCommonPsToolLibSelfUpdate, ToolPerformFileUpdateAndIsActualized.
-2020-01-14  V4.8   Added StringRemoveLeft
-2019-12-04  V4.7   Extended tfs path
-2019-11-15  V4.6   Added ToolSetAssocFileExtToCmd, simplify word-count. 
-2019-11-11  V4.5   Extended GitCmd by branch. Extended GitBuildLocalDirFromUrl by branch.
-2019-10-16  V4.4   Fixed FsEntryGetAbsolutePath drive not found. Fix RegistryKeySetAclRule. Improve checkings in RegistryKeyGetSubkey, handle 404 in NetDownloadFile and NetDownloadFileByCurl.
-2019-09-04  V4.3   Improved FsEntryListAsFileSystemInfo for unauthorized.
-2019-08-31  V4.2   Extended exc msg, improve get credentials, added OutError. StdOutRedLine is now deprecated.
-2019-08-20  V4.1   Fixed exc msg.
-
-2019-08-18  V4.0   Improved get-sql-db-schema, fixed optional menu link file of ToolCreateMenuLinksByMenuItemRefFile, 
-                   Improved reg key priv methods, replaced RegistryKeySetOwnerForced by RegistryKeySetOwner, 
+2020-02-13  V4.09  Added HelpListOfAllExportedCommands, extend wget comment. improved ProcessRestartInElevatedAdminMode, MnCommonPsToolLibSelfUpdate, ToolPerformFileUpdateAndIsActualized.
+2020-01-14  V4.08  Added StringRemoveLeft
+2019-12-04  V4.07  Extended tfs path
+2019-11-15  V4.06  Added ToolSetAssocFileExtToCmd, simplify word-count. 
+2019-11-11  V4.05  Extended GitCmd by branch. Extended GitBuildLocalDirFromUrl by branch.
+2019-10-16  V4.04  Fixed FsEntryGetAbsolutePath drive not found. Fix RegistryKeySetAclRule. Improve checkings in RegistryKeyGetSubkey, handle 404 in NetDownloadFile and NetDownloadFileByCurl.
+2019-09-04  V4.03  Improved FsEntryListAsFileSystemInfo for unauthorized.
+2019-08-31  V4.02  Extended exc msg, improve get credentials, added OutError. StdOutRedLine is now deprecated.
+2019-08-20  V4.01  Fixed exc msg.
+2019-08-18  V4.00  Improved get-sql-db-schema, fixed optional menu link file of ToolCreateMenuLinksByMenuItemRefFile, reg key priv methods, replaced RegistryKeySetOwnerForced by RegistryKeySetOwner;
                    Renamed RegistryKeySetAccessRule by RegistryKeySetAclRule, rename RegistryKeySetAcl by RegistryKeySetAclRight.
 
-2019-05-11  V3.4   Extended FsEntryFindFlatSingleByPattern, extend TfsCheckinDirWhenNoConflict, added StdInAskAndAssertExpectedAnswer, 
+2019-05-11  V3.04  Extended FsEntryFindFlatSingleByPattern, extend TfsCheckinDirWhenNoConflict, added StdInAskAndAssertExpectedAnswer, 
                    do ConsoleSetGuiProperties only once per shell, added StringIsInt32/64, StringAsInt32/64.
-
-2019-05-06  V3.3   Set doublequotes instead of quotes in log strings, improve svn changes detections for committing, git pull used time, fix console buffer sizes.
-
-2019-04-29  V3.2   Added tfs functions.
-
-2019-04-21  V3.1   Added progress to reg functions, fix RegistrySetValue, fix createlnk for filenames with brackets, git-pull ok if repo hs no content, add log for git.
-
-2019-03-23  V3.0   Changed ProcessStart return string instead of string array and remove outToProgress param, 
+2019-05-06  V3.03  Set doublequotes instead of quotes in log strings, improve svn changes detections for committing, git pull used time, fix console buffer sizes.
+2019-04-29  V3.02  Added tfs functions.
+2019-04-21  V3.01  Added progress to reg functions, fix RegistrySetValue, fix createlnk for filenames with brackets, git-pull ok if repo hs no content, add log for git.
+2019-03-23  V3.00  Changed ProcessStart return string instead of string array and remove outToProgress param, 
                    Replaced StringReplaceNewlinesBySpaces by StringReplaceNewlines(with space as default arg), improve git pull.
 
-2019-02-22  V2.0   Removed unused var ModeDisallowElevation, replace var CurrentMonthIsoString by function DateTimeNowAsStringIsoMonth(), 
+2019-02-22  V2.00  Removed unused var ModeDisallowElevation, replace var CurrentMonthIsoString by function DateTimeNowAsStringIsoMonth(), 
                    new ConsoleSetPos, refactor MnCommonPsToolLibSelfUpdate by using github release, removed ToolPerformFileUpdateAndIsActualized.
 
 2019-01-16  V1.32  Added SqlGenerateFullDbSchemaFiles, add check, care gitstderr as out.
-
 2019-01-06  V1.29  Added doc, InfoGetInstalledDotNetVersion, rename SvnCommitAndGet to SvnTortoiseCommitAndUpdate, rename SvnCommit to SvnTortoiseCommit, 
                    Improved ProcessStart, rename RdpConnect to ToolRdpConnect, rename WgetDownloadSite to NetDownloadSite, 
                    Renamed PsWebRequestLastModifiedFailSafe to NetWebRequestLastModifiedFailSafe, rename PsDownloadFile to NetDownloadFile, 
