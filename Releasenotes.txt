@@ -5,6 +5,8 @@ Major version changes will reflect breaking changes and minor identifies extensi
 See description of major version with minor equal zero about breaking changes as removed deprecated functions or changed behavious.
 Current version can be requested by: $MnCommonPsToolLibVersion
 
+2021-12-19  V6.02  Fix NetDownloadFile setting Tls. Added Unittest to github workflow.
+2021-12-18  V6.01  Fix some lint warnings as using Write-Output. Added ScriptAnalyser tool. Extended Workflow.
 2021-12-17  V6.00  Removed deprecated FsEntryMakeAbsolutePath, from GitCloneOrPullUrls removed param onErrorContinueWithOthers. Improve ForEachParallel.
                    Removed deprecated StdOutRedLine.
 

@@ -55,7 +55,8 @@ function MnLibCommonSelfTest(){ # perform some tests
   [Int32] $n = 0; $null | ForEach-Object{ $n++; }; Assert ($n -gt 0); # pipelining with $null iterates at least once
   [Int32] $n = 0; @()   | ForEach-Object{ $n++; }; Assert ($n -eq 0); # empty array not iterates to pipelining
 
-  # compare non-null array with null must be done by preceeding null
+  # compare non-null array with null must be done by putting null to the left side of the comparison operator
+  #   Note: The github Lint-with-PSScriptAnalyser will output warning: PSPossibleIncorrectComparisonWithNull
   [String[]] $a = @()  ; Assert        ( -not ($a -eq $null) ); # If we would use AssertIsFalse then: Die Argumenttransformation für den Parameter "cond" kann nicht verarbeitet werden. Der Wert "System.Object[]" kann nicht in den Typ "System.Boolean" konvertiert werden. Boolesche Parameter akzeptieren nur boolesche Werte oder Zahlen wie "$True", "$False", "1" oder "0".
   [String[]] $a = @()  ; Assert        ( -not ($a -ne $null) ); # Is something as a know BUG.
   [String[]] $a = $null; Assert        ( $a -eq $null );
@@ -174,7 +175,8 @@ function MnLibCommonSelfTest(){ # perform some tests
   [Boolean] $isOk = $false;
   try{
      # if compare argument null would be on the left side then it would work successful
-    [String[]] $a99 = @();
+     #   Note: The github Lint-with-PSScriptAnalyser will output warning: PSPossibleIncorrectComparisonWithNull
+     [String[]] $a99 = @();
      [Boolean] $r = ($a99 -eq $null); # Throws: Der Wert "System.Object[]" kann nicht in den Typ "System.Boolean" konvertiert werden. Boolesche Parameter akzeptieren nur boolesche Werte oder Zahlen wie "$True", "$False", "1" oder "0".
   }catch{ $isOk = $true; }
   if( -not $isOk ){

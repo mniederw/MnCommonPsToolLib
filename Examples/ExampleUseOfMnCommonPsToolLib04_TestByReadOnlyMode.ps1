@@ -19,7 +19,7 @@ function TestCommon(){
 function TestFsEntries(){
   OutInfo "$($MyInvocation.MyCommand)";
   OutProgress "Current dir is: $(FsEntryGetAbsolutePath '.')";
-  [String] $d = "C:\Users\u4\Documents";
+  [String] $d = "${env:HOMEPATH}\Documents";
   [String[]] $a = @()+(FsEntryListAsStringArray $d $true $false $true | Where-Object{$null -ne $_});
   OutProgress "The folder '$d' contains $($a.Count) number of files";
   [String[]] $a2 = @()+($a | Select-Object -First 2);
@@ -58,21 +58,14 @@ function TestAsynchronousJob {
   OutSuccess "Ok, done.";
 }
 
-function TestListFirstFivePublicReposOfGithubOrgArduino {
-  OutInfo "$($MyInvocation.MyCommand)";
-  ToolGithubApiListOrgRepos "arduino" | Select-Object -First 5 Url, archived, language, default_branch, LicName | 
-    StreamToTableString | Foreach-Object { OutProgressText $_; }; OutProgress "";
-  OutSuccess "Ok, done.";
-}
-
 function TestEnvironmentVarsOfDifferentScopes {
   OutInfo "$($MyInvocation.MyCommand)";
   $v1 = ProcessEnvVarGet "Temp" ([System.EnvironmentVariableTarget]::Process);
   $v2 = ProcessEnvVarGet "Temp" ([System.EnvironmentVariableTarget]::User   );
   $v3 = ProcessEnvVarGet "Temp" ([System.EnvironmentVariableTarget]::Machine);
-  OutProgress "Environment Variable Temp of scope Process: `"$v1`"";
-  OutProgress "Environment Variable Temp of scope User   : `"$v2`"";
-  OutProgress "Environment Variable Temp of scope Machine: `"$v3`"";
+  OutProgress "Environment Variable Temp of scope Process: `"$v1`""; # GithubWorkflowWindowsLaters: "C:\Users\RUNNER~1\AppData\Local\Temp"
+  OutProgress "Environment Variable Temp of scope User   : `"$v2`""; # GithubWorkflowWindowsLaters: "C:\Users\runneradmin\AppData\Local\Temp"
+  OutProgress "Environment Variable Temp of scope Machine: `"$v3`""; # GithubWorkflowWindowsLaters: "C:\Windows\TEMP"
   Assert ($v1 -eq $env:Temp);
   ProcessEnvVarSet "MnCommonPsToolLibExampleVar" "Testvalue";
   Assert ($env:MnCommonPsToolLibExampleVar -eq "Testvalue");
@@ -96,15 +89,24 @@ function TestNetDownloadIsSuccessful {
   OutSuccess "Ok, done.";
 }
 
-OutInfo "Hello World - perform some tests which do change system";
+function TestListFirstFivePublicReposOfGithubOrgArduino {
+  OutInfo "$($MyInvocation.MyCommand)";
+  ToolGithubApiListOrgRepos "arduino" | Select-Object -First 5 Url, archived, language, default_branch, LicName |
+    StreamToTableString | Foreach-Object { OutProgressText $_; }; OutProgress "";
+  OutSuccess "Ok, done.";
+}
+
+
+OutInfo "$($MyInvocation.MyCommand)";
+OutProgress "Perform some tests of the module by using readonly mode (writes only to temp dir) so system is not touched relevantly.";
 TestAssertions;
 TestCommon;
 TestFsEntries;
 TestParallelStatementsHavingOneSecondWaiting;
 TestParallelStatementsHavingRandomWaitBetween1and2Seconds;
 TestAsynchronousJob;
-TestListFirstFivePublicReposOfGithubOrgArduino;
 TestEnvironmentVarsOfDifferentScopes;
 TestNetDownloadToString;
 TestNetDownloadIsSuccessful;
+TestListFirstFivePublicReposOfGithubOrgArduino;
 StdInReadLine "Press enter to exit.";
