@@ -8,7 +8,7 @@ on:
       - '*.txt'
   pull_request:
     branches:
-      [ trunk ]
+      [ main ]
     paths-ignore:
       - '*.txt'
 
@@ -48,7 +48,7 @@ jobs:
         run: |
           $GITHUB_WORKSPACE/Examples/ExampleUseOfMnCommonPsToolLib03_NoWaitAtEnd.ps1;
           $GITHUB_WORKSPACE/Examples/ExampleUseOfMnCommonPsToolLib04_Test.ps1;
-          $GITHUB_WORKSPACE7Examples/MnCommonPsToolLibUnitTest.ps1;
+          $GITHUB_WORKSPACE/Examples/MnCommonPsToolLibUnitTest.ps1;
 
       - name: Message for future use
         run: echo Later add testings here
