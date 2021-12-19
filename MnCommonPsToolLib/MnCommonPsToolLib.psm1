@@ -33,6 +33,7 @@
 #      StdInReadLine "Press enter to exit.";
 # or
 #      # Simple example for using MnCommonPsToolLib with standard interactive mode
+#      $Global:ErrorActionPreference = "Stop"; trap [Exception] { $Host.UI.WriteErrorLine($_); Read-Host; break; }
 #      Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 #      OutInfo "Simple example for using MnCommonPsToolLib with standard interactive mode";
 #      StdOutBegMsgCareInteractiveMode; # will ask: if you are sure (y/n)
@@ -55,7 +56,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "6.01"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "6.02"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -1832,7 +1833,11 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                   # Known Bug: We currently do not restore this option so it will influence all following calls.
                                                   # Maybe later we use: -SkipCertificateCheck
                                                 }
-                                                [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Ssl3 -bor [System.Net.SecurityProtocolType]::Tls -bor [System.Net.SecurityProtocolType]::Tls12; # default is: Ssl3, Tls.
+                                                # Check minimum secure protocol (avoid Ssl3,Tls,Tls11; require Tls12)
+                                                #   On Win10 and GithubWorkflowWindowsLatest: "SystemDefault".
+                                                if( [System.Net.ServicePointManager]::SecurityProtocol -notin @("SystemDefault","Tls12") ){
+                                                  [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.SecurityProtocolType]::Tls12;
+                                                }
                                                 if( $onlyIfNewer -and (FileExists $tarFile) ){
                                                   [DateTime] $srcTs = (NetWebRequestLastModifiedFailSafe $url);
                                                   [DateTime] $fileTs = (FsEntryGetLastModified $tarFile);

@@ -38,24 +38,32 @@ jobs:
           if( $nrOfErrors -gt 0){ Write-Error "There were total $nrOfErrors errors and $nrOfWarnings warnings." -ErrorAction Stop; }
           else                  { Write-Output "There were total $nrOfErrors errors and $nrOfWarnings warnings."; }
 
-      - name: Test wether this powershell lib exists
+      - name: Check powershell module library exists
         shell: pwsh
         run: Test-Path "MnCommonPsToolLib/MnCommonPsToolLib.psm1" | Should -Be $true
-
-      - name: Test import of this powershell lib
-        shell: pwsh
-        run: |
-          Set-Location "MnCommonPsToolLib";
-          Import-Module "MnCommonPsToolLib.psm1";
-          Write-Output "MnCommonPsToolLibVersion: $Global:MnCommonPsToolLibVersion";
-          Write-Output "OsPsVersion: $(OsPsVersion)";
 
       - name: Run UnitTest
         shell: pwsh
         run: |
-          ../Examples/ExampleUseOfMnCommonPsToolLib03_NoWaitAtEnd.ps1;
-          #../Examples/ExampleUseOfMnCommonPsToolLib04_Test.ps1;
-          #../Examples/MnCommonPsToolLibUnitTest.ps1;
-
-      - name: Message for future use
-        run: echo Later add testings here
+          Write-Output "CurrentDir=`"$(PWD)`""; # "D:\a\MyRepo\MyRepo"
+          Write-Output "GITHUB_WORKSPACE=`"$($env:GITHUB_WORKSPACE)`""; # "D:\a\MyRepo\MyRepo"
+          Write-Output "PSModulePath=`"${env:PSModulePath}`""; # "C:\Users\runneradmin\Documents\PowerShell\Modules;C:\Program Files\PowerShell\Modules;c:\program files\powershell\7\Modules;C:\\Modules\azurerm_2.1.0;C:\\Modules\azure_2.1.0;C:\Users\packer\Documents\WindowsPowerShell\Modules;C:\Program Files\WindowsPowerShell\Modules;C:\Windows\system32\WindowsPowerShell\v1.0\Modules;C:\Program Files\Microsoft SQL Server\130\Tools\PowerShell\Modules\;C:\Program Files (x86)\Google\Cloud SDK\google-cloud-sdk\platform\PowerShell"
+          [Environment]::SetEnvironmentVariable("PSModulePath","${env:PSModulePath};$(PWD)","Process"); # add ps module to path
+          $Global:ErrorActionPreference = "Stop"; trap [Exception] { $Host.UI.WriteErrorLine($_); Read-Host; break; }
+          Import-Module "MnCommonPsToolLib.psm1";
+          Write-Output "OsPsVersion: $(OsPsVersion)"; # "7.2"
+          Write-Output "MnCommonPsToolLibVersion: $Global:MnCommonPsToolLibVersion"; # "6.01"
+          Write-Output "--------------------------------------------------------------------------------------";
+          & "Examples/ExampleUseOfMnCommonPsToolLib01_HelloWorldWaitForEnter.ps1"; # waiting is aborted
+          Write-Output "--------------------------------------------------------------------------------------";
+          & "Examples/ExampleUseOfMnCommonPsToolLib02_StdBegAndEndInteractiveModeStmts.ps1"; # waiting is aborted
+          Write-Output "--------------------------------------------------------------------------------------";
+          & "Examples/ExampleUseOfMnCommonPsToolLib03_NoWaitAtEnd.ps1";
+          Write-Output "--------------------------------------------------------------------------------------";
+          & "Examples/ExampleUseOfMnCommonPsToolLib04_TestByReadOnlyMode.ps1";
+          Write-Output "--------------------------------------------------------------------------------------";
+          & "Examples/MnCommonPsToolLibScriptAnalyser.ps1";
+          Write-Output "--------------------------------------------------------------------------------------";
+          & "Examples/MnCommonPsToolLibUnitTest.ps1";
+          Write-Output "--------------------------------------------------------------------------------------";
+          Write-Output "Ok, UnitTest was successful!";

@@ -6,7 +6,7 @@ Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including unin
 $Global:ErrorActionPreference = "Stop";
 $PSModuleAutoLoadingPreference = "none"; # disable autoloading modules
 trap [Exception] { $Host.UI.WriteErrorLine($_); Read-Host; break; }
-function OutStr                               ( [String] $color, [String] $line, [Boolean] $noNewLine ){ Write-Output -ForegroundColor $color -NoNewline:$noNewLine $line; }
+function OutStr                               ( [String] $color, [String] $line, [Boolean] $noNewLine ){ Write-Host -ForegroundColor $color -NoNewline:$noNewLine $line; }
 function OutInfo                              ( [String] $line ){ OutStr "White"    $line $false; }
 function OutProgress                          ( [String] $line ){ OutStr "DarkGray" $line $false; }
 function OutProgressText                      ( [String] $line ){ OutStr "DarkGray" $line $true ; }
@@ -106,8 +106,8 @@ OutProgress     "  Current environment:";
 OutProgress     "    IsInElevatedAdminMode            = $(ProcessIsRunningInElevatedAdminMode).";
 OutProgress     "    ShellSessionIs64not32Bit         = $(ShellSessionIs64not32Bit). ";
 OutProgress     "    PsModulePath contains SrcRootDir = $(OsPsModulePathContains $srcRootDir). ";
-OutProgress     "    PsModuleFolder(allUsers,64bit)   = '$tarRootDir32bit'. ";
-OutProgress     "    PsModuleFolder(allUsers,32bit)   = '$tarRootDir64bit'. ";
+OutProgress     "    PsModuleFolder(allUsers,64bit)   = '$tarRootDir64bit'. ";
+OutProgress     "    PsModuleFolder(allUsers,32bit)   = '$tarRootDir32bit'. ";
 OutProgress     "    SrcRootDir                       = '$srcRootDir'. ";
 OutProgressText "    Current installation modes       = "; CurrentInstallationModes;
 OutInfo         "";
