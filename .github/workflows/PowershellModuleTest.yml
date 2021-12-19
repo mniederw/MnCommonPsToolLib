@@ -41,7 +41,7 @@ jobs:
 
       - name: Test import of this powershell lib
         shell: pwsh
-        run: Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"
+        run: Import-Module -NoClobber -Name "MnCommonPsToolLib/MnCommonPsToolLib.psm1"
 
       - name: Run UnitTest
         shell: pwsh
