@@ -60,7 +60,7 @@ function TestAsynchronousJob {
 
 function TestListFirstFivePublicReposOfGithubOrgArduino {
   OutInfo "$($MyInvocation.MyCommand)";
-  ToolGithubApiListOrgRepos "arduino" | Select-Object -First 5 Url, archived, language, default_branch, LicName | 
+  ToolGithubApiListOrgRepos "arduino" | Select-Object -First 5 Url, archived, language, default_branch, LicName |
     StreamToTableString | Foreach-Object { OutProgressText $_; }; OutProgress "";
   OutSuccess "Ok, done.";
 }

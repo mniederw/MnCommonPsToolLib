@@ -6,7 +6,7 @@ Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including unin
 $Global:ErrorActionPreference = "Stop";
 $PSModuleAutoLoadingPreference = "none"; # disable autoloading modules
 trap [Exception] { $Host.UI.WriteErrorLine($_); Read-Host; break; }
-function OutStr                               ( [String] $color, [String] $line, [Boolean] $noNewLine ){ Write-Host -ForegroundColor $color -NoNewline:$noNewLine $line; }
+function OutStr                               ( [String] $color, [String] $line, [Boolean] $noNewLine ){ Write-Output -ForegroundColor $color -NoNewline:$noNewLine $line; }
 function OutInfo                              ( [String] $line ){ OutStr "White"    $line $false; }
 function OutProgress                          ( [String] $line ){ OutStr "DarkGray" $line $false; }
 function OutProgressText                      ( [String] $line ){ OutStr "DarkGray" $line $true ; }

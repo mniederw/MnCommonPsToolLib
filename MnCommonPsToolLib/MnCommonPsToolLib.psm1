@@ -15,7 +15,7 @@
 #   because function names should be easy readable as documentation.
 # - On writing or appending files they automatically create its path parts.
 # - Notes about tracing information lines:
-#   - Progress : Any change of the system will be notified with (Write-Host -ForegroundColor DarkGray). Is enabled as default.
+#   - Progress : Any change of the system will be notified with (Write-Output -ForegroundColor DarkGray). Is enabled as default.
 #   - Verbose  : Some read io will be notified with (Write-Verbose) which can be enabled by VerbosePreference.
 #   - Debug    : Some minor additional information are notified with (Write-Debug) which can be enabled by DebugPreference.
 # - Comparison with null: All such comparing statements have the null constant on the left side ($null -eq $a)
@@ -55,7 +55,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "6.00"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "6.01"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -107,8 +107,8 @@ $Global:OutputEncoding                = [Console]::OutputEncoding ; # for pipe t
 # Import some modules (because it is more performant to do it once than doing this in each function using methods of this module).
 # Note: for example on "Windows Server 2008 R2" we currently are missing these modules but we ignore the errors because it its enough if the functions which uses these modules will fail.
 #   The specified module 'ScheduledTasks'/'SmbShare' was not loaded because no valid module file was found in any module directory.
-if( $null -ne (Import-Module -NoClobber -Name "ScheduledTasks" -ErrorAction Continue 2>&1) ){ $error.clear(); Write-Host -ForegroundColor Yellow "Ignored failing of Import-Module ScheduledTasks because it will fail later if a function is used from it."; }
-if( $null -ne (Import-Module -NoClobber -Name "SmbShare"       -ErrorAction Continue 2>&1) ){ $error.clear(); Write-Host -ForegroundColor Yellow "Ignored failing of Import-Module SmbShare       because it will fail later if a function is used from it."; }
+if( $null -ne (Import-Module -NoClobber -Name "ScheduledTasks" -ErrorAction Continue 2>&1) ){ $error.clear(); Write-Warning "Ignored failing of Import-Module ScheduledTasks because it will fail later if a function is used from it."; }
+if( $null -ne (Import-Module -NoClobber -Name "SmbShare"       -ErrorAction Continue 2>&1) ){ $error.clear(); Write-Warning "Ignored failing of Import-Module SmbShare       because it will fail later if a function is used from it."; }
 # Import-Module "SmbWitness"; # for later usage
 # Import-Module "ServerManager"; # Is not always available, requires windows-server-os or at least Win10Prof with installed RSAT. Because seldom used we do not try to load it here.
 # Import-Module "SqlServer"; # not always used so we dont load it here.
@@ -139,7 +139,7 @@ function ForEachParallel {
   param( [Parameter(Mandatory=$true,position=0)]              [System.Management.Automation.ScriptBlock] $ScriptBlock,
          [Parameter(Mandatory=$true,ValueFromPipeline=$true)] [PSObject]                                 $InputObject,
          [Parameter(Mandatory=$false)]                        [Int32]                                    $MaxThreads=8 )
-  # Note: for some unknown reason we sometimes get a red line "One or more errors occurred." 
+  # Note: for some unknown reason we sometimes get a red line "One or more errors occurred."
   # and maybe "Collection was modified; enumeration operation may not execute." but it continuous successfully.
   BEGIN{
     try{
@@ -157,7 +157,7 @@ function ForEachParallel {
       #   $sharedQueue = [System.Collections.Queue]::Synchronized([System.Collections.Queue]::new());
       $pool = [Runspacefactory]::CreateRunspacePool(1,$maxthreads,$iss,$host); $pool.open();
       # alternative: $pool = [Runspacefactory]::CreateRunspacePool($iss); $pool.SetMinRunspaces(1) | Out-Null; $pool.SetMaxRunspaces($maxthreads) | Out-Null;
-      # no effect: $pool.ApartmentState = "MTA"; 
+      # no effect: $pool.ApartmentState = "MTA";
       $threads = @();
       $ScriptBlock = $ExecutionContext.InvokeCommand.NewScriptBlock("param(`$_)`r`n"+$Scriptblock.ToString());
     }catch{ $Host.UI.WriteErrorLine("ForEachParallel-BEGIN: $($_)"); }
@@ -205,8 +205,8 @@ function ForEachParallel {
         }
       }
     }catch{
-      # ex: 2018-07: Exception calling "EndInvoke" with "1" argument(s) "Der ausgeführte Befehl wurde beendet, da die 
-      #              Einstellungsvariable "ErrorActionPreference" oder ein allgemeiner Parameter auf "Stop" festgelegt ist: 
+      # ex: 2018-07: Exception calling "EndInvoke" with "1" argument(s) "Der ausgeführte Befehl wurde beendet, da die
+      #              Einstellungsvariable "ErrorActionPreference" oder ein allgemeiner Parameter auf "Stop" festgelegt ist:
       #              Es ist ein allgemeiner Fehler aufgetreten, für den kein spezifischerer Fehlercode verfügbar ist.."
       $Host.UI.WriteErrorLine("ForEachParallel-END: $($_)");
     }
@@ -441,7 +441,8 @@ function AssertRcIsOk                         ( [String[]] $linesToOutProgress =
                                                   [String] $msg = "Last operation failed [rc=$rc]. ";
                                                   if( $useLinesAsExcMessage ){ $msg = $(switch($rc -eq 1 -and $out -ne ""){($true){""}default{$msg}}) + ([String]$linesToOutProgress).Trim(); }
                                                   try{ OutProgress "Dump of logfile=$($logFileToOutProgressIfFailed):";
-                                                    FileReadContentAsLines $logFileToOutProgressIfFailed $encodingIfNoBom | Where-Object{$null -ne $_} | ForEach-Object{ OutProgress "  $_"; } }catch{}
+                                                    FileReadContentAsLines $logFileToOutProgressIfFailed $encodingIfNoBom | Where-Object{$null -ne $_} | ForEach-Object{ OutProgress "  $_"; }
+                                                  }catch{ Write-Debug "Ignoring problems on reading $logFileToOutProgressIfFailed failed because $($_.Exception.Message)"; }
                                                   throw [Exception] $msg; } }
 function ScriptImportModuleIfNotDone          ( [String] $moduleName ){ if( -not (Get-Module $moduleName) ){ OutProgress "Import module $moduleName (can take some seconds on first call)"; Import-Module -NoClobber $moduleName -DisableNameChecking; } }
 function ScriptGetCurrentFunc                 (){ return [String] ((Get-Variable MyInvocation -Scope 1).Value.MyCommand.Name); }
@@ -456,13 +457,17 @@ function ScriptGetProcessCommandLine          (){ return [String] ([environment]
 function ScriptGetDirOfLibModule              (){ return [String] $PSScriptRoot ; } # Get dir       of this script file of this function or empty if not from a script; alternative: (Split-Path -Parent -Path ($script:MyInvocation.MyCommand.Path))
 function ScriptGetFileOfLibModule             (){ return [String] $PSCommandPath; } # Get full path of this script file of this function or empty if not from a script. alternative1: try{ return [String] (Get-Variable MyInvocation -Scope 1 -ValueOnly).MyCommand.Path; }catch{ return [String] ""; }  alternative2: $script:MyInvocation.MyCommand.Path
 function ScriptGetCallerOfLibModule           (){ return [String] $MyInvocation.PSCommandPath; } # Result can be empty or implicit module if called interactive. alternative for dir: $MyInvocation.PSScriptRoot.
-function ScriptGetTopCaller                   (){ # return the command line with correct doublequotes
-                                                [String] $f = $global:MyInvocation.MyCommand.Definition.Trim(); # Result can be empty or implicit module if called interactive. usage ex: "&'C:\Temp\A.ps1'" or '&"C:\Temp\A.ps1"' or on ISE '"C:\Temp\A.ps1"'
+function ScriptGetTopCaller                   (){ # return the command line with correct doublequotes.
+                                                # Result can be empty or implicit module if called interactive.
+                                                # usage ex: "&'C:\Temp\A.ps1'" or '&"C:\Temp\A.ps1"' or on ISE '"C:\Temp\A.ps1"'
+                                                [String] $f = $global:MyInvocation.MyCommand.Definition.Trim();
                                                 if( $f -eq "" -or $f -eq "ScriptGetTopCaller" ){ return [String] ""; }
                                                 if( $f.StartsWith("&") ){ $f = $f.Substring(1,$f.Length-1).Trim(); }
                                                 if( ($f -match "^\'.+\'$") -or ($f -match "^\`".+\`"$") ){ $f = $f.Substring(1,$f.Length-2); }
                                                 return [String] $f; }
-function ScriptIsProbablyInteractive          (){ [String] $f = $global:MyInvocation.MyCommand.Definition.Trim(); # Result can be empty or implicit module if called interactive. usage ex: "&'C:\Temp\A.ps1'" or '&"C:\Temp\A.ps1"' or on ISE '"C:\Temp\A.ps1"'
+function ScriptIsProbablyInteractive          (){ [String] $f = $global:MyInvocation.MyCommand.Definition.Trim();
+                                                # Result can be empty or implicit module if called interactive.
+                                                # usage ex: "&'C:\Temp\A.ps1'" or '&"C:\Temp\A.ps1"' or on ISE '"C:\Temp\A.ps1"'
                                                 return [Boolean] $f -eq "" -or $f -eq "ScriptGetTopCaller" -or -not $f.StartsWith("&"); }
 function StreamAllProperties                  (){ $input | Select-Object *; }
 function StreamAllPropertyTypes               (){ $input | Get-Member -Type Property; }
@@ -471,7 +476,8 @@ function StreamToNull                         (){ $input | Out-Null; }
 function StreamToString                       (){ $input | Out-String -Width 999999999; }
 function StreamToStringDelEmptyLeadAndTrLines (){ $input | Out-String -Width 999999999 | ForEach-Object{ $_ -replace "[ \f\t\v]]+\r\n","\r\n" -replace "^(\r\n)+","" -replace "(\r\n)+$","" }; }
 function StreamToGridView                     (){ $input | Out-GridView -Title "TableData"; }
-function StreamToCsvStrings                   (){ $input | ConvertTo-Csv -NoTypeInformation; } # Note: For a simple string array as ex: @("one","two")|StreamToCsvStrings  it results with 3 lines "Length","one","two".
+function StreamToCsvStrings                   (){ $input | ConvertTo-Csv -NoTypeInformation; }
+                                                # Note: For a simple string array as ex: @("one","two")|StreamToCsvStrings  it results with 3 lines "Length","3","3".
 function StreamToJsonString                   (){ $input | ConvertTo-Json -Depth 100; }
 function StreamToJsonCompressedString         (){ $input | ConvertTo-Json -Depth 100 -Compress; }
 function StreamToXmlString                    (){ $input | ConvertTo-Xml -Depth 999999999 -As String -NoTypeInformation; }
@@ -479,14 +485,17 @@ function StreamToHtmlTableStrings             (){ $input | ConvertTo-Html -Title
 function StreamToHtmlListStrings              (){ $input | ConvertTo-Html -Title "TableData" -Body $null -As List; }
 function StreamToListString                   (){ $input | Format-List -ShowError | StreamToStringDelEmptyLeadAndTrLines; }
 function StreamToFirstPropMultiColumnString   (){ $input | Format-Wide -AutoSize -ShowError | StreamToStringDelEmptyLeadAndTrLines; }
-function StreamToCsvFile                      ( [String] $file, [Boolean] $overwrite = $false, [String] $encoding = "UTF8" ){ # If overwrite is false then nothing done if target already exists.
+function StreamToCsvFile                      ( [String] $file, [Boolean] $overwrite = $false, [String] $encoding = "UTF8" ){
+                                                # If overwrite is false then nothing done if target already exists.
                                                 $input | Export-Csv -Force:$overwrite -NoClobber:$(-not $overwrite) -NoTypeInformation -Encoding $encoding -Path (FsEntryEsc $file); }
-function StreamToXmlFile                      ( [String] $file, [Boolean] $overwrite = $false, [String] $encoding = "UTF8" ){ # If overwrite is false then nothing done if target already exists.
+function StreamToXmlFile                      ( [String] $file, [Boolean] $overwrite = $false, [String] $encoding = "UTF8" ){
+                                                # If overwrite is false then nothing done if target already exists.
                                                 $input | Export-Clixml -Force:$overwrite -NoClobber:$(-not $overwrite) -Depth 999999999 -Encoding $encoding -Path (FsEntryEsc $file); }
 function StreamToDataRowsString               ( [String[]] $propertyNames = @() ){
                                                 if( $propertyNames.Count -eq 0 ){ $propertyNames = @("*"); }
                                                 $input | Format-Table -Wrap -Force -autosize -HideTableHeaders $propertyNames | StreamToStringDelEmptyLeadAndTrLines; }
-function StreamToTableString                  ( [String[]] $propertyNames = @() ){ # Note: For a simple string array as ex: @("one","two")|StreamToCsvStrings  it results with 3 lines "Length","one","two".
+function StreamToTableString                  ( [String[]] $propertyNames = @() ){
+                                                # Note: For a simple string array as ex: @("one","two")|StreamToTableString  it results with 4 lines "Length","------","     3","     3".
                                                 if( $propertyNames.Count -eq 0 ){ $propertyNames = @("*"); }
                                                 $input | Format-Table -Wrap -Force -autosize $propertyNames | StreamToStringDelEmptyLeadAndTrLines; }
 function OutInfo                              ( [String] $line ){ Write-Host -ForegroundColor $global:InfoLineColor -NoNewline "$line`r`n"; } # NoNewline is used because on multi threading usage line text and newline can be interrupted between.
@@ -524,16 +533,16 @@ function ProcessRestartInElevatedAdminMode    (){ if( (ProcessIsRunningInElevate
 function ProcessGetCurrentThreadId            (){ return [Int32] [Threading.Thread]::CurrentThread.ManagedThreadId; }
 function ProcessGetNrOfCores                  (){ return [Int32] (Get-WMIObject Win32_ComputerSystem).NumberOfLogicalProcessors; }
 function ProcessListRunnings                  (){ return [Object[]] (@()+(Get-Process * | Where-Object{$null -ne $_} | Where-Object{ $_.Id -ne 0 } | Sort-Object ProcessName)); }
-function ProcessListRunningsFormatted         (){ return [Object[]] (@()+( ProcessListRunnings | Select Name, Id, 
-                                                    @{Name="CpuMSec";Expression={[Decimal]::Floor($_.TotalProcessorTime.TotalMilliseconds).ToString().PadLeft(7,' ')}}, 
+function ProcessListRunningsFormatted         (){ return [Object[]] (@()+( ProcessListRunnings | Select-Object Name, Id,
+                                                    @{Name="CpuMSec";Expression={[Decimal]::Floor($_.TotalProcessorTime.TotalMilliseconds).ToString().PadLeft(7,' ')}},
                                                     StartTime, @{Name="Prio";Expression={($_.BasePriority)}}, @{Name="WorkSet";Expression={($_.WorkingSet64)}}, Path | StreamToTableString  )); }
 function ProcessListRunningsAsStringArray     (){ return [String[]] (@()+(ProcessListRunnings | Where-Object{$null -ne $_} | Format-Table -auto -HideTableHeaders " ",ProcessName,ProductVersion,Company | StreamToStringDelEmptyLeadAndTrLines)); }
 function ProcessIsRunning                     ( [String] $processName ){ return [Boolean] ($null -ne (Get-Process -ErrorAction SilentlyContinue ($processName -replace ".exe",""))); }
 function ProcessCloseMainWindow               ( [String] $processName ){ # enter name without exe extension.
-                                                while( (ProcessIsRunning $processName) ){ 
-                                                  Get-Process $processName | ForEach-Object { 
-                                                    OutProgress "CloseMainWindows `"$processName`""; 
-                                                    $_.CloseMainWindow() | Out-Null; 
+                                                while( (ProcessIsRunning $processName) ){
+                                                  Get-Process $processName | ForEach-Object {
+                                                    OutProgress "CloseMainWindows `"$processName`"";
+                                                    $_.CloseMainWindow() | Out-Null;
                                                     ProcessSleepSec 1; }; } }
 function ProcessKill                          ( [String] $processName ){ # kill all with the specified name, note if processes are not from owner then it requires to previously call ProcessRestartInElevatedAdminMode
                                                 [System.Diagnostics.Process[]] $p = Get-Process ($processName -replace ".exe","") -ErrorAction SilentlyContinue;
@@ -1787,7 +1796,7 @@ function NetPingHostIsConnectable             ( [String] $hostName, [Boolean] $d
                                                 if( -not $doRetryWithFlushDns ){ return [Boolean] $false; }
                                                 OutVerbose "Host $hostName not reachable, so flush dns, nslookup and retry";
                                                 & "ipconfig.exe" "/flushdns" | out-null; # note option /registerdns would require more privs
-                                                try{ [System.Net.Dns]::GetHostByName($hostName); }catch{}
+                                                try{ [System.Net.Dns]::GetHostByName($hostName); }catch{ Write-Debug "Ignoring GetHostByName($hostName) failed because $($_.Exception.Message)"; }
                                                 # nslookup $hostName -ErrorAction SilentlyContinue | out-null;
                                                 return [Boolean] (Test-Connection -Cn $hostName -BufferSize 16 -Count 1 -ea 0 -quiet); }
 function NetGetIpConfig                       (){ [String[]] $out = @()+(& "IPCONFIG.EXE" "/ALL"          ); AssertRcIsOk $out; return [String[]] $out; }
@@ -2060,7 +2069,7 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                 if( $onlyIfNewer -and (FileExists $tarFile) ){ $opt += @( "--time-cond", $tarFile); }
                                                 [String] $curlExe = ProcessGetCommandInEnvPathOrAltPaths "curl.exe" @() "Please download it from http://curl.haxx.se/download.html and install it and add dir to path env var.";
                                                 [String] $curlCaCert = "$(FsEntryGetParentDir $curlExe)\curl-ca-bundle.crt";
-                                                # 2021-10: Because windows has its own curl.exe and windows-system32 folder is one of the first folders in path var 
+                                                # 2021-10: Because windows has its own curl.exe and windows-system32 folder is one of the first folders in path var
                                                 #   and does not care a file curl-ca-bundle.crt next to the exe as it is descripted in https://curl.se/docs/sslcerts.html we need a solution for it.
                                                 #   So if the current curl.exe is that from system32 folder then we self are looking for crt file in path var and use it for https requests.
                                                 if( $curlExe -eq "$env:SystemRoot\System32\curl.exe" ){
@@ -2115,8 +2124,11 @@ function NetDownloadToStringByCurl            ( [String] $url, [String] $us = ""
                                                 [String] $tmp = (FileGetTempFile); NetDownloadFileByCurl $url $tmp $us $pw $ignoreSslCheck $onlyIfNewer;
                                                 [String] $result = (FileReadContentAsString $tmp $encodingIfNoBom); FileDelTempFile $tmp; return [String] $result; }
 function NetDownloadIsSuccessful              ( [String] $url ){ # test wether an url is downloadable or not
-                                                [Boolean] $res = $false; try{ GlobalSetModeHideOutProgress $true; [Boolean] $ignoreSslCheck = $true;
-                                                [String] $dummyStr = NetDownloadToString $url "" "" $ignoreSslCheck; $res = $true; }catch{} GlobalSetModeHideOutProgress $false; return [Boolean] $res; }
+                                                [Boolean] $res = $false;
+                                                try{ GlobalSetModeHideOutProgress $true; [Boolean] $ignoreSslCheck = $true;
+                                                  [String] $dummyStr = NetDownloadToString $url "" "" $ignoreSslCheck; $res = $true;
+                                                }catch{ Write-Debug "Ignoring problems on NetDownloadToString $url failed because $($_.Exception.Message)"; }
+                                                GlobalSetModeHideOutProgress $false; return [Boolean] $res; }
 function NetDownloadSite                      ( [String] $url, [String] $tarDir, [Int32] $level = 999, [Int32] $maxBytes = ([Int32]::MaxValue), [String] $us = "",
                                                   [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Int32] $limitRateBytesPerSec = ([Int32]::MaxValue), [Boolean] $alsoRetrieveToParentOfUrl = $false ){
                                                 # Mirror site to dir; wget: HTTP, HTTPS, FTP. Logfile is written into target dir. Password is not logged.
@@ -2366,7 +2378,7 @@ function GitDisableAutoCrLf                   (){ # no output if nothing done.
                                                 . git config --global core.autocrlf false; <# maybe later: git config --global --unset core.autocrlf #> }
 function GitCloneOrPullUrls                   ( [String[]] $listOfRepoUrls, [String] $tarRootDirOfAllRepos, [Boolean] $errorAsWarning = $false ){
                                                 # Works later multithreaded and errors are written out, collected and throwed at the end.
-                                                # If you want single threaded then call it with only one item in the list. 
+                                                # If you want single threaded then call it with only one item in the list.
                                                 [String[]] $errorLines = @();
                                                 function GetOne( [String] $url ){
                                                   try{
@@ -2636,7 +2648,7 @@ function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url
                                                     }
                                                     [String] $msg = "$(ScriptGetCurrentFunc)(dir=`"$workDir`",url=$url,user=$user) failed because $m. Logfile=`"$svnLogFile`".";
                                                     FileAppendLineWithTs $svnLogFile $msg;
-                                                    [Boolean] $isKnownProblemToSolveWithRetry = $m.Contains(" E120106:") -or $m.Contains(" E155037:") -or 
+                                                    [Boolean] $isKnownProblemToSolveWithRetry = $m.Contains(" E120106:") -or $m.Contains(" E155037:") -or
                                                       $m.Contains(" E155004:") -or $m.Contains(" E170013:") -or $m.Contains(" E175002:") -or $m.Contains(" E200014:") -or $m.Contains(" E200030:");
                                                     if( -not $isKnownProblemToSolveWithRetry -or $nrOfTries -ge $maxNrOfTries ){ throw [Exception] $msg; }
                                                     [String] $msg2 = "Is try nr $nrOfTries of $maxNrOfTries, will do cleanup, wait 30 sec and if not reached max then retry.";
@@ -3422,7 +3434,7 @@ function ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [Strin
                                                   if( $runElevated ){
                                                     [Byte[]] $bytes = [IO.File]::ReadAllBytes($lnkFile); $bytes[0x15] = $bytes[0x15] -bor 0x20; [IO.File]::WriteAllBytes($lnkFile,$bytes);  # set bit 6 of byte nr 21
                                                   } } }
-function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [String] $sourceDir, 
+function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [String] $sourceDir,
                                                 [String] $srcFileExtMenuLink    = ".menulink.txt",
                                                 [String] $srcFileExtMenuLinkOpt = ".menulinkoptional.txt" ){
                                                 # Create menu entries based on menu-item-linkfiles below a dir.
@@ -3431,11 +3443,11 @@ function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [St
                                                 #                            For each of these files it will create a menu item below the target menu root dir.
                                                 # - srcFileExtMenuLink     : Extension for mandatory menu linkfiles. The containing referenced command (in general an executable) must exist.
                                                 # - $srcFileExtMenuLinkOpt : Extension for optional  menu linkfiles. Menu item is created only if the containing referenced executable will exist.
-                                                # The name of the target menu item (ex: "Manufactor ProgramName V1") will be taken from the name 
-                                                #   of the menu-item-linkfile (ex: ...\Manufactor ProgramName V1.menulink.txt) without the extension (ex: ".menulink.txt") 
+                                                # The name of the target menu item (ex: "Manufactor ProgramName V1") will be taken from the name
+                                                #   of the menu-item-linkfile (ex: ...\Manufactor ProgramName V1.menulink.txt) without the extension (ex: ".menulink.txt")
                                                 #   and the sub menu folder will be taken from the relative location of the menu-item-linkfile below the sourceDir.
                                                 # The command for the target menu will be taken from the first line (ex: "D:\MyApps\Manufactor ProgramName\AnyProgram.exe")
-                                                #   of the content of the menu-item-linkfile. 
+                                                #   of the content of the menu-item-linkfile.
                                                 # If target lnkfile already exists it does nothing.
                                                 # Example: ToolCreateMenuLinksByMenuItemRefFile "$env:APPDATA\Microsoft\Windows\Start Menu\Apps" "D:\MyApps" ".menulink.txt";
                                                 [String] $m = FsEntryGetAbsolutePath $targetMenuRootDir; # ex: "C:\Users\u1\AppData\Roaming\Microsoft\Windows\Start Menu\MyPortableProg"
@@ -3622,7 +3634,7 @@ function ToolWin10PackageInstall              ( [String] $packageName ){ # ex: "
                                                   OutProgress "Ok, `"$packageName`" is already installed."; }
                                                 else{
                                                   [String] $name = (Get-WindowsCapability -Online | Where-Object name -like "${packageName}~*").Name;
-                                                  [String] $out = Add-WindowsCapability -Online -name $name; # example output: "Path          :\nOnline        : True\nRestartNeeded : False"
+                                                  [String] $dummyOut = Add-WindowsCapability -Online -name $name; # example output: "Path          :\nOnline        : True\nRestartNeeded : False"
                                                   [String] $restartNeeded = (Get-WindowsCapability -Online -name $packageName).RestartNeeded;
                                                   OutInfo "Ok, installation done, current state=$(ToolWin10PackageGetState $packageName) RestartNeeded=$restartNeeded Name=$name";
                                                 } }
@@ -3633,13 +3645,13 @@ function ToolWin10PackageDeinstall            ( [String] $packageName ){
                                                   OutProgress "Ok, `"$packageName`" is already deinstalled."; }
                                                 else{
                                                   [String] $name = (Get-WindowsCapability -Online | Where-Object name -like "${packageName}~*").Name;
-                                                  [String] $out = Remove-WindowsCapability -Online -name $name;
+                                                  [String] $dummyOut = Remove-WindowsCapability -Online -name $name;
                                                   [String] $restartNeeded = (Get-WindowsCapability -Online -name $packageName).RestartNeeded;
                                                   OutInfo "Ok, deinstallation done, current state=$(ToolWin10PackageGetState $packageName) RestartNeeded=$restartNeeded Name=$name";
                                                 } }
 function ToolOsWindowsResetSystemFileIntegrity(){ # uses about 4 min
                                                 ProcessRestartInElevatedAdminMode;
-                                                [String] $f = "$env:SystemRoot\Logs\CBS\CBS.log"; 
+                                                [String] $f = "$env:SystemRoot\Logs\CBS\CBS.log";
                                                 OutProgress "Check and repair missing, corrupted or ownership-settings of system files and afterwards dump last lines of logfile '$f'";
                                                 # https://support.microsoft.com/de-ch/help/929833/use-the-system-file-checker-tool-to-repair-missing-or-corrupted-system
                                                 # https://support.microsoft.com/en-us/kb/929833
@@ -3652,7 +3664,7 @@ function ToolOsWindowsResetSystemFileIntegrity(){ # uses about 4 min
                                                 OutProgress "Run: Dism.exe /Online /Cleanup-Image /RestoreHealth ";
                                                 & "Dism.exe" "/Online" "/Cleanup-Image" "/RestoreHealth"; ScriptResetRc; # uses about 2 min; also repairs autoupdate;
                                                 OutProgress "Dump last lines of logfile '$f':";
-                                                FileGetLastLines $f 100 | Foreach-Object{ OutProgress "  $_"; }; 
+                                                FileGetLastLines $f 100 | Foreach-Object{ OutProgress "  $_"; };
                                                 OutInfo "Ok, checked and repaired missing, corrupted or ownership-settings of system files and logged to '$env:Windows\Logs\CBS\CBS.log'"; }
 function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $url, [Boolean] $requireElevatedAdminMode = $false,
                                                   [Boolean] $doWaitIfFailed = $false, [String] $additionalOkUpdMsg = "",
@@ -3789,23 +3801,23 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #     Recommendation: do not use [System.IO.Path]::GetFullPath, use Resolve-Path.
 #   - ForEach-Object iterates at lease once with $null in pipeline:
 #     see http://stackoverflow.com/questions/4356758/how-to-handle-null-in-the-pipeline
-#     $null | ForEach-Object{ write-host "ok reached, at least one iteration in pipeline with $null has been done." }
-#     But:  @() | ForEach-Object{ write-host "NOT OK, reached this unexpected." }
+#     $null | ForEach-Object{ write-Output "ok reached, at least one iteration in pipeline with $null has been done." }
+#     But:  @() | ForEach-Object{ write-Output "NOT OK, reached this unexpected." }
 #     Workaround if array variable can be null, then use:
-#       $null | Where-Object{$null -ne $_} | ForEach-Object{ write-host "NOT OK, reached this unexpected." }
+#       $null | Where-Object{$null -ne $_} | ForEach-Object{ write-Output "NOT OK, reached this unexpected." }
 #     Alternative:
 #       $null | ForEach-Object -Begin{if($null -eq $_){continue}} -Process {do your stuff here}
 #     Recommendation: Pipelines which use only Select-Object, ForEach-Object and Sort-Object to produce a output for console or logfiles are ignorable
 #       but for others you should avoid side effects in pipelines by always using: |Where-Object{$null -ne $_}
 #   - Compare empty array with $null:
-#     [String[]] $a = @(); if( $a -is [String[]] ){ write-host "ok reached, var of expected type." };
-#     if( $a.count -eq 0 ){ write-host "ok reached, count can be used."; }
-#     if(      ($a -eq $null) ){ write-host "NOT OK, reached this unexpected."; }
-#     if(      ($a -ne $null) ){ write-host "NOT OK, reached this unexpected."; }
-#     if( -not ($a -eq $null) ){ write-host "ok reached, compare not-null array wether it is null or not null is always false"; }
-#     if( -not ($a -ne $null) ){ write-host "ok reached, compare not-null array wether it is null or not null is always false"; }
-#     if( -not ($null -eq $a) ){ write-host "ok reached, compare array with null must be done by preceeding null."; }
-#     if(      ($null -ne $a) ){ write-host "ok reached, compare array with null must be done by preceeding null."; }
+#     [String[]] $a = @(); if( $a -is [String[]] ){ write-Output "ok reached, var of expected type." };
+#     if( $a.count -eq 0 ){ write-Output "ok reached, count can be used."; }
+#     if(      ($a -eq $null) ){ write-Output "NOT OK, reached this unexpected."; }
+#     if(      ($a -ne $null) ){ write-Output "NOT OK, reached this unexpected."; }
+#     if( -not ($a -eq $null) ){ write-Output "ok reached, compare not-null array wether it is null or not null is always false"; }
+#     if( -not ($a -ne $null) ){ write-Output "ok reached, compare not-null array wether it is null or not null is always false"; }
+#     if( -not ($null -eq $a) ){ write-Output "ok reached, compare array with null must be done by preceeding null."; }
+#     if(      ($null -ne $a) ){ write-Output "ok reached, compare array with null must be done by preceeding null."; }
 #     [Boolean] $r = @() -eq $null; # this throws!
 #     Recommendation: When comparing array with null then always put null on the left side.
 #       More simple when comparing any value with null then always put null on the left side.
@@ -3814,16 +3826,16 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #     see https://stackoverflow.com/questions/18476634/powershell-doesnt-return-an-empty-array-as-an-array
 #       function ReturnEmptyArray(){ return [String[]] @(); }
 #       function ReturnNullArray(){ return [String[]] $null; }
-#       if( $null -eq (ReturnEmptyArray) ){ write-host "ok reached, function return null"; }
-#       if( $null -eq (ReturnNullArray)  ){ write-host "ok reached, function return null"; }
-#       if( (@()+(ReturnEmptyArray                          )).Count -eq 0 ){ write-host "ok reached, function return null"; }
-#       if( (@()+(ReturnNullArray                           )).Count -eq 1 ){ write-host "ok reached, function return null but one element"; }
-#       if( (@()+(ReturnNullArray|Where-Object{$null -ne $_})).Count -eq 0 ){ write-host "ok reached, function return null but converted to empty array"; }
+#       if( $null -eq (ReturnEmptyArray) ){ write-Output "ok reached, function return null"; }
+#       if( $null -eq (ReturnNullArray)  ){ write-Output "ok reached, function return null"; }
+#       if( (@()+(ReturnEmptyArray                          )).Count -eq 0 ){ write-Output "ok reached, function return null"; }
+#       if( (@()+(ReturnNullArray                           )).Count -eq 1 ){ write-Output "ok reached, function return null but one element"; }
+#       if( (@()+(ReturnNullArray|Where-Object{$null -ne $_})).Count -eq 0 ){ write-Output "ok reached, function return null but converted to empty array"; }
 #     Recommendation: After a call of a function which returns an array then add an empty array.
 #       If its possible that a function can returns null instead of an empty array then also use (|Where-Object{$null -ne $_})
 #   - Empty array in pipeline is converted to $null:
 #       [String[]] $a = (([String[]]@()) | Where-Object{$null -ne $_});
-#       if( $null -eq $a ){ write-host "ok reached, var is null." };
+#       if( $null -eq $a ){ write-Output "ok reached, var is null." };
 #     Recommendation: After pipelining add an empty array.
 #       [String[]] $a = (@()+(@()|Where-Object{$null -ne $_})); Assert ($null -ne $a);
 #   - Variable name conflict: ... | ForEach-Object{ [String[]] $a = $_; ... }; [Array] $a = ...;
@@ -3832,7 +3844,7 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #       or dot-source the command that you are using to set the variable.
 #     Recommendation: Rename one of the variables.
 #   - DotNet functions as Split() can return empty arrays:
-#       [String[]] $a = "".Split(";",[System.StringSplitOptions]::RemoveEmptyEntries); if( $a.Count -eq 0 ){ write-host "ok reached"; }
+#       [String[]] $a = "".Split(";",[System.StringSplitOptions]::RemoveEmptyEntries); if( $a.Count -eq 0 ){ write-Output "ok reached"; }
 #   - Exceptions are always catched within Pipeline Expression statement and instead of expecting the throw it returns $null:
 #     [Object[]] $a = @( "a", "b" ) | Select-Object -Property @{Name="Field1";Expression={$_}} |
 #       Select-Object -Property Field1,
@@ -3869,7 +3881,7 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #       ".\myscript.ps1"
 #   - Dot Sourcing Operator (.) runs script in local scope, variables and functions persists in shell after script end, used to include ps artefacts:
 #       . ".\myscript.ps1"
-#       . { Write-Host "Test"; }
+#       . { write-Output "Test"; }
 #       powershell.exe -command ". .\myscript.ps1"
 #       powershell.exe -file      ".\myscript.ps1"
 #   - Call operator (&), runs a script, executable, function or scriptblock,

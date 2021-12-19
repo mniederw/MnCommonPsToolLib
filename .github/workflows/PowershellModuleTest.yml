@@ -1,19 +1,26 @@
 name: PowershellModuleTest
 
-on: # Triggers the workflow on push or pull request events but only for the master branch
-  push:
-    branches: [ master ]
+on: 
+  push: # Triggers the workflow on push or pull request events but only for the given branches
+    branches:
+      [ main ]
+    paths-ignore:
+      - '*.txt'
   pull_request:
-    branches: [ master ]
-  
+    branches:
+      [ main ]
+    paths-ignore:
+      - '*.txt'
+
   workflow_dispatch:  # Allows you to run this workflow manually from the Actions tab
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest  # 2021-12: Ubuntu-V20.04.3-LTS contains PowerShell-V7.2; alternatives: windows-latest (=WinServer2019), macos-latest(=macOS Catalina 10.15).
     steps:
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it # 2021-12: to '/home/runner/work/MnCommonPsToolLib/MnCommonPsToolLib'
       - uses: actions/checkout@v2
 
       - name: Install PSScriptAnalyzer module from PSGallery
@@ -22,21 +29,28 @@ jobs:
           Set-PSRepository PSGallery -InstallationPolicy Trusted
           Install-Module PSScriptAnalyzer -ErrorAction Stop
           Install-Module SqlServer
+          Install-Module ScheduledTasks
+          Install-Module SmbShare
 
-      - name: Lint with PSScriptAnalyzer
+      - name: Run PSScriptAnalyzer on all ps files - Check ps and make improving suggestions
         shell: pwsh
         run: |
-          Invoke-ScriptAnalyzer -Path . -Recurse -Outvariable issues -ExcludeRule PSAvoidUsingConvertToSecureStringWithPlainText, PSAvoidUsingUsernameAndPasswordParams, PSAvoidUsingPlainTextForPassword, PSAvoidUsingEmptyCatchBlock, PSAvoidUsingWriteHost, PSAvoidGlobalVars, PSUseDeclaredVarsMoreThanAssignments, PSAvoidUsingPositionalParameters
-          $errors   = $issues.Where({$_.Severity -eq 'Error'})
-          $warnings = $issues.Where({$_.Severity -eq 'Warning'})
-          if ($errors) {
-              Write-Error "There were $($errors.Count) errors and $($warnings.Count) warnings total." -ErrorAction Stop
-          } else {
-              Write-Output "There were $($errors.Count) errors and $($warnings.Count) warnings total."
-          }
+          Invoke-ScriptAnalyzer -Path . -Recurse -Outvariable issues -ExcludeRule PSAvoidUsingConvertToSecureStringWithPlainText, PSAvoidUsingUsernameAndPasswordParams, PSAvoidUsingPlainTextForPassword, PSAvoidUsingEmptyCatchBlock, PSAvoidUsingWriteHost, PSAvoidGlobalVars, PSUseDeclaredVarsMoreThanAssignments, PSAvoidUsingPositionalParameters;
+          $nrOfErrors   = $issues.Where({$_.Severity -eq 'Error'  }).Count;
+          $nrOfWarnings = $issues.Where({$_.Severity -eq 'Warning'}).Count;
+          if( $nrOfErrors -gt 0){ Write-Error "There were total $nrOfErrors errors and $nrOfWarnings warnings." -ErrorAction Stop; }
+          else                  { Write-Output "There were total $nrOfErrors errors and $nrOfWarnings warnings."; }
 
-      # - name: Test import
-      #  run: Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"
+      - name: Test import of this powershell lib
+        shell: pwsh
+        run: Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"
+
+      - name: Run UnitTest
+        shell: pwsh
+        run: |
+          Examples/ExampleUseOfMnCommonPsToolLib03_NoWaitAtEnd.ps1;
+          Examples/ExampleUseOfMnCommonPsToolLib04_Test.ps1;
+          Examples/MnCommonPsToolLibUnitTest.ps1;
 
       - name: Message for future use
         run: echo Later add testings here
