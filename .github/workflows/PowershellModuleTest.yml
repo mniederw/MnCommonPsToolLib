@@ -3,12 +3,12 @@ name: PowershellModuleTest
 on: 
   push: # Triggers the workflow on push or pull request events but only for the given branches
     branches:
-      [ main ]
+      [ main, trunk ]
     paths-ignore:
       - '*.txt'
   pull_request:
     branches:
-      [ main ]
+      [ main, trunk ]
     paths-ignore:
       - '*.txt'
 
@@ -29,8 +29,6 @@ jobs:
           Set-PSRepository PSGallery -InstallationPolicy Trusted
           Install-Module PSScriptAnalyzer -ErrorAction Stop
           Install-Module SqlServer
-          Install-Module ScheduledTasks
-          Install-Module SmbShare
 
       - name: Run PSScriptAnalyzer on all ps files - Check ps and make improving suggestions
         shell: pwsh
