@@ -3,12 +3,12 @@ name: PowershellModuleTest
 on: 
   push: # Triggers the workflow on push or pull request events but only for the given branches
     branches:
-      [ main, trunk ]
+      [ main ]
     paths-ignore:
       - '*.txt'
   pull_request:
     branches:
-      [ main, trunk ]
+      [ trunk ]
     paths-ignore:
       - '*.txt'
 
@@ -41,14 +41,14 @@ jobs:
 
       - name: Test import of this powershell lib
         shell: pwsh
-        run: Import-Module -NoClobber -Name "MnCommonPsToolLib/MnCommonPsToolLib.psm1"
+        run: Import-Module -NoClobber -Name "$GITHUB_WORKSPACE/MnCommonPsToolLib/MnCommonPsToolLib.psm1"
 
       - name: Run UnitTest
         shell: pwsh
         run: |
-          Examples/ExampleUseOfMnCommonPsToolLib03_NoWaitAtEnd.ps1;
-          Examples/ExampleUseOfMnCommonPsToolLib04_Test.ps1;
-          Examples/MnCommonPsToolLibUnitTest.ps1;
+          $GITHUB_WORKSPACE/Examples/ExampleUseOfMnCommonPsToolLib03_NoWaitAtEnd.ps1;
+          $GITHUB_WORKSPACE/Examples/ExampleUseOfMnCommonPsToolLib04_Test.ps1;
+          $GITHUB_WORKSPACE7Examples/MnCommonPsToolLibUnitTest.ps1;
 
       - name: Message for future use
         run: echo Later add testings here
