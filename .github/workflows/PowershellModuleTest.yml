@@ -17,7 +17,7 @@ on:
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
   build:
-    runs-on: ubuntu-latest  # 2021-12: Ubuntu-V20.04.3-LTS contains PowerShell-V7.2; alternatives: windows-latest (=WinServer2019), macos-latest(=macOS Catalina 10.15).
+    runs-on: windows-latest  # ubuntu-latest 2021-12: Ubuntu-V20.04.3-LTS contains PowerShell-V7.2; alternatives: windows-latest (=WinServer2019), macos-latest(=macOS Catalina 10.15).
     steps:
 
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it # 2021-12: to '/home/runner/work/MnCommonPsToolLib/MnCommonPsToolLib'
@@ -27,8 +27,7 @@ jobs:
         shell: pwsh
         run: |
           Set-PSRepository PSGallery -InstallationPolicy Trusted
-          Install-Module PSScriptAnalyzer -ErrorAction Stop
-          Install-Module SqlServer
+          Install-Module PSScriptAnalyzer, SqlServer -ErrorAction Stop
 
       - name: Run PSScriptAnalyzer on all ps files - Check ps and make improving suggestions
         shell: pwsh
@@ -39,16 +38,24 @@ jobs:
           if( $nrOfErrors -gt 0){ Write-Error "There were total $nrOfErrors errors and $nrOfWarnings warnings." -ErrorAction Stop; }
           else                  { Write-Output "There were total $nrOfErrors errors and $nrOfWarnings warnings."; }
 
+      - name: Test wether this powershell lib exists
+        shell: pwsh
+        run: Test-Path "MnCommonPsToolLib/MnCommonPsToolLib.psm1" | Should -Be $true
+
       - name: Test import of this powershell lib
         shell: pwsh
-        run: Import-Module -NoClobber -Name "$GITHUB_WORKSPACE/MnCommonPsToolLib/MnCommonPsToolLib.psm1"
+        run: |
+          Set-Location "MnCommonPsToolLib";
+          Import-Module "MnCommonPsToolLib.psm1";
+          Write-Output "MnCommonPsToolLibVersion: $Global:MnCommonPsToolLibVersion";
+          Write-Output "OsPsVersion: $(OsPsVersion)";
 
       - name: Run UnitTest
         shell: pwsh
         run: |
-          $GITHUB_WORKSPACE/Examples/ExampleUseOfMnCommonPsToolLib03_NoWaitAtEnd.ps1;
-          $GITHUB_WORKSPACE/Examples/ExampleUseOfMnCommonPsToolLib04_Test.ps1;
-          $GITHUB_WORKSPACE/Examples/MnCommonPsToolLibUnitTest.ps1;
+          ../Examples/ExampleUseOfMnCommonPsToolLib03_NoWaitAtEnd.ps1;
+          #../Examples/ExampleUseOfMnCommonPsToolLib04_Test.ps1;
+          #../Examples/MnCommonPsToolLibUnitTest.ps1;
 
       - name: Message for future use
         run: echo Later add testings here
