@@ -56,7 +56,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "6.02"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "6.03"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -105,6 +105,11 @@ $Global:OutputEncoding                = [Console]::OutputEncoding ; # for pipe t
 [System.Threading.Thread]::CurrentThread.CurrentUICulture = [System.Globalization.CultureInfo]::GetCultureInfo('en-US');
   # alternatives: [System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::GetCultureInfo('en-US'); Set-Culture en-US;
 
+# Recommended installed modules: Some functions may use the following modules 
+#   Install-Module PSScriptAnalyzer; # used by testing files for analysing powershell code
+#   Install-Module SqlServer       ; # used by SqlPerformFile, SqlPerformCmd. 
+#   Install-Module ThreadJob       ; # used by GitCloneOrPullUrls
+
 # Import some modules (because it is more performant to do it once than doing this in each function using methods of this module).
 # Note: for example on "Windows Server 2008 R2" we currently are missing these modules but we ignore the errors because it its enough if the functions which uses these modules will fail.
 #   The specified module 'ScheduledTasks'/'SmbShare' was not loaded because no valid module file was found in any module directory.
@@ -133,10 +138,12 @@ if( $null -eq (Get-Variable -Scope global -ErrorAction SilentlyContinue -Name Co
 # Statement extensions
 function ForEachParallel {
   # Note: In the statement block no functions or variables of the script where it is embedded can be used. Only from loaded modules.
+  #   Only the single variable $_ can be used.
   #   You can also not base on Auto-Load-Module in your script, so generally use Load-Module for each used module.
   # ex: (0..20) | ForEachParallel { Write-Output "Nr: $_"; Start-Sleep -Seconds 1; };
   # ex: (0..5)  | ForEachParallel -MaxThreads 2 { Write-Output "Nr: $_"; Start-Sleep -Seconds 1; };
   # Based on https://powertoe.wordpress.com/2012/05/03/foreach-parallel/
+  # In future we may use:  (1..20) | ForEach-Object -Parallel Write-Output "Nr: $_"; Start-Sleep -Seconds 1; } -ThrottleLimit 5
   param( [Parameter(Mandatory=$true,position=0)]              [System.Management.Automation.ScriptBlock] $ScriptBlock,
          [Parameter(Mandatory=$true,ValueFromPipeline=$true)] [PSObject]                                 $InputObject,
          [Parameter(Mandatory=$false)]                        [Int32]                                    $MaxThreads=8 )
@@ -144,15 +151,10 @@ function ForEachParallel {
   # and maybe "Collection was modified; enumeration operation may not execute." but it continuous successfully.
   BEGIN{
     try{
+      if( ($scriptblock.ToString() -replace "`$_","" -replace "`$true","" -replace "`$false","") -match "`$" ){
+        throw [Exception] "ForEachParallel(`{$scriptblock`}) has a dollar sign in script block and only [`$_,`$true,`$false] are allowed.";
+      }
       $iss = [System.Management.Automation.Runspaces.Initialsessionstate]::CreateDefault();
-      # found no change of behaviour if following is used:
-      #   # Import functions from the current session into the RunspacePool sessionstate for sharing for example host
-      #   Get-ChildItem Function:\ | Where-Object {$_.name -notlike "*:*"} | Select-Object name -ExpandProperty name | ForEach-Object {
-      #     $Definition = Get-Content "function:\$_";
-      #     # Create a sessionstate function with the same name and code and add it to sess state
-      #     $ssf = New-Object System.Management.Automation.Runspaces.SessionStateFunctionEntry -ArgumentList "$_", $Definition;
-      #     $iss.Commands.Add($ssf);
-      #   }
       # Note: for sharing data we need someting as:
       #   $sharedArray = [System.Collections.ArrayList]::Synchronized([System.Collections.ArrayList]::new());
       #   $sharedQueue = [System.Collections.Queue]::Synchronized([System.Collections.Queue]::new());
@@ -160,7 +162,7 @@ function ForEachParallel {
       # alternative: $pool = [Runspacefactory]::CreateRunspacePool($iss); $pool.SetMinRunspaces(1) | Out-Null; $pool.SetMaxRunspaces($maxthreads) | Out-Null;
       # no effect: $pool.ApartmentState = "MTA";
       $threads = @();
-      $ScriptBlock = $ExecutionContext.InvokeCommand.NewScriptBlock("param(`$_)`r`n"+$Scriptblock.ToString());
+      $scriptBlock = $ExecutionContext.InvokeCommand.NewScriptBlock("param(`$_)`r`n"+$scriptblock.ToString());
     }catch{ $Host.UI.WriteErrorLine("ForEachParallel-BEGIN: $($_)"); }
   }PROCESS{
     try{
@@ -380,7 +382,7 @@ function StdInAskForBoolean                   ( [String] $msg = "Enter Yes or No
                                                  [String] $answer = StdInReadLine ""; if( $answer -eq $strForYes ){ return [Boolean] $true ; }
                                                  if( $answer -eq $strForNo  ){ return [Boolean] $false; } } }
 function StdInWaitForAKey                     (){ StdInAssertAllowInteractions; $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") | Out-Null; } # does not work in powershell-ise, so in general do not use it, use StdInReadLine()
-function StdOutLine                           ( [String] $line ){ $Host.UI.WriteLine($line); } # Writes an stdout line in default color, normally not used, rather use OutInfo because it gives more information what to output.
+function StdOutLine                           ( [String] $line ){ $Host.UI.WriteLine($line); } # Writes an stdout line in default color, normally not used, rather use OutInfo because it classifies kind of output.
 function StdOutRedLineAndPerformExit          ( [String] $line, [Int32] $delayInSec = 1 ){ #
                                                 OutError $line; if( $global:ModeDisallowInteractions ){ ProcessSleepSec $delayInSec; }else{ StdInReadLine "Press Enter to Exit"; }; Exit 1; }
 function StdErrHandleExc                      ( [System.Management.Automation.ErrorRecord] $er, [Int32] $delayInSec = 1 ){
@@ -2264,7 +2266,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   StringSplitIntoLines $out | Where-Object{$null -ne $_} | Where-Object{ -not [String]::IsNullOrWhiteSpace($_) } | ForEach-Object{ $_.Trim() } |
                                                     Where-Object{ -not ($_.StartsWith("Checking out files: ") -and ($_.EndsWith(")") -or $_.EndsWith(", done."))) } |
                                                     ForEach-Object{ OutProgress $_; }
-                                                  OutSuccess "  Ok, usedTimeInSec=$([Int64]($usedTime.Elapsed.TotalSeconds+0.999)).";
+                                                  OutSuccess "  Ok, usedTimeInSec=$([Int64]($usedTime.Elapsed.TotalSeconds+0.999)) for url: $url";
                                                 }catch{
                                                   # ex:              fatal: HttpRequestException encountered.
                                                   # ex:              Fehler beim Senden der Anforderung.
@@ -2393,7 +2395,21 @@ function GitCloneOrPullUrls                   ( [String[]] $listOfRepoUrls, [Str
                                                   }
                                                 }
                                                 if( $listOfRepoUrls.Count -eq 1 ){ GetOne $listOfRepoUrls[0]; }
-                                                else{ $listOfRepoUrls | Where-Object{$null -ne $_} | ForEach-Object { GetOne $_; } }
+                                                else{
+                                                  [String] $tmp = (FileGetTempFile);
+                                                  $listOfRepoUrls | ForEach-Object { Start-ThreadJob -ThrottleLimit 8 -StreamingHost $host -ScriptBlock {
+                                                    try{
+                                                      GitCloneOrFetchOrPull $using:tarRootDirOfAllRepos $using:_ $true $using:errorAsWarning;
+                                                    }catch{
+                                                      [String] $msg = $_.Exception.Message; OutError $msg;
+                                                      FileAppendLine $using:tmp $msg;
+                                                    }
+                                                  } } | Wait-Job | Remove-Job;
+                                                  [String] $errMsg = (FileReadContentAsString $tmp); FileDelTempFile $tmp;
+                                                  if( $errMsg -ne "" ){ $errorLines += $errMsg; }
+                                                }
+                                                # alternative not yet works because vars: $listOfRepoUrls | Where-Object{$null -ne $_} | ForEachParallel -MaxThreads 10 { GitCloneOrFetchOrPull $tarRootDirOfAllRepos $_ $true $errorAsWarning; } }                                                  
+                                                # old else{ $listOfRepoUrls | Where-Object{$null -ne $_} | ForEach-Object { GetOne $_; } }
                                                 if( $errorLines.Count ){ throw [Exception] (StringArrayConcat $errorLines); } }
 <# Type: SvnEnvInfo #>                        Add-Type -TypeDefinition "public struct SvnEnvInfo {public string Url; public string Path; public string RealmPattern; public string CachedAuthorizationFile; public string CachedAuthorizationUser; public string Revision; }";
                                                 # ex: Url="https://myhost/svn/Work"; Path="D:\Work"; RealmPattern="https://myhost:443";

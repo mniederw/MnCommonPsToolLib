@@ -26,8 +26,8 @@ jobs:
       - name: Install PSScriptAnalyzer module from PSGallery
         shell: pwsh
         run: |
-          Set-PSRepository PSGallery -InstallationPolicy Trusted
-          Install-Module PSScriptAnalyzer, SqlServer -ErrorAction Stop
+          Set-PSRepository PSGallery -InstallationPolicy Trusted ;
+          Install-Module PSScriptAnalyzer, SqlServer, ThreadJob -ErrorAction Stop ;
 
       - name: Run PSScriptAnalyzer on all ps files - Check ps and make improving suggestions
         shell: pwsh
@@ -40,7 +40,7 @@ jobs:
 
       - name: Check powershell module library exists
         shell: pwsh
-        run: Test-Path "MnCommonPsToolLib/MnCommonPsToolLib.psm1" | Should -Be $true
+        run: Test-Path "MnCommonPsToolLib/MnCommonPsToolLib.psm1" | Should -Be $true ;
 
       - name: Run UnitTest
         shell: pwsh
