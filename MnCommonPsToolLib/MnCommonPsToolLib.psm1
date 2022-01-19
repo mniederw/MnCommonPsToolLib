@@ -151,9 +151,9 @@ function ForEachParallel {
   # and maybe "Collection was modified; enumeration operation may not execute." but it continuous successfully.
   BEGIN{
     try{
-      if( ($scriptblock.ToString() -replace "`$_","" -replace "`$true","" -replace "`$false","") -match "`$" ){
-        throw [Exception] "ForEachParallel(`{$scriptblock`}) has a dollar sign in script block and only [`$_,`$true,`$false] are allowed.";
-      }
+      # if( ($scriptblock.ToString() -replace "`$_","" -replace "`$true","" -replace "`$false","") -match "`$" ){
+      #   throw [Exception] "ForEachParallel(`{$scriptblock`}) has a dollar sign in script block and only [`$_,`$true,`$false] are allowed.";
+      # }
       $iss = [System.Management.Automation.Runspaces.Initialsessionstate]::CreateDefault();
       # Note: for sharing data we need someting as:
       #   $sharedArray = [System.Collections.ArrayList]::Synchronized([System.Collections.ArrayList]::new());
