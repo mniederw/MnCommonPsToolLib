@@ -56,7 +56,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "6.03"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "6.04"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -2271,7 +2271,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   # ex:              fatal: HttpRequestException encountered.
                                                   # ex:              Fehler beim Senden der Anforderung.
                                                   # ex:              fatal: AggregateException encountered.
-                                                  # ex:              Logon failed, use ctrl+c to cancel basic credential prompt.
+                                                  # ex:              Logon failed, use ctrl+c to cancel basic credential prompt.  - bash: /dev/tty: No such device or address - error: failed to execute prompt script (exit code 1) - fatal: could not read Username for 'https://github.com': No such file or directory
                                                   # ex: Clone rc=128 remote: Repository not found.\nfatal: repository 'https://github.com/mniederw/UnknownRepo/' not found
                                                   # ex:              fatal: Not a git repository: 'D:\WorkGit\mniederw\UnknownRepo\.git'
                                                   # ex:              error: unknown option `anyUnknownOption'
@@ -2546,6 +2546,10 @@ function SvnCleanup                           ( [String] $workDir ){
                                                 FileAppendLineWithTs $svnLogFile "SvnCleanup(`"$workDir`")";
                                                 # For future alternative option: --trust-server-cert-failures unknown-ca,cn-mismatch,expired,not-yet-valid,other
                                                 [String[]] $out = @()+(& (SvnExe) "cleanup" --non-interactive $workDir); AssertRcIsOk $out;
+                                                # At 2022-01 we got:
+                                                #   svn: E155009: Failed to run the WC DB work queue associated with '\\myserver\MyShare\Work', work item 363707 (sync-file-flags 102 MyDir/MyFile.ext)
+                                                #   svn: E720002: Can't set file '\\myserver\MyShare\Work\MyDir\MyFile.ext' read-write: Das System kann die angegebene Datei nicht finden.
+                                                #   Then manually the missing file had to be put to the required location.
                                                 FileAppendLines $svnLogFile (StringArrayInsertIndent $out 2); }
 function SvnStatus                            ( [String] $workDir, [Boolean] $showFiles ){
                                                 # Return true if it has any pending changes, otherwise false.
