@@ -202,7 +202,7 @@ function MnLibCommonSelfTest(){ # perform some tests
     OutProgress "  IsInteractive=$(ScriptIsProbablyInteractive); Trap=Enabled; Note: Exception was not throwed and catch block not reached. We found out this happens in batch only for unknown reason. If runing interactive then works ok. Analyse it later.";
   }
 
-  Assert         ((ToolVs2019UserFolderGetLatestUsed -eq "") -or (ToolVs2019UserFolderGetLatestUsed.Contains("\\AppData\\Local\\Microsoft\\VisualStudio\\16.0")));
+  Assert         (((ToolVs2019UserFolderGetLatestUsed) -eq "") -or ((ToolVs2019UserFolderGetLatestUsed).Contains("\\AppData\\Local\\Microsoft\\VisualStudio\\16.0")));
 
   OutProgress "ToolWin10PackageGetState of OpenSSH.Client: $(ToolWin10PackageGetState "OpenSSH.Client")"
   # Discard non-readonly test for: ToolWin10PackageInstall "OpenSSH.Client"
