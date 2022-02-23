@@ -40,8 +40,8 @@ jobs:
 
       - name: Install package manager pnpm
         uses: pnpm/action-setup@v1.2.1
-          with:
-            version: 4.11.1
+        with:
+          version: 4.11.1
 
 #     - name: Install node.js
 #       uses: actions/setup-node@v1 
