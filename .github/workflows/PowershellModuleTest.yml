@@ -25,11 +25,31 @@ jobs:
       # - macos-latest    =macOS 11
       # More see: https://github.com/actions/virtual-environments/
 
+#   strategy:
+#     matrix:
+#       node-version: [14.x]
+#       
+#   if: github.ref == 'refs/heads/mybranch'
+
     steps:
 
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       #   2021-12: to '/home/runner/work/MnCommonPsToolLib/MnCommonPsToolLib'
+      - name: Checkout repository
       - uses: actions/checkout@v2
+
+      - name: Install package manager pnpm
+        uses: pnpm/action-setup
+
+#     - name: Install node.js
+#       uses: actions/setup-node@v1 
+#       with:
+#         node-version: ${{ matrix.node-version }}
+#         path: node_modules
+
+#     - name: Install tools
+#       run: |
+#             pnpm install --global lodash
 
       # Default runners have installed: PS7 and Pester.
       # More about PS: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-powershell#powershell-module-locations
