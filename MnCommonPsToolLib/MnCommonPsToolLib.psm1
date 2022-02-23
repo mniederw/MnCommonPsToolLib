@@ -21,7 +21,7 @@
 # - Comparison with null: All such comparing statements have the null constant on the left side ($null -eq $a)
 #   because for arrays this is mandatory (throws: @() -eq $null)
 # - All powershell function returning an array should always return empty array instead of null because  ((@()+(AnyFuncReturnNull)).Count -eq 1);
-#   We achieve that for example by return [String[]] (@()+($arrCanBeNull | Where-Object{$null -ne $_}));
+#   We achieve that for example by return [String[]] (@()+($arrCanBeNull));
 # - After calling a powershell function returning an array you should always preceed it with
 #   an empty array (@()+(f)) to avoid null values or alternatively use append operator ($a = @(); $a += f).
 #
@@ -56,7 +56,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "6.04"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "6.05"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -1434,7 +1434,7 @@ function FileReadContentAsString              ( [String] $file, [String] $encodi
                                                 return [String] (FileReadContentAsLines $file $encodingIfNoBom | Out-String -Width ([Int32]::MaxValue)); }
 function FileReadContentAsLines               ( [String] $file, [String] $encodingIfNoBom = "Default" ){
                                                 # Note: if BOM exists then this is taken. Otherwise often use "UTF8".
-                                                OutVerbose "FileRead $file"; return [String[]] (@()+(Get-Content -Encoding $encodingIfNoBom -LiteralPath $file | Where-Object{$null -ne $_})); }
+                                                OutVerbose "FileRead $file"; return [String[]] (@()+(Get-Content -Encoding $encodingIfNoBom -LiteralPath $file)); }
 function FileReadJsonAsObject                 ( [String] $jsonFile ){
                                                 Get-Content -Raw -Path $jsonFile | ConvertFrom-Json; }
 function FileWriteFromString                  ( [String] $file, [String] $content, [Boolean] $overwrite = $true, [String] $encoding = "UTF8" ){
@@ -1566,7 +1566,7 @@ function CredentialWriteToFile                ( [System.Management.Automation.PS
 function CredentialRemoveFile                 ( [String] $secureCredentialFile ){
                                                 OutProgress "CredentialRemoveFile `"$secureCredentialFile`""; FileDelete $secureCredentialFile; }
 function CredentialReadFromFile               ( [String] $secureCredentialFile ){
-                                                [String[]] $s = (@()+(StringSplitIntoLines (FileReadContentAsString $secureCredentialFile "Default") | Where-Object{$null -ne $_}));
+                                                [String[]] $s = (@()+(StringSplitIntoLines (FileReadContentAsString $secureCredentialFile "Default")));
                                                 try{ [String] $us = $s[0]; [System.Security.SecureString] $pwSecure = CredentialGetSecureStrFromHexString $s[1];
                                                   # alternative: New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $User, (Get-Content -Encoding Default -LiteralPath $secureCredentialFile | ConvertTo-SecureString)
                                                   return [System.Management.Automation.PSCredential] (New-Object System.Management.Automation.PSCredential((CredentialStandardizeUserWithDomain $us), $pwSecure));
@@ -3481,8 +3481,8 @@ function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [St
                                                 Assert ($srcFileExtMenuLink    -ne "" -or (-not $srcFileExtMenuLink.EndsWith("\")   )) "srcMenuLinkFileExt=`"$srcFileExtMenuLink`" is empty or has trailing backslash";
                                                 Assert ($srcFileExtMenuLinkOpt -ne "" -or (-not $srcFileExtMenuLinkOpt.EndsWith("\"))) "srcMenuLinkOptFileExt=`"$srcFileExtMenuLinkOpt`" is empty or has trailing backslash";
                                                 if( -not (DirExists $sdir) ){ OutWarning "Ignoring dir not exists: `"$sdir`""; }
-                                                [String[]] $menuLinkFiles =  (@()+(FsEntryListAsStringArray "$sdir\*$srcFileExtMenuLink"    $true $false | Where-Object{$null -ne $_}));
-                                                           $menuLinkFiles += (FsEntryListAsStringArray "$sdir\*$srcFileExtMenuLinkOpt" $true $false | Where-Object{$null -ne $_});
+                                                [String[]] $menuLinkFiles =  (@()+(FsEntryListAsStringArray "$sdir\*$srcFileExtMenuLink"    $true $false));
+                                                           $menuLinkFiles += (FsEntryListAsStringArray "$sdir\*$srcFileExtMenuLinkOpt" $true $false);
                                                            $menuLinkFiles =  (@()+($menuLinkFiles | Where-Object{$null -ne $_} | Sort-Object));
                                                 foreach( $f in $menuLinkFiles ){ # ex: "...\MyProg .menulinkoptional.txt"
                                                   [String] $d = FsEntryGetParentDir $f; # ex: "D:\MyPortableProgs\Appl\Graphic"
@@ -3584,7 +3584,7 @@ function ToolGithubApiDownloadLatestReleaseDir( [String] $repoUrl ){
                                                 ToolUnzip $tarZip $tarDir; # Ex: ./mniederw-MnCommonPsToolLib-25dbfb0/*
                                                 FileDelete $tarZip;
                                                  # list flat dirs, ex: "C:\Temp\User_u2\MnCoPsToLib_catkmrpnfdp\mniederw-MnCommonPsToolLib-25dbfb0\"
-                                                [String[]] $dirs = (@()+(FsEntryListAsStringArray $tarDir $false $true $false | Where-Object{$null -ne $_}));
+                                                [String[]] $dirs = (@()+(FsEntryListAsStringArray $tarDir $false $true $false));
                                                 if( $dirs.Count -ne 1 ){ throw [Exception] "Expected one dir in `"$tarDir`" instead of: $dirs"; }
                                                 [String] $dir0 = $dirs[0];
                                                 FsEntryMoveByPatternToDir "$dir0\*" $tarDir;
@@ -3641,7 +3641,7 @@ function ToolVs2019UserFolderGetLatestUsed    (){
                                                 # example: "C:\Users\MyUser\AppData\Local\Microsoft\VisualStudio\16.0_d70392ef\"
                                                 [String] $result = "";
                                                 # we internally locate the private registry file used by vs2019, later maybe we use https://github.com/microsoft/vswhere
-                                                [String[]] $a = FsEntryListAsStringArray "$HOME\AppData\Local\Microsoft\VisualStudio\16.0_*\privateregistry.bin" $false $false;
+                                                [String[]] $a = (@()+(FsEntryListAsStringArray "$HOME\AppData\Local\Microsoft\VisualStudio\16.0_*\privateregistry.bin" $false $false));
                                                 if( $a.Count -gt 0 ){
                                                   $result = $a[0];
                                                   $a | Select-Object -Skip 1 | ForEach-Object { if( FileExistsAndIsNewer $_ $result ){ $result = $_; } }
