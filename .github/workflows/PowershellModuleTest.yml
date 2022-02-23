@@ -36,7 +36,7 @@ jobs:
       # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
       #   2021-12: to '/home/runner/work/MnCommonPsToolLib/MnCommonPsToolLib'
       - name: Checkout repository
-      - uses: actions/checkout@v2
+        uses: actions/checkout@v2
 
       - name: Install package manager pnpm
         uses: pnpm/action-setup
