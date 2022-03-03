@@ -23,6 +23,7 @@ jobs:
       # - ubuntu-latest   =Ubuntu-V20.04.3-LTS contains PowerShell-V7.2
       # - windows-latest  =WinServer2019, soon WinServer2022, see https://github.com/actions/virtual-environments/issues/4856
       # - macos-latest    =macOS 11
+      # - self-hosted     =own machine
       # More see: https://github.com/actions/virtual-environments/
 
 #   strategy:
