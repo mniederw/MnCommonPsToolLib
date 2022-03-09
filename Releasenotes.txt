@@ -5,6 +5,7 @@ Major version changes will reflect breaking changes and minor identifies extensi
 See description of major version with minor equal zero about breaking changes as removed deprecated functions or changed behavious.
 Current version can be requested by: $MnCommonPsToolLibVersion
 
+2022-03-08  V6.06  Added git reset. Declare as deprecated: GitCloneOrFetchOrPull, GitCloneOrFetchIgnoreError, GitCloneOrPullIgnoreError.
 2022-02-23  V6.05  Simplified array usage, fixed UnitTest
 2022-01-31  V6.04  Add comment
 2021-12-19  V6.03  Parallelize GitCloneOrPullUrls.
