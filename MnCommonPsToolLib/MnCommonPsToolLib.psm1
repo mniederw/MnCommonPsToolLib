@@ -56,7 +56,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "6.05"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "6.06"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -599,7 +599,9 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 $pr.Dispose();
                                                 return [String] $out; }
 function ProcessEnvVarGet                     ( [String] $name, [System.EnvironmentVariableTarget] $scope = [System.EnvironmentVariableTarget]::Process ){ return [String] [Environment]::GetEnvironmentVariable($name,$scope); }
-function ProcessEnvVarSet                     ( [String] $name, [String] $val, [System.EnvironmentVariableTarget] $scope = [System.EnvironmentVariableTarget]::Process ){ OutProgress "SetEnvironmentVariable scope=$scope $name=`"$val`""; [Environment]::SetEnvironmentVariable($name,$val,$scope); }
+function ProcessEnvVarSet                     ( [String] $name, [String] $val, [System.EnvironmentVariableTarget] $scope = [System.EnvironmentVariableTarget]::Process ){
+                                                 # Scope: MACHINE, USER, PROCESS.
+                                                 OutProgress "SetEnvironmentVariable scope=$scope $name=`"$val`""; [Environment]::SetEnvironmentVariable($name,$val,$scope); }
 function JobStart                             ( [ScriptBlock] $scr, [Object[]] $scrArgs = $null, [String] $name = "Job" ){ # Return job object of type PSRemotingJob, the returned object of the script block can later be requested.
                                                 return [System.Management.Automation.Job] (Start-Job -name $name -ScriptBlock $scr -ArgumentList $scrArgs); }
 function JobGet                               ( [String] $id ){ return [System.Management.Automation.Job] (Get-Job -Id $id); } # Return job object.
@@ -2213,32 +2215,41 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                 FileAppendLineWithTs $logf $state;
                                                 OutProgress $state; }
 <# Script local variable: gitLogFile #>       [String] $script:gitLogFile = "$script:LogDir\Git.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
-function GitBuildLocalDirFromUrl              ( [String] $tarRootDir, [String] $url ){
-                                                # Maps a root dir and an url to a target repo dir by containing all url fragments below the hostname.
+function GitBuildLocalDirFromUrl              ( [String] $tarRootDir, [String] $urlAndOptionalBranch ){
+                                                # Maps a root dir and a repo url with an optional sharp-char separated branch name
+                                                # to a target repo dir which contains all url fragments below the hostname.
                                                 # ex: (GitBuildLocalDirFromUrl "C:\WorkGit\" "https://github.com/mniederw/MnCommonPsToolLib")          == "C:\WorkGit\mniederw\MnCommonPsToolLib";
                                                 # ex: (GitBuildLocalDirFromUrl "C:\WorkGit\" "https://github.com/mniederw/MnCommonPsToolLib#MyBranch") == "C:\WorkGit\mniederw\MnCommonPsToolLib#MyBranch";
-                                                return [String] (FsEntryGetAbsolutePath (Join-Path $tarRootDir (([System.Uri]$url).AbsolutePath+([System.Uri]$url).Fragment).Replace("/","\"))); }
+                                                return [String] (FsEntryGetAbsolutePath (Join-Path $tarRootDir (([System.Uri]$urlAndOptionalBranch).AbsolutePath+([System.Uri]$urlAndOptionalBranch).Fragment).Replace("/","\"))); }
 function GitCmd                               ( [String] $cmd, [String] $tarRootDir, [String] $urlAndOptionalBranch, [Boolean] $errorAsWarning = $false ){
                                                 # For commands:
-                                                #   "Clone": Creates a full local copy of specified repo. Target dir must not exist.
-                                                #            Branch can be optionally specified, in that case it also will switch to this branch.
-                                                #            Default branch name is where the standard remote HEAD is pointing to, usually "master".
-                                                #   "Fetch": Get all changes from specified repo to local repo but without touching current working files.
-                                                #            Target dir must exist. Branch can be optionally specified but no switching will be done.
-                                                #   "Pull" : As Fetch but also integrates current branch into current working files.
-                                                #            Target dir must exist. Branch can be optionally specified but no switching will be done.
-                                                # For paths see GitBuildLocalDirFromUrl.
-                                                # $urlAndOptionalBranch defines url optionally with a sharp-char separated branch name
-                                                #   which is used for local dir and for clone command to switch to this branch.
+                                                #   "Clone"       : Creates a full local copy of specified repo. Target dir must not exist.
+                                                #                   Branch can be optionally specified, in that case it also will switch to this branch.
+                                                #                   Default branch name is where the standard remote HEAD is pointing to, usually "master".
+                                                #   "Fetch"       : Get all changes from specified repo to local repo but without touching current working files.
+                                                #                   Target dir must exist. Branch in repo url can be optionally specified but no switching will be done.
+                                                #   "Pull"        : First a Fetch and then it also merges current branch into current working files.
+                                                #                   Target dir must exist. Branch in repo url can be optionally specified but no switching will be done.
+                                                #   "CloneOrPull" : if target not exists then Clone otherwise Pull.
+                                                #   "CloneOrFetch": if target not exists then Clone otherwise Fetch.
+                                                #   "Reset"       : Reset-hard, loose all local changes. Same as delete folder and clone, but faster.
+                                                #                   Target dir must exist. If branch is specified then it will switch to it, otherwise will switch to main (or master).
+                                                # Target-Dir: see GitBuildLocalDirFromUrl.
+                                                # The urlAndOptionalBranch defines a repo url optionally with a sharp-char separated branch name.
+                                                # We assert the no AutoCrLf is used.
+                                                # Pull-No-Rebase: We generally use no-rebase for pull because commit history should not be modified.
                                                 # ex: GitCmd Clone "C:\WorkGit" "https://github.com/mniederw/MnCommonPsToolLib"
                                                 # ex: GitCmd Clone "C:\WorkGit" "https://github.com/mniederw/MnCommonPsToolLib#MyBranch"
-                                                if( @("Clone","Fetch","Pull") -notcontains $cmd ){ throw [Exception] "Expected one of (Clone,Fetch,Pull) instead of: $cmd"; }
+                                                if( @("Clone","Fetch","Pull","CloneOrPull","Reset") -notcontains $cmd ){
+                                                  throw [Exception] "Expected one of (Clone,Fetch,Pull,CloneOrPull,Reset) instead of: $cmd"; }
                                                 [String[]] $urlOpt = @()+(StringSplitToArray "#" $urlAndOptionalBranch);
-                                                [String] $url = $urlOpt[0];
+                                                [String] $url = $urlOpt[0]; # repo url without branch.
                                                 [String] $branch = ""; if( $urlOpt.Count -gt 1 ){ $branch = $urlOpt[1]; AssertNotEmpty $branch "branch in urlAndBranch=`"$urlAndOptionalBranch`". "; }
                                                 if( $urlOpt.Count -gt 2 ){ throw [Exception] "Unknown third param in urlAndBranch=`"$urlAndOptionalBranch`". "; }
                                                 [String] $dir = (GitBuildLocalDirFromUrl $tarRootDir $urlAndOptionalBranch);
                                                 GitAssertAutoCrLfIsDisabled;
+                                                if( $cmd -eq "CloneOrPull"  ){ if( (DirNotExists $dir) ){ $cmd = "Clone"; }else{ $cmd = "Pull" ; }}
+                                                if( $cmd -eq "CloneOrFetch" ){ if( (DirNotExists $dir) ){ $cmd = "Clone"; }else{ $cmd = "Fetch"; }}
                                                 try{
                                                   [Object] $usedTime = [System.Diagnostics.Stopwatch]::StartNew();
                                                   [String[]] $gitArgs = @();
@@ -2255,9 +2266,17 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                     # Defaults: "origin";
                                                     $gitArgs = @( "-C", $dir, "--git-dir=.git", "pull", "--quiet", "--no-stat", "--no-rebase", $url);
                                                     if( $branch -ne "" ){ $gitArgs += @( $branch ); }
+                                                  }elseif( $cmd -eq "Reset" ){
+                                                    GitCmd "Fetch" $tarRootDir $urlAndOptionalBranch $errorAsWarning;
+                                                    $gitArgs = @( "-C", $dir, "--git-dir=.git", "reset", "--hard", <# "--quiet", #> $url);
+                                                    # if( $branch -ne "" ){ $gitArgs += @( $branch ); }
+                                                    # alternative option: --hard origin/master
                                                   }else{ throw [Exception] "Unknown git cmd=`"$cmd`""; }
-                                                  # ex: "git" "-C" "C:\Temp\mniederw\myrepo" "--git-dir=.git" "pull" "--quiet" "--no-stat" "https://github.com/mniederw/myrepo"
                                                   FileAppendLineWithTs $gitLogFile "GitCmd(`"$tarRootDir`",$urlAndOptionalBranch) git $gitArgs";
+                                                  # ex: "git" "-C" "C:\Temp\mniederw\myrepo" "--git-dir=.git" "pull" "--quiet" "--no-stat" "--no-rebase" "https://github.com/mniederw/myrepo"
+                                                  # ex: "git" "clone" "--quiet" "--branch" "MyBranch" "--" "https://github.com/mniederw/myrepo" "C:\Temp\mniederw\myrepo#MyBranch"
+                                                  # TODO low prio: if (cmd is Fetch or Pull) and branch is not empty and current branch does not match specified branch then output progress message about it.
+                                                  # TODO middle prio: check env param pull.rebase and think about display and usage
                                                   [String] $out = ProcessStart "git" $gitArgs $true; # care stderr as stdout
                                                   # Skip known unused strings which are written to stderr as:
                                                   # - "Checking out files:  47% (219/463)" or "Checking out files: 100% (463/463), done."
@@ -2313,27 +2332,12 @@ function GitShowChanges                       ( [String] $repoDir ){
                                                 # return changed, deleted and new files or dirs. Per entry one line prefixed with a change code.
                                                 [String] $out = ProcessStart "git" @( "-C", $repoDir, "--git-dir=.git", "status", "--short");
                                                 return [String[]] (@()+(StringSplitIntoLines $out | Where-Object{$null -ne $_} | Where-Object{ -not [String]::IsNullOrWhiteSpace($_); })); }
-function GitCloneOrFetchOrPull                ( [String] $tarRootDir, [String] $urlAndOptionalBranch, [Boolean] $usePullNotFetch = $false, [Boolean] $errorAsWarning = $false ){
-                                                # Extracts path of url below host as relative dir, uses this path below target root dir to create or update git;
-                                                # ex: GitCloneOrFetchOrPull "C:\WorkGit"          "https://github.com/mniederw/MnCommonPsToolLib"
-                                                # ex: GitCloneOrFetchOrPull "C:\WorkGit\Branches" "https://github.com/mniederw/MnCommonPsToolLib#V1.0"
-                                                [String] $tarDir = (GitBuildLocalDirFromUrl $tarRootDir $urlAndOptionalBranch);
-                                                if( (DirExists $tarDir) ){
-                                                  if( $usePullNotFetch ){
-                                                    GitCmd "Pull" $tarRootDir $urlAndOptionalBranch $errorAsWarning;
-                                                  }else{
-                                                    GitCmd "Fetch" $tarRootDir $urlAndOptionalBranch $errorAsWarning;
-                                                  }
-                                                }else{
-                                                  GitCmd "Clone" $tarRootDir $urlAndOptionalBranch $errorAsWarning;
-                                                } }
-function GitCloneOrFetchIgnoreError           ( [String] $tarRootDir, [String] $url ){ GitCloneOrFetchOrPull $tarRootDir $url $false $true; }
-function GitCloneOrPullIgnoreError            ( [String] $tarRootDir, [String] $url ){ GitCloneOrFetchOrPull $tarRootDir $url $true  $true; }
 function GitListCommitComments                ( [String] $tarDir, [String] $localRepoDir, [String] $fileExtension = ".tmp", [String] $prefix = "Log.", [Int32] $doOnlyIfOlderThanAgeInDays = 14 ){
                                                 # Overwrite git log info files below specified target dir,
                                                 # For the name of the repo it takes the two last dir parts separated with a dot (NameOfRepoParent.NameOfRepo).
                                                 # It writes files as Log.NameOfRepoParent.NameOfRepo.CommittedComments.tmp and Log.NameOfRepoParent.NameOfRepo.CommittedChangedFiles.tmp
                                                 # It is quite slow about 10 sec per repo, so it can controlled by $doOnlyIfOlderThanAgeInDays.
+                                                # In case of a git error it outputs it as warning.
                                                 # ex: GitListCommitComments "C:\WorkGit\_CommitComments" "C:\WorkGit\mniederw\MnCommonPsToolLib"
                                                 [String] $dir = FsEntryGetAbsolutePath $localRepoDir;
                                                 [String] $repoName =  (Split-Path -Leaf (Split-Path -Parent $dir)) + "." + (Split-Path -Leaf $dir);
@@ -2389,7 +2393,7 @@ function GitCloneOrPullUrls                   ( [String[]] $listOfRepoUrls, [Str
                                                 [String[]] $errorLines = @();
                                                 function GetOne( [String] $url ){
                                                   try{
-                                                    GitCloneOrFetchOrPull $tarRootDirOfAllRepos $url $true $errorAsWarning;
+                                                    GitCmd "CloneOrPull" $tarRootDirOfAllRepos $url $errorAsWarning;
                                                   }catch{
                                                     [String] $msg = $_.Exception.Message; OutError $msg; $errorLines += $msg;
                                                   }
@@ -2399,7 +2403,7 @@ function GitCloneOrPullUrls                   ( [String[]] $listOfRepoUrls, [Str
                                                   [String] $tmp = (FileGetTempFile);
                                                   $listOfRepoUrls | ForEach-Object { Start-ThreadJob -ThrottleLimit 8 -StreamingHost $host -ScriptBlock {
                                                     try{
-                                                      GitCloneOrFetchOrPull $using:tarRootDirOfAllRepos $using:_ $true $using:errorAsWarning;
+                                                      GitCmd "CloneOrPull" $using:tarRootDirOfAllRepos $using:_ $using:errorAsWarning;
                                                     }catch{
                                                       [String] $msg = $_.Exception.Message; OutError $msg;
                                                       FileAppendLine $using:tmp $msg;
@@ -2408,7 +2412,7 @@ function GitCloneOrPullUrls                   ( [String[]] $listOfRepoUrls, [Str
                                                   [String] $errMsg = (FileReadContentAsString $tmp); FileDelTempFile $tmp;
                                                   if( $errMsg -ne "" ){ $errorLines += $errMsg; }
                                                 }
-                                                # alternative not yet works because vars: $listOfRepoUrls | Where-Object{$null -ne $_} | ForEachParallel -MaxThreads 10 { GitCloneOrFetchOrPull $tarRootDirOfAllRepos $_ $true $errorAsWarning; } }                                                  
+                                                # alternative not yet works because vars: $listOfRepoUrls | Where-Object{$null -ne $_} | ForEachParallel -MaxThreads 10 { GitCmd "CloneOrPull" $tarRootDirOfAllRepos $_ $errorAsWarning; } }                                                  
                                                 # old else{ $listOfRepoUrls | Where-Object{$null -ne $_} | ForEach-Object { GetOne $_; } }
                                                 if( $errorLines.Count ){ throw [Exception] (StringArrayConcat $errorLines); } }
 <# Type: SvnEnvInfo #>                        Add-Type -TypeDefinition "public struct SvnEnvInfo {public string Url; public string Path; public string RealmPattern; public string CachedAuthorizationFile; public string CachedAuthorizationUser; public string Revision; }";
@@ -3755,7 +3759,17 @@ function MnCommonPsToolLibSelfUpdate          ( [Boolean] $doWaitForEnterKeyIfFa
                                                 [Boolean] $dummyResult = ToolPerformFileUpdateAndIsActualized $moduleFile $url $requireElevatedAdminMode $doWaitForEnterKeyIfFailed $additionalOkUpdMsg $assertFilePreviouslyExists $performPing;
                                               }
 
-# DEPRECATED: currently none.
+# DEPRECATED:
+function GitCloneOrFetchOrPull                ( [String] $tarRootDir, [String] $urlAndOptionalBranch, [Boolean] $usePullNotFetch = $false, [Boolean] $errorAsWarning = $false ){
+                                                OutWarning "GitCloneOrFetchOrPull is deprecated since 2022-03, please replace by GitCmd";
+                                                GitCmd $(switch($usePullNotFetch){($true){"CloneOrPull"}default{"CloneOrFetch"}}) $tarRootDir $urlAndOptionalBranch $errorAsWarning; }
+function GitCloneOrFetchIgnoreError           ( [String] $tarRootDir, [String] $urlAndOptionalBranch ){
+                                                OutWarning "GitCloneOrFetchIgnoreError is deprecated since 2022-03, please replace by GitCmd";
+                                                GitCmd "CloneOrFetch" $tarRootDir $urlAndOptionalBranch $true; }
+function GitCloneOrPullIgnoreError            ( [String] $tarRootDir, [String] $urlAndOptionalBranch ){
+                                                OutWarning "GitCloneOrPullIgnoreError is deprecated since 2022-03, please replace by GitCmd";
+                                                GitCmd "CloneOrPull"  $tarRootDir $urlAndOptionalBranch $true; }
+
 
 
 # ----------------------------------------------------------------------------------------------------
