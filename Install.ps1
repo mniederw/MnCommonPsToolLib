@@ -11,21 +11,22 @@ function OutInfo                              ( [String] $line ){ OutStr "White"
 function OutProgress                          ( [String] $line ){ OutStr "DarkGray" $line $false; }
 function OutProgressText                      ( [String] $line ){ OutStr "DarkGray" $line $true ; }
 function OutQuestion                          ( [String] $line ){ OutStr "Cyan"     $line $true ; }
-function FsEntryMakeTrailingBackslash         ( [String] $fsEntry ){ [String] $result = $fsEntry;
-                                                if( -not $result.EndsWith("\") ){ $result += "\"; } return [String] $result; }
-function FsEntryRemoveTrailingBackslash       ( [String] $fsEntry ){ [String] $result = $fsEntry;
-                                                while( $result.Length -gt 1 -and $result.EndsWith("\") ){ $result = $result.Remove($result.Length-1); }
-                                                return [String] $result; }
+function DirSep                               (){ return [Char] [IO.Path]::DirectorySeparatorChar; }
+function FsEntryHasTrailingDirSep             ( [String] $fsEntry ){ return [Boolean] ($fsEntry.EndsWith("\") -or $fsEntry.EndsWith("/")); }
+function FsEntryRemoveTrailingDirSep          ( [String] $fsEntry ){ [String] $r = $fsEntry; 
+                                                if( $r -ne "" ){ while( FsEntryHasTrailingDirSep $r ){ $r = $r.Remove($r.Length-1); } if( $r -eq "" ){ $r = $fsEntry; } } return [String] $r; }
+function FsEntryMakeTrailingDirSep            ( [String] $fsEntry ){
+                                                [String] $result = $fsEntry; if( -not (FsEntryHasTrailingDirSep $result) ){ $result += $(DirSep); } return [String] $result; }
 function FsEntryGetAbsolutePath               ( [String] $fsEntry ){ return [String] ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($fsEntry)); }
 function OsPsModulePathList                   (){ return [String[]] ([Environment]::GetEnvironmentVariable("PSModulePath", "Machine").
                                                   Split(";",[System.StringSplitOptions]::RemoveEmptyEntries)); }
 function OsPsModulePathContains               ( [String] $dir ){ # ex: "D:\WorkGit\myaccount\MyPsLibRepoName"
-                                                [String[]] $a = (OsPsModulePathList | ForEach-Object{ FsEntryRemoveTrailingBackslash $_ });
-                                                return [Boolean] ($a -contains (FsEntryRemoveTrailingBackslash $dir)); }
+                                                [String[]] $a = (OsPsModulePathList | ForEach-Object{ FsEntryRemoveTrailingDirSep $_ });
+                                                return [Boolean] ($a -contains (FsEntryRemoveTrailingDirSep $dir)); }
 function OsPsModulePathAdd                    ( [String] $dir ){ if( OsPsModulePathContains $dir ){ return; }
-                                                OsPsModulePathSet ((OsPsModulePathList)+@( (FsEntryRemoveTrailingBackslash $dir) )); }
+                                                OsPsModulePathSet ((OsPsModulePathList)+@( (FsEntryRemoveTrailingDirSep $dir) )); }
 function OsPsModulePathDel                    ( [String] $dir ){ OsPsModulePathSet (OsPsModulePathList |
-                                                Where-Object{ (FsEntryRemoveTrailingBackslash $_) -ne (FsEntryRemoveTrailingBackslash $dir) }); }
+                                                Where-Object{ (FsEntryRemoveTrailingDirSep $_) -ne (FsEntryRemoveTrailingDirSep $dir) }); }
 function OsPsModulePathSet                    ( [String[]] $pathList ){ [Environment]::SetEnvironmentVariable("PSModulePath", ($pathList -join ";"), "Machine"); }
 function DirExists                            ( [String] $dir ){ try{ return [Boolean] (Test-Path -PathType Container -LiteralPath $dir ); }
                                                 catch{ throw [Exception] "DirExists($dir) failed because $($_.Exception.Message)"; } }
@@ -44,9 +45,9 @@ function ProcessRestartInElevatedAdminMode    (){ if( -not (ProcessIsRunningInEl
                                                 OutProgress "Not running in elevated administrator mode so elevate current script and exit: `n  $cmd";
                                                 Start-Process -Verb "RunAs" -FilePath "powershell.exe" -ArgumentList "& `"$cmd`" ";
                                                 [Environment]::Exit("0"); throw [Exception] "Exit done, but it did not work, so it throws now an exception."; } }
-function ShellSessionIs64not32Bit             (){ if( "${env:ProgramFiles}" -eq "$env:ProgramW6432"        ){ return [Boolean] $true ; }
-                                                elseif( "${env:ProgramFiles}" -eq "${env:ProgramFiles(x86)}" ){ return [Boolean] $false; }
-                                                else{ throw [Exception] "Expected ProgramFiles=`"${env:ProgramFiles}`" to be equals to ProgramW6432=`"$env:ProgramW6432`" or ProgramFilesx86=`"${env:ProgramFiles(x86)}`" "; } }
+function ShellSessionIs64not32Bit             (){ if( "$env:ProgramFiles" -eq "$env:ProgramW6432"        ){ return [Boolean] $true ; }
+                                                elseif( "$env:ProgramFiles" -eq "${env:ProgramFiles(x86)}" ){ return [Boolean] $false; }
+                                                else{ throw [Exception] "Expected ProgramFiles=`"$env:ProgramFiles`" to be equals to ProgramW6432=`"$env:ProgramW6432`" or ProgramFilesx86=`"${env:ProgramFiles(x86)}`" "; } }
 function UninstallDir                         ( [String] $d ){ OutProgress "RemoveDir '$d'. ";
                                                 if( DirExists $d ){ ProcessRestartInElevatedAdminMode; Remove-Item -Force -Recurse -LiteralPath $d; } }
 function UninstallSrcPath                     ( [String] $d ){ OutProgress "UninstallSrcPath '$d'. ";
