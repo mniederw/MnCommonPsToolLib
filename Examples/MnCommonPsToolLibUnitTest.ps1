@@ -219,6 +219,7 @@ function MnLibCommonSelfTest(){ # perform some tests
 
   # later test: FsEntryNotExistsOrIsOlderThanBeginOf
   # later test: FsEntryExistsAndIsNewerThanBeginOf
+  # later test: FsEntryNotExistsOrIsOlderThanNrDays
 
   # OutProgress "Test when ignoring traps";
   # for later:
@@ -229,6 +230,10 @@ function MnLibCommonSelfTest(){ # perform some tests
   # Assert ( ("ab"     ).Count -eq 1 );
   # Assert ( ($null    ).Count -eq 0 );
   # trap [Exception] { StdErrHandleExc $_; break; } # restore
+
+  # No IO is done for the followings:
+  Assert ([System.IO.Path]::GetDirectoryName("//anyhostname\AnyFolder\") -eq "\\anyhostname\AnyFolder");
+  Assert ($null -eq [System.IO.Path]::GetDirectoryName("C:\"));
 
   OutSuccess "Ok, done.";
 }

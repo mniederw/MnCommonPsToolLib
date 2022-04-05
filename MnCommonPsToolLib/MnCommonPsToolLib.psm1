@@ -1,5 +1,5 @@
 ﻿# Common powershell tool library
-# 2013-2021 produced by Marc Niederwieser, Switzerland. Licensed under GPL3. This is freeware.
+# 2013-2022 produced by Marc Niederwieser, Switzerland. Licensed under GPL3. This is freeware.
 # Published at: https://github.com/mniederw/MnCommonPsToolLib
 #
 # This library encapsulates many common commands for the purpose of:
@@ -24,39 +24,21 @@
 #   We achieve that for example by return [String[]] (@()+($arrCanBeNull));
 # - After calling a powershell function returning an array you should always preceed it with
 #   an empty array (@()+(f)) to avoid null values or alternatively use append operator ($a = @(); $a += f).
-#
+
 # Example usages of this module for a .ps1 script:
 #      # Simple example for using MnCommonPsToolLib
 #      Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 #      OutInfo "Hello world";
 #      OutProgress "Working";
 #      StdInReadLine "Press enter to exit.";
-# or
-#      # Simple example for using MnCommonPsToolLib with standard interactive mode
-#      $Global:ErrorActionPreference = "Stop"; trap [Exception] { $Host.UI.WriteErrorLine($_); Read-Host; break; }
-#      Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
-#      OutInfo "Simple example for using MnCommonPsToolLib with standard interactive mode";
-#      StdOutBegMsgCareInteractiveMode; # will ask: if you are sure (y/n)
-#      OutProgress "Working";
-#      StdOutEndMsgCareInteractiveMode; # will write: Ok, done. Press Enter to Exit
-# or
-#      # Simple example for using MnCommonPsToolLib with standard interactive mode without request or waiting
-#      Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
-#      OutInfo "Simple example for using MnCommonPsToolLib with standard interactive mode without request or waiting";
-#      StdOutBegMsgCareInteractiveMode "NoRequestAtBegin, NoWaitAtEnd"; # will nothing write
-#      OutProgress "Working";
-#      StdOutEndMsgCareInteractiveMode; # will write: "Ok, done. Ending in 1 second(s)."
-# or
-#      [CmdletBinding()] Param( [parameter(Mandatory=$true)] [String] $p1, [parameter(Mandatory=$true)] [String] $p2 )
-#      OutInfo "Parameters: p1=$p1 p2=$p2";
-#
+#   More examples see: https://github.com/mniederw/MnCommonPsToolLib/tree/main/Examples
 
 # Do not change the following line, it is a powershell statement and not a comment! Note: if it would be run interactively then it would throw: RuntimeException: Error on creating the pipeline.
 #Requires -Version 3.0
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "6.07"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "6.08"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -250,6 +232,7 @@ function StringRemoveOptEnclosingDblQuotes    ( [String] $s ){ if( $s.Length -ge
 function StringArrayInsertIndent              ( [String[]] $lines, [Int32] $nrOfBlanks ){ return [String[]] (@()+($lines | Where-Object{$null -ne $_} | ForEach-Object{ ((" "*$nrOfBlanks)+$_); })); }
 function StringArrayDistinct                  ( [String[]] $lines ){ return [String[]] (@()+($lines | Where-Object{$null -ne $_} | Select-Object -Unique)); }
 function StringArrayConcat                    ( [String[]] $lines, [String] $sep = [Environment]::NewLine ){ return [String] ($lines -join $sep); }
+function StringArrayContains                  ( [String[]] $a, [String] $itemCaseSensitive ){ return [Boolean] ($a.Contains($itemCaseSensitive)); }
 function StringArrayIsEqual                   ( [String[]] $a, [String[]] $b, [Boolean] $ignoreOrder = $false, [Boolean] $ignoreCase = $false ){
                                                 if( $null -eq $a ){ return [Boolean] ($null -eq $b -or $b.Count -eq 0); }
                                                 if( $null -eq $b ){ return [Boolean] ($null -eq $a -or $a.Count -eq 0); }
@@ -260,6 +243,8 @@ function StringArrayIsEqual                   ( [String[]] $a, [String[]] $b, [B
                                                 for( [Int32] $i = 0; $i -lt $a.Count; $i++ ){
                                                   if( ($ignoreCase -and $a[$i] -ne $b[$i]) -or (-not $ignoreCase -and $a[$i] -cne $b[$i]) ){ return [Boolean] $false; }
                                                 } return [Boolean] $true; }
+function StringArrayDblQuoteItems             ( [String[]] $a ){ # surround each item by double quotes
+                                                return [String[]] (@()+($a | Where-Object{$null -ne $_} | ForEach-Object { "`"$_`"" })); }
 function StringFromException                  ( [Exception] $ex ){ return [String] "$($ex.GetType().Name): $($ex.Message -replace `"`r`n`",`" `") $($ex.Data|Where-Object{$null -ne $_.Values}|ForEach-Object{`"`r`n Data: [$($_.Values)]`"})`r`n StackTrace:`r`n$($ex.StackTrace)"; } # use this if $_.Exception.Message is not enough. note: .Data is never null.
 function StringCommandLineToArray             ( [String] $commandLine ){
                                                 # Care spaces or tabs separated args and doublequoted args which can contain double doublequotes for escaping single doublequotes.
@@ -558,18 +543,33 @@ function ProcessGetCommandInEnvPathOrAltPaths ( [String] $commandNameOptionalWit
                                                 foreach( $d in $alternativePaths ){ [String] $f = (Join-Path $d $commandNameOptionalWithExtension); if( (FileExists $f) ){ return [String] $f; } }
                                                 throw [Exception] "$(ScriptGetCurrentFunc): commandName=`"$commandNameOptionalWithExtension`" was wether found in env-path=`"$env:PATH`" nor in alternativePaths=`"$alternativePaths`". $downloadHintMsg"; }
 function ProcessStart                         ( [String] $cmd, [String[]] $cmdArgs = @(), [Boolean] $careStdErrAsOut = $false ){
-                                                # Return output as string. If stderr is not empty then it throws its text.
+                                                # Mainly intended for starting a program with a window. 
+                                                # But also used for starting a command in path when arguments are provided in an array.
+                                                # Return output as a single string. If stderr is not empty then it throws its text.
                                                 # But if ErrorActionPreference is Continue or $careStdErrAsOut is true then stderr is simply appended to output.
                                                 # If it fails with an error then it will OutProgress the non empty lines of output before throwing.
-                                                # You can use StringSplitIntoLines on output to get lines.
-                                                AssertRcIsOk;
-                                                [String] $traceInfo = "`"$cmd`""; $cmdArgs | Where-Object{$null -ne $_} | ForEach-Object{ $traceInfo += " `"$_`""; };
-                                                OutProgress $traceInfo;
+                                                # You can use StringSplitIntoLines on output to get it as lines.
                                                 # We use an implementation which stores stdout and stderr internally to variables and not temporary files.
+                                                # Important Note: The original Process.Start(ProcessStartInfo) cannot run a ps1 file 
+                                                #   even if $env:PATHEXT contains the PS1 because it does not preceed it with (powershell.exe -File).
+                                                #   Our solution can do this by automatically use powershell.exe -NoLogo -File before the ps1 file 
+                                                #   and it surrounds the arguments correctly by double-quotes to support blanks in any argument.
+                                                AssertRcIsOk;
+                                                [String] $traceInfo = "`"$cmd`" $(StringArrayDblQuoteItems $cmdArgs)";
+                                                OutProgress $traceInfo;
+                                                [String] $exec = (Get-Command $cmd).Path
+                                                if( $exec.EndsWith(".ps1") ){
+                                                  $cmdArgs = @( "-NoLogo -File `"$exec`" $(StringArrayDblQuoteItems $cmdArgs)" );
+                                                  $exec = (Get-Command "powershell.exe").Path;
+                                                }
                                                 $prInfo = New-Object System.Diagnostics.ProcessStartInfo;
-                                                $prInfo.FileName = (Get-Command $cmd).Path; $prInfo.Arguments = $cmdArgs; $prInfo.CreateNoWindow = $true; $prInfo.WindowStyle = "Normal";
-                                                $prInfo.UseShellExecute = $false; <# nessessary for redirect io #>
-                                                $prInfo.RedirectStandardError = $true; $prInfo.RedirectStandardOutput = $true; $prInfo.RedirectStandardInput = $false;
+                                                $prInfo.FileName = $exec;
+                                                $prInfo.Arguments = $cmdArgs;
+                                                $prInfo.CreateNoWindow = $true;
+                                                $prInfo.WindowStyle = "Normal";
+                                                $prInfo.UseShellExecute = $false; <# UseShellExecute must be false when redirect io #>
+                                                $prInfo.RedirectStandardError = $true; $prInfo.RedirectStandardOutput = $true;
+                                                $prInfo.RedirectStandardInput = $false;
                                                 $pr = New-Object System.Diagnostics.Process; $pr.StartInfo = $prInfo;
                                                 # Note: We can not simply call WaitForExit() and after that read stdout and stderr streams because it could hang endless.
                                                 # The reason is the called program can produce child processes which can inherit redirect handles which can be still open
@@ -602,6 +602,11 @@ function ProcessEnvVarGet                     ( [String] $name, [System.Environm
 function ProcessEnvVarSet                     ( [String] $name, [String] $val, [System.EnvironmentVariableTarget] $scope = [System.EnvironmentVariableTarget]::Process ){
                                                  # Scope: MACHINE, USER, PROCESS.
                                                  OutProgress "SetEnvironmentVariable scope=$scope $name=`"$val`""; [Environment]::SetEnvironmentVariable($name,$val,$scope); }
+function ProcessRemoveAllAlias                ( [String[]] $excludeAliasNames = @() ){ # remove all existing aliases on any levels ((local, script, private, and global).
+                                                OutProgress "Remove all existing alias except [$excludeAliasNames].";
+                                                @(1,2,3,4,5) | ForEach-Object{ Get-Alias | Select-Object Name | ForEach-Object{ $_.Name } | 
+                                                Where-Object { $_ -notin $excludeAliasNames } |
+                                                Where-Object { Test-Path "Alias:$_" } | ForEach-Object{ Remove-Item -Force "Alias:$_"; }; } }
 function JobStart                             ( [ScriptBlock] $scr, [Object[]] $scrArgs = $null, [String] $name = "Job" ){ # Return job object of type PSRemotingJob, the returned object of the script block can later be requested.
                                                 return [System.Management.Automation.Job] (Start-Job -name $name -ScriptBlock $scr -ArgumentList $scrArgs); }
 function JobGet                               ( [String] $id ){ return [System.Management.Automation.Job] (Get-Job -Id $id); } # Return job object.
@@ -1082,13 +1087,13 @@ function TaskIsDisabled                       ( [String] $taskPathAndName ){
 function TaskDisable                          ( [String] $taskPathAndName ){
                                                 [String] $taskPath = (FsEntryMakeTrailingDirSep (FsEntryRemoveTrailingDirSep (Split-Path -Parent $taskPathAndName)));
                                                 [String] $taskName = Split-Path -Leaf $taskPathAndName;
-                                                if( !(TaskIsDisabled $taskPathAndName) ){ OutProgress "TaskDisable $taskPathAndName"; ProcessRestartInElevatedAdminMode;
-                                                try{ Disable-ScheduledTask -TaskPath $taskPath -TaskName $taskName | Out-Null; }
-                                                catch{ OutWarning "Warning: Ignore failing of disabling task `"$taskPathAndName`" because $($_.Exception.Message)"; } } }
+                                                if( !(TaskIsDisabled $taskPathAndName) ){
+                                                  OutProgress "TaskDisable $taskPathAndName"; ProcessRestartInElevatedAdminMode;
+                                                  try{ Disable-ScheduledTask -TaskPath $taskPath -TaskName $taskName | Out-Null; }
+                                                  catch{ OutWarning "Warning: Ignore failing of disabling task `"$taskPathAndName`" because $($_.Exception.Message)"; } } }
 function DirSep                               (){ return [Char] [IO.Path]::DirectorySeparatorChar; }
 function FsEntryEsc                           ( [String] $fsentry ){ AssertNotEmpty $fsentry "file-system-entry"; # Escaping is not nessessary if a command supports -LiteralPath.
                                                 return [String] [Management.Automation.WildcardPattern]::Escape($fsentry); } # Important for chars as [,], etc.
-
 function FsEntryGetAbsolutePath               ( [String] $fsEntry ){ # works without IO, so no check to file system; does not change a trailing backslash. Return empty for empty input.
                                                 # Note: We cannot use (Resolve-Path -LiteralPath $fsEntry) because it will throw if path not exists,
                                                 # see http://stackoverflow.com/questions/3038337/powershell-resolve-path-that-might-not-exist
@@ -2290,7 +2295,8 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   # - "Checking out files:  47% (219/463)" or "Checking out files: 100% (463/463), done."
                                                   # - warning: You appear to have cloned an empty repository.
                                                   # - The string "Already up to date." is presumebly suppressed by quiet option.
-                                                  StringSplitIntoLines $out | Where-Object{$null -ne $_} | Where-Object{ -not [String]::IsNullOrWhiteSpace($_) } | ForEach-Object{ $_.Trim() } |
+                                                  StringSplitIntoLines $out | Where-Object{$null -ne $_} | 
+                                                    Where-Object{ -not [String]::IsNullOrWhiteSpace($_) } | ForEach-Object{ $_.Trim() } |
                                                     Where-Object{ -not ($_.StartsWith("Checking out files: ") -and ($_.EndsWith(")") -or $_.EndsWith(", done."))) } |
                                                     ForEach-Object{ OutProgress $_; }
                                                   OutSuccess "  Ok, usedTimeInSec=$([Int64]($usedTime.Elapsed.TotalSeconds+0.999)) for url: $url";
@@ -2349,12 +2355,13 @@ function GitListCommitComments                ( [String] $tarDir, [String] $loca
                                                 # ex: GitListCommitComments "C:\WorkGit\_CommitComments" "C:\WorkGit\mniederw\MnCommonPsToolLib"
                                                 [String] $dir = FsEntryGetAbsolutePath $localRepoDir;
                                                 [String] $repoName =  (Split-Path -Leaf (Split-Path -Parent $dir)) + "." + (Split-Path -Leaf $dir);
-                                                function GitGetLog ([String] $mode, [String] $fout) {
+                                                function GitGetLog ([Boolean] $doSummary, [String] $fout) {
                                                   if( -not (FsEntryNotExistsOrIsOlderThanNrDays $fout $doOnlyIfOlderThanAgeInDays) ){
                                                     OutProgress "Process git log not nessessary because file is newer than $doOnlyIfOlderThanAgeInDays days: $fout";
                                                   }else{
-                                                    [String[]] $options = @( "--git-dir=$dir\.git", "log", "--after=1990-01-01", "--pretty=format:%ci %cn/%ce %s", $mode );
-                                                    OutProgressText "git $options ; ";
+                                                    [String[]] $options = @( "--git-dir=$dir\.git", "log", "--after=1990-01-01", "--pretty=format:%ci %cn/%ce %s" );
+                                                    if( $doSummary ){ $options += "--summary"; }
+                                                    OutProgressText "git $(StringArrayDblQuoteItems $options) ; ";
                                                     [String[]] $out = @();
                                                     try{
                                                       $out = @()+(& "git" $options 2>&1); AssertRcIsOk $out;
@@ -2363,7 +2370,7 @@ function GitListCommitComments                ( [String] $tarDir, [String] $loca
                                                         $out += "Info: your current branch 'master' does not have any commits yet.";
                                                         OutProgressText "Info: empty master.";
                                                       }else{
-                                                        $out += "Warning: (GitListCommitComments `"$tarDir`" `"$localRepoDir`" $fileExtension $prefix $doOnlyIfOlderThanAgeInDays) failed because $($_.Exception.Message)";
+                                                        $out += "Warning: (GitListCommitComments `"$tarDir`" `"$localRepoDir`" `"$fileExtension`" `"$prefix`" `"$doOnlyIfOlderThanAgeInDays`") failed because $($_.Exception.Message)";
                                                         if( $_.Exception.Message -eq "warning: inexact rename detection was skipped due to too many files." ){
                                                           $out += "  The reason is that the config value of diff.renamelimit with its default of 100 is too small. ";
                                                           $out += "Before a next retry you should either add the two lines (`"[diff]`",`"  renamelimit = 999999`") to .git/config file, ";
@@ -2380,8 +2387,8 @@ function GitListCommitComments                ( [String] $tarDir, [String] $loca
                                                     FileWriteFromLines $fout $out $true;
                                                   }
                                                 }
-                                                GitGetLog ""          "$tarDir$(DirSep)$prefix$repoName.CommittedComments$fileExtension";
-                                                GitGetLog "--summary" "$tarDir$(DirSep)$prefix$repoName.CommittedChangedFiles$fileExtension"; }
+                                                GitGetLog $false "$tarDir$(DirSep)$prefix$repoName.CommittedComments$fileExtension";
+                                                GitGetLog $true  "$tarDir$(DirSep)$prefix$repoName.CommittedChangedFiles$fileExtension"; }
 function GitAssertAutoCrLfIsDisabled          (){ # use this before using git
                                                 [String] $line = git config --list --global | Where-Object{ $_ -like "core.autocrlf=false" };
                                                 if( $line -ne "" ){ OutVerbose "ok, git-global-autocrlf is defined as false."; return; }
@@ -3423,6 +3430,9 @@ function ToolActualizeHostsFileByMaster       ( [String] $srcHostsFile ){
                                                   OutProgress "Ok, content is already correct.";
                                                 }
                                               }
+function ToolAddLineToConfigFile              ( [String] $file, [String] $line, [String] $encoding = "UTF8" ){ # if file not exists or line not found case sensitive in file then the line is appended
+                                                if( FileNotExists $file ){ FileWriteFromLines $file $line; }
+                                                elseif( -not (StringArrayContains (FileReadContentAsLines $file $encoding) $line) ){ FileAppendLines $file $line; } }
 function ToolCreate7zip                       ( [String] $srcDirOrFile, [String] $tar7zipFile ){ # target must end with 7z. uses 7z.exe in path or in "C:/Program Files/7-Zip/"
                                                 if( (FsEntryGetFileExtension $tar7zipFile) -ne ".7z" ){ throw [Exception] "Expected extension 7z for target file `"$tar7zipFile`"."; }
                                                 [String] $src = "";
@@ -3668,12 +3678,12 @@ function ToolVs2019UserFolderGetLatestUsed    (){
                                                 }
                                                 return [String] $result; }
 function ToolWin10PackageGetState             ( [String] $packageName ){ # ex: for "OpenSSH.Client" return "Installed","NotPresent".
-                                                if( $packageName -eq "" ){ throw [Exception] "Missing packageName"; }
                                                 ProcessRestartInElevatedAdminMode;
+                                                if( $packageName -eq "" ){ throw [Exception] "Missing packageName"; }
                                                 return [String] ((Get-WindowsCapability -Online | Where-Object name -like "${packageName}~*").State); }
 function ToolWin10PackageInstall              ( [String] $packageName ){ # ex: "OpenSSH.Client"
+                                                OutProgress "Install Win10 Package if not installed: `"$packageName`"";
                                                 ProcessRestartInElevatedAdminMode;
-                                                OutProgress "Install Win10 Package: `"$packageName`"";
                                                 if( (ToolWin10PackageGetState $packageName) -eq "Installed" ){
                                                   OutProgress "Ok, `"$packageName`" is already installed."; }
                                                 else{
@@ -3683,8 +3693,8 @@ function ToolWin10PackageInstall              ( [String] $packageName ){ # ex: "
                                                   OutInfo "Ok, installation done, current state=$(ToolWin10PackageGetState $packageName) RestartNeeded=$restartNeeded Name=$name";
                                                 } }
 function ToolWin10PackageDeinstall            ( [String] $packageName ){
-                                                ProcessRestartInElevatedAdminMode;
                                                 OutProgress "Deinstall Win10 Package: `"$packageName`"";
+                                                ProcessRestartInElevatedAdminMode;
                                                 if( (ToolWin10PackageGetState $packageName) -ne "Installed" ){
                                                   OutProgress "Ok, `"$packageName`" is already deinstalled."; }
                                                 else{
@@ -3694,9 +3704,9 @@ function ToolWin10PackageDeinstall            ( [String] $packageName ){
                                                   OutInfo "Ok, deinstallation done, current state=$(ToolWin10PackageGetState $packageName) RestartNeeded=$restartNeeded Name=$name";
                                                 } }
 function ToolOsWindowsResetSystemFileIntegrity(){ # uses about 4 min
-                                                ProcessRestartInElevatedAdminMode;
                                                 [String] $f = "$env:SystemRoot$(DirSep)Logs$(DirSep)CBS$(DirSep)CBS.log";
                                                 OutProgress "Check and repair missing, corrupted or ownership-settings of system files and afterwards dump last lines of logfile '$f'";
+                                                ProcessRestartInElevatedAdminMode;
                                                 # https://support.microsoft.com/de-ch/help/929833/use-the-system-file-checker-tool-to-repair-missing-or-corrupted-system
                                                 # https://support.microsoft.com/en-us/kb/929833
                                                 OutProgress "Run: sfc.exe /scannow";
@@ -3970,7 +3980,7 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #       invoke-command -computername "server64" -credential "domain64\user64" -scriptblock {get-culture};
 #   - Invoke the (provider-specific) default action on an item (like double click). For example open pdf viewer for a .pdf file.
 #       Invoke-Item ./myfile.xls
-#   - Start a process waiting for end or not.
+#   - Start a process (intended for opening a window) waiting for end or not.
 #       start-process -FilePath notepad.exe -ArgumentList """Test.txt"""; # no wait for end, opened in foreground
 #       [Diagnostics.Process]::Start("notepad.exe","test.txt"); # no wait for end, opened in foreground
 #       start-process -FilePath  C:\batch\demo.cmd -verb runas;
@@ -3985,9 +3995,12 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 # - Call module with arguments: ex:  Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1" -ArgumentList $myinvocation.mycommand.Path;
 # - FsEntries: -LiteralPath means no interpretation of wildcards
 # - Extensions and libraries: https://www.powershellgallery.com/  http://ss64.com/links/pslinks.html
-# - Important to know:
-#   - Alternative for Split-Path has problems:
-#       $null -eq [System.IO.Path]::GetDirectoryName("c:\");
-#       [System.IO.Path]::GetDirectoryName("\\mymach\myshare\") -eq "\\mymach\myshare\";
 # - Write Portable ps hints: https://powershell.org/2019/02/tips-for-writing-cross-platform-powershell-code/
+# - Script Calling Parameters: The expression CmdletBinding for param is optional:
+#   Example: [CmdletBinding()] Param( [parameter(Mandatory=$true)] [String] $p1, [parameter(Mandatory=$true)] [String] $p2 ); OutInfo "Parameters: p1=$p1 p2=$p2";
+# - A starter for any tool can be created by the following code:
+#     #!/usr/bin/env pwsh
+#     & "mytool.exe" $args ; Exit $LASTEXITCODE ;
+#   Important note: this works well from powershell/pwsh but if such a starter is called from cmd.exe or a bat file, 
+#   then all arguments are not passed!!!  In that case you need to perform the following statement:  pwsh -Command MyPsScript.ps1 anyParam...
 #
