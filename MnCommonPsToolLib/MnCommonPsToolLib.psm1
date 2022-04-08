@@ -38,7 +38,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "6.08"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "6.09"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -602,11 +602,20 @@ function ProcessEnvVarGet                     ( [String] $name, [System.Environm
 function ProcessEnvVarSet                     ( [String] $name, [String] $val, [System.EnvironmentVariableTarget] $scope = [System.EnvironmentVariableTarget]::Process ){
                                                  # Scope: MACHINE, USER, PROCESS.
                                                  OutProgress "SetEnvironmentVariable scope=$scope $name=`"$val`""; [Environment]::SetEnvironmentVariable($name,$val,$scope); }
-function ProcessRemoveAllAlias                ( [String[]] $excludeAliasNames = @() ){ # remove all existing aliases on any levels ((local, script, private, and global).
-                                                OutProgress "Remove all existing alias except [$excludeAliasNames].";
-                                                @(1,2,3,4,5) | ForEach-Object{ Get-Alias | Select-Object Name | ForEach-Object{ $_.Name } | 
-                                                Where-Object { $_ -notin $excludeAliasNames } |
-                                                Where-Object { Test-Path "Alias:$_" } | ForEach-Object{ Remove-Item -Force "Alias:$_"; }; } }
+function ProcessRemoveAllAlias                ( [String[]] $excludeAliasNames = @(), [Boolean] $doTrace = $false ){ # remove all existing aliases on any levels (local, script, private, and global).
+                                                # Is used because microsoft created a predefined list of about 180 aliases in each session which cannot be avoided.
+                                                # This is very bad because they also defined aliases as curl->Invoke-WebRequest,wget->Invoke-WebRequest which are incompatible to the known tools.
+                                                # All aliases can be listed by:
+                                                #   powershell -NoProfile { Get-Alias | Select-Object Name, Definition, Visibility, Options, Module | StreamToTableString }
+                                                # example: ProcessRemoveAllAlias @("cd","cat","clear","echo","dir","cp","mv","popd","pushd","rm","rmdir");
+                                                # example: ProcessRemoveAllAlias @("cd","cat","clear","echo","dir","cp","mv","popd","pushd","rm","rmdir","select","where","foreach");
+                                                [String[]] $removedAliasNames = @();
+                                                @(1,2,3) | ForEach-Object{ Get-Alias | Select-Object Name | ForEach-Object{ $_.Name } | 
+                                                  Where-Object { $_ -notin $excludeAliasNames } |
+                                                  Where-Object { Test-Path "Alias:$_" } | ForEach-Object{ $removedAliasNames += $_; Remove-Item -Force "Alias:$_"; }; }
+                                                $removedAliasNames = $removedAliasNames | Select-Object -Unique | Sort-Object;
+                                                if( $doTrace -and $removedAliasNames.Count -gt 0 ){
+                                                  OutProgress "Removed all existing $($removedAliasNames.Count) alias except [$excludeAliasNames]."; } }
 function JobStart                             ( [ScriptBlock] $scr, [Object[]] $scrArgs = $null, [String] $name = "Job" ){ # Return job object of type PSRemotingJob, the returned object of the script block can later be requested.
                                                 return [System.Management.Automation.Job] (Start-Job -name $name -ScriptBlock $scr -ArgumentList $scrArgs); }
 function JobGet                               ( [String] $id ){ return [System.Management.Automation.Job] (Get-Job -Id $id); } # Return job object.
