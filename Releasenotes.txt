@@ -5,6 +5,7 @@ Major version changes will reflect breaking changes and minor identifies extensi
 See description of major version with minor equal zero about breaking changes as removed deprecated functions or changed behavious.
 Current version can be requested by: $MnCommonPsToolLibVersion
 
+2022-04-09  V6.10  Improved download logging, updated doc, added OutStartTranscriptInTempDir. Switch to Write-Output.
 2022-04-08  V6.09  Improved ProcessRemoveAllAlias.
 2022-04-04  V6.08  Added StringArrayContains, StringArrayDblQuoteItems, ProcessRemoveAllAlias, ToolAddLineToConfigFile. extended ProcessStart for ps1 files.
 2022-03-20  V6.07  Unified warning messages, modify 7zip tool, make usage of dir-separator more portable.
