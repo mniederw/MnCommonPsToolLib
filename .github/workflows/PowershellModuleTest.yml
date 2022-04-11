@@ -9,7 +9,7 @@ on:
       - '*.txt'
   pull_request:
     branches:
-      [ main ]
+      [ main, trunk ]
     paths-ignore:
       - '*.txt'
   workflow_dispatch:  # Allows you to run this workflow manually from the Actions tab
