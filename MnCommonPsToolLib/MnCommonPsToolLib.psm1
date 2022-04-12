@@ -4095,7 +4095,7 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #   $null, $true, $false  - some constants
 #   $args                 - Contains an array of the parameters passed to a function.
 #   $error                - Contains objects for which an error occurred while being processed in a cmdlet.
-#   $HOME                 - Specifies the users home directory. ($env:USERPROFILE)
+#   $HOME                 - Specifies the users home directory. ($env:USERPROFILE)
 #   $PsHome               - The directory where the Windows PowerShell is installed. (C:\Windows\SysWOW64\WindowsPowerShell\v1.0)
 #   $PROFILE              - $HOME\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1
 #   $PS...                - some variables
@@ -4254,7 +4254,7 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #       start-process -FilePath  C:\batch\demo.cmd -verb runas;
 #       start-process -FilePath notepad.exe -wait -windowstyle Maximized; # wait for end
 #       start-process -FilePath Sort.exe -RedirectStandardInput C:\Demo\Testsort.txt -RedirectStandardOutput C:\Demo\Sorted.txt -RedirectStandardError C:\Demo\SortError.txt
-#       $pclass = [wmiclass]'root\cimv2:Win32_Process'; $new_pid = $pclass.Create('notepad.exe', '.', $null).ProcessId; # no wait for end, opened app in background
+#       $pclass = [wmiclass]"root\cimv2:Win32_Process"; $new_pid = $pclass.Create("notepad.exe", ".", $null).ProcessId; # no wait for end, opened app in background
 #     Run powershell with elevated rights: Start-Process -FilePath powershell.exe -Verb runAs
 #     Important note: If a program is called which also has as input a commandline then the arguments must be tripple-doublequoted.
 #       see https://docs.microsoft.com/en-us/dotnet/api/system.diagnostics.processstartinfo.arguments
@@ -4271,3 +4271,4 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #     & "mytool.exe" $args ; Exit $LASTEXITCODE ;
 #   Important note: this works well from powershell/pwsh but if such a starter is called from cmd.exe or a bat file,
 #   then all arguments are not passed!!!  In that case you need to perform the following statement:  pwsh -Command MyPsScript.ps1 anyParam...
+# - param ( [Parameter()] [ValidateSet("Yes", "No", "Maybe")] [String] $opt )
