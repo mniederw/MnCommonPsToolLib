@@ -38,7 +38,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "6.11"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "6.12"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -2593,28 +2593,30 @@ function GitListCommitComments                ( [String] $tarDir, [String] $loca
                                                 [String] $dir = FsEntryGetAbsolutePath $localRepoDir;
                                                 [String] $repoName =  (Split-Path -Leaf (Split-Path -Parent $dir)) + "." + (Split-Path -Leaf $dir);
                                                 function GitGetLog ([Boolean] $doSummary, [String] $fout) {
+                                                  $fout = FsEntryGetAbsolutePath $fout
                                                   if( -not (FsEntryNotExistsOrIsOlderThanNrDays $fout $doOnlyIfOlderThanAgeInDays) ){
                                                     OutProgress "Process git log not nessessary because file is newer than $doOnlyIfOlderThanAgeInDays days: $fout";
                                                   }else{
                                                     [String[]] $options = @( "--git-dir=$dir\.git", "log", "--after=1990-01-01", "--pretty=format:%ci %cn/%ce %s" );
                                                     if( $doSummary ){ $options += "--summary"; }
                                                     OutProgress "git $(StringArrayDblQuoteItems $options) ; ";
-                                                    [String[]] $out = @();
+                                                    [String] $out = "";
                                                     try{
-                                                      $out = @()+(& "git" $options *>&1); AssertRcIsOk $out;
+                                                      $out = (ProcessStart "git" $options $true);
                                                     }catch{
                                                       if( $_.Exception.Message -eq "fatal: your current branch 'master' does not have any commits yet" ){ # Last operation failed [rc=128]
-                                                        $out += "Info: your current branch 'master' does not have any commits yet.";
+                                                        $out +=  "$([Environment]::NewLine)" + "Info: your current branch 'master' does not have any commits yet.";
                                                         OutProgress "  Info: empty master.";
                                                       }else{
-                                                        $out += "Warning: (GitListCommitComments `"$tarDir`" `"$localRepoDir`" `"$fileExtension`" `"$prefix`" `"$doOnlyIfOlderThanAgeInDays`") failed because $($_.Exception.Message)";
+                                                        $out += "$([Environment]::NewLine)" + "Warning: (GitListCommitComments `"$tarDir`" `"$localRepoDir`" `"$fileExtension`" `"$prefix`" `"$doOnlyIfOlderThanAgeInDays`") ";
+                                                        $out += "$([Environment]::NewLine)" + "  failed because $($_.Exception.Message)";
                                                         if( $_.Exception.Message -eq "warning: inexact rename detection was skipped due to too many files." ){
-                                                          $out += "  The reason is that the config value of diff.renamelimit with its default of 100 is too small. ";
-                                                          $out += "Before a next retry you should either add the two lines (`"[diff]`",`"  renamelimit = 999999`") to .git/config file, ";
-                                                          $out += "or run (git `"--git-dir=$dir\.git`" config diff.renamelimit 999999) ";
-                                                          $out += "or run (git config --global diff.renamelimit 999999). Instead of 999999 you can also try a lower value as 200,400, etc. ";
+                                                          $out += "$([Environment]::NewLine)" + "  The reason is that the config value of diff.renamelimit with its default of 100 is too small. ";
+                                                          $out += "$([Environment]::NewLine)" + "  Before a next retry you should either add the two lines (`"[diff]`",`"  renamelimit = 999999`") to .git/config file, ";
+                                                          $out += "$([Environment]::NewLine)" + "  or run (git `"--git-dir=$dir\.git`" config diff.renamelimit 999999) ";
+                                                          $out += "$([Environment]::NewLine)" + "  or run (git config --global diff.renamelimit 999999). Instead of 999999 you can also try a lower value as 200,400, etc. ";
                                                         }else{
-                                                          $out += "  Outfile `"$fout`" is probably not correctly filled.";
+                                                          $out += "$([Environment]::NewLine)" + "  Outfile `"$fout`" is probably not correctly filled.";
                                                         }
                                                         OutWarning $out;
                                                       }
@@ -2623,8 +2625,8 @@ function GitListCommitComments                ( [String] $tarDir, [String] $loca
                                                     FileWriteFromLines $fout $out $true;
                                                   }
                                                 }
-                                                GitGetLog $false "$tarDir$(DirSep)$prefix$repoName.CommittedComments$fileExtension";
-                                                GitGetLog $true  "$tarDir$(DirSep)$prefix$repoName.CommittedChangedFiles$fileExtension"; }
+                                                GitGetLog $false "$tarDir/$prefix$repoName.CommittedComments$fileExtension";
+                                                GitGetLog $true  "$tarDir/$prefix$repoName.CommittedChangedFiles$fileExtension"; }
 function GitAssertAutoCrLfIsDisabled          (){ # use this before using git
                                                 [String] $line = git config --list --global | Where-Object{ $_ -like "core.autocrlf=false" };
                                                 if( $line -ne "" ){ OutVerbose "ok, git-global-autocrlf is defined as false."; return; }

@@ -5,6 +5,7 @@ Major version changes will reflect breaking changes and minor identifies extensi
 See description of major version with minor equal zero about breaking changes as removed deprecated functions or changed behavious.
 Current version can be requested by: $MnCommonPsToolLibVersion
 
+2022-04-12  V6.12  Fix GitListCommitComments.
 2022-04-12  V6.11  Improve UnitTest, console properties. Add TestAll.ps1.
 2022-04-09  V6.10  Improved download logging, updated doc, added OutStartTranscriptInTempDir. Switch to Write-Output.
 2022-04-08  V6.09  Improved ProcessRemoveAllAlias.
