@@ -38,7 +38,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "6.10"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "6.11"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -69,13 +69,16 @@ if( -not [String]  (Get-Variable ModeOutputWithTsPrefix            -Scope Global
                                                                     # if true then it will add before each OutInfo, OutWarning, OutError, OutProgress a timestamp prefix.
 
 # Set some powershell predefined global variables:
-$Global:ErrorActionPreference            = "Stop"                    ; # abort if a called exe will write to stderr, default is 'Continue'. Can be overridden in each command by [-ErrorAction actionPreference]
-$Global:ReportErrorShowExceptionClass    = $true                     ; # on trap more detail exception info
-$Global:ReportErrorShowInnerException    = $true                     ; # on trap more detail exception info
-$Global:ReportErrorShowStackTrace        = $true                     ; # on trap more detail exception info
-$Global:FormatEnumerationLimit           = 999                       ; # used for Format-Table, but seams not to work, default is 4
-$Global:OutputEncoding                   = [Console]::OutputEncoding ; # for pipe to native applications use the same as current console, default is 'System.Text.ASCIIEncoding'
-$Host.PrivateData.VerboseForegroundColor = 'DarkGray'                ; # for verbose default is yellow which is bad because it is flashy and equal to warnings
+$Global:ErrorActionPreference         = "Stop"                    ; # abort if a called exe will write to stderr, default is 'Continue'. Can be overridden in each command by [-ErrorAction actionPreference]
+$Global:ReportErrorShowExceptionClass = $true                     ; # on trap more detail exception info
+$Global:ReportErrorShowInnerException = $true                     ; # on trap more detail exception info
+$Global:ReportErrorShowStackTrace     = $true                     ; # on trap more detail exception info
+$Global:FormatEnumerationLimit        = 999                       ; # used for Format-Table, but seams not to work, default is 4
+$Global:OutputEncoding                = [Console]::OutputEncoding ; # for pipe to native applications use the same as current console, default is 'System.Text.ASCIIEncoding'
+if( $null -ne $Host.PrivateData ){ # if running as job then it is null
+  $Host.PrivateData.VerboseForegroundColor = 'DarkGray'; # for verbose messages the default is yellow which is bad because it is flashy and equal to warnings
+  $Host.PrivateData.DebugForegroundColor   = 'DarkRed' ; # for debug   messages the default is yellow which is bad because it is flashy and equal to warnings
+}
 
 # Leave the following global variables on their default values, is here written just for documentation:
 #   $Global:InformationPreference   SilentlyContinue   # Available: Stop, Inquire, Continue, SilentlyContinue.
@@ -346,35 +349,36 @@ function ConsoleSetGuiProperties              (){ # set standard sizes which mak
                                                   $error.clear(); New-Variable -Scope script -name consoleSetGuiProperties_DoneOnce -value $false;
                                                 }
                                                 if( $script:consoleSetGuiProperties_DoneOnce ){ return; }
-                                                [Object] $w = (get-host).ui.rawui;
+                                                [Object] $w = $Host.ui.RawUI;
                                                 $w.windowtitle = "$PSCommandPath $(switch(ProcessIsRunningInElevatedAdminMode){($true){'- Elevated Admin Mode'}default{'';}})";
                                                 $w.foregroundcolor = "Gray";
                                                 $w.backgroundcolor = switch(ProcessIsRunningInElevatedAdminMode){($true){"DarkMagenta"}default{"DarkBlue";}};
                                                 # for future use: $ = $host.PrivateData; $.VerboseForegroundColor = "White"; $.VerboseBackgroundColor = "Blue";
                                                 #   $.WarningForegroundColor = "Yellow"; $.WarningBackgroundColor = "DarkGreen"; $.ErrorForegroundColor = "White"; $.ErrorBackgroundColor = "Red";
-                                                # set buffer sizes before setting window sizes otherwise PSArgumentOutOfRangeException: Window cannot be wider than the screen buffer.
-                                                $w = (get-host).ui.rawui; # refresh values, maybe meanwhile windows was resized
+                                                # Set buffer sizes before setting window sizes otherwise PSArgumentOutOfRangeException: Window cannot be wider than the screen buffer.
+                                                # On ise or jobs calling [System.Console]::WindowWidth would throw (System.IO.IOException: Das Handle ist ungültig) so we avoid accessing it.
+                                                $w = $Host.ui.RawUI; # refresh values, maybe meanwhile windows was resized
                                                 [Object] $buf = $w.buffersize;
-                                                $buf.height = 9999;
-                                                if( $null -ne ((get-host).ui.rawui).WindowSize ){
-                                                  $buf.width = [math]::max(300,[System.Console]::WindowWidth); # on ise calling WindowWidth would throw: System.IO.IOException: Das Handle ist ungültig.
+                                                $buf.Height = 9999;
+                                                if( $null -ne $Host.ui.RawUI.WindowSize ){
+                                                  $buf.Width = [math]::max(300,[Int32]$Host.ui.RawUI.WindowSize.Width);
                                                 }
                                                 try{
                                                   $w.buffersize = $buf;
                                                 }catch{ # seldom we got: PSArgumentOutOfRangeException: Cannot set the buffer size because the size specified is too large or too small.
                                                   OutWarning "Warning: Ignore setting buffersize failed because $($_.Exception.Message)";
                                                 }
-                                                $w = (get-host).ui.rawui; # refresh values, maybe meanwhile windows was resized
+                                                $w = $Host.ui.RawUI; # refresh values, maybe meanwhile windows was resized
                                                 if( $null -ne $w.WindowSize ){ # is null in case of powershell-ISE
-                                                  [Object] $m = $w.windowsize; $m.height = 48; $m.width = 150;
+                                                  [Object] $m = $w.windowsize; $m.Height = 48; $m.Width = 150;
                                                   # avoid: PSArgumentOutOfRangeException: Window cannot be wider than 147. Parameter name: value.Width Actual value was 150.
                                                   #        PSArgumentOutOfRangeException: Window cannot be taller than 47. Parameter name: value.Height Actual value was 48.
-                                                  $m.width  = [math]::min($m.width ,[system.console]::BufferWidth);
-                                                  $m.width  = [math]::min($m.width ,$w.MaxWindowSize.Width);
-                                                  $m.width  = [math]::min($m.width ,$w.MaxPhysicalWindowSize.Width);
-                                                  $m.height = [math]::min($m.height,[system.console]::BufferHeight);
-                                                  $m.height = [math]::min($m.height,$w.MaxWindowSize.height);
-                                                  $m.height = [math]::min($m.height,$w.MaxPhysicalWindowSize.height);
+                                                  $m.Width  = [math]::min($m.Width ,$Host.ui.RawUI.BufferSize.Width);
+                                                  $m.Width  = [math]::min($m.Width ,$w.MaxWindowSize.Width);
+                                                  $m.Width  = [math]::min($m.Width ,$w.MaxPhysicalWindowSize.Width);
+                                                  $m.Height = [math]::min($m.Height,$host.ui.RawUI.BufferSize.Height);
+                                                  $m.Height = [math]::min($m.Height,$w.MaxWindowSize.Height);
+                                                  $m.Height = [math]::min($m.Height,$w.MaxPhysicalWindowSize.Height);
                                                   $w.windowsize = $m;
                                                   ConsoleSetPos 40 40; # little indended from top and left
                                                 }

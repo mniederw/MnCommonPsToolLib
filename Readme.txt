@@ -24,4 +24,11 @@ Files of this repository:
 - Examples\*.ps1   : Examples to show some usages of this library. 
                      All these files can simply be executed by doubleclicking them.
 
+- UnitTests\*.ps1  : Tests some main functions of this library.
+                     Is also contains the starter for script-analyser to check syntax of all ps1 files.
+                     All these files can simply be executed by doubleclicking them.
+
 - .gitignore       : File patterns, which files should be ignored for all git commands.
+
+- .github          : Github workflow configuration which runs on push 
+                     all examples and unit tests by pwsh (powershell 7.2).
