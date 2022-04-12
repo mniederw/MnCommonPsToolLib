@@ -11,8 +11,9 @@ function TestAssertions{
 function TestCommon(){
   OutInfo "$($MyInvocation.MyCommand)";
   [DateTime] $oldestDate = Get-Date -Date "0001-01-01 00:00:00.000";
-  OutProgress "Today in ISO format: $(DateTimeNowAsStringIsoDate)";
-  OutProgress "Oldest date is     : $(DateTimeAsStringIso $oldestDate)"; # 0001-01-01 00:00:00
+  OutProgress "Today in ISO format      : $(DateTimeNowAsStringIsoDate)";
+  OutProgress "Current ts in ISO format : $(DateTimeAsStringIso (Get-Date))";
+  OutProgress "Oldest date is           : $(DateTimeAsStringIso $oldestDate)"; # 0001-01-01 00:00:00
   OutSuccess "Ok, done.";
 }
 
@@ -50,7 +51,7 @@ function TestParallelStatementsHavingRandomWaitBetween1and2Seconds {
 
 function TestAsynchronousJob {
   OutInfo "$($MyInvocation.MyCommand)";
-  $job = JobStart { param( $s ); OutProgress "Running job and returning a string."; return [String] $s; } "my argument";
+  $job = JobStart { param( $s ); Import-Module "MnCommonPsToolLib.psm1"; OutProgress "Running job and returning a string."; return [String] $s; } "my argument";
   Start-Sleep -Seconds 1;
   [String] $res = JobWaitForEnd $job.Id;
   OutProgress "Result text of job is: '$res'";
@@ -92,7 +93,7 @@ function TestNetDownloadIsSuccessful {
 function TestListFirstFivePublicReposOfGithubOrgArduino {
   OutInfo "$($MyInvocation.MyCommand)";
   ToolGithubApiListOrgRepos "arduino" | Select-Object -First 5 Url, archived, language, default_branch, LicName |
-    StreamToTableString | Foreach-Object { OutProgressText $_; }; OutProgress "";
+    StreamToTableString | Foreach-Object { OutProgress $_; };
   OutSuccess "Ok, done.";
 }
 

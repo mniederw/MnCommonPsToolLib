@@ -7,8 +7,8 @@ function TestReturnEmptyArray2(){ return [String[]] (@()+($null | Where-Object{$
 function TestReturnEmptyArray3(){ return [String[]] (    ($null | Where-Object{$null -ne $_})); }
 function TestReturnNullArray  (){ return [String[]] $null                                     ; }
 
-function MnLibCommonSelfTest(){ # perform some tests
-  OutInfo "MnCommonPsToolLibUnitTest";
+function Test(){
+  OutInfo "MnCommonPsToolLibUnitTest - perform some tests which do not require elevated admin mode";
 
   Assert ( $true );
   AssertIsFalse ( $false );
@@ -204,10 +204,6 @@ function MnLibCommonSelfTest(){ # perform some tests
 
   Assert         (((ToolVs2019UserFolderGetLatestUsed) -eq "") -or ((ToolVs2019UserFolderGetLatestUsed).Contains("\\AppData\\Local\\Microsoft\\VisualStudio\\16.0")));
 
-  OutProgress "ToolWin10PackageGetState of OpenSSH.Client: $(ToolWin10PackageGetState "OpenSSH.Client")"
-  # Discard non-readonly test for: ToolWin10PackageInstall "OpenSSH.Client"
-  # Discard non-readonly test for: ToolWin10PackageDeinstall "OpenSSH.Client"
-
   OutProgress "DateTimeGetBeginOf Year     : $(DateTimeGetBeginOf "Year"     )";
   OutProgress "DateTimeGetBeginOf Semester : $(DateTimeGetBeginOf "Semester" )";
   OutProgress "DateTimeGetBeginOf Quarter  : $(DateTimeGetBeginOf "Quarter"  )";
@@ -238,5 +234,5 @@ function MnLibCommonSelfTest(){ # perform some tests
   OutSuccess "Ok, done.";
 }
 
-MnLibCommonSelfTest;
-StdInReadLine "Press enter to exit.";
+Test;
+StdInAskForEnter;

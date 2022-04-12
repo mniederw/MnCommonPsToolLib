@@ -1,7 +1,7 @@
 name: PowershellModuleTest
 
  # Triggers the workflow on push or pull request events but only for the given branches (main) and ignore changes of *.txt files
-on: 
+on:
   push:
     branches:
       [ main ]
@@ -9,7 +9,7 @@ on:
       - '*.txt'
   pull_request:
     branches:
-      [ main ]
+      [ main, trunk ]
     paths-ignore:
       - '*.txt'
   workflow_dispatch:  # Allows you to run this workflow manually from the Actions tab
@@ -20,22 +20,21 @@ jobs:
 
     runs-on: windows-latest
       # Available 2021-12:
-      # - ubuntu-latest   =Ubuntu-V20.04.3-LTS contains PowerShell-V7.2
-      # - windows-latest  =WinServer2019, soon WinServer2022, see https://github.com/actions/virtual-environments/issues/4856
-      # - macos-latest    =macOS 11
-      # - self-hosted     =own machine
+      # - ubuntu-latest   = Ubuntu-V20.04.3-LTS contains PowerShell-V7.2
+      # - windows-latest  = WinServer2022
+      # - macos-latest    = macOS 11
+      # - self-hosted     = own machine
       # More see: https://github.com/actions/virtual-environments/
 
 #   strategy:
 #     matrix:
 #       node-version: [14.x]
-#       
+#
 #   if: github.ref == 'refs/heads/mybranch'
 
     steps:
 
-      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
-      #   2021-12: to '/home/runner/work/MnCommonPsToolLib/MnCommonPsToolLib'
+      # Checks-out your repository under $GITHUB_WORKSPACE
       - name: Checkout repository
         uses: actions/checkout@v2
 
@@ -45,7 +44,7 @@ jobs:
 #         version: 4.11.1
 
 #     - name: Install node.js
-#       uses: actions/setup-node@v1 
+#       uses: actions/setup-node@v1
 #       with:
 #         node-version: ${{ matrix.node-version }}
 #         path: node_modules
@@ -68,38 +67,17 @@ jobs:
           Invoke-ScriptAnalyzer -Path . -Recurse -Outvariable issues -ExcludeRule PSAvoidUsingConvertToSecureStringWithPlainText, PSAvoidUsingUsernameAndPasswordParams, PSAvoidUsingPlainTextForPassword, PSAvoidUsingEmptyCatchBlock, PSAvoidUsingWriteHost, PSAvoidGlobalVars, PSUseDeclaredVarsMoreThanAssignments, PSAvoidUsingPositionalParameters;
           $nrOfErrors   = $issues.Where({$_.Severity -eq 'Error'  }).Count;
           $nrOfWarnings = $issues.Where({$_.Severity -eq 'Warning'}).Count;
-          if( $nrOfErrors -gt 0){ Write-Error "There were total $nrOfErrors errors and $nrOfWarnings warnings." -ErrorAction Stop; }
-          else                  { Write-Output "There were total $nrOfErrors errors and $nrOfWarnings warnings."; }
+          [String] $msg = "There were total $nrOfErrors errors and $nrOfWarnings warnings.";
+          if( $nrOfErrors -eq 0){ Write-Output $msg; }else{ Write-Error  $msg -ErrorAction Stop; }
 
       - name: Assert powershell module library exists
         shell: pwsh
         run: Test-Path "MnCommonPsToolLib/MnCommonPsToolLib.psm1" | Should -Be $true ;
 
-      - name: Run all examples, the script analyser and the unit test
+      - name: Test all
         shell: pwsh
         run: |
-          Write-Output "CurrentDir=`"$(PWD)`""; # "D:\a\MyRepo\MyRepo"
-          Write-Output "GITHUB_WORKSPACE=`"$($env:GITHUB_WORKSPACE)`""; # "D:\a\MyRepo\MyRepo"
-          Write-Output "PSModulePath=`"${env:PSModulePath}`""; # "C:\Users\runneradmin\Documents\PowerShell\Modules;C:\Program Files\PowerShell\Modules;c:\program files\powershell\7\Modules;C:\\Modules\azurerm_2.1.0;C:\\Modules\azure_2.1.0;C:\Users\packer\Documents\WindowsPowerShell\Modules;C:\Program Files\WindowsPowerShell\Modules;C:\Windows\system32\WindowsPowerShell\v1.0\Modules;C:\Program Files\Microsoft SQL Server\130\Tools\PowerShell\Modules\;C:\Program Files (x86)\Google\Cloud SDK\google-cloud-sdk\platform\PowerShell"
-          [Environment]::SetEnvironmentVariable("PSModulePath","${env:PSModulePath};$(PWD)","Process"); # add ps module to path
-          $Global:ErrorActionPreference = "Stop"; trap [Exception] { $Host.UI.WriteErrorLine($_); Read-Host; break; }
-          Import-Module "MnCommonPsToolLib.psm1";
-          Write-Output "OsPsVersion: $(OsPsVersion)"; # "7.2"
-          Write-Output "MnCommonPsToolLibVersion: $Global:MnCommonPsToolLibVersion"; # "6.01"
-          Write-Output "--------------------------------------------------------------------------------------";
-          & "Examples/ExampleUseOfMnCommonPsToolLib01_HelloWorldWaitForEnter.ps1"; # waiting is aborted
-          Write-Output "--------------------------------------------------------------------------------------";
-          & "Examples/ExampleUseOfMnCommonPsToolLib02_StdBegAndEndInteractiveModeStmts.ps1"; # waiting is aborted
-          Write-Output "--------------------------------------------------------------------------------------";
-          & "Examples/ExampleUseOfMnCommonPsToolLib03_NoWaitAtEnd.ps1";
-          Write-Output "--------------------------------------------------------------------------------------";
-          & "Examples/ExampleUseOfMnCommonPsToolLib04_TestByReadOnlyMode.ps1";
-          Write-Output "--------------------------------------------------------------------------------------";
-          & "Examples/MnCommonPsToolLibScriptAnalyser.ps1";
-          Write-Output "--------------------------------------------------------------------------------------";
-          & "Examples/MnCommonPsToolLibUnitTest.ps1";
-          Write-Output "--------------------------------------------------------------------------------------";
-          Write-Output "Ok, UnitTest was successful!";
+          & "./TestAll.ps1";
 
 # More docu: https://docs.github.com/en/actions/learn-github-actions/understanding-github-actions
 # For future: Run all *.Tests.ps1 recursively by using https://pester-docs.netlify.app/docs/commands/Invoke-Pester

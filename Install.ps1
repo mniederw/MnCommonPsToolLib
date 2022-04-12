@@ -6,14 +6,14 @@ Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including unin
 $Global:ErrorActionPreference = "Stop";
 $PSModuleAutoLoadingPreference = "none"; # disable autoloading modules
 trap [Exception] { $Host.UI.WriteErrorLine($_); Read-Host; break; }
-function OutStr                               ( [String] $color, [String] $line, [Boolean] $noNewLine ){ Write-Host -ForegroundColor $color -NoNewline:$noNewLine $line; }
-function OutInfo                              ( [String] $line ){ OutStr "White"    $line $false; }
-function OutProgress                          ( [String] $line ){ OutStr "DarkGray" $line $false; }
-function OutProgressText                      ( [String] $line ){ OutStr "DarkGray" $line $true ; }
-function OutQuestion                          ( [String] $line ){ OutStr "Cyan"     $line $true ; }
+function OutStringInColor                     ( [String] $color, [String] $line, [Boolean] $noNewLine = $true ){ Write-Host -ForegroundColor $color -NoNewline:$noNewLine $line; }
+function OutInfo                              ( [String] $line ){ OutStringInColor "White" $line $false; }
+function OutProgress                          ( [String] $line ){ OutStringInColor "Gray"  $line $false; }
+function OutProgressText                      ( [String] $line ){ OutStringInColor "Gray"  $line $true ; }
+function OutQuestion                          ( [String] $line ){ OutStringInColor "Cyan"  $line $true ; }
 function DirSep                               (){ return [Char] [IO.Path]::DirectorySeparatorChar; }
 function FsEntryHasTrailingDirSep             ( [String] $fsEntry ){ return [Boolean] ($fsEntry.EndsWith("\") -or $fsEntry.EndsWith("/")); }
-function FsEntryRemoveTrailingDirSep          ( [String] $fsEntry ){ [String] $r = $fsEntry; 
+function FsEntryRemoveTrailingDirSep          ( [String] $fsEntry ){ [String] $r = $fsEntry;
                                                 if( $r -ne "" ){ while( FsEntryHasTrailingDirSep $r ){ $r = $r.Remove($r.Length-1); } if( $r -eq "" ){ $r = $fsEntry; } } return [String] $r; }
 function FsEntryMakeTrailingDirSep            ( [String] $fsEntry ){
                                                 [String] $result = $fsEntry; if( -not (FsEntryHasTrailingDirSep $result) ){ $result += $(DirSep); } return [String] $result; }
@@ -62,7 +62,7 @@ function SelfUpdate                           (){ $PSModuleAutoLoadingPreference
                                                 catch{ OutProgress "Please restart shell and maybe calling file manager and retry"; throw; } }
 
 
-# see https://docs.microsoft.com/en-us/powershell/scripting/developer/module/installing-a-powershell-module?view=powershell-7.1
+# see https://docs.microsoft.com/en-us/powershell/scripting/developer/module/installing-a-powershell-module
 [String] $tarRootDir32bit = "${env:ProgramFiles(x86)}\WindowsPowerShell\Modules";
 [String] $tarRootDir64bit = "$env:ProgramW6432\WindowsPowerShell\Modules";
 [String] $srcRootDir = $PSScriptRoot; if( $srcRootDir -eq "" ){ $srcRootDir = FsEntryGetAbsolutePath "."; } # ex: "D:\WorkGit\myaccount\MyNameOfPsToolLib_master"
@@ -74,9 +74,9 @@ if( $dirsWithPsm1Files.Count -ne 1 ){ throw [Exception] "Tool is designed for wo
 [String] $moduleTarDir64bit = "$tarRootDir64bit\$moduleName";
 
 function CurrentInstallationModes( [String] $color = "White" ){
-  if( DirExists $moduleTarDir64bit       ){ OutStr $color "Installed-in-Standard-Mode-for-64bit " $true; }else{ OutStr "DarkGray" "Not-Installed-in-Standard-Mode-for-64bit " $true; }
-  if( DirExists $moduleTarDir32bit       ){ OutStr $color "Installed-in-Standard-Mode-for-32bit " $true; }else{ OutStr "DarkGray" "Not-Installed-in-Standard-Mode-for-32bit " $true; }
-  if( OsPsModulePathContains $srcRootDir ){ OutStr $color "Installed-for-Developers "             $true; }else{ OutStr "DarkGray" "Not-Installed-for-Developers "             $true; }
+  if( DirExists $moduleTarDir64bit       ){ OutStringInColor $color "Installed-in-Standard-Mode-for-64bit " $true; }else{ OutStringInColor "Gray" "Not-Installed-in-Standard-Mode-for-64bit " $true; }
+  if( DirExists $moduleTarDir32bit       ){ OutStringInColor $color "Installed-in-Standard-Mode-for-32bit " $true; }else{ OutStringInColor "Gray" "Not-Installed-in-Standard-Mode-for-32bit " $true; }
+  if( OsPsModulePathContains $srcRootDir ){ OutStringInColor $color "Installed-for-Developers "             $true; }else{ OutStringInColor "Gray" "Not-Installed-for-Developers "             $true; }
   OutInfo "";
 }
 
