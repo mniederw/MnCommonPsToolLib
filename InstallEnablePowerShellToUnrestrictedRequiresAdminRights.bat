@@ -18,11 +18,11 @@ ECHO.
 ECHO Existing scopes in precedence order:
 ECHO   MachinePolicy - represents a Group Policy in effect at the Computer level, generally applied only in a domain, but can be done locally as well.
 ECHO   UserPolicy    - represents a Group Policy in effect on the user, is also typically only used in enterprise environments.
-ECHO   Process       - specific to this instance of PowerShell, changes to the policy in this scope will not affect other running PowerShell processes, 
-ECHO                   and will be ineffective after this session is terminated. This can be configured by the -ExecutionPolicy parameter 
+ECHO   Process       - specific to this instance of PowerShell, changes to the policy in this scope will not affect other running PowerShell processes,
+ECHO                   and will be ineffective after this session is terminated. This can be configured by the -ExecutionPolicy parameter
 ECHO                   when PowerShell is launched, or it can be set with the proper Set-ExecutionPolicy syntax from within the session.
 ECHO   CurrentUser   - is configured in the local registry and applies to the user account used to launch PowerShell, can be modified with Set-ExecutionPolicy.
-ECHO   LocalMachine -  is configured in the local registry and applying to all users on the system, is the default scope that is changed if Set-ExecutionPolicy 
+ECHO   LocalMachine -  is configured in the local registry and applying to all users on the system, is the default scope that is changed if Set-ExecutionPolicy
 ECHO                   is run without the -Scope parameter. As it applies to all users on the system, it can only be changed from an elevated session.
 ECHO.
 ECHO Note: In any mode a script can always be run with:
@@ -35,7 +35,7 @@ ECHO   harm your computer. Do you want to run [D] Do not run  [R] Run once  [S] 
 ECHO Usually you set mode to Bypass if you trust yourself, that you won't click by accident on unknown powershell script files.
 ECHO.
 
-SET /p answer=Are you sure to enable powershell execution mode %mode% and did you run this batch as administrator [y/n]? 
+SET /p answer=Are you sure to enable powershell execution mode %mode% and did you run this batch as administrator [y/n]?
 IF /I "%answer%" NEQ "y" ( ECHO Aborted & PAUSE & EXIT /B 1 )
 ECHO.
 

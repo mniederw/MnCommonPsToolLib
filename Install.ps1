@@ -13,7 +13,7 @@ function OutProgressText                      ( [String] $line ){ OutStringInCol
 function OutQuestion                          ( [String] $line ){ OutStringInColor "Cyan"  $line $true ; }
 function DirSep                               (){ return [Char] [IO.Path]::DirectorySeparatorChar; }
 function FsEntryHasTrailingDirSep             ( [String] $fsEntry ){ return [Boolean] ($fsEntry.EndsWith("\") -or $fsEntry.EndsWith("/")); }
-function FsEntryRemoveTrailingDirSep          ( [String] $fsEntry ){ [String] $r = $fsEntry; 
+function FsEntryRemoveTrailingDirSep          ( [String] $fsEntry ){ [String] $r = $fsEntry;
                                                 if( $r -ne "" ){ while( FsEntryHasTrailingDirSep $r ){ $r = $r.Remove($r.Length-1); } if( $r -eq "" ){ $r = $fsEntry; } } return [String] $r; }
 function FsEntryMakeTrailingDirSep            ( [String] $fsEntry ){
                                                 [String] $result = $fsEntry; if( -not (FsEntryHasTrailingDirSep $result) ){ $result += $(DirSep); } return [String] $result; }
