@@ -4,7 +4,7 @@ name: PowershellModuleTest
 on:
   push:
     branches:
-      [ main ]
+      [ main, trunk ]
     paths-ignore:
       - '*.txt'
   pull_request:
