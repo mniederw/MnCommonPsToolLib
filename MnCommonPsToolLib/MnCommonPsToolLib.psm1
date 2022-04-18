@@ -541,13 +541,18 @@ function StreamToCsvFile                      ( [String] $file, [Boolean] $overw
 function StreamToXmlFile                      ( [String] $file, [Boolean] $overwrite = $false, [String] $encoding = "UTF8" ){
                                                 # If overwrite is false then nothing done if target already exists.
                                                 $input | Export-Clixml -Force:$overwrite -NoClobber:$(-not $overwrite) -Depth 999999999 -Encoding $encoding -Path (FsEntryEsc $file); }
-function StreamToDataRowsString               ( [String[]] $propertyNames = @() ){
+function StreamToDataRowsString               ( [String[]] $propertyNames = @() ){ # no header, only rows.
                                                 if( $propertyNames.Count -eq 0 ){ $propertyNames = @("*"); }
                                                 $input | Format-Table -Wrap -Force -autosize -HideTableHeaders $propertyNames | StreamToStringDelEmptyLeadAndTrLines; }
 function StreamToTableString                  ( [String[]] $propertyNames = @() ){
                                                 # Note: For a simple string array as ex: @("one","two")|StreamToTableString  it results with 4 lines "Length","------","     3","     3".
                                                 if( $propertyNames.Count -eq 0 ){ $propertyNames = @("*"); }
                                                 $input | Format-Table -Wrap -Force -autosize $propertyNames | StreamToStringDelEmptyLeadAndTrLines; }
+function StreamToFile                         ( [String] $file, [Boolean] $overwrite = $true, [String] $encoding = "UTF8" ){
+                                                # Will create path of file. overwrite does ignore readonly attribute.
+                                                OutProgress "WriteFile $file"; FsEntryCreateParentDir $file;
+                                                $input | Out-File -Force -NoClobber:$(-not $overwrite) -Encoding $encoding -LiteralPath $file; }
+function StreamFromCsvStrings                 ( [Char] $delimiter = ',' ){ $input | ConvertFrom-Csv -Delimiter $delimiter; }
 function ProcessFindExecutableInPath          ( [String] $exec ){ # Return full path or empty if not found.
                                                 [Object] $p = (Get-Command $exec -ErrorAction SilentlyContinue); if( $null -eq $p ){ return [String] ""; } return [String] $p.Source; }
 function ProcessIsRunningInElevatedAdminMode  (){ return [Boolean] ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"); }
@@ -639,18 +644,18 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 #   The double quote mark is interpreted as an escape sequence by the remaining backslash, 
                                                 #   causing a literal double quote mark (") to be placed in argv.
                                                 AssertRcIsOk;
-                                                [String] $cmdArgsQuoted = $(StringArrayDblQuoteItems $cmdArgs)
-                                                [String] $traceInfo = "`"$cmd`" $cmdArgsQuoted";
-                                                [String] $exec = (Get-Command $cmd).Path
-                                                if( $exec.EndsWith(".ps1") ){
-                                                  $cmdArgsQuoted = $cmdArgsQuoted | Where-Object { $null -ne $_ } | ForEach-Object {
-                                                    $_.Replace("\\","\").Replace("\`"","`"");
-                                                  };
-                                                  $cmdArgs = @( "-NoLogo", "-File", "`"$exec`"" ) + $cmdArgsQuoted;
+                                                [String] $exec = (Get-Command $cmd).Path;
+                                                [Boolean] $isPs = $exec.EndsWith(".ps1");
+                                                if( $isPs ){
                                                   $exec = (Get-Command "powershell.exe").Path;
-                                                  [Int32] $i = 1;
-                                                  $traceInfo = "`"$exec`" " + ($cmdArgs | Where-Object { $null -ne $_ } | ForEach-Object { "Arg[$i]=`"$_`""; $i += 1; } );
+                                                  $cmdArgs = @( "-NoLogo", "-File", "`"$exec`"" ) + 
+                                                    ($cmdArgs | Where-Object { $null -ne $_ } | ForEach-Object {
+                                                      $_.Replace("\\","\").Replace("\`"","`""); });
+                                                }else{
+                                                  $cmdArgs = @() + (StringArrayDblQuoteItems $cmdArgs);
                                                 }
+                                                [Int32] $i = 1;
+                                                [String] $traceInfo = "`"$exec`" " + ($cmdArgs | Where-Object { $null -ne $_ } | ForEach-Object { "Arg[$i]=`"$_`""; $i += 1; } );
                                                 if( $traceCmd ){ OutProgress $traceInfo; }
                                                 $prInfo = New-Object System.Diagnostics.ProcessStartInfo;
                                                 $prInfo.FileName = $exec;
@@ -684,7 +689,7 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 [String] $err = $bufStdErr.ToString().Trim(); if( $err -ne "" ){ $err = [Environment]::NewLine + $err; }
                                                 [Boolean] $doThrow = $exitCode -ne 0 -or ($err -ne "" -and -not $careStdErrAsOut);
                                                 if( $Global:ErrorActionPreference -ne "Continue" -and $doThrow ){
-                                                  if( -not $traceCmd ){ OutProgress $traceInfo; } # in case of an error we output command line
+                                                  if( -not $traceCmd ){ OutProgress $traceInfo; } # in case of an error output command line, if not yet done
                                                   StringSplitIntoLines $out | Where-Object{$null -ne $_} |
                                                     Where-Object{ -not [String]::IsNullOrWhiteSpace($_) } |
                                                     ForEach-Object{ OutProgress "  $_"; };
@@ -2623,12 +2628,12 @@ function GitTortoiseCommit                    ( [String] $workDir, [String] $com
                                                 Start-Process -NoNewWindow -Wait -FilePath "$tortoiseExe" -ArgumentList @("/command:commit","/path:`"$workDir`"", "/logmsg:$commitMessage"); AssertRcIsOk; }
 function GitListCommitComments                ( [String] $tarDir, [String] $localRepoDir, [String] $fileExtension = ".tmp",
                                                   [String] $prefix = "Log.", [Int32] $doOnlyIfOlderThanAgeInDays = 14 ){
-                                                # Overwrite git log info files below specified target dir,
-                                                # For the name of the repo it takes the two last dir parts 
-                                                # separated with a dot (NameOfRepoParent.NameOfRepo).
-                                                # It writes files as Log.NameOfRepoParent.NameOfRepo.CommittedComments.tmp 
-                                                # and Log.NameOfRepoParent.NameOfRepo.CommittedChangedFiles.tmp
-                                                # It is quite slow about 10 sec per repo, so it can controlled by $doOnlyIfOlderThanAgeInDays.
+                                                # Reads commit messages and changed files info from localRepoDir 
+                                                # and overwrites it to two target files to target dir.
+                                                # For building the filenames it takes the two last dir parts and writes the files with the names:
+                                                # - Log.NameOfRepoParent.NameOfRepo.CommittedComments.tmp
+                                                # - Log.NameOfRepoParent.NameOfRepo.CommittedChangedFiles.tmp
+                                                # It is quite slow about 10 sec per repo, so it can be controlled by $doOnlyIfOlderThanAgeInDays.
                                                 # In case of a git error it outputs it as warning.
                                                 # ex: GitListCommitComments "C:\WorkGit\_CommitComments" "C:\WorkGit\mniederw\MnCommonPsToolLib"
                                                 [String] $dir = FsEntryGetAbsolutePath $localRepoDir;
@@ -2638,12 +2643,12 @@ function GitListCommitComments                ( [String] $tarDir, [String] $loca
                                                   if( -not (FsEntryNotExistsOrIsOlderThanNrDays $fout $doOnlyIfOlderThanAgeInDays) ){
                                                     OutProgress "Process git log not nessessary because file is newer than $doOnlyIfOlderThanAgeInDays days: $fout";
                                                   }else{
-                                                    [String[]] $options = @( "--git-dir=$dir\.git", "log", "--after=1990-01-01", "--pretty=format:%ci %cn/%ce %s" );
+                                                    [String[]] $options = @( "--git-dir=$dir\.git", "log", "--after=1990-01-01", "--pretty=format:%ci %cn [%ce] %s" );
                                                     if( $doSummary ){ $options += "--summary"; }
                                                     [String] $out = "";
                                                     try{
                                                       OutProgress "git $(StringArrayDblQuoteItems $options) ;";
-                                                      $out = (ProcessStart "git" $options -careStdErrAsOut:$true -traceCmd:$false);
+                                                      $out = (ProcessStart "git" $options -careStdErrAsOut:$true -traceCmd:$true);
                                                     }catch{
                                                       if( $_.Exception.Message -eq "fatal: your current branch 'master' does not have any commits yet" ){ # Last operation failed [rc=128]
                                                         $out +=  "$([Environment]::NewLine)" + "Info: your current branch 'master' does not have any commits yet.";
@@ -2914,7 +2919,7 @@ function SvnRevert                            ( [String] $workDir, [String[]] $r
                                                 } }
 function SvnTortoiseCommit                    ( [String] $workDir ){
                                                 FileAppendLineWithTs $svnLogFile "SvnTortoiseCommit(`"$workDir`") call checkin dialog";
-                                                [String] $tortoiseExe = (RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseSVN" "Directory") + ".$(DirSep)bin$(DirSep)TortoiseProc.exe";
+                                                [String] $tortoiseExe = (RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseSVN" "ProcPath"); # ex: "C:\Program Files\TortoiseSVN\bin\TortoiseProc.exe"
                                                 Start-Process -NoNewWindow -Wait -FilePath "$tortoiseExe" -ArgumentList @("/closeonend:2","/command:commit","/path:`"$workDir`""); AssertRcIsOk; }
 function SvnUpdate                            ( [String] $workDir, [String] $user ){
                                                 SvnCheckoutAndUpdate $workDir "" $user $true; }
