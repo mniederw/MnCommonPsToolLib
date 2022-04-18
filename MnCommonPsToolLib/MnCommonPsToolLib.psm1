@@ -712,6 +712,7 @@ function ProcessRemoveAllAlias                ( [String[]] $excludeAliasNames = 
                                                 $removedAliasNames = $removedAliasNames | Select-Object -Unique | Sort-Object;
                                                 if( $doTrace -and $removedAliasNames.Count -gt 0 ){
                                                   OutProgress "Removed all existing $($removedAliasNames.Count) alias except [$excludeAliasNames]."; } }
+function ProcessOpenAssocFile                 ( [String] $fileOrUrl ){ & "rundll32" "url.dll,FileProtocolHandler" $fileOrUrl; AssertRcIsOk; }
 function JobStart                             ( [ScriptBlock] $scr, [Object[]] $scrArgs = $null, [String] $name = "Job" ){ # Return job object of type PSRemotingJob, the returned object of the script block can later be requested.
                                                 return [System.Management.Automation.Job] (Start-Job -name $name -ScriptBlock $scr -ArgumentList $scrArgs); }
 function JobGet                               ( [String] $id ){ return [System.Management.Automation.Job] (Get-Job -Id $id); } # Return job object.
@@ -2603,6 +2604,9 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   if( -not $errorAsWarning ){ throw [Exception] $msg; }
                                                   OutWarning "Warning: $msg";
                                                 } }
+function GitShowUrl                           ( [String] $repoDir ){
+                                                [String] $out = (& git "--git-dir=$repoDir/.git" config remote.origin.url); AssertRcIsOk $out;
+                                                return [String] $out; }
 function GitShowBranch                        ( [String] $repoDir ){
                                                 # return current branch (example: "master").
                                                 [String] $out = ProcessStart "git" @( "-C", $repoDir, "--git-dir=.git", "branch") -traceCmd:$false;
@@ -2614,6 +2618,9 @@ function GitShowChanges                       ( [String] $repoDir ){
                                                 return [String[]] (@()+(StringSplitIntoLines $out |
                                                   Where-Object{$null -ne $_} |
                                                   Where-Object{ -not [String]::IsNullOrWhiteSpace($_); })); }
+function GitTortoiseCommit                    ( [String] $workDir, [String] $commitMessage = "" ){
+                                                [String] $tortoiseExe = (RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseGit" "ProcPath"); # ex: "C:\Program Files\TortoiseGit\bin\TortoiseGitProc.exe"
+                                                Start-Process -NoNewWindow -Wait -FilePath "$tortoiseExe" -ArgumentList @("/command:commit","/path:`"$workDir`"", "/logmsg:$commitMessage"); AssertRcIsOk; }
 function GitListCommitComments                ( [String] $tarDir, [String] $localRepoDir, [String] $fileExtension = ".tmp",
                                                   [String] $prefix = "Log.", [Int32] $doOnlyIfOlderThanAgeInDays = 14 ){
                                                 # Overwrite git log info files below specified target dir,
