@@ -2648,7 +2648,7 @@ function GitListCommitComments                ( [String] $tarDir, [String] $loca
                                                     [String] $out = "";
                                                     try{
                                                       OutProgress "git $(StringArrayDblQuoteItems $options) ;";
-                                                      $out = (ProcessStart "git" $options -careStdErrAsOut:$true -traceCmd:$true);
+                                                      $out = (ProcessStart "git" $options -careStdErrAsOut:$true -traceCmd:$false);
                                                     }catch{
                                                       if( $_.Exception.Message -eq "fatal: your current branch 'master' does not have any commits yet" ){ # Last operation failed [rc=128]
                                                         $out +=  "$([Environment]::NewLine)" + "Info: your current branch 'master' does not have any commits yet.";
