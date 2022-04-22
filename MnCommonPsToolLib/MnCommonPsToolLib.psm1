@@ -38,7 +38,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "6.13"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "6.14"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -646,17 +646,19 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 AssertRcIsOk;
                                                 [String] $exec = (Get-Command $cmd).Path;
                                                 [Boolean] $isPs = $exec.EndsWith(".ps1");
+                                                [String] $traceInfo = "`"$cmd`" $(StringArrayDblQuoteItems $cmdArgs)";
                                                 if( $isPs ){
-                                                  $exec = (Get-Command "powershell.exe").Path;
-                                                  $cmdArgs = @( "-NoLogo", "-File", "`"$exec`"" ) + 
-                                                    ($cmdArgs | Where-Object { $null -ne $_ } | ForEach-Object {
+                                                  $cmdArgs = @() + ($cmdArgs | Where-Object { $null -ne $_ } | ForEach-Object {
                                                       $_.Replace("\\","\").Replace("\`"","`""); });
+                                                  $traceInfo = "powershell -File `"$cmd`" $(StringArrayDblQuoteItems $cmdArgs)";
+                                                  $cmdArgs = @( "-NoLogo", "-File", "`"$exec`"" ) + $cmdArgs;
+                                                  $exec = (Get-Command "powershell.exe").Path;
                                                 }else{
                                                   $cmdArgs = @() + (StringArrayDblQuoteItems $cmdArgs);
                                                 }
-                                                [Int32] $i = 1;
-                                                [String] $traceInfo = "`"$exec`" " + ($cmdArgs | Where-Object { $null -ne $_ } | ForEach-Object { "Arg[$i]=`"$_`""; $i += 1; } );
                                                 if( $traceCmd ){ OutProgress $traceInfo; }
+                                                [Int32] $i = 1;
+                                                [String] $verboseInfo = "`"$exec`" " + ($cmdArgs | Where-Object { $null -ne $_ } | ForEach-Object { "Arg[$i]=`"$_`""; $i += 1; } );
                                                 $prInfo = New-Object System.Diagnostics.ProcessStartInfo;
                                                 $prInfo.FileName = $exec;
                                                 $prInfo.Arguments = $cmdArgs;
@@ -2647,8 +2649,7 @@ function GitListCommitComments                ( [String] $tarDir, [String] $loca
                                                     if( $doSummary ){ $options += "--summary"; }
                                                     [String] $out = "";
                                                     try{
-                                                      OutProgress "git $(StringArrayDblQuoteItems $options) ;";
-                                                      $out = (ProcessStart "git" $options -careStdErrAsOut:$true -traceCmd:$false);
+                                                      $out = (ProcessStart "git" $options -careStdErrAsOut:$true -traceCmd:$true);
                                                     }catch{
                                                       if( $_.Exception.Message -eq "fatal: your current branch 'master' does not have any commits yet" ){ # Last operation failed [rc=128]
                                                         $out +=  "$([Environment]::NewLine)" + "Info: your current branch 'master' does not have any commits yet.";
