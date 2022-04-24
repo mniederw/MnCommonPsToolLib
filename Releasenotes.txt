@@ -5,7 +5,9 @@ Major version changes will reflect breaking changes and minor identifies extensi
 See description of major version with minor equal zero about breaking changes as removed deprecated functions or changed behavious.
 Current version can be requested by: $MnCommonPsToolLibVersion
 
-2022-04-19  V6.14  Fixed ProcessStart.
+2022-04-19  V6.14  Fixed ProcessStart. Fixed StringIsNullOrWhiteSpace to StringIsFilled.
+                   ToolTfsInitLocalWorkspaceIfNotDone deprecated and replaced by TfsInitLocalWorkspaceIfNotDone.
+                   Refactored unit tests. 
 2022-04-18  V6.13  Fixed ProcessStart. Improve GitCmd. Extended GitTortoiseCommit. Added GitShowUrl, StreamFromCsvStrings, StreamToFile.
 2022-04-12  V6.12  Fixed GitListCommitComments.
 2022-04-12  V6.11  Improvee UnitTest, console properties. Added TestAll.ps1.

@@ -16,7 +16,7 @@
 # - On writing or appending files they automatically create its path parts.
 # - Notes about tracing information lines:
 #   - Progress : Any change of the system will be notified with color Gray. Is enabled as default.
-#   - Verbose  : Some read io will be notified with (Write-Verbose) which can be enabled by VerbosePreference. Use $Host.PrivateData.VerboseForegroundColor = 'DarkGray';
+#   - Verbose  : Some read io will be notified with (Write-Verbose) which can be enabled by $Global:VerbosePreference. Use $Host.PrivateData.VerboseForegroundColor = 'DarkGray';
 #   - Debug    : Some minor additional information are notified with (Write-Debug) which can be enabled by DebugPreference.
 # - Comparison with null: All such comparing statements have the null constant on the left side ($null -eq $a)
 #   because for arrays this is mandatory (throws: @() -eq $null)
@@ -216,7 +216,7 @@ function GlobalSetModeOutputWithTsPrefix      ( [Boolean] $val = $true ){ $Globa
 
 function StringIsNullOrEmpty                  ( [String] $s ){ return [Boolean] [String]::IsNullOrEmpty($s); }
 function StringIsNotEmpty                     ( [String] $s ){ return [Boolean] (-not [String]::IsNullOrEmpty($s)); }
-function StringIsNullOrWhiteSpace             ( [String] $s ){ return [Boolean] (-not [String]::IsNullOrWhiteSpace($s)); }
+function StringIsFilled                       ( [String] $s ){ return [Boolean] (-not [String]::IsNullOrWhiteSpace($s)); }
 function StringIsInt32                        ( [String] $s ){ [String] $tmp = ""; return [Int32]::TryParse($s,[ref]$tmp); }
 function StringIsInt64                        ( [String] $s ){ [String] $tmp = ""; return [Int64]::TryParse($s,[ref]$tmp); }
 function StringAsInt32                        ( [String] $s ){ if( ! (StringIsInt32 $s) ){ throw [Exception] "Is not an Int32: $s"; } return ($s -as [Int32]); }
@@ -331,9 +331,9 @@ function DateTimeFromStringIso                ( [String] $s ){ # "yyyy-MM-dd HH:
                                                 try{ return [DateTime] [datetime]::ParseExact($s,$fmt,$null);
                                                 }catch{ <# ex: Ausnahme beim Aufrufen von "ParseExact" mit 3 Argument(en): Die Zeichenfolge wurde nicht als gültiges DateTime erkannt. #>
                                                   throw [Exception] "DateTimeFromStringIso(`"$s`") is not a valid datetime in format `"$fmt`""; } }
-function ArrayIsNullOrEmpty                   ( [Object[]] $a ){ return [Boolean] ($null -eq $a -or $a.Count -eq 0); }
 function ByteArraysAreEqual                   ( [Byte[]] $a1, [Byte[]] $a2 ){ if( $a1.LongLength -ne $a2.LongLength ){ return [Boolean] $false; }
                                                 for( [Int64] $i = 0; $i -lt $a1.LongLength; $i++ ){ if( $a1[$i] -ne $a2[$i] ){ return [Boolean] $false; } } return [Boolean] $true; }
+function ArrayIsNullOrEmpty                   ( [Object[]] $a ){ return [Boolean] ($null -eq $a -or $a.Count -eq 0); }
 function ConsoleHide                          (){ [Object] $p = [Console.Window]::GetConsoleWindow(); [Object] $dummy = [Console.Window]::ShowWindow($p,0); } #0 hide (also by PowerShell.exe -WindowStyle Hidden)
 function ConsoleShow                          (){ [Object] $p = [Console.Window]::GetConsoleWindow(); [Object] $dummy = [Console.Window]::ShowWindow($p,5); } #5 nohide
 function ConsoleRestore                       (){ [Object] $p = [Console.Window]::GetConsoleWindow(); [Object] $dummy = [Console.Window]::ShowWindow($p,1); } #1 show
@@ -484,7 +484,7 @@ function AssertRcIsOk                         ( [String[]] $linesToOutProgress =
                                                 # Can also be called with a single string; only nonempty progress lines are given out.
                                                 [Int32] $rc = ScriptGetAndClearLastRc;
                                                 if( $rc -ne 0 ){
-                                                  if( -not $useLinesAsExcMessage ){ $linesToOutProgress | Where-Object{ -not [String]::IsNullOrWhiteSpace($_) } | ForEach-Object{ OutProgress $_ }; }
+                                                  if( -not $useLinesAsExcMessage ){ $linesToOutProgress | Where-Object{ StringIsFilled $_ } | ForEach-Object{ OutProgress $_ }; }
                                                   [String] $msg = "Last operation failed [rc=$rc]. ";
                                                   if( $useLinesAsExcMessage ){ $msg = $(switch($rc -eq 1 -and $out -ne ""){($true){""}default{$msg}}) + ([String]$linesToOutProgress).Trim(); }
                                                   try{ OutProgress "Dump of logfile=$($logFileToOutProgressIfFailed):";
@@ -496,6 +496,7 @@ function ScriptImportModuleIfNotDone          ( [String] $moduleName ){ if( -not
                                                 OutProgress "Import module $moduleName (can take some seconds on first call)";
                                                 Import-Module -NoClobber $moduleName -DisableNameChecking; } }
 function ScriptGetCurrentFunc                 (){ return [String] ((Get-Variable MyInvocation -Scope 1).Value.MyCommand.Name); }
+function ScriptGetCurrentFuncName             (){ return [String] ((Get-PSCallStack)[2].Position); }
 function ScriptGetAndClearLastRc              (){ [Int32] $rc = 0;
                                                 if( ((test-path "variable:LASTEXITCODE") -and $null -ne $LASTEXITCODE <# if no windows command was done then $LASTEXITCODE is null #> -and $LASTEXITCODE -ne 0) -or -not $? ){ $rc = $LASTEXITCODE; ScriptResetRc; }
                                                 return [Int32] $rc; }
@@ -521,7 +522,7 @@ function ScriptIsProbablyInteractive          (){ [String] $f = $global:MyInvoca
                                                 return [Boolean] $f -eq "" -or $f -eq "ScriptGetTopCaller" -or -not $f.StartsWith("&"); }
 function StreamAllProperties                  (){ $input | Select-Object *; }
 function StreamAllPropertyTypes               (){ $input | Get-Member -Type Property; }
-function StreamFilterWhitespaceLines          (){ $input | Where-Object{ -not [String]::IsNullOrWhiteSpace($_) }; }
+function StreamFilterWhitespaceLines          (){ $input | Where-Object{ StringIsFilled $_ }; }
 function StreamToNull                         (){ $input | Out-Null; }
 function StreamToString                       (){ $input | Out-String -Width 999999999; }
 function StreamToStringDelEmptyLeadAndTrLines (){ $input | Out-String -Width 999999999 | ForEach-Object{ $_ -replace "[ \f\t\v]]+\r\n","\r\n" -replace "^(\r\n)+","" -replace "(\r\n)+$","" }; }
@@ -675,8 +676,8 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 # Uses async read of stdout and stderr to avoid deadlocks.
                                                 [System.Text.StringBuilder] $bufStdOut = New-Object System.Text.StringBuilder;
                                                 [System.Text.StringBuilder] $bufStdErr = New-Object System.Text.StringBuilder;
-                                                $actionReadStdOut = { if( -not [String]::IsNullOrWhiteSpace($Event.SourceEventArgs.Data) ){ [void]$Event.MessageData.AppendLine($Event.SourceEventArgs.Data); } };
-                                                $actionReadStdErr = { if( -not [String]::IsNullOrWhiteSpace($Event.SourceEventArgs.Data) ){ [void]$Event.MessageData.AppendLine($Event.SourceEventArgs.Data); } };
+                                                $actionReadStdOut = { if( StringIsFilled $Event.SourceEventArgs.Data ){ [void]$Event.MessageData.AppendLine($Event.SourceEventArgs.Data); } };
+                                                $actionReadStdErr = { if( StringIsFilled $Event.SourceEventArgs.Data ){ [void]$Event.MessageData.AppendLine($Event.SourceEventArgs.Data); } };
                                                 [Object] $eventStdOut = Register-ObjectEvent -InputObject $pr -EventName OutputDataReceived -Action $actionReadStdOut -MessageData $bufStdOut;
                                                 [Object] $eventStdErr = Register-ObjectEvent -InputObject $pr -EventName ErrorDataReceived  -Action $actionReadStdErr -MessageData $bufStdErr;
                                                 [void]$pr.Start();
@@ -693,7 +694,7 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 if( $Global:ErrorActionPreference -ne "Continue" -and $doThrow ){
                                                   if( -not $traceCmd ){ OutProgress $traceInfo; } # in case of an error output command line, if not yet done
                                                   StringSplitIntoLines $out | Where-Object{$null -ne $_} |
-                                                    Where-Object{ -not [String]::IsNullOrWhiteSpace($_) } |
+                                                    Where-Object{ StringIsFilled $_ } |
                                                     ForEach-Object{ OutProgress "  $_"; };
                                                   [String] $msg = "ProcessStart($traceInfo) failed with rc=$exitCode $err";
                                                   throw [Exception] $msg;
@@ -738,6 +739,14 @@ function OsPsVersion                          (){ return [String] (""+$Host.Vers
 function OsIsWinVistaOrHigher                 (){ return [Boolean] ([Environment]::OSVersion.Version -ge (new-object "Version" 6,0)); }
 function OsIsWin7OrHigher                     (){ return [Boolean] ([Environment]::OSVersion.Version -ge (new-object "Version" 6,1)); }
 function OsIs64BitOs                          (){ return [Boolean] (Get-WmiObject -Class Win32_OperatingSystem -ComputerName $ComputerName -ea 0).OSArchitecture -eq "64-Bit"; }
+function OsIsHibernateEnabled                 (){
+                                                if( (FileNotExists "$env:SystemDrive/hiberfil.sys") ){ return [Boolean] $false; }
+                                                if( OsIsWin7OrHigher ){ return [Boolean] (RegistryGetValueAsString "HKLM:\SYSTEM\CurrentControlSet\Control\Power" "HibernateEnabled") -eq "1"; }
+                                                # win7     ex: Die folgenden Standbymodusfunktionen sind auf diesem System verfügbar: Standby ( S1 S3 ) Ruhezustand Hybrider Standbymodus
+                                                # winVista ex: Die folgenden Ruhezustandfunktionen sind auf diesem System verfügbar: Standby ( S3 ) Ruhezustand Hybrider Standbymodus
+                                                [String] $out = @()+(& "$env:SystemRoot/system32/POWERCFG.EXE" "-AVAILABLESLEEPSTATES" | Where-Object{
+                                                  $_ -like "Die folgenden Standbymodusfunktionen sind auf diesem System verf*" -or $_ -like "Die folgenden Ruhezustandfunktionen sind auf diesem System verf*" });
+                                                AssertRcIsOk; return [Boolean] ((($out.Contains("Ruhezustand") -or $out.Contains("Hibernate"))) -and (FileExists "$env:SystemDrive/hiberfil.sys")); }
 function OsInfoMainboardPhysicalMemorySum     (){ return [Int64] (Get-WMIObject -class Win32_PhysicalMemory | Measure-Object -Property capacity -Sum).Sum; }
 function OsWindowsFeatureGetInstalledNames    (){ # Requires windows-server-os or at least Win10Prof with installed RSAT https://www.microsoft.com/en-au/download/details.aspx?id=45520
                                                   Import-Module ServerManager; return [String[]] (@()+(Get-WindowsFeature | Where-Object{ $_.InstallState -eq "Installed" } | ForEach-Object{ $_.Name })); } # states: Installed, Available, Removed.
@@ -761,6 +770,19 @@ function OsPsModulePathAdd                    ( [String] $dir ){ if( OsPsModuleP
 function OsPsModulePathDel                    ( [String] $dir ){ OsPsModulePathSet (OsPsModulePathList |
                                                 Where-Object{ (FsEntryRemoveTrailingDirSep $_) -ne (FsEntryRemoveTrailingDirSep $dir) }); }
 function OsPsModulePathSet                    ( [String[]] $pathList ){ [Environment]::SetEnvironmentVariable("PSModulePath", ($pathList -join ";"), "Machine"); }
+function OsGetWindowsProductKey               (){
+                                                [String] $map = "BCDFGHJKMPQRTVWXY2346789";
+                                                [Object] $value = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").digitalproductid[0x34..0x42]; [String] $p = "";
+                                                for( $i = 24; $i -ge 0; $i-- ){
+                                                  $r = 0; for( $j = 14; $j -ge 0; $j-- ){
+                                                    $r = ($r * 256) -bxor $value[$j];
+                                                    $value[$j] = [math]::Floor([double]($r/24));
+                                                    $r = $r % 24;
+                                                  }
+                                                  $p = $map[$r] + $p;
+                                                  if( ($i % 5) -eq 0 -and $i -ne 0 ){ $p = "-" + $p; }
+                                                }
+                                                return [String] $p; }
 function PrivGetUserFromName                  ( [String] $username ){ # optionally as domain\username
                                                 return [System.Security.Principal.NTAccount] $username; }
 function PrivGetUserCurrent                   (){ return [System.Security.Principal.IdentityReference] ([System.Security.Principal.WindowsIdentity]::GetCurrent().User); } # alternative: PrivGetUserFromName "$env:userdomain\$env:username"
@@ -895,6 +917,84 @@ function PrivEnableTokenAll                   (){
                                                 PrivEnableTokenPrivilege SeCreateSymbolicLinkPrivilege  ;
                                                 whoami /priv;
                                               }
+function PrivAclFsRightsToString              ( [System.Security.AccessControl.FileSystemRights] $r ){ # as ICACLS https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/icacls
+                                                [String] $s = "";
+                                                # Ref: https://referencesource.microsoft.com/#mscorlib/system/security/accesscontrol/filesecurity.cs
+                                                # Ref: https://docs.microsoft.com/en-us/dotnet/api/system.security.accesscontrol.filesystemrights?view=netframework-4.8
+                                                if(   $r -band [System.Security.AccessControl.FileSystemRights]::FullControl                        ){ $s += "F,"   ; } # exert full control over a folder or file, and to modify access control and audit rules. This value represents the right to do anything with a file and is the combination of all rights in this enumeration.
+                                                else{
+                                                  [Boolean] $notR = -not ($r -band [System.Security.AccessControl.FileSystemRights]::Read);
+                                                  [Boolean] $notM = -not ($r -band [System.Security.AccessControl.FileSystemRights]::Modify);
+                                                  [Boolean] $notW = -not ($r -band [System.Security.AccessControl.FileSystemRights]::Write);
+                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::Read                               ){ $s += "R,"   ; } # Same as ReadData|ReadExtendedAttributes|ReadAttributes|ReadPermissions. open and copy folders or files as read-only.
+                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::Modify                             ){ $s += "M,"   ; } # Same as Read|ExecuteFile|Write|Delete.                                  read, write, list folder contents, delete folders and files, and run application files.
+                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::Write                              ){ $s += "W,"   ; } # Same as WriteData|AppendData|WriteExtendedAttributes|WriteAttributes.   create folders and files, and to add or remove data from files.
+                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::ExecuteFile                        ){ $s += "X,"   ; } # run an application file. For directories: list the contents of a folder and to run applications contained within that folder.
+                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::Synchronize                        ){ $s += "s,"   ; } # whether the application can wait for a file handle to synchronize with the completion of an I/O operation. This value is automatically set when allowing access and automatically excluded when denying access.
+                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::Delete                  -and $notM ){ $s += "d,"   ; } # delete a folder or file.
+                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::ReadData                -and $notR ){ $s += "rd,"  ; } # open and copy a file or folder. This does not include the right to read file system attributes, extended file system attributes, or access and audit rules. For directories: read the contents of a directory.
+                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::ReadExtendedAttributes  -and $notR ){ $s += "rea," ; } # open and copy extended file system attributes from a folder or file. For example, this value specifies the right to view author and content information. This does not include the right to read data, file system attributes, or access and audit rules.
+                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::ReadAttributes          -and $notR ){ $s += "ra,"  ; } # open and copy file system attributes from a folder or file. For example, this value specifies the right to view the file creation or modified date. This does not include the right to read data, extended file system attributes, or access and audit rules.
+                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::ReadPermissions         -and $notR ){ $s += "rc,"  ; } # read control, open and copy access and audit rules from a folder or file. This does not include the right to read data, file system attributes, and extended file system attributes.
+                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::WriteData               -and $notW ){ $s += "wd,"  ; } # open and write to a file or folder. This does not include the right to open and write file system attributes, extended file system attributes, or access and audit rules. For directories: create a file. This right requires the Synchronize value.
+                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::AppendData              -and $notW ){ $s += "ad,"  ; } # append data to the end of a file. For directories: create a folder This right requires the Synchronize value.
+                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::WriteExtendedAttributes -and $notW ){ $s += "wea," ; } # open and write extended file system attributes to a folder or file. This does not include the ability to write data, attributes, or access and audit rules.
+                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::WriteAttributes         -and $notW ){ $s += "wa,"  ; } # open and write file system attributes to a folder or file. This does not include the ability to write data, extended attributes, or access and audit rules.
+                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles       ){ $s += "dc,"  ; } # delete a folder and any files contained within that folder. It only makes sense on directories, but the shell explicitly sets it for files in its UI. So its includeed in FullControl.
+                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::ChangePermissions                  ){ $s += "wdac,"; } # change the security and audit rules associated with a file or folder.
+                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::TakeOwnership                      ){ $s += "wo,"  ; } # change the owner of a folder or file. Note that owners of a resource have full access to that resource.
+                                                  if( $r -band 0x10000000                                                                           ){ $s += "ga,"  ; } # generic all
+                                                  if( $r -band 0x80000000                                                                           ){ $s += "gr,"  ; } # generic read
+                                                  if( $r -band 0x20000000                                                                           ){ $s += "ge,"  ; } # generic execute
+                                                  if( $r -band 0x40000000                                                                           ){ $s += "gw,"  ; } # generic write
+                                                  # Not yet used: ListDirectory=ReadData; Traverse=ExecuteFile; CreateFiles=WriteData; CreateDirectories=AppendData; ReadAndExecute=Read|ExecuteFile=RX(=open and copy folders or files as read-only, and to run application files. This right includes the Read right and the ExecuteFile right).
+                                                }
+                                                return [String] $s; }
+function PrivAclFsRightsFromString            ( [String] $s ){ # inverse of PrivAclFsRightsToString
+                                                [System.Security.AccessControl.FileSystemRights] $result = 0x00000000;
+                                                [String[]] $r = @()+(StringSplitToArray "," $s $true);
+                                                $r | Where-Object{$null -ne $_} | ForEach-Object{
+                                                  [String] $w = switch($_){
+                                                    "F"   {"FullControl"}
+                                                    "R"   {"Read"}
+                                                    "M"   {"Modify"}
+                                                    "W"   {"Write"}
+                                                    "X"   {"ExecuteFile"}
+                                                    "s"   {"Synchronize"}
+                                                    "d"   {"Delete"}
+                                                    "rd"  {"ReadData"}
+                                                    "rea" {"ReadExtendedAttributes"}
+                                                    "ra"  {"ReadAttributes"}
+                                                    "rc"  {"ReadPermissions"}
+                                                    "wd"  {"WriteData"}
+                                                    "ad"  {"AppendData"}
+                                                    "wea" {"WriteExtendedAttributes"}
+                                                    "wa"  {"WriteAttributes"}
+                                                    "dc"  {"DeleteSubdirectoriesAndFiles"}
+                                                    "wdac"{"ChangePermissions"}
+                                                    "wo"  {"TakeOwnership"}
+                                                    default {""}};
+                                                  if( $w -eq "" ){ throw [Exception] "Invalid FileSystemRight-Code `"$_`"."; }
+                                                  $result = $result -bor ([System.Security.AccessControl.FileSystemRights]$w);
+                                                }; return [System.Security.AccessControl.FileSystemRights] $result; }
+function PrivAclRegRightsToString              ( [System.Security.AccessControl.RegistryRights] $r ){
+                                                [String] $result = "";
+                                                # Ref: https://docs.microsoft.com/en-us/dotnet/api/system.security.accesscontrol.registryrights?view=netframework-4.8
+                                                if(   $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::FullControl         ){ $s += "F,"; } # exert full control over a registry key, and to modify its access rules and audit rules.
+                                                else{
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::ReadKey             ){ $s += "R,"; } # query the name/value pairs in a registry key, to request notification of changes, to enumerate its subkeys, and to read its access rules and audit rules.
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::WriteKey            ){ $s += "W,"; } # create, delete, and set the name/value pairs in a registry key, to create or delete subkeys, to request notification of changes, to enumerate its subkeys, and to read its access rules and audit rules.
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::CreateSubKey        ){ $s += "C,"; } # create subkeys of a registry key.
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::Delete              ){ $s += "D,"; } # delete a registry key.
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::TakeOwnership       ){ $s += "O,"; } # change the owner of a registry key.
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::EnumerateSubKeys    ){ $s += "L,"; } # list the subkeys of a registry key.
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::QueryValues         ){ $s += "r,"; } # query the name/value pairs in a registry key.
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::SetValue            ){ $s += "w,"; } # create, delete, or set name/value pairs in a registry key.
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::ReadPermissions     ){ $s += "p,"; } # open and copy the access rules and audit rules for a registry key.
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::ChangePermissions   ){ $s += "c,"; } # change the access rules and audit rules associated with a registry key.
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::Notify              ){ $s += "n,"; } # request notification of changes on a registry key.
+                                                  # Not used:  CreateLink=Reserved for system use. ExecuteKey=Same as ReadKey.
+                                                } return [String] $result; }
 function RegistryMapToShortKey                ( [String] $key ){ # Note: HKCU: will be replaced by HKLM:\SOFTWARE\Classes" otherwise it would not work
                                                 if( -not $key.StartsWith("HKEY_","CurrentCultureIgnoreCase") ){ return [String] $key; }
                                                 return [String] $key -replace "HKEY_LOCAL_MACHINE:","HKLM:" -replace "HKEY_CURRENT_USER:","HKCU:" -replace "HKEY_CLASSES_ROOT:","HKCR:" -replace "HKCR:","HKLM:\SOFTWARE\Classes" -replace "HKEY_USERS:","HKU:" -replace "HKEY_CURRENT_CONFIG:","HKCC:"; }
@@ -1001,84 +1101,6 @@ function RegistryPrivRuleCreate               ( [System.Security.Principal.Ident
                                                 $pro = [System.Security.AccessControl.PropagationFlags]::None;
                                                 return New-Object System.Security.AccessControl.RegistryAccessRule($account,[System.Security.AccessControl.RegistryRights]$regRight,$inh,$pro,[System.Security.AccessControl.AccessControlType]::Allow); }
                                                 # alternative: "ObjectInherit,ContainerInherit"
-function PrivAclFsRightsToString              ( [System.Security.AccessControl.FileSystemRights] $r ){ # as ICACLS https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/icacls
-                                                [String] $s = "";
-                                                # Ref: https://referencesource.microsoft.com/#mscorlib/system/security/accesscontrol/filesecurity.cs
-                                                # Ref: https://docs.microsoft.com/en-us/dotnet/api/system.security.accesscontrol.filesystemrights?view=netframework-4.8
-                                                if(   $r -band [System.Security.AccessControl.FileSystemRights]::FullControl                        ){ $s += "F,"   ; } # exert full control over a folder or file, and to modify access control and audit rules. This value represents the right to do anything with a file and is the combination of all rights in this enumeration.
-                                                else{
-                                                  [Boolean] $notR = -not ($r -band [System.Security.AccessControl.FileSystemRights]::Read);
-                                                  [Boolean] $notM = -not ($r -band [System.Security.AccessControl.FileSystemRights]::Modify);
-                                                  [Boolean] $notW = -not ($r -band [System.Security.AccessControl.FileSystemRights]::Write);
-                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::Read                               ){ $s += "R,"   ; } # Same as ReadData|ReadExtendedAttributes|ReadAttributes|ReadPermissions. open and copy folders or files as read-only.
-                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::Modify                             ){ $s += "M,"   ; } # Same as Read|ExecuteFile|Write|Delete.                                  read, write, list folder contents, delete folders and files, and run application files.
-                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::Write                              ){ $s += "W,"   ; } # Same as WriteData|AppendData|WriteExtendedAttributes|WriteAttributes.   create folders and files, and to add or remove data from files.
-                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::ExecuteFile                        ){ $s += "X,"   ; } # run an application file. For directories: list the contents of a folder and to run applications contained within that folder.
-                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::Synchronize                        ){ $s += "s,"   ; } # whether the application can wait for a file handle to synchronize with the completion of an I/O operation. This value is automatically set when allowing access and automatically excluded when denying access.
-                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::Delete                  -and $notM ){ $s += "d,"   ; } # delete a folder or file.
-                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::ReadData                -and $notR ){ $s += "rd,"  ; } # open and copy a file or folder. This does not include the right to read file system attributes, extended file system attributes, or access and audit rules. For directories: read the contents of a directory.
-                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::ReadExtendedAttributes  -and $notR ){ $s += "rea," ; } # open and copy extended file system attributes from a folder or file. For example, this value specifies the right to view author and content information. This does not include the right to read data, file system attributes, or access and audit rules.
-                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::ReadAttributes          -and $notR ){ $s += "ra,"  ; } # open and copy file system attributes from a folder or file. For example, this value specifies the right to view the file creation or modified date. This does not include the right to read data, extended file system attributes, or access and audit rules.
-                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::ReadPermissions         -and $notR ){ $s += "rc,"  ; } # read control, open and copy access and audit rules from a folder or file. This does not include the right to read data, file system attributes, and extended file system attributes.
-                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::WriteData               -and $notW ){ $s += "wd,"  ; } # open and write to a file or folder. This does not include the right to open and write file system attributes, extended file system attributes, or access and audit rules. For directories: create a file. This right requires the Synchronize value.
-                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::AppendData              -and $notW ){ $s += "ad,"  ; } # append data to the end of a file. For directories: create a folder This right requires the Synchronize value.
-                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::WriteExtendedAttributes -and $notW ){ $s += "wea," ; } # open and write extended file system attributes to a folder or file. This does not include the ability to write data, attributes, or access and audit rules.
-                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::WriteAttributes         -and $notW ){ $s += "wa,"  ; } # open and write file system attributes to a folder or file. This does not include the ability to write data, extended attributes, or access and audit rules.
-                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::DeleteSubdirectoriesAndFiles       ){ $s += "dc,"  ; } # delete a folder and any files contained within that folder. It only makes sense on directories, but the shell explicitly sets it for files in its UI. So its includeed in FullControl.
-                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::ChangePermissions                  ){ $s += "wdac,"; } # change the security and audit rules associated with a file or folder.
-                                                  if( $r -band [System.Security.AccessControl.FileSystemRights]::TakeOwnership                      ){ $s += "wo,"  ; } # change the owner of a folder or file. Note that owners of a resource have full access to that resource.
-                                                  if( $r -band 0x10000000                                                                           ){ $s += "ga,"  ; } # generic all
-                                                  if( $r -band 0x80000000                                                                           ){ $s += "gr,"  ; } # generic read
-                                                  if( $r -band 0x20000000                                                                           ){ $s += "ge,"  ; } # generic execute
-                                                  if( $r -band 0x40000000                                                                           ){ $s += "gw,"  ; } # generic write
-                                                  # Not yet used: ListDirectory=ReadData; Traverse=ExecuteFile; CreateFiles=WriteData; CreateDirectories=AppendData; ReadAndExecute=Read|ExecuteFile=RX(=open and copy folders or files as read-only, and to run application files. This right includes the Read right and the ExecuteFile right).
-                                                }
-                                                return [String] $s; }
-function PrivAclFsRightsFromString            ( [String] $s ){ # inverse of PrivAclFsRightsToString
-                                                [System.Security.AccessControl.FileSystemRights] $result = 0x00000000;
-                                                [String[]] $r = @()+(StringSplitToArray "," $s $true);
-                                                $r | Where-Object{$null -ne $_} | ForEach-Object{
-                                                  [String] $w = switch($_){
-                                                    "F"   {"FullControl"}
-                                                    "R"   {"Read"}
-                                                    "M"   {"Modify"}
-                                                    "W"   {"Write"}
-                                                    "X"   {"ExecuteFile"}
-                                                    "s"   {"Synchronize"}
-                                                    "d"   {"Delete"}
-                                                    "rd"  {"ReadData"}
-                                                    "rea" {"ReadExtendedAttributes"}
-                                                    "ra"  {"ReadAttributes"}
-                                                    "rc"  {"ReadPermissions"}
-                                                    "wd"  {"WriteData"}
-                                                    "ad"  {"AppendData"}
-                                                    "wea" {"WriteExtendedAttributes"}
-                                                    "wa"  {"WriteAttributes"}
-                                                    "dc"  {"DeleteSubdirectoriesAndFiles"}
-                                                    "wdac"{"ChangePermissions"}
-                                                    "wo"  {"TakeOwnership"}
-                                                    default {""}};
-                                                  if( $w -eq "" ){ throw [Exception] "Invalid FileSystemRight-Code `"$_`"."; }
-                                                  $result = $result -bor ([System.Security.AccessControl.FileSystemRights]$w);
-                                                }; return [System.Security.AccessControl.FileSystemRights] $result; }
-function PrivAclRegRightsToString              ( [System.Security.AccessControl.RegistryRights] $r ){
-                                                [String] $result = "";
-                                                # Ref: https://docs.microsoft.com/en-us/dotnet/api/system.security.accesscontrol.registryrights?view=netframework-4.8
-                                                if(   $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::FullControl         ){ $s += "F,"; } # exert full control over a registry key, and to modify its access rules and audit rules.
-                                                else{
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::ReadKey             ){ $s += "R,"; } # query the name/value pairs in a registry key, to request notification of changes, to enumerate its subkeys, and to read its access rules and audit rules.
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::WriteKey            ){ $s += "W,"; } # create, delete, and set the name/value pairs in a registry key, to create or delete subkeys, to request notification of changes, to enumerate its subkeys, and to read its access rules and audit rules.
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::CreateSubKey        ){ $s += "C,"; } # create subkeys of a registry key.
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::Delete              ){ $s += "D,"; } # delete a registry key.
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::TakeOwnership       ){ $s += "O,"; } # change the owner of a registry key.
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::EnumerateSubKeys    ){ $s += "L,"; } # list the subkeys of a registry key.
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::QueryValues         ){ $s += "r,"; } # query the name/value pairs in a registry key.
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::SetValue            ){ $s += "w,"; } # create, delete, or set name/value pairs in a registry key.
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::ReadPermissions     ){ $s += "p,"; } # open and copy the access rules and audit rules for a registry key.
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::ChangePermissions   ){ $s += "c,"; } # change the access rules and audit rules associated with a registry key.
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::Notify              ){ $s += "n,"; } # request notification of changes on a registry key.
-                                                  # Not used:  CreateLink=Reserved for system use. ExecuteKey=Same as ReadKey.
-                                                } return [String] $result; }
 function RegistryPrivRuleToString             ( [System.Security.AccessControl.RegistryAccessRule] $rule ){
                                                 # ex: RegistryPrivRuleToString (RegistryPrivRuleCreate (PrivGetGroupAdministrators) "FullControl")
                                                 [String] $s = "$($rule.IdentityReference.ToString()):"; # ex: VORDEFINIERT\Administratoren
@@ -1142,27 +1164,6 @@ function RegistryKeySetAclRule                ( [String] $key, [System.Security.
                                                   $k.SetAccessControl($acl);
                                                   $k.Close(); $hk.Close();
                                                 }catch{ throw [Exception] "$(ScriptGetCurrentFunc)($key,$(RegistryPrivRuleToString $rule),$useAddNotSet) failed because $($_.Exception.Message)"; } }
-function OsGetWindowsProductKey               (){
-                                                [String] $map = "BCDFGHJKMPQRTVWXY2346789";
-                                                [Object] $value = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").digitalproductid[0x34..0x42]; [String] $p = "";
-                                                for( $i = 24; $i -ge 0; $i-- ){
-                                                  $r = 0; for( $j = 14; $j -ge 0; $j-- ){
-                                                    $r = ($r * 256) -bxor $value[$j];
-                                                    $value[$j] = [math]::Floor([double]($r/24));
-                                                    $r = $r % 24;
-                                                  }
-                                                  $p = $map[$r] + $p;
-                                                  if( ($i % 5) -eq 0 -and $i -ne 0 ){ $p = "-" + $p; }
-                                                }
-                                                return [String] $p; }
-function OsIsHibernateEnabled                 (){
-                                                if( (FileNotExists "$env:SystemDrive/hiberfil.sys") ){ return [Boolean] $false; }
-                                                if( OsIsWin7OrHigher ){ return [Boolean] (RegistryGetValueAsString "HKLM:\SYSTEM\CurrentControlSet\Control\Power" "HibernateEnabled") -eq "1"; }
-                                                # win7     ex: Die folgenden Standbymodusfunktionen sind auf diesem System verfügbar: Standby ( S1 S3 ) Ruhezustand Hybrider Standbymodus
-                                                # winVista ex: Die folgenden Ruhezustandfunktionen sind auf diesem System verfügbar: Standby ( S3 ) Ruhezustand Hybrider Standbymodus
-                                                [String] $out = @()+(& "$env:SystemRoot/system32/POWERCFG.EXE" "-AVAILABLESLEEPSTATES" | Where-Object{
-                                                  $_ -like "Die folgenden Standbymodusfunktionen sind auf diesem System verf*" -or $_ -like "Die folgenden Ruhezustandfunktionen sind auf diesem System verf*" });
-                                                AssertRcIsOk; return [Boolean] ((($out.Contains("Ruhezustand") -or $out.Contains("Hibernate"))) -and (FileExists "$env:SystemDrive/hiberfil.sys")); }
 function ServiceListRunnings                  (){
                                                 return [String[]] (@()+(Get-Service * |
                                                   Where-Object{ $_.Status -eq "Running" } |
@@ -2568,8 +2569,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   # - "Checking out files:  47% (219/463)" or "Checking out files: 100% (463/463), done."
                                                   # - warning: You appear to have cloned an empty repository.
                                                   # - The string "Already up to date." is presumebly suppressed by quiet option.
-                                                  StringSplitIntoLines $out | Where-Object{$null -ne $_} |
-                                                    Where-Object{ -not [String]::IsNullOrWhiteSpace($_) } |
+                                                  StringSplitIntoLines $out | Where-Object{$null -ne $_} | Where-Object{ StringIsFilled $_ } |
                                                     ForEach-Object{ $_.Trim() } |
                                                     Where-Object{ -not ($_.StartsWith("Checking out files: ") -and ($_.EndsWith(")") -or $_.EndsWith(", done."))) } |
                                                     ForEach-Object{ OutProgress $_; }
@@ -2624,7 +2624,7 @@ function GitShowChanges                       ( [String] $repoDir ){
                                                 [String] $out = ProcessStart "git" @( "-C", $repoDir, "--git-dir=.git", "status", "--short") -traceCmd:$false;
                                                 return [String[]] (@()+(StringSplitIntoLines $out |
                                                   Where-Object{$null -ne $_} |
-                                                  Where-Object{ -not [String]::IsNullOrWhiteSpace($_); })); }
+                                                  Where-Object{ StringIsFilled $_; })); }
 function GitTortoiseCommit                    ( [String] $workDir, [String] $commitMessage = "" ){
                                                 [String] $tortoiseExe = (RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseGit" "ProcPath"); # ex: "C:\Program Files\TortoiseGit\bin\TortoiseGitProc.exe"
                                                 Start-Process -NoNewWindow -Wait -FilePath "$tortoiseExe" -ArgumentList @("/command:commit","/path:`"$workDir`"", "/logmsg:$commitMessage"); AssertRcIsOk; }
@@ -3174,7 +3174,7 @@ function TfsHasLocalMachWorkspace             ( [String] $url ){ # we support on
                                                   Select-Object -Skip 2 | Where-Object{ $_.StartsWith("$wsName ") }); ScriptResetRc;
                                                 $out | ForEach-Object{ $_ -replace "--------------------------------------------------", "-" } | ForEach-Object{ OutProgress $_ };
                                                 return [Boolean] ($out.Length -gt 0); }
-function ToolTfsInitLocalWorkspaceIfNotDone   ( [String] $url, [String] $rootDir ){
+function TfsInitLocalWorkspaceIfNotDone       ( [String] $url, [String] $rootDir ){
                                                 # also creates the directory "./$tf/".
                                                 [string] $wsName = $env:COMPUTERNAME;
                                                 OutProgress "Init local tfs workspaces with name identic to computername if not yet done of $url to `"$rootDir`"";
@@ -3221,7 +3221,7 @@ function TfsListOwnLocks                      ( [String] $wsdir, [String] $tfsPa
                                                 [String] $cd = (Get-Location); Set-Location $wsdir; try{
                                                   OutProgress "CD `"$wsdir`"; & `"$(TfsExe)`" vc status /noprompt /recursive /format:brief `"$tfsPath`" ";
                                                   [String[]] $out = @()+((    &    (TfsExe)   vc status /noprompt /recursive /format:brief   $tfsPath *>&1 ) |
-                                                    Select-Object -Skip 2 | Where-Object{ -not [String]::IsNullOrWhiteSpace($_) }); AssertRcIsOk $out;
+                                                    Select-Object -Skip 2 | Where-Object{ StringIsFilled $_ }); AssertRcIsOk $out;
                                                   # ex:
                                                   #    Dateiname    Ändern     Lokaler Pfad
                                                   #    ------------ ---------- -------------------------------------
@@ -4109,7 +4109,9 @@ function GitCloneOrFetchIgnoreError           ( [String] $tarRootDir, [String] $
 function GitCloneOrPullIgnoreError            ( [String] $tarRootDir, [String] $urlAndOptionalBranch ){
                                                 OutWarning "Warning: GitCloneOrPullIgnoreError is deprecated since 2022-03, please replace by GitCmd";
                                                 GitCmd "CloneOrPull"  $tarRootDir $urlAndOptionalBranch $true; }
-
+function ToolTfsInitLocalWorkspaceIfNotDone   ( [String] $url, [String] $rootDir ){
+                                                OutWarning "Warning: ToolTfsInitLocalWorkspaceIfNotDone is deprecated since 2022-04, please replace by TfsInitLocalWorkspaceIfNotDone";
+                                                TfsInitLocalWorkspaceIfNotDone $url $rootDir; }
 function FsEntryHasTrailingBackslash          ( [String] $fsEntry ){ OutWarning "Warning: FsEntryHasTrailingBackslash is deprecated since 2022-03, please replace by FsEntryHasTrailingDirSep"; return FsEntryHasTrailingDirSep $fsEntry; }
 function FsEntryRemoveTrailingBackslash       ( [String] $fsEntry ){ OutWarning "Warning: FsEntryRemoveTrailingBackslash is deprecated since 2022-03, please replace by FsEntryRemoveTrailingDirSep"; return FsEntryHasTrailingDirSep $fsEntry; }
 function FsEntryMakeTrailingBackslash         ( [String] $fsEntry ){ OutWarning "Warning: FsEntryMakeTrailingBackslash is deprecated since 2022-03, please replace by FsEntryMakeTrailingDirSep"; return FsEntryHasTrailingDirSep $fsEntry; }

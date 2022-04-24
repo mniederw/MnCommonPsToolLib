@@ -4,9 +4,6 @@ param( [Boolean] $excludeKnown = $false )
 
 trap [Exception] { $Host.UI.WriteErrorLine($_); Read-Host; break; }
 
-Write-Output "Note: if PSScriptAnalyzer is not yet installed then install it with admin rights:";
-Write-Output "  Set-PSRepository PSGallery -InstallationPolicy Trusted; Install-Module -ErrorAction Stop PSScriptAnalyzer;"
-
 [String] $dir = "$PSScriptRoot/..";
 [String[]] $excl = @();
 if( $excludeKnown ){ $excl = @(
@@ -21,7 +18,10 @@ if( $excludeKnown ){ $excl = @(
   );
 }
 
-Write-Output "Running Script Analyzer recursively below `"$dir`" ExcludeRule=($excl)";
+Write-Output "Running Script Analyzer recursively below `"$dir`" ";
+$excl | Where-Object{ $null -ne $_ } | ForEach-Object{ Write-Output "    ExcludeRule = $_" }
+Write-Output "  Note: If PSScriptAnalyzer is not yet installed then install it with admin rights as followed:";
+Write-Output "    Set-PSRepository PSGallery -InstallationPolicy Trusted; Install-Module -ErrorAction Stop PSScriptAnalyzer;"
 Invoke-ScriptAnalyzer -Path $dir -Recurse -Outvariable issues -ReportSummary -ExcludeRule $excl;
-Write-Output "Ok, done.";
+Write-Output "Ok, done."; 
 Read-Host "Press enter to exit";
