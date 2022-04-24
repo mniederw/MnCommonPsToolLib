@@ -2,13 +2,13 @@
 
 Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 
-function TestAssertions{
+function ExampleUseAssertions{
   OutInfo "$($MyInvocation.MyCommand)";
   Assert ((2 + 3) -eq 5);
   OutSuccess "Ok, done.";
 }
 
-function TestCommon(){
+function ExampleUseCommon(){
   OutInfo "$($MyInvocation.MyCommand)";
   [DateTime] $oldestDate = Get-Date -Date "0001-01-01 00:00:00.000";
   OutProgress "Today in ISO format      : $(DateTimeNowAsStringIsoDate)";
@@ -17,7 +17,7 @@ function TestCommon(){
   OutSuccess "Ok, done.";
 }
 
-function TestFsEntries(){
+function ExampleUseFsEntries(){
   OutInfo "$($MyInvocation.MyCommand)";
   OutProgress "Current dir is: $(FsEntryGetAbsolutePath '.')";
   [String] $d = "$HOME\Documents";
@@ -33,7 +33,7 @@ function TestFsEntries(){
   OutSuccess "Ok, done.";
 }
 
-function TestParallelStatementsHavingOneSecondWaiting {
+function ExampleUseParallelStatementsHavingOneSecondWaiting {
   OutInfo "$($MyInvocation.MyCommand)";
   [DateTime] $startedAt = Get-Date;
   (0..4) | ForEachParallel { OutProgress "Running script nr: $_ and wait one second."; Start-Sleep -Seconds 1; }
@@ -41,7 +41,7 @@ function TestParallelStatementsHavingOneSecondWaiting {
   OutSuccess "Ok, done.";
 }
 
-function TestParallelStatementsHavingRandomWaitBetween1and2Seconds {
+function ExampleUseParallelStatementsHavingRandomWaitBetween1and2Seconds {
   OutInfo "$($MyInvocation.MyCommand)";
   [DateTime] $startedAt = Get-Date;
   (0..4) | ForEachParallel -MaxThreads 2 { $t = 1.0 + ((Get-Random -Minimum 1 -Maximum 9) / 10); OutProgress "Running script nr: $_ and wait $t seconds."; Start-Sleep -Seconds $t; };
@@ -49,7 +49,7 @@ function TestParallelStatementsHavingRandomWaitBetween1and2Seconds {
   OutSuccess "Ok, done.";
 }
 
-function TestAsynchronousJob {
+function ExampleUseAsynchronousJob {
   OutInfo "$($MyInvocation.MyCommand)";
   $job = JobStart { param( $s ); Import-Module "MnCommonPsToolLib.psm1"; OutProgress "Running job and returning a string."; return [String] $s; } "my argument";
   Start-Sleep -Seconds 1;
@@ -59,7 +59,7 @@ function TestAsynchronousJob {
   OutSuccess "Ok, done.";
 }
 
-function TestEnvironmentVarsOfDifferentScopes {
+function ExampleUseEnvironmentVarsOfDifferentScopes {
   OutInfo "$($MyInvocation.MyCommand)";
   $v1 = ProcessEnvVarGet "Temp" ([System.EnvironmentVariableTarget]::Process);
   $v2 = ProcessEnvVarGet "Temp" ([System.EnvironmentVariableTarget]::User   );
@@ -74,7 +74,7 @@ function TestEnvironmentVarsOfDifferentScopes {
   OutSuccess "Ok, done.";
 }
 
-function TestNetDownloadToString {
+function ExampleUseNetDownloadToString {
   OutInfo "$($MyInvocation.MyCommand)";
   $url = "https://duckduckgo.com/";
   [String] $content = NetDownloadToString $url;
@@ -82,7 +82,7 @@ function TestNetDownloadToString {
   OutSuccess "Ok, done.";
 }
 
-function TestNetDownloadIsSuccessful {
+function ExampleUseNetDownloadIsSuccessful {
   OutInfo "$($MyInvocation.MyCommand)";
   $url = "https://duckduckgo.com/";
   OutProgress "Check NetDownloadIsSuccessful $url";
@@ -90,7 +90,7 @@ function TestNetDownloadIsSuccessful {
   OutSuccess "Ok, done.";
 }
 
-function TestListFirstFivePublicReposOfGithubOrgArduino {
+function ExampleUseListFirstFivePublicReposOfGithubOrgArduino {
   OutInfo "$($MyInvocation.MyCommand)";
   ToolGithubApiListOrgRepos "arduino" | Select-Object -First 5 Url, archived, language, default_branch, LicName |
     StreamToTableString | Foreach-Object { OutProgress $_; };
@@ -99,15 +99,15 @@ function TestListFirstFivePublicReposOfGithubOrgArduino {
 
 
 OutInfo "$($MyInvocation.MyCommand)";
-OutProgress "Perform some tests of the module by using readonly mode (writes only to temp dir) so system is not touched relevantly.";
-TestAssertions;
-TestCommon;
-TestFsEntries;
-TestParallelStatementsHavingOneSecondWaiting;
-TestParallelStatementsHavingRandomWaitBetween1and2Seconds;
-TestAsynchronousJob;
-TestEnvironmentVarsOfDifferentScopes;
-TestNetDownloadToString;
-TestNetDownloadIsSuccessful;
-TestListFirstFivePublicReposOfGithubOrgArduino;
+OutProgress "As example perform some readonly things (writes only to temp dir) so system is not touched relevantly.";
+ExampleUseAssertions;
+ExampleUseCommon;
+ExampleUseFsEntries;
+ExampleUseParallelStatementsHavingOneSecondWaiting;
+ExampleUseParallelStatementsHavingRandomWaitBetween1and2Seconds;
+ExampleUseAsynchronousJob;
+ExampleUseEnvironmentVarsOfDifferentScopes;
+ExampleUseNetDownloadToString;
+ExampleUseNetDownloadIsSuccessful;
+ExampleUseListFirstFivePublicReposOfGithubOrgArduino;
 StdInReadLine "Press enter to exit.";
