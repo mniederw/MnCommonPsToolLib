@@ -38,7 +38,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "6.15"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "6.16"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -461,7 +461,9 @@ function StdOutBegMsgCareInteractiveMode      ( [String] $mode = "" ){ # Availab
                                                 if( $mode -eq "" ){ $mode = "DoRequestAtBegin"; }
                                                 ScriptResetRc; [String[]] $modes = @()+($mode -split "," |
                                                   Where-Object{$null -ne $_} | ForEach-Object{ $_.Trim() });
-                                                Assert ((@()+($modes | Where-Object{$null -ne $_} | Where-Object{ $_ -ne "DoRequestAtBegin" -and $_ -ne "NoRequestAtBegin" -and $_ -ne "NoWaitAtEnd" -and $_ -ne "MinimizeConsole"})).Count -eq 0 ) "StdOutBegMsgCareInteractiveMode was called with unknown mode=`"$mode`"";
+                                                [String[]] $availableModes = @( "DoRequestAtBegin", "NoRequestAtBegin", "NoWaitAtEnd", "MinimizeConsole" );
+                                                [Boolean] $modesAreValid = ((@()+($modes | Where-Object{$null -ne $_} | Where-Object{ $availableModes -notcontains $_})).Count -eq 0 );
+                                                Assert $modesAreValid "StdOutBegMsgCareInteractiveMode was called with unknown mode=`"$mode`", expected one of ($availableModes).";
                                                 $Global:ModeNoWaitForEnterAtEnd = $modes -contains "NoWaitAtEnd";
                                                 if( -not $global:ModeDisallowInteractions -and $modes -notcontains "NoRequestAtBegin" ){ StdInAskForAnswerWhenInInteractMode; }
                                                 if( $modes -contains "MinimizeConsole" ){ OutProgress "Minimize console"; ProcessSleepSec 0; ConsoleMinimize; } }
@@ -486,12 +488,18 @@ function AssertRcIsOk                         ( [String[]] $linesToOutProgress =
                                                 if( $rc -ne 0 ){
                                                   if( -not $useLinesAsExcMessage ){ $linesToOutProgress | Where-Object{ StringIsFilled $_ } | ForEach-Object{ OutProgress $_ }; }
                                                   [String] $msg = "Last operation failed [rc=$rc]. ";
-                                                  if( $useLinesAsExcMessage ){ $msg = $(switch($rc -eq 1 -and $out -ne ""){($true){""}default{$msg}}) + ([String]$linesToOutProgress).Trim(); }
-                                                  try{ OutProgress "Dump of logfile=$($logFileToOutProgressIfFailed):";
+                                                  if( $useLinesAsExcMessage ){
+                                                    $msg = $(switch($rc -eq 1 -and $out -ne ""){($true){""}default{$msg}}) + ([String]$linesToOutProgress).Trim();
+                                                  }
+                                                  try{
+                                                    OutProgress "Dump of logfile=$($logFileToOutProgressIfFailed):";
                                                     FileReadContentAsLines $logFileToOutProgressIfFailed $encodingIfNoBom |
                                                       Where-Object{$null -ne $_} | ForEach-Object{ OutProgress "  $_"; }
-                                                  }catch{ OutVerbose "Ignoring problems on reading $logFileToOutProgressIfFailed failed because $($_.Exception.Message)"; }
-                                                  throw [Exception] $msg; } }
+                                                  }catch{ 
+                                                    OutVerbose "Ignoring problems on reading $logFileToOutProgressIfFailed failed because $($_.Exception.Message)";
+                                                  }
+                                                  throw [Exception] $msg;
+                                                } }
 function ScriptImportModuleIfNotDone          ( [String] $moduleName ){ if( -not (Get-Module $moduleName) ){
                                                 OutProgress "Import module $moduleName (can take some seconds on first call)";
                                                 Import-Module -NoClobber $moduleName -DisableNameChecking; } }
@@ -2651,13 +2659,14 @@ function GitListCommitComments                ( [String] $tarDir, [String] $loca
                                                     try{
                                                       $out = (ProcessStart "git" $options -careStdErrAsOut:$true -traceCmd:$true);
                                                     }catch{
-                                                      if( $_.Exception.Message -eq "fatal: your current branch 'master' does not have any commits yet" ){ # Last operation failed [rc=128]
+                                                      # ex: ProcessStart("git" "--git-dir=D:\WorkExternal\SrcGit\mniederw\MnCommonPsToolLib\.git" "log" "--after=1990-01-01" "--pretty=format:%ci %cn [%ce] %s" "--summary") failed with rc=128\nfatal: your current branch 'master' does not have any commits yet
+                                                      if( $_.Exception.Message.Contains("fatal: your current branch '") -and $_.Exception.Message.Contains("' does not have any commits yet") ){ # Last operation failed [rc=128]
                                                         $out +=  "$([Environment]::NewLine)" + "Info: your current branch 'master' does not have any commits yet.";
-                                                        OutProgress "  Info: empty master.";
+                                                        OutProgress "  Info: Empty branch without commits.";
                                                       }else{
                                                         $out += "$([Environment]::NewLine)" + "Warning: (GitListCommitComments `"$tarDir`" `"$localRepoDir`" `"$fileExtension`" `"$prefix`" `"$doOnlyIfOlderThanAgeInDays`") ";
                                                         $out += "$([Environment]::NewLine)" + "  failed because $($_.Exception.Message)";
-                                                        if( $_.Exception.Message -eq "warning: inexact rename detection was skipped due to too many files." ){
+                                                        if( $_.Exception.Message.Contains("warning: inexact rename detection was skipped due to too many files.") ){
                                                           $out += "$([Environment]::NewLine)" + "  The reason is that the config value of diff.renamelimit with its default of 100 is too small. ";
                                                           $out += "$([Environment]::NewLine)" + "  Before a next retry you should either add the two lines (`"[diff]`",`"  renamelimit = 999999`") to .git/config file, ";
                                                           $out += "$([Environment]::NewLine)" + "  or run (git `"--git-dir=$dir\.git`" config diff.renamelimit 999999) ";
@@ -3367,7 +3376,7 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                 try{
                                                    # can throw: MethodInvocationException: Exception calling "SetDefaultInitFields" with "2" argument(s): "Failed to connect to server MySqlInstance."
                                                   try{ $srv.SetDefaultInitFields([Microsoft.SqlServer.Management.SMO.View], "IsSystemObject");
-                                                  }catch{ throw [Exception] $_.Exception.Message; }
+                                                  }catch{ throw [Exception] "SetDefaultInitFields($dbInstanceServerName) failed because $($_.Exception.Message)"; }
                                                   [Microsoft.SqlServer.Management.Smo.Scripter] $scr = New-Object "Microsoft.SqlServer.Management.Smo.Scripter";
                                                   $scr.Server = $srv;
                                                   [Microsoft.SqlServer.Management.SMO.ScriptingOptions] $options = New-Object "Microsoft.SqlServer.Management.SMO.ScriptingOptions";
