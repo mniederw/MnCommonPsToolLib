@@ -26,8 +26,7 @@ function Test_IO_Console_StdIn_StdOut_StdErr(){
   #   OutDebug                             ( [String] $line ){
   #                                          # Output depends on $DebugPreference, used in general for tracing internal states which can produce a lot of lines.
   #   OutClear                             (){ Clear-Host; }
-  #   OutStartTranscriptInTempDir          ( [String] $name = "MnCommonPsToolLib" ){
-  #                                           # append verything from console to logfile
+  #   OutStartTranscriptInTempDir          ( [String] $name = "MnCommonPsToolLib" ){ # return logfile
   #   OutStopTranscript                    (){ Stop-Transcript; }
   #   StdInAssertAllowInteractions         (){ if( $global:ModeDisallowInteractions ){
   #   StdInReadLine                        ( [String] $line ){ OutStringInColor "Cyan" $line; StdInAssertAllowInteractions; return [String] (Read-Host); }

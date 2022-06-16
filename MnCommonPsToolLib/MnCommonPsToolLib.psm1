@@ -38,7 +38,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "6.17"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "6.18"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -435,10 +435,11 @@ function OutDebug                             ( [String] $line ){
                                                 Write-Debug   -Message "$(DateTimeNowAsStringIso) $line"; }
 function OutClear                             (){ Clear-Host; }
 function OutStartTranscriptInTempDir          ( [String] $name = "MnCommonPsToolLib" ){
-                                                 # append verything from console to logfile
+                                                 # append everything from console to logfile, return full path name of logfile.
                                                 if( $name -eq "" ){ $name = "MnCommonPsToolLib"; }
                                                 [String] $f = "$env:TEMP/$name/$((DateTimeNowAsStringIso "yyyy yyyy-MM yyyy-MM-dd").Replace(" ","/")).$name.txt";
-                                                Start-Transcript -Path $f -Append -IncludeInvocationHeader | Out-Null; }
+                                                Start-Transcript -Path $f -Append -IncludeInvocationHeader | Out-Null;
+                                                return [String] $f; }
 function OutStopTranscript                    (){ Stop-Transcript; }
 function StdInAssertAllowInteractions         (){ if( $global:ModeDisallowInteractions ){
                                                 throw [Exception] "Cannot read for input because all interactions are disallowed, either caller should make sure variable ModeDisallowInteractions is false or he should not call an input method."; } }
