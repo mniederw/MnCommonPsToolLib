@@ -57,7 +57,10 @@ function Test_String(){
   Assert         ((StringArrayIsEqual  @("a","b") @("b","a") $true       ) -eq $true );
   Assert         ((StringArrayIsEqual  @("a","b") @("b","c") $true       ) -eq $false);
   Assert         ([String](StringArrayDblQuoteItems @("a","b")          ) -eq [String]@("`"a`"","`"b`""));
-  # TODO StringFromException ex
+  #
+  function CreateExcWithData() { $e = New-Object -TypeName Exception -ArgumentList "Test"; $e.Data.Add("DataKey1","DataValue1"); return $e; }
+  Assert         (StringFromException (CreateExcWithData)).Contains("DataValue1");
+  #
   # TODO function StringCommandLineToArray             ( [String] $commandLine ){
                                                 # Care spaces or tabs separated args and doublequoted args which can contain double doublequotes for escaping single doublequotes.
                                                 # ex: "my cmd.exe" arg1 "ar g2" "arg""3""" "arg4"""""  ex: StringCommandLineToArray "`"my cmd.exe`" arg1 `"ar g2`" `"arg`"`"3`"`"`" `"arg4`"`"`"`"`""
