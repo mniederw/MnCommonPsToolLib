@@ -5,8 +5,9 @@ Major version changes will reflect breaking changes and minor identifies extensi
 See description of major version with minor equal zero about breaking changes as removed deprecated functions or changed behavious.
 Current version can be requested by: $MnCommonPsToolLibVersion
 
-2022-06-15  V6.17  Improve output of exception messages
-2022-05-22  V6.16  Fix git log warnings
+2022-06-21  V6.18  Improve FileGetTempFile.
+2022-06-15  V6.17  Improve output of exception messages.
+2022-05-22  V6.16  Fix git log warnings.
 2022-05-09  V6.15  Fix using Write-Host.
 2022-04-19  V6.14  Fixed ProcessStart. Fixed StringIsNullOrWhiteSpace to StringIsFilled.
                    ToolTfsInitLocalWorkspaceIfNotDone deprecated and replaced by TfsInitLocalWorkspaceIfNotDone.
