@@ -38,7 +38,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "6.17"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "6.18"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -1683,7 +1683,7 @@ function FileAppendLine                       ( [String] $file, [String] $line, 
 function FileAppendLines                      ( [String] $file, [String[]] $lines ){
                                                 FsEntryCreateParentDir $file;
                                                 $lines | Out-File -Encoding Default -Append -LiteralPath $file; }
-function FileGetTempFile                      (){ return [Object] [System.IO.Path]::GetTempFileName(); }
+function FileGetTempFile                      (){ return [String] [System.IO.Path]::GetTempFileName(); }
 function FileDelTempFile                      ( [String] $file ){ if( (FileExists $file) ){
                                                 OutDebug "FileDelete -Force `"$file`"";
                                                 Remove-Item -Force -LiteralPath $file; } } # As FileDelete but no progress msg.
