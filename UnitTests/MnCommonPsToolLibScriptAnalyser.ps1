@@ -1,4 +1,6 @@
-﻿# Test Script Analyzer recursively on all repository files
+﻿#!/usr/bin/env pwsh
+
+# Test Script Analyzer recursively on all repository files
 
 param( [Boolean] $excludeKnown = $false )
 
