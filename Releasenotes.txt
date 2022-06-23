@@ -5,6 +5,7 @@ Major version changes will reflect breaking changes and minor identifies extensi
 See description of major version with minor equal zero about breaking changes as removed deprecated functions or changed behavious.
 Current version can be requested by: $MnCommonPsToolLibVersion
 
+2022-06-23  V6.19  Improve error handling, adding shebang
 2022-06-16  V6.18  Improve OutStartTranscriptInTempDir by returning logfile filepath.
 2022-06-15  V6.17  Improve output of exception messages
 2022-05-22  V6.16  Fix git log warnings

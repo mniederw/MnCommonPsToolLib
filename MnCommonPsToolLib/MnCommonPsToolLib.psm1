@@ -38,7 +38,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "6.18"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "6.19"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -630,8 +630,13 @@ function ProcessGetCommandInEnvPathOrAltPaths ( [String] $commandNameOptionalWit
                                                   if( (FileExists $f) ){ return [String] $f; } }
                                                 throw [Exception] "$(ScriptGetCurrentFunc): commandName=`"$commandNameOptionalWithExtension`" was wether found in env-path=`"$env:PATH`" nor in alternativePaths=`"$alternativePaths`". $downloadHintMsg"; }
 function ProcessStart                         ( [String] $cmd, [String[]] $cmdArgs = @(), [Boolean] $careStdErrAsOut = $false, [Boolean] $traceCmd = $false ){
-                                                # Mainly intended for starting a program with a window.
-                                                # But also used for starting a command in path when arguments are provided in an array.
+                                                # Mainly intended for starting a program with a window, 
+                                                # but is also used for starting a command in path when arguments are provided in an array.
+                                                # The advantages in contrast of using the call operator (&) are:
+                                                # - you do not have to call AssertRcIsOk afterwards
+                                                # - empty-string parameters can be passed to the calling program
+                                                # - it has no side effects if the parameters contains special characters as quotes, double-quotes or $-characters.
+                                                # - the calling command can easy be written to output for tracing
                                                 # Return output as a single string.
                                                 # If careStdErrAsOut is true then stderr will be appended to stdout and stderr set to empty.
                                                 # If exitCode is not 0 or stderr is not empty then it throws.
@@ -718,7 +723,9 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                   StringSplitIntoLines $out | Where-Object{$null -ne $_} |
                                                     Where-Object{ StringIsFilled $_ } |
                                                     ForEach-Object{ OutProgress "  $_"; };
-                                                  [String] $msg = "ProcessStart($traceInfo) failed with rc=$exitCode $err";
+                                                  [String] $msgPrg = "ProcessStart";
+                                                  if( $careStdErrAsOut ){ $msgPrg += "-careStdErrAsOut"; }
+                                                  [String] $msg = "$msgPrg($traceInfo) failed with rc=$exitCode $err";
                                                   throw [Exception] $msg;
                                                 }
                                                 $out += $err;
@@ -1723,7 +1730,8 @@ function FileContentsAreEqual                 ( [String] $f1, [String] $f2, [Boo
                                                 if( $false ){ # Much more performant (20 sec for 5 GB file).
                                                   if( $fi1.Length -ne $fi2.Length ){ return [Boolean] $false; }
                                                   & "fc.exe" "/b" ($fi1.FullName) ($fi2.FullName) > $null;
-                                                  if( $? ){ return [Boolean] $true; } ScriptResetRc;
+                                                  if( $? ){ return [Boolean] $true; }
+                                                  ScriptResetRc;
                                                   return [Boolean] $false;
                                                 }else{ # Slower but more portable (longer than 5 min).
                                                   try{
@@ -2091,7 +2099,7 @@ function NetPingHostIsConnectable             ( [String] $hostName, [Boolean] $d
                                                 if( (Test-Connection -Cn $hostName -BufferSize 16 -Count 1 -ea 0 -quiet) ){ return [Boolean] $true; } # later in ps V6 use -TimeoutSeconds 3 default is 5 sec
                                                 if( -not $doRetryWithFlushDns ){ return [Boolean] $false; }
                                                 OutVerbose "Host $hostName not reachable, so flush dns, nslookup and retry";
-                                                & "ipconfig.exe" "/flushdns" | out-null; # note option /registerdns would require more privs
+                                                & "ipconfig.exe" "/flushdns" | out-null; AssertRcIsOk; # note option /registerdns would require more privs
                                                 try{ [System.Net.Dns]::GetHostByName($hostName); }catch{ OutVerbose "Ignoring GetHostByName($hostName) failed because $($_.Exception.Message)"; }
                                                 # nslookup $hostName -ErrorAction SilentlyContinue | out-null;
                                                 return [Boolean] (Test-Connection -Cn $hostName -BufferSize 16 -Count 1 -ea 0 -quiet); }
@@ -2390,7 +2398,7 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                 DirCreate $tarDir;
                                                 OutVerbose "$curlExe $optForTrace";
                                                 try{
-                                                  [String[]] $out = @()+(& $curlExe $opt);
+                                                  [String[]] $out = @()+(& $curlExe $opt); # TODO check wether use: Int32] $rc = ScriptGetAndClearLastRc; if( $rc -ne 0 ){ [String] $err = switch($rc){ 0 {"OK"} 1 {"err"} default {"Unknown(rc=$rc)"} };
                                                   if( $LASTEXITCODE -eq 60 ){
                                                     # Curl: (60) SSL certificate problem: unable to get local issuer certificate. More details here: http://curl.haxx.se/docs/sslcerts.html
                                                     # Curl performs SSL certificate verification by default, using a "bundle" of Certificate Authority (CA) public keys (CA certs).
@@ -2586,7 +2594,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   # ex: "git" "clone" "--quiet" "--branch" "MyBranch" "--" "https://github.com/mniederw/myrepo" "C:\Temp\mniederw\myrepo#MyBranch"
                                                   # TODO low prio: if (cmd is Fetch or Pull) and branch is not empty and current branch does not match specified branch then output progress message about it.
                                                   # TODO middle prio: check env param pull.rebase and think about display and usage
-                                                  [String] $out = ProcessStart "git" $gitArgs -careStdErrAsOut:$true -traceCmd:$true;
+                                                  [String] $out = (ProcessStart "git" $gitArgs -careStdErrAsOut:$true -traceCmd:$true);
                                                   # Skip known unused strings which are written to stderr as:
                                                   # - "Checking out files:  47% (219/463)" or "Checking out files: 100% (463/463), done."
                                                   # - warning: You appear to have cloned an empty repository.
@@ -2634,16 +2642,17 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   OutWarning "Warning: $msg";
                                                 } }
 function GitShowUrl                           ( [String] $repoDir ){
-                                                [String] $out = (& git "--git-dir=$repoDir/.git" config remote.origin.url); AssertRcIsOk $out;
+                                                [String] $out = (& "git" "--git-dir=$repoDir/.git" "config" "remote.origin.url"); AssertRcIsOk $out;
                                                 return [String] $out; }
 function GitShowBranch                        ( [String] $repoDir ){
                                                 # return current branch (example: "master").
-                                                [String] $out = ProcessStart "git" @( "-C", $repoDir, "--git-dir=.git", "branch") -traceCmd:$false;
+                                                [String] $out = (ProcessStart "git" @( "-C", $repoDir, "--git-dir=.git", "branch") -traceCmd:$false);
+                                                # in future when newer version of git is common then we can use new option for get current-branch.
                                                 Assert ($out.StartsWith("* ")) "expected result of git branch command begins with `"* `" but got `"$out`"";
                                                 return [String] (StringRemoveLeft $out "* ").Trim(); }
 function GitShowChanges                       ( [String] $repoDir ){
                                                 # return changed, deleted and new files or dirs. Per entry one line prefixed with a change code.
-                                                [String] $out = ProcessStart "git" @( "-C", $repoDir, "--git-dir=.git", "status", "--short") -traceCmd:$false;
+                                                [String] $out = (ProcessStart "git" @( "-C", $repoDir, "--git-dir=.git", "status", "--short") -traceCmd:$false);
                                                 return [String[]] (@()+(StringSplitIntoLines $out |
                                                   Where-Object{$null -ne $_} |
                                                   Where-Object{ StringIsFilled $_; })); }
@@ -2671,9 +2680,9 @@ function GitListCommitComments                ( [String] $tarDir, [String] $loca
                                                     if( $doSummary ){ $options += "--summary"; }
                                                     [String] $out = "";
                                                     try{
-                                                      $out = (ProcessStart "git" $options -careStdErrAsOut:$true -traceCmd:$true);
+                                                      $out = (ProcessStart "git" $options -careStdErrAsOut:$true -traceCmd:$true); # git can write warnings to stderr which we not handle as error
                                                     }catch{
-                                                      # ex: ProcessStart("git" "--git-dir=D:\WorkExternal\SrcGit\mniederw\MnCommonPsToolLib\.git" "log" "--after=1990-01-01" "--pretty=format:%ci %cn [%ce] %s" "--summary") failed with rc=128\nfatal: your current branch 'master' does not have any commits yet
+                                                      # ex: ProcessStart of ("git" "--git-dir=D:\WorkExternal\SrcGit\mniederw\MnCommonPsToolLib\.git" "log" "--after=1990-01-01" "--pretty=format:%ci %cn [%ce] %s" "--summary") failed with rc=128\nfatal: your current branch 'master' does not have any commits yet
                                                       if( $_.Exception.Message.Contains("fatal: your current branch '") -and $_.Exception.Message.Contains("' does not have any commits yet") ){ # Last operation failed [rc=128]
                                                         $out +=  "$([Environment]::NewLine)" + "Info: your current branch 'master' does not have any commits yet.";
                                                         OutProgress "  Info: Empty branch without commits.";
@@ -2698,18 +2707,18 @@ function GitListCommitComments                ( [String] $tarDir, [String] $loca
                                                 GitGetLog $false "$tarDir/$prefix$repoName.CommittedComments$fileExtension";
                                                 GitGetLog $true  "$tarDir/$prefix$repoName.CommittedChangedFiles$fileExtension"; }
 function GitAssertAutoCrLfIsDisabled          (){ # use this before using git
-                                                [String] $line = git config --list --global | Where-Object{ $_ -like "core.autocrlf=false" };
+                                                [String] $line = (& "git" "config" "--list" "--global" | Where-Object{ $_ -like "core.autocrlf=false" }); AssertRcIsOk;
                                                 if( $line -ne "" ){ OutVerbose "ok, git-global-autocrlf is defined as false."; return; }
-                                                $line = git config --list --global | Where-Object{ $_ -like "core.autocrlf=*" };
+                                                $line = (& "git" "config" "--list" "--global" | Where-Object{ $_ -like "core.autocrlf=*" }); AssertRcIsOk;
                                                 if( $line -eq "" ){ OutVerbose "ok, git-global-autocrlf is undefined."; return; }
                                                 throw [ExcMsg] "Git is globally configured to use auto crlf conversions, it is strongly recommended never use this because unexpected state and merge behaviours. Please change it by calling GitDisableAutoCrLf and then retry."; }
 function GitDisableAutoCrLf                   (){ # no output if nothing done.
-                                                [String] $line = git config --list --global | Where-Object{ $_ -like "core.autocrlf=false" };
+                                                [String] $line = (& "git" "config" "--list" "--global" | Where-Object{ $_ -like "core.autocrlf=false" }); AssertRcIsOk;
                                                 if( $line -ne "" ){ OutVerbose "ok, git-global-autocrlf is defined as false."; return; }
-                                                $line = git config --list --global | Where-Object{ $_ -like "core.autocrlf=*" };
+                                                $line = (& "git" "config" "--list" "--global" | Where-Object{ $_ -like "core.autocrlf=*" }); AssertRcIsOk;
                                                 if( $line -eq "" ){ OutVerbose "ok, git-global-autocrlf is undefined."; return; }
                                                 OutProgress "Setting git-global-autocrlf to false because current value was: `"$line`"";
-                                                . git config --global core.autocrlf false; <# maybe later: git config --global --unset core.autocrlf #> }
+                                                & "git" "config" "--global" "core.autocrlf" "false"; AssertRcIsOk; <# maybe later: git config --global --unset core.autocrlf #> }
 function GitCloneOrPullUrls                   ( [String[]] $listOfRepoUrls, [String] $tarRootDirOfAllRepos, [Boolean] $errorAsWarning = $false ){
                                                 # Works later multithreaded and errors are written out, collected and throwed at the end.
                                                 # If you want single threaded then call it with only one item in the list.
@@ -3570,7 +3579,7 @@ function JuniperNcEstablishVpnConn            ( [String] $secureCredentialFile, 
                                                 function JuniperNetworkConnectStop(){
                                                   OutProgress "Call: `"$vpnProg`" -signout";
                                                   try{
-                                                    [String] $out = & "$vpnProg" "-signout";
+                                                    [String] $out = (& "$vpnProg" "-signout");
                                                     if( $out -eq "Network Connect is not running. Unable to signout from Secure Gateway." ){
                                                       # ex: "Network Connect wird nicht ausgef³hrt. Die Abmeldung vom sicheren Gateway ist nicht m÷glich."
                                                       ScriptResetRc; OutVerbose "Service is not running.";
@@ -3585,7 +3594,7 @@ function JuniperNcEstablishVpnConn            ( [String] $secureCredentialFile, 
                                                     [String] $pw = CredentialGetPassword $cred;
                                                     OutDebug "UserName=`"$us`"  Password=`"$pw`"";
                                                     OutProgress "Call: $vpnProg -url $url -u $us -r $realm -t 75 -p *** ";
-                                                    [String] $out = & $vpnProg "-url" $url "-u" $us "-r" $realm "-t" "75" "-p" $pw; ScriptResetRc;
+                                                    [String] $out = (& $vpnProg "-url" $url "-u" $us "-r" $realm "-t" "75" "-p" $pw); ScriptResetRc;
                                                     ProcessSleepSec 2; # Required to make ready to use rdp.
                                                     if( $out -eq "The specified credentials do not authenticate." -or $out -eq "Die Authentifizierung ist mit den angegebenen Anmeldeinformationen nicht m÷glich." ){
                                                       # On some machines we got german messages.
@@ -3649,10 +3658,10 @@ function InfoAboutSystemInfo                  (){
                                                 [String[]] $result = @( "InfoAboutSystemInfo:", "" );
                                                 $result += $out;
                                                 $result += "OS-SerialNumber: "+(Get-WmiObject Win32_OperatingSystem|Select-Object -ExpandProperty SerialNumber);
-                                                $result += @( "", "", "List of associations of fileextensions to a filetypes:"   , (& "cmd.exe" "/c" "ASSOC") );
-                                                $result += @( "", "", "List of associations of filetypes to executable programs:", (& "cmd.exe" "/c" "FTYPE") );
+                                                $result += @( "", "", "List of associations of fileextensions to a filetypes:"   , (& "cmd.exe" "/c" "ASSOC") ); AssertRcIsOk;
+                                                $result += @( "", "", "List of associations of filetypes to executable programs:", (& "cmd.exe" "/c" "FTYPE") ); AssertRcIsOk;
                                                 $result += @( "", "", "List of DefaultAppAssociations:"                          , (FileReadContentAsString $f "Default") );
-                                                $result += @( "", "", "List of windows feature enabling states:"                 , (& "Dism.exe" "/online" "/Get-Features") );
+                                                $result += @( "", "", "List of windows feature enabling states:"                 , (& "Dism.exe" "/online" "/Get-Features") ); AssertRcIsOk;
                                                 # For future use:
                                                 # - powercfg /lastwake
                                                 # - powercfg /waketimers
@@ -3687,15 +3696,15 @@ function InfoGetInstalledDotNetVersion        ( [Boolean] $alsoOutInstalledClrAn
                                                 if( $alsoOutInstalledClrAndRunningProc ){
                                                   [String[]] $a = @();
                                                   $a += "List Installed DotNet CLRs (clrver.exe):";
-                                                  $a += & "clrver.exe"        |
+                                                  $a += (& "clrver.exe"        |
                                                     Where-Object{ $_.Trim() -ne "" -and -not $_.StartsWith("Copyright (c) Microsoft Corporation.  All rights reserved.") -and
                                                       -not $_.StartsWith("Microsoft (R) .NET CLR Version Tool") -and -not $_.StartsWith("Versions installed on the machine:") } |
-                                                    ForEach-Object{ "  Installed CLRs: $_" };
+                                                    ForEach-Object{ "  Installed CLRs: $_" }); AssertRcIsOk;
                                                   $a += "List running DotNet Processes (clrver.exe -all):";
-                                                  $a += & "clrver.exe" "-all" |
+                                                  $a += (& "clrver.exe" "-all" |
                                                     Where-Object{ $_.Trim() -ne "" -and -not $_.StartsWith("Copyright (c) Microsoft Corporation.  All rights reserved.") -and
                                                       -not $_.StartsWith("Microsoft (R) .NET CLR Version Tool") -and -not $_.StartsWith("Versions installed on the machine:") } |
-                                                    ForEach-Object{ "  Running Processes and its CLR: $_" };
+                                                    ForEach-Object{ "  Running Processes and its CLR: $_" }); AssertRcIsOk;
                                                   $a | ForEach-Object{ OutProgress $_; };
                                                 }
                                                 [Int32] $relKey = (Get-ItemProperty "HKLM:SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full").Release;
@@ -3776,7 +3785,7 @@ function ToolCreate7zip                       ( [String] $srcDirOrFile, [String]
                                                 # Options: -t7z : use 7zip format; -mmt=4 : try use nr of threads; -w : use temp dir; -r : recursively; -r- : not-recursively;
                                                 [Array] $arguments = "-t7z", "-mx=9", "-mmt=4", "-w", $recursiveOption, "a", "$tar7zipFile", $src;
                                                 OutProgress "$Prog7ZipExe $arguments";
-                                                [String] $out = & $Prog7ZipExe $arguments; AssertRcIsOk $out;
+                                                [String] $out = (& $Prog7ZipExe $arguments); AssertRcIsOk $out;
                                               }
 function ToolUnzip                            ( [String] $srcZipFile, [String] $tarDir ){ # tarDir is created if it not exists, no overwriting, requires DotNetFX4.5.
                                                 Add-Type -AssemblyName "System.IO.Compression.FileSystem";
@@ -3934,7 +3943,7 @@ function ToolGithubApiDownloadLatestReleaseDir( [String] $repoUrl ){
                                                 # ex: $apiUrl = "https://api.github.com/repos/mniederw/MnCommonPsToolLib"
                                                 [String] $url = "$apiUrl/releases/latest";
                                                 OutProgress "Download: $url";
-                                                [Object] $apiObj = (& "curl.exe" -s $url) | ConvertFrom-Json;
+                                                [Object] $apiObj = (& "curl.exe" -s $url) | ConvertFrom-Json; AssertRcIsOk;
                                                 [String] $relName = "$($apiObj.name) [$($apiObj.target_commitish),$($apiObj.created_at.Substring(0,10)),$($apiObj.tag_name)]";
                                                 OutProgress "Selected: `"$relName`"";
                                                 # ex: $apiObj.zipball_url = "https://api.github.com/repos/mniederw/MnCommonPsToolLib/zipball/V4.9"
@@ -3987,19 +3996,19 @@ function ToolSetAssocFileExtToCmd             ( [String[]] $fileExtensions, [Str
                                                   [String] $ext = $_; # ex: ".ps1"
                                                   if( $cmd -eq "" ){
                                                     OutProgress "DelFileAssociation ext=$ext :  cmd /c assoc $ext=";
-                                                    [String] $out = (& cmd.exe /c "assoc $ext=" *>&1); # ex: ""
+                                                    [String] $out = (& cmd.exe /c "assoc $ext=" *>&1); AssertRcIsOk; # ex: ""
                                                   }else{
                                                     [String] $ft = $ftype;
                                                     if( $ftype -eq "" ){
                                                       try{
                                                         $ft = (& cmd.exe /c "assoc $ext" *>&1); AssertRcIsOk; # ex: ".ps1=Microsoft.PowerShellScript.1"
                                                       }catch{ # "Dateizuordnung für die Erweiterung .ps9 nicht gefunden."
-                                                        $ft = (& cmd.exe /c "assoc $ext=$($ext.Substring(1))file" *>&1); # ex: ".ps1=ps1file"
+                                                        $ft = (& cmd.exe /c "assoc $ext=$($ext.Substring(1))file" *>&1); AssertRcIsOk; # ex: ".ps1=ps1file"
                                                       }
                                                       $ft = $ft.Split("=")[-1]; # "Microsoft.PowerShellScript.1" or "ps1file"
                                                     }
                                                      # ex: Microsoft.PowerShellScript.1="C:\WINDOWS\system32\WindowsPowerShell\v1.0\powershell.exe" "%1"
-                                                    [String] $out = (& cmd.exe /c "ftype $ft=$exec");
+                                                    [String] $out = (& cmd.exe /c "ftype $ft=$exec"); AssertRcIsOk;
                                                     OutProgress "SetFileAssociation ext=$($ext.PadRight(6)) ftype=$($ft.PadRight(20)) cmd=$exec";
                                                   }
                                                 }; }
@@ -4180,7 +4189,7 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #   @( "a1", "a2" ) -contains "a2", -notcontains, "abcdef" -match "b[CD]", -notmatch, "abcdef" -cmatch "b[cd]", -notcmatch, -not
 # - Automatic variables see: http://technet.microsoft.com/en-us/library/dd347675.aspx
 #   $?            : Contains True if last operation succeeded and False otherwise.
-#   $LASTEXITCODE : Contains the exit code of the last Win32 executable execution. should never manually set, even not: $global:LASTEXITCODE = $null;
+#   $LASTEXITCODE : Contains the exit code of the last Win32 executable execution. Can be null if not windows command was called. Should never manually set, even not: $global:LASTEXITCODE = $null;
 # - Available colors for console -foregroundcolor and -backgroundcolor:
 #   Black DarkBlue DarkGreen DarkCyan DarkRed DarkMagenta DarkYellow Gray DarkGray Blue Green Cyan Red Magenta Yellow White
 # - Do not use write-host, use write-output. See http://www.jsnover.com/blog/2013/12/07/write-host-considered-harmful/
@@ -4289,22 +4298,24 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 # - Run a script:
 #   - runs script in script scope, variables and functions do not persists in shell after script end:
 #       ".\myscript.ps1"
-#   - Dot Sourcing Operator (.) runs script in local scope, variables and functions persists in shell after script end, used to include ps artefacts:
+#   - Dot Sourcing Operator (.) runs script in local scope, variables and functions persists in shell after script end, 
+#     used to include ps artefacts:
 #       . ".\myscript.ps1"
 #       . { write-Output "Test"; }
 #       powershell.exe -command ". .\myscript.ps1"
 #       powershell.exe -file      ".\myscript.ps1"
+#     Use this only if the two files belong together, otherwise use the call operator.
 #   - Call operator (&), runs a script, executable, function or scriptblock,
-#     - Creates a new script scope which is deleted after script end. Is side effect safe. Changes to global variables are also lost.
-#         & "./myscript.ps1" ...arguments... ; & $mycmd ...args... ; & { mycmd1; mycmd2 }
-#     - Use quotes when calling non-powershell executables.
-#     - Very important: if an empty argument should be specified then two quotes as '' or "" or $null
-#       or $myEmptyVar do not work (will make the argument not present),
+#     - Creates a new script scope which is deleted after script end, so it is side effect safe. Changes to global variables are also lost.
+#         & "./myscript.ps1" ...arguments... ; & $mycmd ...args... ; & { mycmd1; mycmd2 } AssertRcIsOk;
+#     - Very important: if an empty argument should be specified then two quotes as '' or "" or $null or $myEmptyVar
+#       do not work (will make the argument not present),
 #       it requires '""' or "`"`"" or `"`" or use a blank as " ". This is really a big fail, it is very bad and dangerous!
 #       Why is an empty string not handled similar as a filled string?
 #       The best workaround is to use ALWAYS escaped double-quotes for EACH argument: & "myexe.exe" `"$arg1`" `"`" `"$arg3`";
 #       But even then it is NOT ALLOWED that content contains a double-quote.
 #       There is also no proper solution if quotes instead of double-quotes are used.
+#       Maybe because these problems there is the recommendation of checker-tools to use options instead of positional arguments to specify parameters.
 #     - Precedence of commands: Alias > Function > Filter > Cmdlet > Application > ExternalScript > Script.
 #     - Override precedence of commands by using get-command, ex: Get-Command -commandType Application Ping
 #   - Evaluate (string expansion) and run a command given in a string, does not create a new script scope

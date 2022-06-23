@@ -1,3 +1,4 @@
+#!/usr/bin/env pwsh
 # Simple example for using MnCommonPsToolLib with standard interactive mode without request or waiting
 Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 

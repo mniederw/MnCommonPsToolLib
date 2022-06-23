@@ -10,7 +10,8 @@ Write-Output "Show PSModulePath = `"`""; # "C:\Users\runneradmin\Documents\Power
 $env:PSModulePath -split ";" | Where-Object{ $null -ne $_ } | ForEach-Object{ Write-Output "Show PSModulePath += `";$_`""; }
 
 Write-Output "Set mode to stop on errors.";
-$Global:ErrorActionPreference = "Stop"; trap [Exception] { $Host.UI.WriteErrorLine("Trap: $_"); Read-Host; break; }
+$Global:ErrorActionPreference = "Stop"; 
+trap [Exception] { $Host.UI.WriteErrorLine("Trap: $_"); Read-Host; break; }
 
 Write-Output "Set disable autoloading modules.";
 $PSModuleAutoLoadingPreference = "none";
