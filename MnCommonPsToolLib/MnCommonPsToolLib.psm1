@@ -1691,7 +1691,7 @@ function FileAppendLine                       ( [String] $file, [String] $line, 
 function FileAppendLines                      ( [String] $file, [String[]] $lines ){
                                                 FsEntryCreateParentDir $file;
                                                 $lines | Out-File -Encoding Default -Append -LiteralPath $file; }
-function FileGetTempFile                      (){ return [Object] [System.IO.Path]::GetTempFileName(); }
+function FileGetTempFile                      (){ return [String] [System.IO.Path]::GetTempFileName(); }
 function FileDelTempFile                      ( [String] $file ){ if( (FileExists $file) ){
                                                 OutDebug "FileDelete -Force `"$file`"";
                                                 Remove-Item -Force -LiteralPath $file; } } # As FileDelete but no progress msg.
