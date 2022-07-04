@@ -419,7 +419,7 @@ function OutSuccess                           ( [String] $line ){ OutStringInCol
 function OutWarning                           ( [String] $line, [Int32] $indentLevel = 1 ){
                                                 OutStringInColor Yellow "$(OutGetTsPrefix)$("  "*$indentLevel)$line$([Environment]::NewLine)"; }
 function OutError                             ( [String] $line ){
-                                                $Host.UI.WriteErrorLine("$(OutGetTsPrefix)$line"); } # Writes an stderr line in red.
+                                                $Host.UI.WriteErrorLine("$(OutGetTsPrefix)$line"); } # Writes a stderr line in red.
 function OutProgress                          ( [String] $line, [Int32] $indentLevel = 1 ){
                                                 # Used for tracing changing actions, otherwise use OutVerbose.
                                                 if( $Global:ModeHideOutProgress ){ return; }
@@ -3233,7 +3233,7 @@ function TfsDeleteLocalMachWorkspace          ( [String] $url ){ # we support on
                                                 #     "MYCOMPUTER" entspricht keinem Arbeitsbereich im Cache für den Server "*".
                                                 }
 function TfsGetNewestNoOverwrite              ( [String] $wsdir, [String] $tfsPath, [String] $url ){ # ex: TfsGetNewestNoOverwrite C:\MyWorkspace\Src $/Src https://devops.mydomain.ch/MyTfsRoot
-                                                Assert $tfsPath.StartsWith("$/") "expected tfsPath=`"$tfsPath`" begins with $/.";
+                                                Assert $tfsPath.StartsWith("`$/") "expected tfsPath=`"$tfsPath`" begins with `$/.";
                                                 AssertNotEmpty $wsdir "wsdir";
                                                 $wsDir = FsEntryGetAbsolutePath $wsDir;
                                                 OutProgress "TfsGetNewestNoOverwrite `"$wsdir`" `"$tfsPath`" $url";
