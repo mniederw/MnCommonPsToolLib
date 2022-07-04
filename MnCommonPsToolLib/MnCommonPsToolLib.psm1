@@ -3207,7 +3207,7 @@ function TfsHasLocalMachWorkspace             ( [String] $url ){ # we support on
                                                 $out | ForEach-Object{ $_ -replace "--------------------------------------------------", "-" } | ForEach-Object{ OutProgress $_ };
                                                 return [Boolean] ($out.Length -gt 0); }
 function TfsInitLocalWorkspaceIfNotDone       ( [String] $url, [String] $rootDir ){
-                                                # also creates the directory "./$tf/".
+                                                # also creates the directory "./$tf/" (or "./$tf1/", etc. ).
                                                 [string] $wsName = $env:COMPUTERNAME;
                                                 OutProgress "Init local tfs workspaces with name identic to computername if not yet done of $url to `"$rootDir`"";
                                                 if( TfsHasLocalMachWorkspace $url ){ OutProgress "Init-Workspace not nessessary because has already workspace identic to computername."; return; }
@@ -3238,8 +3238,8 @@ function TfsGetNewestNoOverwrite              ( [String] $wsdir, [String] $tfsPa
                                                 $wsDir = FsEntryGetAbsolutePath $wsDir;
                                                 OutProgress "TfsGetNewestNoOverwrite `"$wsdir`" `"$tfsPath`" $url";
                                                 FileAppendLineWithTs $tfsLogFile "TfsGetNewestNoOverwrite(`"$wsdir`",`"$tfsPath`",$url )";
-                                                if( (FsEntryFindInParents $wsdir "`$tf") -eq "" ){
-                                                  OutProgress "Not found dir `"`$tf`" in parents of `"$wsdir`", so calling init workspace.";
+                                                if( ((FsEntryFindInParents $wsdir "`$tf") -eq "") -and ((FsEntryFindInParents $wsdir "`$tf1") -eq "") -and ((FsEntryFindInParents $wsdir "`$tf2") -eq "") ){
+                                                  OutProgress "Not found any dir (`"`$tf`",`"`$tf1`",`"`$tf2`") in parents of `"$wsdir`", so calling init workspace.";
                                                   TfsInitLocalWorkspaceIfNotDone $url (FsEntryGetParentDir $wsdir);
                                                 }
                                                 if( FileNotExists $wsdir ){ DirCreate $wsdir; }
