@@ -38,7 +38,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "6.20"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "6.21"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -434,10 +434,12 @@ function OutDebug                             ( [String] $line ){
                                                 # Output depends on $DebugPreference, used in general for tracing internal states which can produce a lot of lines.
                                                 Write-Debug   -Message "$(DateTimeNowAsStringIso) $line"; }
 function OutClear                             (){ Clear-Host; }
-function OutStartTranscriptInTempDir          ( [String] $name = "MnCommonPsToolLib" ){
-                                                 # append everything from console to logfile, return full path name of logfile.
+function OutStartTranscriptInTempDir          ( [String] $name = "MnCommonPsToolLib", [Boolean] $useHHMMSS = $false ){
+                                                 # append everything from console to logfile, return full path name of logfile. Optionally use precision by seconds for file name.
                                                 if( $name -eq "" ){ $name = "MnCommonPsToolLib"; }
-                                                [String] $f = "$env:TEMP/$name/$((DateTimeNowAsStringIso "yyyy yyyy-MM yyyy-MM-dd").Replace(" ","/")).$name.txt";
+                                                [String] $pattern = "yyyy yyyy-MM yyyy-MM-dd";
+                                                if( $useHHMMSS ){ $pattern += "_HH'h'mm'm'SS's'"; }
+                                                [String] $f = "$env:TEMP/$name/$((DateTimeNowAsStringIso $pattern).Replace(" ","/")).$name.txt";
                                                 Start-Transcript -Path $f -Append -IncludeInvocationHeader | Out-Null;
                                                 return [String] $f; }
 function OutStopTranscript                    (){ Stop-Transcript; }

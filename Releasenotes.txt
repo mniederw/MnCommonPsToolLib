@@ -1,15 +1,16 @@
 ﻿Releasenotes
 ------------
 
-Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-See description of major version with minor equal zero about breaking changes as removed deprecated functions or changed behavious.
+Major version will reflect breaking changes, minor identifies extensions and third number identifies urgent bugfixes.
+Breaking changes are usually removed deprecated functions or changed behaviours.
 Current version can be requested by: $MnCommonPsToolLibVersion
 
+2022-07-13  V6.21  Extend OutStartTranscriptInTempDir.
 2022-07-04  V6.20  Added ToolInstallOrUpdate, fix to TfsInitLocalWorkspaceIfNotDone.
-2022-06-23  V6.19  Improve error handling, adding shebang
+2022-06-23  V6.19  Improve error handling, adding shebang.
 2022-06-16  V6.18  Improve OutStartTranscriptInTempDir by returning logfile filepath.
-2022-06-15  V6.17  Improve output of exception messages
-2022-05-22  V6.16  Fix git log warnings
+2022-06-15  V6.17  Improve output of exception messages.
+2022-05-22  V6.16  Fix git log warnings.
 2022-05-09  V6.15  Fix using Write-Host.
 2022-04-19  V6.14  Fixed ProcessStart. Fixed StringIsNullOrWhiteSpace to StringIsFilled.
                    ToolTfsInitLocalWorkspaceIfNotDone deprecated and replaced by TfsInitLocalWorkspaceIfNotDone.
@@ -23,47 +24,47 @@ Current version can be requested by: $MnCommonPsToolLibVersion
 2022-03-20  V6.07  Unified warning messages, modify 7zip tool, make usage of dir-separator more portable.
                    Deprecate FsEntryHasTrailingBackslash, FsEntryRemoveTrailingBackslash, FsEntryMakeTrailingBackslash.
 2022-03-08  V6.06  Added git reset. Declare as deprecated: GitCloneOrFetchOrPull, GitCloneOrFetchIgnoreError, GitCloneOrPullIgnoreError.
-2022-02-23  V6.05  Simplified array usage, fixed UnitTest
-2022-01-31  V6.04  Add comment
+2022-02-23  V6.05  Simplified array usage, fixed UnitTest.
+2022-01-31  V6.04  Add comment.
 2021-12-19  V6.03  Parallelize GitCloneOrPullUrls.
 2021-12-19  V6.02  Fix NetDownloadFile setting Tls. Added Unittest to github workflow.
 2021-12-18  V6.01  Fix some lint warnings as using Write-Output. Added ScriptAnalyser tool. Extended Workflow.
 2021-12-17  V6.00  Removed deprecated FsEntryMakeAbsolutePath, from GitCloneOrPullUrls removed param onErrorContinueWithOthers. Improve ForEachParallel.
                    Removed deprecated StdOutRedLine.
 
-2021-12-16  V5.46  Improved FileDelete exc-handling
-2021-12-16  V5.45  Improved Doc NetDownloadFileByCurl
-2021-12-08  V5.44  Improved Doc ToolCreateMenuLinksByMenuItemRefFile
-2021-11-07  V5.43  Added Doc, Added ToolOsWindowsResetSystemFileIntegrity
-2021-10-22  V5.42  Added ProcessGetNrOfCores, ProcessListRunningsFormatted, ProcessCloseMainWindow
-2021-10-05  V5.41  Improve retry handling of SvnCheckoutAndUpdate
-2021-10-04  V5.40  Replaced quotes by doublequotes
-2021-10-01  V5.39  Added DirNotExists
-2021-10-01  V5.38  Added DateTimeGetBeginOf, FsEntryNotExistsOrIsOlderThanBeginOf, FsEntryExistsAndIsNewerThanBeginOf
-2021-10-01  V5.37  Changed output type of ToolWin10Package
-2021-09-30  V5.36  Added ToolWin10PackageGetState, ToolWin10PackageInstall, ToolWin10PackageDeinstall
-2021-09-28  V5.35  Added ToolVs2019UserFolderGetLatestUsed, unified releasenote comments
-2021-07-25  V5.34  Fixed lint issues, added github action
-2021-05-06  V5.33  Extend ServiceStop
+2021-12-16  V5.46  Improved FileDelete exc-handling.
+2021-12-16  V5.45  Improved Doc NetDownloadFileByCurl.
+2021-12-08  V5.44  Improved Doc ToolCreateMenuLinksByMenuItemRefFile.
+2021-11-07  V5.43  Added Doc, Added ToolOsWindowsResetSystemFileIntegrity.
+2021-10-22  V5.42  Added ProcessGetNrOfCores, ProcessListRunningsFormatted, ProcessCloseMainWindow.
+2021-10-05  V5.41  Improve retry handling of SvnCheckoutAndUpdate.
+2021-10-04  V5.40  Replaced quotes by doublequotes.
+2021-10-01  V5.39  Added DirNotExists.
+2021-10-01  V5.38  Added DateTimeGetBeginOf, FsEntryNotExistsOrIsOlderThanBeginOf, FsEntryExistsAndIsNewerThanBeginOf.
+2021-10-01  V5.37  Changed output type of ToolWin10Package.
+2021-09-30  V5.36  Added ToolWin10PackageGetState, ToolWin10PackageInstall, ToolWin10PackageDeinstall.
+2021-09-28  V5.35  Added ToolVs2019UserFolderGetLatestUsed, unified releasenote comments.
+2021-07-25  V5.34  Fixed lint issues, added github action.
+2021-05-06  V5.33  Extend ServiceStop.
 2021-01-05  V5.32  Added exc info, Adding installation and uninstallation for both 32 and 64 bit environments.
-2020-12-07  V5.31  Added OsPsModule functions
-2020-11-27  V5.30  Added retry in CredentialReadFromFile when pw changed
-2020-11-15  V5.29  Doc NetDownloadFile
-2020-11-15  V5.28  Improve warning of git log
-2020-11-13  V5.27  Added ToolActualizeHostsFileByMaster
+2020-12-07  V5.31  Added OsPsModule functions.
+2020-11-27  V5.30  Added retry in CredentialReadFromFile when pw changed.
+2020-11-15  V5.29  Doc NetDownloadFile.
+2020-11-15  V5.28  Improve warning of git log.
+2020-11-13  V5.27  Added ToolActualizeHostsFileByMaster.
 2020-11-03  V5.26  Added FsEntryGetUncShare, extend FsEntryNotExistsOrIsOlderThanNrDays.
 2020-11-01  V5.24  Fixed default arg.
-2020-10-19  V5.23  Added git --no-rebase
+2020-10-19  V5.23  Added git --no-rebase.
 2020-10-05  V5.22  Fixed null problems for arrays. Extend unitest. Added return type of functions.
 2020-10-01  V5.21  Added StringNormalizeAsVersion, moved unittest, fixed null for arrays.
-2020-10-01  V5.20  Fixed RegistryPrivRuleToString
-2020-09-23  V5.19  Unified usage without aliases
+2020-10-01  V5.20  Fixed RegistryPrivRuleToString.
+2020-09-23  V5.19  Unified usage without aliases.
 2020-09-09  V5.18  Added PrivFsRuleCreateByString, PrivAclFsRightsToString, PrivAclFsRightsFromString, PrivAclRegRightsToString. Fix FsEntryListAsFileSystemInfo.
 2020-08-09  V5.13  Added GitShowBranch, GitShowChanges. Fix ProcessStart.
 2020-07-30  V5.12  Added Doc.
 2020-07-28  V5.11  Improved tfs functions.
 2020-07-16  V5.10  Deprecated FsEntryMakeAbsolutePath. Extend tfs-path. Added FsEntryFindInParents, StringRemoveOptEnclosingDblQuotes, Tfs-functions.
-2020-07-15  V5.09  Added GitCloneOrPullUrls
+2020-07-15  V5.09  Added GitCloneOrPullUrls.
 2020-07-06  V5.08  Added GitAssertAutoCrLfIsDisabled, GitDisableAutoCrLf.
 2020-05-01  V5.07  Added StringArrayIsEqual.
 2020-04-25  V5.06  Added Doc.
@@ -74,11 +75,11 @@ Current version can be requested by: $MnCommonPsToolLibVersion
 2020-03-02  V5.01  Changed ShareListAllByWmi caption to Description.
 2020-02-25  V5.00  Changed and simplifyed ShareListAll, ShareCreate, ShareRemove, ShareListAll. Add ShareExists, ShareListAllByWmi, ShareRemoveByWmi, ShareCreateByWmi, ShareLocksList, ShareLocksClose.
 
-2020-02-18  V4.11  Improved ConsoleSetGuiProperties, tf options
+2020-02-18  V4.11  Improved ConsoleSetGuiProperties, tf options.
 2020-02-15  V4.10  Added ToolGithubApiDownloadLatestReleaseDir, ToolUnzip, fix FsEntryMoveByPatternToDir.
 2020-02-13  V4.09  Added HelpListOfAllExportedCommands, extend wget comment. improved ProcessRestartInElevatedAdminMode, MnCommonPsToolLibSelfUpdate, ToolPerformFileUpdateAndIsActualized.
-2020-01-14  V4.08  Added StringRemoveLeft
-2019-12-04  V4.07  Extended tfs path
+2020-01-14  V4.08  Added StringRemoveLeft.
+2019-12-04  V4.07  Extended tfs path.
 2019-11-15  V4.06  Added ToolSetAssocFileExtToCmd, simplify word-count.
 2019-11-11  V4.05  Extended GitCmd by branch. Extended GitBuildLocalDirFromUrl by branch.
 2019-10-16  V4.04  Fixed FsEntryGetAbsolutePath drive not found. Fix RegistryKeySetAclRule. Improve checkings in RegistryKeyGetSubkey, handle 404 in NetDownloadFile and NetDownloadFileByCurl.
@@ -107,18 +108,18 @@ Current version can be requested by: $MnCommonPsToolLibVersion
                    Renamed CurlDownloadToString to NetDownloadToStringByCurl.
 2018-12-30  V1.28  Improved download exc, add encoding as param for FileReadContent functions,
                    Renamed from CredentialGetPasswordTextFromCred to CredentialGetPassword, new CredentialGetUsername,
-                   Renamed CredentialReadFromParamOrInput to CredentialCreate
+                   Renamed CredentialReadFromParamOrInput to CredentialCreate.
 2018-12-16  V1.27  Suppressed import-module warnings, improve ToolCreateLnkIfNotExists, rename FsEntryPrivAclAsString to PrivAclAsString,
-                   Renamed PrivFsSecurityHasFullControl to PrivAclHasFullControl, new: FsEntryCreateSymLink, FsEntryCreateHardLink, CredentialReadUserFromFile;
-2018-12-16  V1.26  Added doc
-2018-10-08  V1.25  Improved git logging, add ProcessStart
-2018-09-27  V1.24  Fixed FsEntryMakeRelative for equal dirs
-2018-09-26  V1.23  Fixed logfile of SqlPerformFile
-2018-09-26  V1.22  Improved logging of SqlPerformFile
-2018-09-26  V1.21  Improved FsEntryMakeRelative
-2018-09-26  V1.20  Added ScriptImportModuleIfNotDone, SqlPerformFile;
+                   Renamed PrivFsSecurityHasFullControl to PrivAclHasFullControl, new: FsEntryCreateSymLink, FsEntryCreateHardLink, CredentialReadUserFromFile.
+2018-12-16  V1.26  Added doc.
+2018-10-08  V1.25  Improved git logging, add ProcessStart.
+2018-09-27  V1.24  Fixed FsEntryMakeRelative for equal dirs.
+2018-09-26  V1.23  Fixed logfile of SqlPerformFile.
+2018-09-26  V1.22  Improved logging of SqlPerformFile.
+2018-09-26  V1.21  Improved FsEntryMakeRelative.
+2018-09-26  V1.20  Added ScriptImportModuleIfNotDone, SqlPerformFile.
 2018-09-07  V1.19  Removed deprecated: DirExistsAssert (use DirAssertExists instead), DateTimeFromStringAsFormat (use DateTimeFromStringIso instead),
-                   DateTimeAsStringForFileName (use DateTimeNowAsStringIso instead), fix DateTimeFromStringIso formats.
+                   DateTimeAsStringForFileName (use DateTimeNowAsStringIso instead), fix DateTimeFromStringIso formats;
                    Added FsEntryFsInfoFullNameDirWithBackSlash, FsEntryResetTs. Ignore Import err. Use ps module sqlserver instead sqlps and now with connectstring.
 2018-09-06  V1.18  Added ConsoleSetGuiProperties, GetExtension.
 2018-08-14  V1.17  Fixed git err msg.
@@ -137,5 +138,5 @@ Current version can be requested by: $MnCommonPsToolLibVersion
 2017-10-22  V1.04  Extended functions, improve FileContentsAreEqual, self-update.
 2017-10-10  V1.03  Extended functions.
 2017-09-08  V1.02  Extended by jobs, parallel.
-2017-08-11  V1.01  Updated
+2017-08-11  V1.01  Updated.
 2017-06-25  V1.00  Published as open source to github.
