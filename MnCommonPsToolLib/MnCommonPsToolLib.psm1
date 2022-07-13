@@ -38,7 +38,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "6.19"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "6.20"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -419,7 +419,7 @@ function OutSuccess                           ( [String] $line ){ OutStringInCol
 function OutWarning                           ( [String] $line, [Int32] $indentLevel = 1 ){
                                                 OutStringInColor Yellow "$(OutGetTsPrefix)$("  "*$indentLevel)$line$([Environment]::NewLine)"; }
 function OutError                             ( [String] $line ){
-                                                $Host.UI.WriteErrorLine("$(OutGetTsPrefix)$line"); } # Writes an stderr line in red.
+                                                $Host.UI.WriteErrorLine("$(OutGetTsPrefix)$line"); } # Writes a stderr line in red.
 function OutProgress                          ( [String] $line, [Int32] $indentLevel = 1 ){
                                                 # Used for tracing changing actions, otherwise use OutVerbose.
                                                 if( $Global:ModeHideOutProgress ){ return; }
@@ -3207,7 +3207,7 @@ function TfsHasLocalMachWorkspace             ( [String] $url ){ # we support on
                                                 $out | ForEach-Object{ $_ -replace "--------------------------------------------------", "-" } | ForEach-Object{ OutProgress $_ };
                                                 return [Boolean] ($out.Length -gt 0); }
 function TfsInitLocalWorkspaceIfNotDone       ( [String] $url, [String] $rootDir ){
-                                                # also creates the directory "./$tf/".
+                                                # also creates the directory "./$tf/" (or "./$tf1/", etc. ).
                                                 [string] $wsName = $env:COMPUTERNAME;
                                                 OutProgress "Init local tfs workspaces with name identic to computername if not yet done of $url to `"$rootDir`"";
                                                 if( TfsHasLocalMachWorkspace $url ){ OutProgress "Init-Workspace not nessessary because has already workspace identic to computername."; return; }
@@ -3233,14 +3233,14 @@ function TfsDeleteLocalMachWorkspace          ( [String] $url ){ # we support on
                                                 #     "MYCOMPUTER" entspricht keinem Arbeitsbereich im Cache für den Server "*".
                                                 }
 function TfsGetNewestNoOverwrite              ( [String] $wsdir, [String] $tfsPath, [String] $url ){ # ex: TfsGetNewestNoOverwrite C:\MyWorkspace\Src $/Src https://devops.mydomain.ch/MyTfsRoot
-                                                Assert $tfsPath.StartsWith("$/") "expected tfsPath=`"$tfsPath`" begins with $/.";
+                                                Assert $tfsPath.StartsWith("`$/") "expected tfsPath=`"$tfsPath`" begins with `$/.";
                                                 AssertNotEmpty $wsdir "wsdir";
                                                 $wsDir = FsEntryGetAbsolutePath $wsDir;
                                                 OutProgress "TfsGetNewestNoOverwrite `"$wsdir`" `"$tfsPath`" $url";
                                                 FileAppendLineWithTs $tfsLogFile "TfsGetNewestNoOverwrite(`"$wsdir`",`"$tfsPath`",$url )";
-                                                if( (FsEntryFindInParents $wsdir "`$tf") -eq "" ){
-                                                  OutProgress "Not found dir `"`$tf`" in parents of `"$wsdir`", so calling init workspace.";
-                                                  ToolTfsInitLocalWorkspaceIfNotDone $url (FsEntryGetParentDir $wsdir);
+                                                if( ((FsEntryFindInParents $wsdir "`$tf") -eq "") -and ((FsEntryFindInParents $wsdir "`$tf1") -eq "") -and ((FsEntryFindInParents $wsdir "`$tf2") -eq "") ){
+                                                  OutProgress "Not found any dir (`"`$tf`",`"`$tf1`",`"`$tf2`") in parents of `"$wsdir`", so calling init workspace.";
+                                                  TfsInitLocalWorkspaceIfNotDone $url (FsEntryGetParentDir $wsdir);
                                                 }
                                                 if( FileNotExists $wsdir ){ DirCreate $wsdir; }
                                                 [String] $cd = (Get-Location); Set-Location $wsdir; try{ # alternative option: /noprompt
@@ -4117,6 +4117,37 @@ function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $
                                                   }
                                                   return [Boolean] $false;
                                                 } }
+function ToolInstallOrUpdate                  ( [String] $installMedia, [String] $mainTargetFileMinIsoDate, [String] $mainTargetFile, [String] $installDirsSemicSep, [String] $installHints = "" ){
+                                                # Check if a main target file exists in one of the installDirs and wether it has a minimum expected date.
+                                                # If not it will be installed or updated by calling installmedia asynchronously which is in general a half automatic installation procedure.
+                                                # Example: ToolInstallOrUpdate "Freeware\NetworkClient\Browser\OpenSource-MPL2 Firefox V89.0 64bit multilang 2021.exe" "2021-05-27" "firefox.exe" "C:\Program Files\Mozilla Firefox ; C:\Prg\Network\Browser\OpenSource-MPL2 Firefox\" "Not install autoupdate";
+                                                [String[]] $installDirs = @()+(StringSplitToArray ";" $installDirsSemicSep);
+                                                [DateTime] $mainTargetFileMinDate = DateTimeFromStringIso $mainTargetFileMinIsoDate; 
+                                                [DateTime] $mainTargetFileDate = [DateTime]::MinValue; # default also means not installed
+                                                [String]   $installDirsStr = $installDirs | ForEach-Object{ "`"$_`"; " };
+                                                Assert ($installDirs.Count -gt 0) "Missing an installDir";
+                                                $installDirs | ForEach-Object{
+                                                  [String] $f = [System.IO.Path]::Combine($_,$mainTargetFile);
+                                                  if( FileExists $f ){
+                                                    if( $mainTargetFileDate -ne [DateTime]::MinValue ){
+                                                      OutWarning "Warning: Installed main target file already found in previous installDir so ignore duplicate also installed main target file: `"$f`"";
+                                                    }else{ $mainTargetFileDate = FsEntryGetLastModified $f; }
+                                                  }
+                                                };
+                                                OutProgress "Target: MinDate=$mainTargetFileMinIsoDate FileTs=$(DateTimeAsStringIso $mainTargetFileDate "yyyy-MM-dd") File=`"$mainTargetFile`" InstallDirs=$installDirsStr";
+                                                if( FileNotExists $installMedia ){
+                                                  OutWarning "Warning: Missing Installmedia `"$installMedia`"";
+                                                }elseif( $mainTargetFileDate -lt $mainTargetFileMinDate ){
+                                                  OutInfo "Installmedia `"$installMedia`"";
+                                                  $installDirs | ForEach-Object{ OutInfo "  Accepted-Installdir: `"$_`""; };
+                                                  if( $installHints -ne "" ){ OutInfo "  InstallHints: $installHints"; }
+                                                  if( StdInAskForBoolean ){ 
+                                                    & $installMedia; AssertRcIsOk;
+                                                  }
+                                                }else{
+                                                  OutProgress "Is up-to-date: `"$installMedia`"";
+                                                }
+                                              }
 function MnCommonPsToolLibSelfUpdate          ( [Boolean] $doWaitForEnterKeyIfFailed = $false ){
                                                 # If installed in standard mode (saved under c:\Program Files\WindowsPowerShell\Modules\...)
                                                 # then it performs a self update to the newest version from github.
