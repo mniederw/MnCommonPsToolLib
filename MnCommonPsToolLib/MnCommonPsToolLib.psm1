@@ -38,7 +38,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "6.21"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "6.22"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -1101,9 +1101,9 @@ function RegistryImportFile                   ( [String] $regFile ){
                                                 try{ <# unbelievable, it writes success to stderr #>
                                                   & "$env:SystemRoot/system32/reg.exe" "IMPORT" $regFile *>&1 | Out-Null; AssertRcIsOk;
                                                 }catch{ <# ignore always: System.Management.Automation.RemoteException Der Vorgang wurde erfolgreich beendet. #>
-                                                  [String] $expectedMsg = "Der Vorgang wurde erfolgreich beendet.";
-                                                  if( $_.Exception.Message -ne $expectedMsg ){
-                                                    throw [Exception] "$(ScriptGetCurrentFunc)(`"$regFile`") failed. We expected an exc but this must match `"$expectedMsg`" but we got: `"$($_.Exception.Message)`"";
+                                                  [String[]] $expectedMsgs = @( "Der Vorgang wurde erfolgreich beendet.", "The operation completed successfully." );
+                                                  if( $expectedMsgs -notcontains $_.Exception.Message ){
+                                                    throw [Exception] "$(ScriptGetCurrentFunc)(`"$regFile`") failed. We expected an exc but this must match one of [$(StringArrayDblQuoteItems $expectedMsgs)] but we got: `"$($_.Exception.Message)`"";
                                                   }
                                                   ScriptResetRc; } }
 function RegistryKeyGetAcl                    ( [String] $key ){
