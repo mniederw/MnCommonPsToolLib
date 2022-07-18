@@ -38,7 +38,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "6.22"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "6.23"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -509,7 +509,7 @@ function AssertRcIsOk                         ( [String[]] $linesToOutProgress =
                                                   }
                                                   try{
                                                     OutProgress "Dump of logfile=$($logFileToOutProgressIfFailed):";
-                                                    FileReadContentAsLines $logFileToOutProgressIfFailed $encodingIfNoBom |
+                                                    Get-Content -Encoding $encodingIfNoBom -LiteralPath $logFileToOutProgressIfFailed |
                                                       Where-Object{$null -ne $_} | ForEach-Object{ OutProgress "  $_"; }
                                                   }catch{ 
                                                     OutVerbose "Ignoring problems on reading $logFileToOutProgressIfFailed failed because $($_.Exception.Message)";
