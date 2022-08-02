@@ -5,6 +5,7 @@ Major version will reflect breaking changes, minor identifies extensions and thi
 Breaking changes are usually removed deprecated functions or changed behaviours.
 Current version can be requested by: $MnCommonPsToolLibVersion
 
+2022-08-02  V6.23  Improve DirCreateTemp, Add GitMerge. Improve AssertRcIsOk.
 2022-07-16  V6.22  Fix RegistryImportFile.
 2022-07-13  V6.21  Extend OutStartTranscriptInTempDir.
 2022-07-04  V6.20  Added ToolInstallOrUpdate, fix to TfsInitLocalWorkspaceIfNotDone.

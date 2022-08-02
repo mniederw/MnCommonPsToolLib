@@ -38,7 +38,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "6.22"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "6.23"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -509,7 +509,7 @@ function AssertRcIsOk                         ( [String[]] $linesToOutProgress =
                                                   }
                                                   try{
                                                     OutProgress "Dump of logfile=$($logFileToOutProgressIfFailed):";
-                                                    FileReadContentAsLines $logFileToOutProgressIfFailed $encodingIfNoBom |
+                                                    Get-Content -Encoding $encodingIfNoBom -LiteralPath $logFileToOutProgressIfFailed |
                                                       Where-Object{$null -ne $_} | ForEach-Object{ OutProgress "  $_"; }
                                                   }catch{ 
                                                     OutVerbose "Ignoring problems on reading $logFileToOutProgressIfFailed failed because $($_.Exception.Message)";
@@ -1629,8 +1629,8 @@ function DirAssertExists                      ( [String] $dir, [String] $text = 
 function DirCreate                            ( [String] $dir ){
                                                 New-Item -type directory -Force (FsEntryEsc $dir) | Out-Null; } # create dir if it not yet exists,;we do not call OutProgress because is not an important change.
 function DirCreateTemp                        ( [String] $prefix = "" ){ while($true){
-                                               [String] $d = Join-Path ([System.IO.Path]::GetTempPath()) ($prefix + [System.IO.Path]::GetRandomFileName().Replace(".",""));
-                                               if( FsEntryNotExists $d ){ DirCreate $d; return [String] $d; } } }
+                                                [String] $d = Join-Path ([System.IO.Path]::GetTempPath()) ($prefix + "." + (StringLeft ([System.IO.Path]::GetRandomFileName().Replace(".","")) 6)); # 6 alphachars has 2G possibilities
+                                                if( FsEntryNotExists $d ){ DirCreate $d; return [String] $d; } } }
 function DirDelete                            ( [String] $dir, [Boolean] $ignoreReadonly = $true ){
                                                 # Remove dir recursively if it exists, be careful when using this.
                                                 if( (DirExists $dir) ){
@@ -2658,6 +2658,20 @@ function GitShowChanges                       ( [String] $repoDir ){
                                                 return [String[]] (@()+(StringSplitIntoLines $out |
                                                   Where-Object{$null -ne $_} |
                                                   Where-Object{ StringIsFilled $_; })); }
+function GitMerge                             ( [String] $repoDir, [String] $branch, [Boolean] $errorAsWarning = $false ){
+                                                # merge branch (remotes/origin) into current repodir, no-commit, no-fast-forward
+                                                Assert ($branch.Length -gt 0) "branch name is empty";
+                                                try{
+                                                  [String] $out = (ProcessStart "git" @( "-C", $repoDir, "--git-dir=.git", "merge", "--no-commit", "--no-ff", "remotes/origin/$branch") -careStdErrAsOut:$true -traceCmd:$false);
+                                                  # Example output to console but not to stdout:
+                                                  #   Auto-merging MyDir/MyFile.txt
+                                                  #   CONFLICT (content): Merge conflict in MyDir/MyFile.txt
+                                                  #   Automatic merge failed; fix conflicts and then commit the result.
+                                                  OutProgress $out;
+                                                }catch{
+                                                  if( -not $errorAsWarning ){ throw [Exception] "Merge failed, fix conflicts manually: $_.Exception.Message"; }
+                                                  OutWarning "Merge of branch $branch into `"$repoDir`" failed, fix conflicts manually. ";
+                                                } }
 function GitTortoiseCommit                    ( [String] $workDir, [String] $commitMessage = "" ){
                                                 [String] $tortoiseExe = (RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseGit" "ProcPath"); # ex: "C:\Program Files\TortoiseGit\bin\TortoiseGitProc.exe"
                                                 Start-Process -NoNewWindow -Wait -FilePath "$tortoiseExe" -ArgumentList @("/command:commit","/path:`"$workDir`"", "/logmsg:$commitMessage"); AssertRcIsOk; }
