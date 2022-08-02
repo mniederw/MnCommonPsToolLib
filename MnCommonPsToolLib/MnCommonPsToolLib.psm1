@@ -38,7 +38,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "6.22"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "6.23"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -1629,7 +1629,7 @@ function DirAssertExists                      ( [String] $dir, [String] $text = 
 function DirCreate                            ( [String] $dir ){
                                                 New-Item -type directory -Force (FsEntryEsc $dir) | Out-Null; } # create dir if it not yet exists,;we do not call OutProgress because is not an important change.
 function DirCreateTemp                        ( [String] $prefix = "" ){ while($true){
-                                               [String] $d = Join-Path ([System.IO.Path]::GetTempPath()) ($prefix + [System.IO.Path]::GetRandomFileName().Replace(".",""));
+                                               [String] $d = Join-Path ([System.IO.Path]::GetTempPath()) (StringLeft ($prefix + "." + [System.IO.Path]::GetRandomFileName().Replace(".","")) 8);
                                                if( FsEntryNotExists $d ){ DirCreate $d; return [String] $d; } } }
 function DirDelete                            ( [String] $dir, [Boolean] $ignoreReadonly = $true ){
                                                 # Remove dir recursively if it exists, be careful when using this.
@@ -2658,6 +2658,10 @@ function GitShowChanges                       ( [String] $repoDir ){
                                                 return [String[]] (@()+(StringSplitIntoLines $out |
                                                   Where-Object{$null -ne $_} |
                                                   Where-Object{ StringIsFilled $_; })); }
+function GitMerge                             ( [String] $repoDir, [String] $branch ){ # merge branch (remotes/origin) into current repodir, no-commit, no-fast-forward
+                                                Assert ($branch.Length -gt 0) "branch name is empty";
+                                                [String] $out = (ProcessStart "git" @( "-C", $repoDir, "--git-dir=.git", "merge", "--no-commit", "--no-ff", "remotes/origin/$branch") -traceCmd:$false);
+                                                OutProgress $out; }
 function GitTortoiseCommit                    ( [String] $workDir, [String] $commitMessage = "" ){
                                                 [String] $tortoiseExe = (RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseGit" "ProcPath"); # ex: "C:\Program Files\TortoiseGit\bin\TortoiseGitProc.exe"
                                                 Start-Process -NoNewWindow -Wait -FilePath "$tortoiseExe" -ArgumentList @("/command:commit","/path:`"$workDir`"", "/logmsg:$commitMessage"); AssertRcIsOk; }
