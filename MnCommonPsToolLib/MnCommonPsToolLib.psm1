@@ -1629,8 +1629,8 @@ function DirAssertExists                      ( [String] $dir, [String] $text = 
 function DirCreate                            ( [String] $dir ){
                                                 New-Item -type directory -Force (FsEntryEsc $dir) | Out-Null; } # create dir if it not yet exists,;we do not call OutProgress because is not an important change.
 function DirCreateTemp                        ( [String] $prefix = "" ){ while($true){
-                                               [String] $d = Join-Path ([System.IO.Path]::GetTempPath()) (StringLeft ($prefix + "." + [System.IO.Path]::GetRandomFileName().Replace(".","")) 8);
-                                               if( FsEntryNotExists $d ){ DirCreate $d; return [String] $d; } } }
+                                                [String] $d = Join-Path ([System.IO.Path]::GetTempPath()) ($prefix + "." + (StringLeft ([System.IO.Path]::GetRandomFileName().Replace(".","")) 8));
+                                                if( FsEntryNotExists $d ){ DirCreate $d; return [String] $d; } } }
 function DirDelete                            ( [String] $dir, [Boolean] $ignoreReadonly = $true ){
                                                 # Remove dir recursively if it exists, be careful when using this.
                                                 if( (DirExists $dir) ){
