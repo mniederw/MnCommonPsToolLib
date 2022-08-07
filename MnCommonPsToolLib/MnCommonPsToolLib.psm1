@@ -38,7 +38,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "6.23"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "6.24"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -2128,6 +2128,8 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                 #   powershell internal implementation of curl or wget which works for http, https and ftp only.
                                                 # Cares http response code 3xx for auto redirections.
                                                 # If url not exists then it will throw.
+                                                # It seams the internal commands (WebClient and Invoke-WebRequest) cannot work with urls as "https://token@host/path"
+                                                #   because they returned 404=not-found, but NetDownloadFileByCurl worked successfully.
                                                 # If ignoreSslCheck is true then it will currently ignore all following calls,
                                                 #   so this is no good solution (use NetDownloadFileByCurl).
                                                 # Maybe later: OAuth. Ex: https://docs.github.com/en/free-pro-team@latest/rest/overview/other-authentication-methods
@@ -2565,7 +2567,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                 [String] $branch = "";
                                                 if( $urlOpt.Count -gt 1 ){ $branch = $urlOpt[1]; AssertNotEmpty $branch "branch in urlAndBranch=`"$urlAndOptionalBranch`". "; }
                                                 if( $urlOpt.Count -gt 2 ){ throw [Exception] "Unknown third param in urlAndBranch=`"$urlAndOptionalBranch`". "; }
-                                                [String] $dir = (GitBuildLocalDirFromUrl $tarRootDir $urlAndOptionalBranch);
+                                                [String] $dir = FsEntryRemoveTrailingDirSep (GitBuildLocalDirFromUrl $tarRootDir $urlAndOptionalBranch);
                                                 GitAssertAutoCrLfIsDisabled;
                                                 if( $cmd -eq "CloneOrPull"  ){ if( (DirNotExists $dir) ){ $cmd = "Clone"; }else{ $cmd = "Pull" ; }}
                                                 if( $cmd -eq "CloneOrFetch" ){ if( (DirNotExists $dir) ){ $cmd = "Clone"; }else{ $cmd = "Fetch"; }}
@@ -2648,30 +2650,59 @@ function GitShowUrl                           ( [String] $repoDir ){
                                                 return [String] $out; }
 function GitShowBranch                        ( [String] $repoDir ){
                                                 # return current branch (example: "master").
-                                                [String] $out = (ProcessStart "git" @( "-C", $repoDir, "--git-dir=.git", "branch") -traceCmd:$false);
+                                                [String] $out = (ProcessStart "git" @("-C", (FsEntryRemoveTrailingDirSep $repoDir), "--git-dir=.git", "branch") -traceCmd:$false);
+                                                [String] $firstLine = StringSplitIntoLines $out | Select-Object -First 1;
                                                 # in future when newer version of git is common then we can use new option for get current-branch.
-                                                Assert ($out.StartsWith("* ")) "expected result of git branch command begins with `"* `" but got `"$out`"";
-                                                return [String] (StringRemoveLeft $out "* ").Trim(); }
+                                                Assert ($firstLine.StartsWith("* ")) "expected result of git branch command begins with `"* `" but got `"$firstLine`"";
+                                                return [String] (StringRemoveLeft $firstLine "* ").Trim(); }
 function GitShowChanges                       ( [String] $repoDir ){
                                                 # return changed, deleted and new files or dirs. Per entry one line prefixed with a change code.
-                                                [String] $out = (ProcessStart "git" @( "-C", $repoDir, "--git-dir=.git", "status", "--short") -traceCmd:$false);
+                                                [String] $out = (ProcessStart "git" @("-C", (FsEntryRemoveTrailingDirSep $repoDir), "--git-dir=.git", "status", "--short") -traceCmd:$false);
                                                 return [String[]] (@()+(StringSplitIntoLines $out |
                                                   Where-Object{$null -ne $_} |
                                                   Where-Object{ StringIsFilled $_; })); }
+function GitSwitch                            ( [String] $repoDir, [String] $branch ){
+                                                [String] $out = (ProcessStart "git" @("-C", (FsEntryRemoveTrailingDirSep $repoDir), "switch", $branch) -careStdErrAsOut:$true -traceCmd:$true); }
+function GitAdd                               ( [String] $fsEntryToAdd ){
+                                                [String] $repoDir = FsEntryGetAbsolutePath "$(FsEntryFindInParents $fsEntryToAdd ".git")/.."; # not trailing slash allowed
+                                                [String] $out = (ProcessStart "git" @("-C", $repoDir, "add", $fsEntryToAdd) -traceCmd:$true); }
 function GitMerge                             ( [String] $repoDir, [String] $branch, [Boolean] $errorAsWarning = $false ){
                                                 # merge branch (remotes/origin) into current repodir, no-commit, no-fast-forward
                                                 Assert ($branch.Length -gt 0) "branch name is empty";
                                                 try{
-                                                  [String] $out = (ProcessStart "git" @( "-C", $repoDir, "--git-dir=.git", "merge", "--no-commit", "--no-ff", "remotes/origin/$branch") -careStdErrAsOut:$true -traceCmd:$false);
+                                                  [String] $out = (ProcessStart "git" @("-C", (FsEntryRemoveTrailingDirSep $repoDir), "--git-dir=.git", "merge", "--no-commit", "--no-ff", "remotes/origin/$branch") -careStdErrAsOut:$true -traceCmd:$false);
                                                   # Example output to console but not to stdout:
                                                   #   Auto-merging MyDir/MyFile.txt
                                                   #   CONFLICT (content): Merge conflict in MyDir/MyFile.txt
+                                                  #   CONFLICT (rename/delete): MyDir/MyFile.txt renamed to MyDir2/MyFile.txt in HEAD, but deleted in remotes/origin/mybranch
+                                                  #   CONFLICT (modify/delete): MyDir/MyFile.txt deleted in remotes/origin/mybranch and modified in HEAD.  Version HEAD of MyDir/MyFile.txt left in tree.
+                                                  #   CONFLICT (file location): MyDir/MyFile.txt added in remotes/origin/mybranch inside a directory that was renamed in HEAD, suggesting it should perhaps be moved to MyDir2/MyFile.txt
                                                   #   Automatic merge failed; fix conflicts and then commit the result.
                                                   OutProgress $out;
                                                 }catch{
                                                   if( -not $errorAsWarning ){ throw [Exception] "Merge failed, fix conflicts manually: $_.Exception.Message"; }
                                                   OutWarning "Merge of branch $branch into `"$repoDir`" failed, fix conflicts manually. ";
                                                 } }
+function GithubAuthStatus                     (){
+                                                [String] $out = (ProcessStart "gh" @("auth", "status") -careStdErrAsOut:$true -traceCmd:$true);
+                                                # Output:
+                                                #   github.com
+                                                #     Ô£ô Logged in to github.com as myowner (C:\Users\myuser\AppData\Roaming\GitHub CLI\hosts.yml)
+                                                #     Ô£ô Git operations for github.com configured to use https protocol.
+                                                #     Ô£ô Token: *******************
+                                                OutProgress $out; }
+function GithubCreatePullRequest              ( [String] $repoDir, [Boolean] $toBranch, [String] $fromBranch, [String] $title = "" ){
+                                                # default title is "Merge $fromBranch into $toBranch"
+                                                OutProgress "Create a PR from $toBranch to $pullRequest in repo: `"$repoDir`"";
+                                                if( $title -eq "" ){ $title = "Merge $fromBranch into $toBranch"; }
+                                                Push-Location $repoDir;
+                                                [String] $out = (ProcessStart "gh" @("pr", "create", "--base", $toBranch, "--head", $fromBranch, "--title", $title, "--body", " ") -traceCmd:$true);
+                                                Pop-Location;
+                                                # Output:
+                                                #   Creating pull request for myfrombranch into main in myowner/myrepo
+                                                #   a pull request for branch "myfrombranch" into branch "main" already exists:
+                                                #   https://github.com/myowner/myrepo/pull/1234
+                                                OutProgress $out; }
 function GitTortoiseCommit                    ( [String] $workDir, [String] $commitMessage = "" ){
                                                 [String] $tortoiseExe = (RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseGit" "ProcPath"); # ex: "C:\Program Files\TortoiseGit\bin\TortoiseGitProc.exe"
                                                 Start-Process -NoNewWindow -Wait -FilePath "$tortoiseExe" -ArgumentList @("/command:commit","/path:`"$workDir`"", "/logmsg:$commitMessage"); AssertRcIsOk; }
