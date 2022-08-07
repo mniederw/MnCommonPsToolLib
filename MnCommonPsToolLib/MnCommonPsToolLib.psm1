@@ -38,7 +38,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "6.24"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "6.25"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -639,19 +639,20 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 # - empty-string parameters can be passed to the calling program
                                                 # - it has no side effects if the parameters contains special characters as quotes, double-quotes or $-characters.
                                                 # - the calling command can easy be written to output for tracing
-                                                # Return output as a single string.
-                                                # If careStdErrAsOut is true then stderr will be appended to stdout and stderr set to empty.
+                                                # Returns output as a single string.
+                                                # As working directory the current dir is taken which makes it compatible to call operator.
+                                                # If careStdErrAsOut is true then stderr will be appended to stdout and stderr is set to empty which means this leads not to an error.
                                                 # If exitCode is not 0 or stderr is not empty then it throws.
-                                                # But if ErrorActionPreference is Continue true then stderr is simply appended to output.
-                                                # Before it throws it will first OutProgress the non empty stdout lines.
+                                                # But if ErrorActionPreference is Continue then stderr is appended to output and not error is produced.
+                                                # In case and error is throwed then it will first OutProgress the non empty stdout lines.
                                                 # You can use StringSplitIntoLines on output to get it as lines.
                                                 # Internally the stdout and stderr are stored to variables and not temporary files to avoid file system IO.
                                                 # Important Note: The original Process.Start(ProcessStartInfo) cannot run a ps1 file
-                                                #   even if $env:PATHEXT contains the PS1 because it does not preceed it with (powershell.exe -File).
+                                                #   even if $env:PATHEXT contains the PS1 because it does not precede it with (powershell.exe -File).
                                                 #   Our solution will do this by automatically use powershell.exe -NoLogo -File before the ps1 file
                                                 #   and it surrounds the arguments correctly by double-quotes to support blanks in any argument.
-                                                # There is a special handling of the commandline as descripted 
-                                                # in "Parsing C++ command-line arguments" https://docs.microsoft.com/en-us/cpp/cpp/main-function-command-line-args
+                                                # There is a special handling of the commandline as descripted in "Parsing C++ command-line arguments"
+                                                # https://docs.microsoft.com/en-us/cpp/cpp/main-function-command-line-args
                                                 # - Arguments are delimited by white space, which is either a space or a tab.
                                                 # - The first argument (argv[0]) is treated specially. It represents the program name. 
                                                 #   Because it must be a valid pathname, parts surrounded by double quote marks (") are allowed. 
@@ -697,6 +698,7 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 $prInfo.UseShellExecute = $false; <# UseShellExecute must be false when redirect io #>
                                                 $prInfo.RedirectStandardError = $true; $prInfo.RedirectStandardOutput = $true;
                                                 $prInfo.RedirectStandardInput = $false;
+                                                $prInfo.WorkingDirectory = (Get-Location);
                                                 $pr = New-Object System.Diagnostics.Process; $pr.StartInfo = $prInfo;
                                                 # Note: We can not simply call WaitForExit() and after that read stdout and stderr streams because it could hang endless.
                                                 # The reason is the called program can produce child processes which can inherit redirect handles which can be still open
@@ -2646,8 +2648,16 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   OutWarning "Warning: $msg";
                                                 } }
 function GitShowUrl                           ( [String] $repoDir ){
+                                                # Example: "https://github.com/mniederw/MnCommonPsToolLib"
                                                 [String] $out = (& "git" "--git-dir=$repoDir/.git" "config" "remote.origin.url"); AssertRcIsOk $out;
                                                 return [String] $out; }
+function GitShowRepo                          ( [String] $repoDir ){
+                                                # Example: "mniederw/MnCommonPsToolLib"
+                                                [String] $url = (GitShowUrl $repoDir);
+                                                ToolGithubApiAssertValidRepoUrl $url;
+                                                [String] $githubUrl = "https://github.com/";
+                                                Assert ($url.StartsWith($githubUrl)) "Expected $url starts with $githubUrl";
+                                                return [String] (StringRemoveLeft $url $githubUrl); }
 function GitShowBranch                        ( [String] $repoDir ){
                                                 # return current branch (example: "master").
                                                 [String] $out = (ProcessStart "git" @("-C", (FsEntryRemoveTrailingDirSep $repoDir), "--git-dir=.git", "branch") -traceCmd:$false);
@@ -2691,17 +2701,30 @@ function GithubAuthStatus                     (){
                                                 #     Ô£ô Git operations for github.com configured to use https protocol.
                                                 #     Ô£ô Token: *******************
                                                 OutProgress $out; }
-function GithubCreatePullRequest              ( [String] $repoDir, [Boolean] $toBranch, [String] $fromBranch, [String] $title = "" ){
+function GithubListPullRequests               ( [String] $ownerSlashRepo, [String] $filterToBranch = "", [String] $filterFromBranch = "", [String] $filterState = "open" ){
+                                                [String] $fields = "number,state,createdAt,title,labels,author,assignees,updatedAt,url,body,closedAt,repository,authorAssociation,commentsCount,isLocked,isPullRequest,id";
+                                                [String] $out = (ProcessStart "gh" @("search", "prs", "--repo", $ownerSlashRepo, "--state", $filterState, "--base", $filterToBranch, "--head", $filterFromBranch, "--json", $fields) -traceCmd:$true);
+                                                return ($out | ConvertFrom-Json); }
+function GithubCreatePullRequest              ( [String] $repoDir, [String] $toBranch, [String] $fromBranch, [String] $title = "" ){
                                                 # default title is "Merge $fromBranch into $toBranch"
-                                                OutProgress "Create a PR from $toBranch to $pullRequest in repo: `"$repoDir`"";
-                                                if( $title -eq "" ){ $title = "Merge $fromBranch into $toBranch"; }
+                                                OutProgress "Create a github-pull-request from $fromBranch to $toBranch in repo: `"$repoDir`"";
+                                                if( $title -eq "" ){ $title = "Merge $fromBranch to $toBranch"; }
+                                                [String] $repo = (GitShowRepo $repoDir);
+                                                [String[]] $prUrls = @()+(GithubListPullRequests $repo $toBranch $fromBranch | 
+                                                  Where-Object{$null -ne $_} | ForEach-Object{ $_.url });
+                                                if( $prUrls.Count -gt 0 ){
+                                                  OutProgress "A pull request for branch $fromBranch into $toBranch already exists: $($prUrls[0])";
+                                                  return;
+                                                }
                                                 Push-Location $repoDir;
-                                                [String] $out = (ProcessStart "gh" @("pr", "create", "--base", $toBranch, "--head", $fromBranch, "--title", $title, "--body", " ") -traceCmd:$true);
+                                                [String] $out = (ProcessStart "gh" @("pr", "create", "--base", $toBranch, "--head", $fromBranch, "--title", $title, "--body", " ") -careStdErrAsOut:$true -traceCmd:$true);
                                                 Pop-Location;
                                                 # Output:
                                                 #   Creating pull request for myfrombranch into main in myowner/myrepo
                                                 #   a pull request for branch "myfrombranch" into branch "main" already exists:
                                                 #   https://github.com/myowner/myrepo/pull/1234
+                                                # Possible errors:
+                                                #   rc=1  https://github.com/myowner/myrepo/pull/1234 a pull request for branch "mybranch" into branch "main" already exists:
                                                 OutProgress $out; }
 function GitTortoiseCommit                    ( [String] $workDir, [String] $commitMessage = "" ){
                                                 [String] $tortoiseExe = (RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseGit" "ProcPath"); # ex: "C:\Program Files\TortoiseGit\bin\TortoiseGitProc.exe"
