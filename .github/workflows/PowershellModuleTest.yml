@@ -52,7 +52,7 @@ jobs:
           Install-Module PSScriptAnalyzer, SqlServer, ThreadJob -ErrorAction Stop ;
 
       - name: Run PSScriptAnalyzer on all ps files - Check ps and make improving suggestions
-         if: false
+         if: ${{false}}
         shell: pwsh
         run: |
           Invoke-ScriptAnalyzer -Path . -Recurse -Outvariable issues -ExcludeRule PSAvoidUsingConvertToSecureStringWithPlainText, PSAvoidUsingUsernameAndPasswordParams, PSAvoidUsingPlainTextForPassword, PSAvoidUsingEmptyCatchBlock, PSAvoidUsingWriteHost, PSAvoidGlobalVars, PSUseDeclaredVarsMoreThanAssignments, PSAvoidUsingPositionalParameters;
@@ -66,7 +66,7 @@ jobs:
         run: Test-Path "MnCommonPsToolLib/MnCommonPsToolLib.psm1" | Should -Be $true ;
 
       - name: Test all
-         if: false
+         if: ${{false}}
         shell: pwsh
         run: |
           & "./TestAll.ps1";
