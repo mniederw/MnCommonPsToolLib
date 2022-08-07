@@ -5,6 +5,7 @@
 Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 
 #GlobalSetModeVerboseEnable;
+OutInfo "MnCommonPsToolLibUnitTest - running powershell V$($Host.Version.ToString())";
 
 OutInfo "MnCommonPsToolLibUnitTest - perform some tests which do not require elevated admin mode";
 
