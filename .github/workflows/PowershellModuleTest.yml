@@ -8,14 +8,14 @@ on:
     paths-ignore:
       - '*.txt'
       - '*.md'
-      - '.github/workflows/**'
+      #- '.github/workflows/**'
   pull_request:
     branches:
       [ main, trunk ]
     paths-ignore:
       - '*.txt'
       - '*.md'
-      - '.github/workflows/**'
+      #- '.github/workflows/**'
   workflow_dispatch:  # Allows you to run this workflow manually from the Actions tab
   schedule:
     # cron: minute(0..59) hour(0..23) dayOfMonth(1..31) month(1..12 or JAN..DEC) dayOfWeek(0..6 or SUN-SAT); '* * * * *' seams to be 15min; 
@@ -70,8 +70,7 @@ jobs:
           & "./TestAll.ps1";
 
       - name: If tests on trunk were successful then create PR to main
-        if: ${{ success() }}
-        if: github.ref == 'refs/heads/trunk'
+        if: ${{ success() }} && github.ref == 'refs/heads/trunk'
         uses: peter-evans/create-pull-request@v4.0.4  # see: https://github.com/peter-evans/create-pull-request
         with:
           base: trunk
