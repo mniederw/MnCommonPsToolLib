@@ -38,7 +38,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "6.25"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "6.26"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -2701,25 +2701,28 @@ function GithubAuthStatus                     (){
                                                 #     Ô£ô Git operations for github.com configured to use https protocol.
                                                 #     Ô£ô Token: *******************
                                                 OutProgress $out; }
-function GithubListPullRequests               ( [String] $ownerSlashRepo, [String] $filterToBranch = "", [String] $filterFromBranch = "", [String] $filterState = "open" ){
+function GithubListPullRequests               ( [String] $repo, [String] $filterToBranch = "", [String] $filterFromBranch = "", [String] $filterState = "open" ){
+                                                # repo has format [HOST/]OWNER/REPO
                                                 [String] $fields = "number,state,createdAt,title,labels,author,assignees,updatedAt,url,body,closedAt,repository,authorAssociation,commentsCount,isLocked,isPullRequest,id";
-                                                [String] $out = (ProcessStart "gh" @("search", "prs", "--repo", $ownerSlashRepo, "--state", $filterState, "--base", $filterToBranch, "--head", $filterFromBranch, "--json", $fields) -traceCmd:$true);
+                                                [String] $out = (ProcessStart "gh" @("search", "prs", "--repo", $repo, "--state", $filterState, "--base", $filterToBranch, "--head", $filterFromBranch, "--json", $fields) -traceCmd:$true);
                                                 return ($out | ConvertFrom-Json); }
-function GithubCreatePullRequest              ( [String] $repoDir, [String] $toBranch, [String] $fromBranch, [String] $title = "" ){
+function GithubCreatePullRequest              ( [String] $repo, [String] $toBranch, [String] $fromBranch, [String] $title = "", [String] $repoDirForCred = "" ){
+                                                # repoDirForCred : Any folder under any git repository, from which the credentials will be taken, use empty for current dir.
                                                 # default title is "Merge $fromBranch into $toBranch"
-                                                OutProgress "Create a github-pull-request from $fromBranch to $toBranch in repo: `"$repoDir`"";
+                                                # repo has format [HOST/]OWNER/REPO
+                                                OutProgress "Create a github-pull-request from $fromBranch to $toBranch in repo: $repo";
                                                 if( $title -eq "" ){ $title = "Merge $fromBranch to $toBranch"; }
-                                                [String] $repo = (GitShowRepo $repoDir);
                                                 [String[]] $prUrls = @()+(GithubListPullRequests $repo $toBranch $fromBranch | 
                                                   Where-Object{$null -ne $_} | ForEach-Object{ $_.url });
                                                 if( $prUrls.Count -gt 0 ){
                                                   OutProgress "A pull request for branch $fromBranch into $toBranch already exists: $($prUrls[0])";
                                                   return;
                                                 }
-                                                Push-Location $repoDir;
-                                                [String] $out = (ProcessStart "gh" @("pr", "create", "--base", $toBranch, "--head", $fromBranch, "--title", $title, "--body", " ") -careStdErrAsOut:$true -traceCmd:$true);
+                                                Push-Location $repoDirForCred;
+                                                [String] $out = (ProcessStart "gh" @("pr", "create", "--repo", $repo, "--base", $toBranch, "--head", $fromBranch, "--title", $title, "--body", " ") -careStdErrAsOut:$true -traceCmd:$true);
                                                 Pop-Location;
                                                 # Output:
+                                                #   Warning: 2 uncommitted changes
                                                 #   Creating pull request for myfrombranch into main in myowner/myrepo
                                                 #   a pull request for branch "myfrombranch" into branch "main" already exists:
                                                 #   https://github.com/myowner/myrepo/pull/1234
