@@ -2719,7 +2719,15 @@ function GithubCreatePullRequest              ( [String] $repo, [String] $toBran
                                                   return;
                                                 }
                                                 Push-Location $repoDirForCred;
-                                                [String] $out = (ProcessStart "gh" @("pr", "create", "--repo", $repo, "--base", $toBranch, "--head", $fromBranch, "--title", $title, "--body", " ") -careStdErrAsOut:$true -traceCmd:$true);
+                                                [String] $out = "";
+                                                try{
+                                                  $out = (ProcessStart "gh" @("pr", "create", "--repo", $repo, "--base", $toBranch, "--head", $fromBranch, "--title", $title, "--body", " ") -careStdErrAsOut:$true -traceCmd:$true);
+                                                }catch{
+                                                  if( $_.Exception.Message.Contains("pull request create failed: GraphQL: No commits between ") ){
+                                                    $error.clear();
+                                                    OutInfo "No pull request nessessary because no commit between $toBranch and $fromBranch .";
+                                                  }else{ throw; }
+                                                }
                                                 Pop-Location;
                                                 # Output:
                                                 #   Warning: 2 uncommitted changes
@@ -2728,6 +2736,7 @@ function GithubCreatePullRequest              ( [String] $repo, [String] $toBran
                                                 #   https://github.com/myowner/myrepo/pull/1234
                                                 # Possible errors:
                                                 #   rc=1  https://github.com/myowner/myrepo/pull/1234 a pull request for branch "mybranch" into branch "main" already exists:
+                                                #   rc=1  pull request create failed: GraphQL: No commits between QA and Develop (createPullRequest)
                                                 OutProgress $out; }
 function GitTortoiseCommit                    ( [String] $workDir, [String] $commitMessage = "" ){
                                                 [String] $tortoiseExe = (RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseGit" "ProcPath"); # ex: "C:\Program Files\TortoiseGit\bin\TortoiseGitProc.exe"
