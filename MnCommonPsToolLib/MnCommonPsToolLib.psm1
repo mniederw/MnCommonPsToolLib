@@ -38,7 +38,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "6.26"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "6.28"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -345,6 +345,7 @@ function DateTimeGetBeginOf                   ( [String] $beginOf, [DateTime] $t
 function DateTimeNowAsStringIso               ( [String] $fmt = "yyyy-MM-dd HH:mm:ss" ){ return [String] (Get-Date -format $fmt); }
 function DateTimeNowAsStringIsoDate           (){ return [String] (Get-Date -format "yyyy-MM-dd"); }
 function DateTimeNowAsStringIsoMonth          (){ return [String] (Get-Date -format "yyyy-MM"); }
+function DateTimeNowAsStringIsoYear           (){ return [String] (Get-Date -format "yyyy"); }
 function DateTimeNowAsStringIsoInMinutes      (){ return [String] (Get-Date -format "yyyy-MM-dd HH:mm"); }
 function DateTimeFromStringIso                ( [String] $s ){ # "yyyy-MM-dd HH:mm:ss.fff" or "yyyy-MM-ddTHH:mm:ss.fff".
                                                 [String] $fmt = "yyyy-MM-dd HH:mm:ss.fff";
@@ -740,7 +741,7 @@ function ProcessEnvVarSet                     ( [String] $name, [String] $val, [
                                                  # Scope: MACHINE, USER, PROCESS.
                                                  OutProgress "SetEnvironmentVariable scope=$scope $name=`"$val`""; [Environment]::SetEnvironmentVariable($name,$val,$scope); }
 function ProcessRemoveAllAlias                ( [String[]] $excludeAliasNames = @(), [Boolean] $doTrace = $false ){ # remove all existing aliases on any levels (local, script, private, and global).
-                                                # Is used because in powershell5 there are a predefined list of about 180 aliases in each session which cannot be avoided.
+                                                # Is used because in powershell v5 ((also v7) there are a predefined list of about 180 aliases in each session which cannot be avoided.
                                                 # This is very bad because there are also aliases defined as curl->Invoke-WebRequest or wget->Invoke-WebRequest which are incompatible to their known tools.
                                                 # All aliases can be listed by:
                                                 #   powershell -NoProfile { Get-Alias | Select-Object Name, Definition, Visibility, Options, Module | StreamToTableString }
@@ -771,7 +772,7 @@ function HelpGetType                          ( [Object] $obj ){ return [String]
 function OsPsVersion                          (){ return [String] (""+$Host.Version.Major+"."+$Host.Version.Minor); } # alternative: $PSVersionTable.PSVersion.Major
 function OsIsWinVistaOrHigher                 (){ return [Boolean] ([Environment]::OSVersion.Version -ge (new-object "Version" 6,0)); }
 function OsIsWin7OrHigher                     (){ return [Boolean] ([Environment]::OSVersion.Version -ge (new-object "Version" 6,1)); }
-function OsIs64BitOs                          (){ return [Boolean] (Get-WmiObject -Class Win32_OperatingSystem -ComputerName $ComputerName -ea 0).OSArchitecture -eq "64-Bit"; }
+function OsIs64BitOs                          (){ return [Boolean] (Get-WmiObject -Class Win32_OperatingSystem -ComputerName $ComputerName -ErrorAction SilentlyContinue).OSArchitecture -eq "64-Bit"; }
 function OsIsHibernateEnabled                 (){
                                                 if( (FileNotExists "$env:SystemDrive/hiberfil.sys") ){ return [Boolean] $false; }
                                                 if( OsIsWin7OrHigher ){ return [Boolean] (RegistryGetValueAsString "HKLM:\SYSTEM\CurrentControlSet\Control\Power" "HibernateEnabled") -eq "1"; }
@@ -1468,6 +1469,10 @@ function FsEntryCreateDirSymLink              ( [String] $symLinkDir, [String] $
                                                 [String] $symLinkName = FsEntryGetFileName $symLinkDir;
                                                 & "cmd.exe" "/c" ('mklink /J "'+$symLinkName+'" "'+$symLinkOriginDir+'"'); AssertRcIsOk;
                                                 Set-Location $cd; }
+function FsEntryIsSymLink                     ( [String] $fsEntry ){ # tested only for dirs; return false if fs-entry not exists.
+                                                if( FsEntryNotExists $fsEntry ){ return $false; }
+                                                [Object] $f = Get-Item -Force -ErrorAction SilentlyContinue $fsEntry;
+                                                return [Boolean] ($f.Attributes -band [IO.FileAttributes]::ReparsePoint); }
 function FsEntryReportMeasureInfo             ( [String] $fsEntry ){ # Must exists, works recursive.
                                                 if( FsEntryNotExists $fsEntry ){ throw [Exception] "File system entry not exists: `"$fsEntry`""; }
                                                 [Microsoft.PowerShell.Commands.GenericMeasureInfo] $size = Get-ChildItem -Force -ErrorAction SilentlyContinue -Recurse -LiteralPath $fsEntry |
@@ -2100,13 +2105,13 @@ function NetAdapterListAll                    (){
                                                   Where-Object{$null -ne $_} |
                                                   Select-Object Name,NetConnectionID,MACAddress,Speed,@{Name="Status";Expression={(NetAdapterGetConnectionStatusName $_.NetConnectionStatus)}})); }
 function NetPingHostIsConnectable             ( [String] $hostName, [Boolean] $doRetryWithFlushDns = $false ){
-                                                if( (Test-Connection -Cn $hostName -BufferSize 16 -Count 1 -ea 0 -quiet) ){ return [Boolean] $true; } # later in ps V6 use -TimeoutSeconds 3 default is 5 sec
+                                                if( (Test-Connection -ComputerName $hostName -BufferSize 16 -Count 1 -ErrorAction SilentlyContinue -quiet) ){ return [Boolean] $true; } # later in ps V6 use -TimeoutSeconds 3 default is 5 sec
                                                 if( -not $doRetryWithFlushDns ){ return [Boolean] $false; }
                                                 OutVerbose "Host $hostName not reachable, so flush dns, nslookup and retry";
                                                 & "ipconfig.exe" "/flushdns" | out-null; AssertRcIsOk; # note option /registerdns would require more privs
                                                 try{ [System.Net.Dns]::GetHostByName($hostName); }catch{ OutVerbose "Ignoring GetHostByName($hostName) failed because $($_.Exception.Message)"; }
                                                 # nslookup $hostName -ErrorAction SilentlyContinue | out-null;
-                                                return [Boolean] (Test-Connection -Cn $hostName -BufferSize 16 -Count 1 -ea 0 -quiet); }
+                                                return [Boolean] (Test-Connection -ComputerName $hostName -BufferSize 16 -Count 1 -ErrorAction SilentlyContinue -quiet); }
 function NetGetIpConfig                       (){ [String[]] $out = @()+(& "IPCONFIG.EXE" "/ALL"          ); AssertRcIsOk $out; return [String[]] $out; }
 function NetGetNetView                        (){ [String[]] $out = @()+(& "NET.EXE" "VIEW" $ComputerName ); AssertRcIsOk $out; return [String[]] $out; }
 function NetGetNetStat                        (){ [String[]] $out = @()+(& "NETSTAT.EXE" "/A"             ); AssertRcIsOk $out; return [String[]] $out; }
@@ -2447,7 +2452,7 @@ function NetDownloadIsSuccessful              ( [String] $url ){ # test wether a
                                                   [String] $dummyStr = NetDownloadToString $url "" "" $ignoreSslCheck; $res = $true;
                                                 }catch{ OutVerbose "Ignoring problems on NetDownloadToString $url failed because $($_.Exception.Message)"; }
                                                 GlobalSetModeHideOutProgress $false; return [Boolean] $res; }
-function NetDownloadSite                      ( [String] $url, [String] $tarDir, [Int32] $level = 999, [Int32] $maxBytes = ([Int32]::MaxValue), [String] $us = "",
+function NetDownloadSite                      ( [String] $url, [String] $tarDir, [Int32] $level = 999, [Int32] $maxBytes = 0, [String] $us = "",
                                                   [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Int32] $limitRateBytesPerSec = ([Int32]::MaxValue),
                                                   [Boolean] $alsoRetrieveToParentOfUrl = $false ){
                                                 # Mirror site to dir; wget: HTTP, HTTPS, FTP. Logfile is written into target dir. Password is not logged.
@@ -4286,7 +4291,7 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #   in Systemsteuerung->Standardprogramme you can associate .ps1 with C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
 #   and make a shortcut ony any .ps1 file, then on clicking on shortcut it will run, but does not work if .ps1 is doubleclicked.
 # - Do Not Use: Avoid using $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") or Write-Error because different behaviour of powershell.exe and powershell_ise.exe
-# - Extensions: download and install PowerShell Community Extensions (PSCX) for ntfs-junctions and symlinks.
+# - Extensions: download and install PowerShell Community Extensions (PSCX) https://github.com/Pscx/Pscx for ntfs-junctions and symlinks.
 # - Special predefined variables which are not yet used in this script (use by $global:anyprefefinedvar; names are case insensitive):
 #   $null, $true, $false  - some constants
 #   $args                 - Contains an array of the parameters passed to a function.
