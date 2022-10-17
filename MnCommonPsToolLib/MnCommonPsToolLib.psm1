@@ -38,7 +38,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "6.23"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "6.28"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -345,6 +345,7 @@ function DateTimeGetBeginOf                   ( [String] $beginOf, [DateTime] $t
 function DateTimeNowAsStringIso               ( [String] $fmt = "yyyy-MM-dd HH:mm:ss" ){ return [String] (Get-Date -format $fmt); }
 function DateTimeNowAsStringIsoDate           (){ return [String] (Get-Date -format "yyyy-MM-dd"); }
 function DateTimeNowAsStringIsoMonth          (){ return [String] (Get-Date -format "yyyy-MM"); }
+function DateTimeNowAsStringIsoYear           (){ return [String] (Get-Date -format "yyyy"); }
 function DateTimeNowAsStringIsoInMinutes      (){ return [String] (Get-Date -format "yyyy-MM-dd HH:mm"); }
 function DateTimeFromStringIso                ( [String] $s ){ # "yyyy-MM-dd HH:mm:ss.fff" or "yyyy-MM-ddTHH:mm:ss.fff".
                                                 [String] $fmt = "yyyy-MM-dd HH:mm:ss.fff";
@@ -639,19 +640,20 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 # - empty-string parameters can be passed to the calling program
                                                 # - it has no side effects if the parameters contains special characters as quotes, double-quotes or $-characters.
                                                 # - the calling command can easy be written to output for tracing
-                                                # Return output as a single string.
-                                                # If careStdErrAsOut is true then stderr will be appended to stdout and stderr set to empty.
+                                                # Returns output as a single string.
+                                                # As working directory the current dir is taken which makes it compatible to call operator.
+                                                # If careStdErrAsOut is true then stderr will be appended to stdout and stderr is set to empty which means this leads not to an error.
                                                 # If exitCode is not 0 or stderr is not empty then it throws.
-                                                # But if ErrorActionPreference is Continue true then stderr is simply appended to output.
-                                                # Before it throws it will first OutProgress the non empty stdout lines.
+                                                # But if ErrorActionPreference is Continue then stderr is appended to output and not error is produced.
+                                                # In case and error is throwed then it will first OutProgress the non empty stdout lines.
                                                 # You can use StringSplitIntoLines on output to get it as lines.
                                                 # Internally the stdout and stderr are stored to variables and not temporary files to avoid file system IO.
                                                 # Important Note: The original Process.Start(ProcessStartInfo) cannot run a ps1 file
-                                                #   even if $env:PATHEXT contains the PS1 because it does not preceed it with (powershell.exe -File).
+                                                #   even if $env:PATHEXT contains the PS1 because it does not precede it with (powershell.exe -File).
                                                 #   Our solution will do this by automatically use powershell.exe -NoLogo -File before the ps1 file
                                                 #   and it surrounds the arguments correctly by double-quotes to support blanks in any argument.
-                                                # There is a special handling of the commandline as descripted 
-                                                # in "Parsing C++ command-line arguments" https://docs.microsoft.com/en-us/cpp/cpp/main-function-command-line-args
+                                                # There is a special handling of the commandline as descripted in "Parsing C++ command-line arguments"
+                                                # https://docs.microsoft.com/en-us/cpp/cpp/main-function-command-line-args
                                                 # - Arguments are delimited by white space, which is either a space or a tab.
                                                 # - The first argument (argv[0]) is treated specially. It represents the program name. 
                                                 #   Because it must be a valid pathname, parts surrounded by double quote marks (") are allowed. 
@@ -697,6 +699,7 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 $prInfo.UseShellExecute = $false; <# UseShellExecute must be false when redirect io #>
                                                 $prInfo.RedirectStandardError = $true; $prInfo.RedirectStandardOutput = $true;
                                                 $prInfo.RedirectStandardInput = $false;
+                                                $prInfo.WorkingDirectory = (Get-Location);
                                                 $pr = New-Object System.Diagnostics.Process; $pr.StartInfo = $prInfo;
                                                 # Note: We can not simply call WaitForExit() and after that read stdout and stderr streams because it could hang endless.
                                                 # The reason is the called program can produce child processes which can inherit redirect handles which can be still open
@@ -738,7 +741,7 @@ function ProcessEnvVarSet                     ( [String] $name, [String] $val, [
                                                  # Scope: MACHINE, USER, PROCESS.
                                                  OutProgress "SetEnvironmentVariable scope=$scope $name=`"$val`""; [Environment]::SetEnvironmentVariable($name,$val,$scope); }
 function ProcessRemoveAllAlias                ( [String[]] $excludeAliasNames = @(), [Boolean] $doTrace = $false ){ # remove all existing aliases on any levels (local, script, private, and global).
-                                                # Is used because in powershell5 there are a predefined list of about 180 aliases in each session which cannot be avoided.
+                                                # Is used because in powershell v5 ((also v7) there are a predefined list of about 180 aliases in each session which cannot be avoided.
                                                 # This is very bad because there are also aliases defined as curl->Invoke-WebRequest or wget->Invoke-WebRequest which are incompatible to their known tools.
                                                 # All aliases can be listed by:
                                                 #   powershell -NoProfile { Get-Alias | Select-Object Name, Definition, Visibility, Options, Module | StreamToTableString }
@@ -769,7 +772,7 @@ function HelpGetType                          ( [Object] $obj ){ return [String]
 function OsPsVersion                          (){ return [String] (""+$Host.Version.Major+"."+$Host.Version.Minor); } # alternative: $PSVersionTable.PSVersion.Major
 function OsIsWinVistaOrHigher                 (){ return [Boolean] ([Environment]::OSVersion.Version -ge (new-object "Version" 6,0)); }
 function OsIsWin7OrHigher                     (){ return [Boolean] ([Environment]::OSVersion.Version -ge (new-object "Version" 6,1)); }
-function OsIs64BitOs                          (){ return [Boolean] (Get-WmiObject -Class Win32_OperatingSystem -ComputerName $ComputerName -ea 0).OSArchitecture -eq "64-Bit"; }
+function OsIs64BitOs                          (){ return [Boolean] (Get-WmiObject -Class Win32_OperatingSystem -ComputerName $ComputerName -ErrorAction SilentlyContinue).OSArchitecture -eq "64-Bit"; }
 function OsIsHibernateEnabled                 (){
                                                 if( (FileNotExists "$env:SystemDrive/hiberfil.sys") ){ return [Boolean] $false; }
                                                 if( OsIsWin7OrHigher ){ return [Boolean] (RegistryGetValueAsString "HKLM:\SYSTEM\CurrentControlSet\Control\Power" "HibernateEnabled") -eq "1"; }
@@ -1466,6 +1469,10 @@ function FsEntryCreateDirSymLink              ( [String] $symLinkDir, [String] $
                                                 [String] $symLinkName = FsEntryGetFileName $symLinkDir;
                                                 & "cmd.exe" "/c" ('mklink /J "'+$symLinkName+'" "'+$symLinkOriginDir+'"'); AssertRcIsOk;
                                                 Set-Location $cd; }
+function FsEntryIsSymLink                     ( [String] $fsEntry ){ # tested only for dirs; return false if fs-entry not exists.
+                                                if( FsEntryNotExists $fsEntry ){ return $false; }
+                                                [Object] $f = Get-Item -Force -ErrorAction SilentlyContinue $fsEntry;
+                                                return [Boolean] ($f.Attributes -band [IO.FileAttributes]::ReparsePoint); }
 function FsEntryReportMeasureInfo             ( [String] $fsEntry ){ # Must exists, works recursive.
                                                 if( FsEntryNotExists $fsEntry ){ throw [Exception] "File system entry not exists: `"$fsEntry`""; }
                                                 [Microsoft.PowerShell.Commands.GenericMeasureInfo] $size = Get-ChildItem -Force -ErrorAction SilentlyContinue -Recurse -LiteralPath $fsEntry |
@@ -2098,13 +2105,13 @@ function NetAdapterListAll                    (){
                                                   Where-Object{$null -ne $_} |
                                                   Select-Object Name,NetConnectionID,MACAddress,Speed,@{Name="Status";Expression={(NetAdapterGetConnectionStatusName $_.NetConnectionStatus)}})); }
 function NetPingHostIsConnectable             ( [String] $hostName, [Boolean] $doRetryWithFlushDns = $false ){
-                                                if( (Test-Connection -Cn $hostName -BufferSize 16 -Count 1 -ea 0 -quiet) ){ return [Boolean] $true; } # later in ps V6 use -TimeoutSeconds 3 default is 5 sec
+                                                if( (Test-Connection -ComputerName $hostName -BufferSize 16 -Count 1 -ErrorAction SilentlyContinue -quiet) ){ return [Boolean] $true; } # later in ps V6 use -TimeoutSeconds 3 default is 5 sec
                                                 if( -not $doRetryWithFlushDns ){ return [Boolean] $false; }
                                                 OutVerbose "Host $hostName not reachable, so flush dns, nslookup and retry";
                                                 & "ipconfig.exe" "/flushdns" | out-null; AssertRcIsOk; # note option /registerdns would require more privs
                                                 try{ [System.Net.Dns]::GetHostByName($hostName); }catch{ OutVerbose "Ignoring GetHostByName($hostName) failed because $($_.Exception.Message)"; }
                                                 # nslookup $hostName -ErrorAction SilentlyContinue | out-null;
-                                                return [Boolean] (Test-Connection -Cn $hostName -BufferSize 16 -Count 1 -ea 0 -quiet); }
+                                                return [Boolean] (Test-Connection -ComputerName $hostName -BufferSize 16 -Count 1 -ErrorAction SilentlyContinue -quiet); }
 function NetGetIpConfig                       (){ [String[]] $out = @()+(& "IPCONFIG.EXE" "/ALL"          ); AssertRcIsOk $out; return [String[]] $out; }
 function NetGetNetView                        (){ [String[]] $out = @()+(& "NET.EXE" "VIEW" $ComputerName ); AssertRcIsOk $out; return [String[]] $out; }
 function NetGetNetStat                        (){ [String[]] $out = @()+(& "NETSTAT.EXE" "/A"             ); AssertRcIsOk $out; return [String[]] $out; }
@@ -2128,6 +2135,8 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                 #   powershell internal implementation of curl or wget which works for http, https and ftp only.
                                                 # Cares http response code 3xx for auto redirections.
                                                 # If url not exists then it will throw.
+                                                # It seams the internal commands (WebClient and Invoke-WebRequest) cannot work with urls as "https://token@host/path"
+                                                #   because they returned 404=not-found, but NetDownloadFileByCurl worked successfully.
                                                 # If ignoreSslCheck is true then it will currently ignore all following calls,
                                                 #   so this is no good solution (use NetDownloadFileByCurl).
                                                 # Maybe later: OAuth. Ex: https://docs.github.com/en/free-pro-team@latest/rest/overview/other-authentication-methods
@@ -2443,7 +2452,7 @@ function NetDownloadIsSuccessful              ( [String] $url ){ # test wether a
                                                   [String] $dummyStr = NetDownloadToString $url "" "" $ignoreSslCheck; $res = $true;
                                                 }catch{ OutVerbose "Ignoring problems on NetDownloadToString $url failed because $($_.Exception.Message)"; }
                                                 GlobalSetModeHideOutProgress $false; return [Boolean] $res; }
-function NetDownloadSite                      ( [String] $url, [String] $tarDir, [Int32] $level = 999, [Int32] $maxBytes = ([Int32]::MaxValue), [String] $us = "",
+function NetDownloadSite                      ( [String] $url, [String] $tarDir, [Int32] $level = 999, [Int32] $maxBytes = 0, [String] $us = "",
                                                   [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Int32] $limitRateBytesPerSec = ([Int32]::MaxValue),
                                                   [Boolean] $alsoRetrieveToParentOfUrl = $false ){
                                                 # Mirror site to dir; wget: HTTP, HTTPS, FTP. Logfile is written into target dir. Password is not logged.
@@ -2565,7 +2574,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                 [String] $branch = "";
                                                 if( $urlOpt.Count -gt 1 ){ $branch = $urlOpt[1]; AssertNotEmpty $branch "branch in urlAndBranch=`"$urlAndOptionalBranch`". "; }
                                                 if( $urlOpt.Count -gt 2 ){ throw [Exception] "Unknown third param in urlAndBranch=`"$urlAndOptionalBranch`". "; }
-                                                [String] $dir = (GitBuildLocalDirFromUrl $tarRootDir $urlAndOptionalBranch);
+                                                [String] $dir = FsEntryRemoveTrailingDirSep (GitBuildLocalDirFromUrl $tarRootDir $urlAndOptionalBranch);
                                                 GitAssertAutoCrLfIsDisabled;
                                                 if( $cmd -eq "CloneOrPull"  ){ if( (DirNotExists $dir) ){ $cmd = "Clone"; }else{ $cmd = "Pull" ; }}
                                                 if( $cmd -eq "CloneOrFetch" ){ if( (DirNotExists $dir) ){ $cmd = "Clone"; }else{ $cmd = "Fetch"; }}
@@ -2644,34 +2653,96 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   OutWarning "Warning: $msg";
                                                 } }
 function GitShowUrl                           ( [String] $repoDir ){
+                                                # Example: "https://github.com/mniederw/MnCommonPsToolLib"
                                                 [String] $out = (& "git" "--git-dir=$repoDir/.git" "config" "remote.origin.url"); AssertRcIsOk $out;
                                                 return [String] $out; }
+function GitShowRepo                          ( [String] $repoDir ){
+                                                # Example: "mniederw/MnCommonPsToolLib"
+                                                [String] $url = (GitShowUrl $repoDir);
+                                                ToolGithubApiAssertValidRepoUrl $url;
+                                                [String] $githubUrl = "https://github.com/";
+                                                Assert ($url.StartsWith($githubUrl)) "Expected $url starts with $githubUrl";
+                                                return [String] (StringRemoveLeft $url $githubUrl); }
 function GitShowBranch                        ( [String] $repoDir ){
                                                 # return current branch (example: "master").
-                                                [String] $out = (ProcessStart "git" @( "-C", $repoDir, "--git-dir=.git", "branch") -traceCmd:$false);
+                                                [String] $out = (ProcessStart "git" @("-C", (FsEntryRemoveTrailingDirSep $repoDir), "--git-dir=.git", "branch") -traceCmd:$false);
+                                                [String] $firstLine = StringSplitIntoLines $out | Select-Object -First 1;
                                                 # in future when newer version of git is common then we can use new option for get current-branch.
-                                                Assert ($out.StartsWith("* ")) "expected result of git branch command begins with `"* `" but got `"$out`"";
-                                                return [String] (StringRemoveLeft $out "* ").Trim(); }
+                                                Assert ($firstLine.StartsWith("* ")) "expected result of git branch command begins with `"* `" but got `"$firstLine`"";
+                                                return [String] (StringRemoveLeft $firstLine "* ").Trim(); }
 function GitShowChanges                       ( [String] $repoDir ){
                                                 # return changed, deleted and new files or dirs. Per entry one line prefixed with a change code.
-                                                [String] $out = (ProcessStart "git" @( "-C", $repoDir, "--git-dir=.git", "status", "--short") -traceCmd:$false);
+                                                [String] $out = (ProcessStart "git" @("-C", (FsEntryRemoveTrailingDirSep $repoDir), "--git-dir=.git", "status", "--short") -traceCmd:$false);
                                                 return [String[]] (@()+(StringSplitIntoLines $out |
                                                   Where-Object{$null -ne $_} |
                                                   Where-Object{ StringIsFilled $_; })); }
+function GitSwitch                            ( [String] $repoDir, [String] $branch ){
+                                                [String] $out = (ProcessStart "git" @("-C", (FsEntryRemoveTrailingDirSep $repoDir), "switch", $branch) -careStdErrAsOut:$true -traceCmd:$true); }
+function GitAdd                               ( [String] $fsEntryToAdd ){
+                                                [String] $repoDir = FsEntryGetAbsolutePath "$(FsEntryFindInParents $fsEntryToAdd ".git")/.."; # not trailing slash allowed
+                                                [String] $out = (ProcessStart "git" @("-C", $repoDir, "add", $fsEntryToAdd) -traceCmd:$true); }
 function GitMerge                             ( [String] $repoDir, [String] $branch, [Boolean] $errorAsWarning = $false ){
                                                 # merge branch (remotes/origin) into current repodir, no-commit, no-fast-forward
                                                 Assert ($branch.Length -gt 0) "branch name is empty";
                                                 try{
-                                                  [String] $out = (ProcessStart "git" @( "-C", $repoDir, "--git-dir=.git", "merge", "--no-commit", "--no-ff", "remotes/origin/$branch") -careStdErrAsOut:$true -traceCmd:$false);
+                                                  [String] $out = (ProcessStart "git" @("-C", (FsEntryRemoveTrailingDirSep $repoDir), "--git-dir=.git", "merge", "--no-commit", "--no-ff", "remotes/origin/$branch") -careStdErrAsOut:$true -traceCmd:$false);
                                                   # Example output to console but not to stdout:
                                                   #   Auto-merging MyDir/MyFile.txt
                                                   #   CONFLICT (content): Merge conflict in MyDir/MyFile.txt
+                                                  #   CONFLICT (rename/delete): MyDir/MyFile.txt renamed to MyDir2/MyFile.txt in HEAD, but deleted in remotes/origin/mybranch
+                                                  #   CONFLICT (modify/delete): MyDir/MyFile.txt deleted in remotes/origin/mybranch and modified in HEAD.  Version HEAD of MyDir/MyFile.txt left in tree.
+                                                  #   CONFLICT (file location): MyDir/MyFile.txt added in remotes/origin/mybranch inside a directory that was renamed in HEAD, suggesting it should perhaps be moved to MyDir2/MyFile.txt
                                                   #   Automatic merge failed; fix conflicts and then commit the result.
                                                   OutProgress $out;
                                                 }catch{
                                                   if( -not $errorAsWarning ){ throw [Exception] "Merge failed, fix conflicts manually: $_.Exception.Message"; }
                                                   OutWarning "Merge of branch $branch into `"$repoDir`" failed, fix conflicts manually. ";
                                                 } }
+function GithubAuthStatus                     (){
+                                                [String] $out = (ProcessStart "gh" @("auth", "status") -careStdErrAsOut:$true -traceCmd:$true);
+                                                # Output:
+                                                #   github.com
+                                                #     Ô£ô Logged in to github.com as myowner (C:\Users\myuser\AppData\Roaming\GitHub CLI\hosts.yml)
+                                                #     Ô£ô Git operations for github.com configured to use https protocol.
+                                                #     Ô£ô Token: *******************
+                                                OutProgress $out; }
+function GithubListPullRequests               ( [String] $repo, [String] $filterToBranch = "", [String] $filterFromBranch = "", [String] $filterState = "open" ){
+                                                # repo has format [HOST/]OWNER/REPO
+                                                [String] $fields = "number,state,createdAt,title,labels,author,assignees,updatedAt,url,body,closedAt,repository,authorAssociation,commentsCount,isLocked,isPullRequest,id";
+                                                [String] $out = (ProcessStart "gh" @("search", "prs", "--repo", $repo, "--state", $filterState, "--base", $filterToBranch, "--head", $filterFromBranch, "--json", $fields) -traceCmd:$true);
+                                                return ($out | ConvertFrom-Json); }
+function GithubCreatePullRequest              ( [String] $repo, [String] $toBranch, [String] $fromBranch, [String] $title = "", [String] $repoDirForCred = "" ){
+                                                # repoDirForCred : Any folder under any git repository, from which the credentials will be taken, use empty for current dir.
+                                                # default title is "Merge $fromBranch into $toBranch"
+                                                # repo has format [HOST/]OWNER/REPO
+                                                OutProgress "Create a github-pull-request from $fromBranch to $toBranch in repo: $repo";
+                                                if( $title -eq "" ){ $title = "Merge $fromBranch to $toBranch"; }
+                                                [String[]] $prUrls = @()+(GithubListPullRequests $repo $toBranch $fromBranch | 
+                                                  Where-Object{$null -ne $_} | ForEach-Object{ $_.url });
+                                                if( $prUrls.Count -gt 0 ){
+                                                  OutProgress "A pull request for branch $fromBranch into $toBranch already exists: $($prUrls[0])";
+                                                  return;
+                                                }
+                                                Push-Location $repoDirForCred;
+                                                [String] $out = "";
+                                                try{
+                                                  $out = (ProcessStart "gh" @("pr", "create", "--repo", $repo, "--base", $toBranch, "--head", $fromBranch, "--title", $title, "--body", " ") -careStdErrAsOut:$true -traceCmd:$true);
+                                                }catch{
+                                                  if( $_.Exception.Message.Contains("pull request create failed: GraphQL: No commits between ") ){
+                                                    $error.clear();
+                                                    OutInfo "No pull request nessessary because no commit between $toBranch and $fromBranch .";
+                                                  }else{ throw; }
+                                                }
+                                                Pop-Location;
+                                                # Output:
+                                                #   Warning: 2 uncommitted changes
+                                                #   Creating pull request for myfrombranch into main in myowner/myrepo
+                                                #   a pull request for branch "myfrombranch" into branch "main" already exists:
+                                                #   https://github.com/myowner/myrepo/pull/1234
+                                                # Possible errors:
+                                                #   rc=1  https://github.com/myowner/myrepo/pull/1234 a pull request for branch "mybranch" into branch "main" already exists:
+                                                #   rc=1  pull request create failed: GraphQL: No commits between QA and Develop (createPullRequest)
+                                                OutProgress $out; }
 function GitTortoiseCommit                    ( [String] $workDir, [String] $commitMessage = "" ){
                                                 [String] $tortoiseExe = (RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseGit" "ProcPath"); # ex: "C:\Program Files\TortoiseGit\bin\TortoiseGitProc.exe"
                                                 Start-Process -NoNewWindow -Wait -FilePath "$tortoiseExe" -ArgumentList @("/command:commit","/path:`"$workDir`"", "/logmsg:$commitMessage"); AssertRcIsOk; }
@@ -4220,7 +4291,7 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #   in Systemsteuerung->Standardprogramme you can associate .ps1 with C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
 #   and make a shortcut ony any .ps1 file, then on clicking on shortcut it will run, but does not work if .ps1 is doubleclicked.
 # - Do Not Use: Avoid using $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") or Write-Error because different behaviour of powershell.exe and powershell_ise.exe
-# - Extensions: download and install PowerShell Community Extensions (PSCX) for ntfs-junctions and symlinks.
+# - Extensions: download and install PowerShell Community Extensions (PSCX) https://github.com/Pscx/Pscx for ntfs-junctions and symlinks.
 # - Special predefined variables which are not yet used in this script (use by $global:anyprefefinedvar; names are case insensitive):
 #   $null, $true, $false  - some constants
 #   $args                 - Contains an array of the parameters passed to a function.
