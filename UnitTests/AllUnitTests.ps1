@@ -21,6 +21,7 @@ OutInfo "MnCommonPsToolLibUnitTest - perform some tests which do not require ele
 & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Priv.ps1";
 & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Process_Job.ps1";
 & "$PSScriptRoot/MnCommonPsToolLibUnitTest_PsCommon.ps1";
+& "$PSScriptRoot/MnCommonPsToolLibUnitTest_PsCommonWithLintWarnings.ps1";
 & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Registry.ps1";
 & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Script.ps1";
 & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Service_Task.ps1";

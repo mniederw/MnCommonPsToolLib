@@ -161,16 +161,12 @@ function Test_FsEntry_Dir_File_Drive_Share_Mount_PsDrive(){
   #   ShareExists                          ( [String] $shareName ){
   #   ShareListAll                         ( [String] $selectShareName = "" ){
   #                                          # uses newer module SmbShare
-  #   ShareListAllByWmi                    ( [String] $selectShareName = "" ){
-  #                                          # As ShareListAll but uses older wmi and not newer module SmbShare
   #   ShareLocksList                       ( [String] $path = "" ){
   #                                          # list currenty read or readwrite locked open files of a share, requires elevated admin mode
   #   ShareLocksClose                      ( [String] $path = "" ){
   #                                          # closes locks, ex: $path="D:\Transfer\" or $path="D:\Transfer\MyFile.txt"
   #   ShareCreate                          ( [String] $shareName, [String] $dir, [String] $descr = "", [Int32] $nrOfAccessUsers = 25, [Boolean] $ignoreIfAlreadyExists = $true ){
-  #   ShareCreateByWmi                     ( [String] $shareName, [String] $dir, [String] $descr = "", [Int32] $nrOfAccessUsers = 25, [Boolean] $ignoreIfAlreadyExists = $true ){
   #   ShareRemove                          ( [String] $shareName ){ # no action if it not exists
-  #   ShareRemoveByWmi                     ( [String] $shareName ){
   #   MountPointLocksListAll               (){
   #   MountPointListAll                    (){ # we define mountpoint as a share mapped to a local path
   #   MountPointGetByDrive                 ( [String] $drive ){ # return null if not found

@@ -7,10 +7,10 @@ Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version
 function Test_IO_Console_StdIn_StdOut_StdErr(){
   OutProgress (ScriptGetCurrentFuncName);
   # TODO:
-  #   ConsoleHide         
-  #   ConsoleShow         
-  #   ConsoleRestore      
-  #   ConsoleMinimize     
+  #   ConsoleHide
+  #   ConsoleShow
+  #   ConsoleRestore
+  #   ConsoleMinimize
   #   ConsoleSetPos                        ( [Int32] $x, [Int32] $y ){
   #   ConsoleSetGuiProperties
   #   OutGetTsPrefix                       ( [Boolean] $forceTsPrefix = $false ){

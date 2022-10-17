@@ -25,5 +25,5 @@ $excl | Where-Object{ $null -ne $_ } | ForEach-Object{ Write-Output "    Exclude
 Write-Output "  Note: If PSScriptAnalyzer is not yet installed then install it with admin rights as followed:";
 Write-Output "    Set-PSRepository PSGallery -InstallationPolicy Trusted; Install-Module -ErrorAction Stop PSScriptAnalyzer;"
 Invoke-ScriptAnalyzer -Path $dir -Recurse -Outvariable issues -ReportSummary -ExcludeRule $excl;
-Write-Output "Ok, done."; 
+Write-Output "Ok, done.";
 Read-Host "Press enter to exit";

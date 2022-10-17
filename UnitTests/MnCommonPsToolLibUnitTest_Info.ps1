@@ -6,13 +6,12 @@ Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version
 
 function Test_Info(){
   OutProgress (ScriptGetCurrentFuncName);
-  # TODO:
-  #   InfoAboutComputerOverview            (){
-  #   InfoAboutExistingShares              (){
-  #   InfoAboutSystemInfo                  (){
-  #   InfoAboutRunningProcessesAndServices (){
-  #   InfoHdSpeed                          (){
-  #   InfoAboutNetConfig                   (){
-  #   InfoGetInstalledDotNetVersion        ( [Boolean] $alsoOutInstalledClrAndRunningProc = $false ){
+  # TODO: InfoAboutComputerOverview            (){
+  OutInfo "InfoAboutExistingShares:"; OutProgress (InfoAboutExistingShares);
+  # TODO: InfoAboutSystemInfo                  (){
+  # TODO: InfoAboutRunningProcessesAndServices (){
+  # TODO: InfoHdSpeed                          (){
+  # TODO: InfoAboutNetConfig                   (){
+  # TODO: InfoGetInstalledDotNetVersion        ( [Boolean] $alsoOutInstalledClrAndRunningProc = $false ){
 }
 Test_Info;

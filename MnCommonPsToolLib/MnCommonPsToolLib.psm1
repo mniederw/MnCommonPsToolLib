@@ -38,7 +38,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "6.28"; # more see Releasenotes.txt
+[String] $Global:MnCommonPsToolLibVersion = "7.00"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -112,7 +112,7 @@ Add-Type -Name Window -Namespace Console -MemberDefinition '[DllImport("Kernel32
 Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class Window { [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect); [DllImport("User32.dll")] public extern static bool MoveWindow(IntPtr handle, int x, int y, int width, int height, bool redraw); } public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }';
 Add-Type -WarningAction SilentlyContinue -TypeDefinition "using System; public class ExcMsg : Exception { public ExcMsg(String s):base(s){} } ";
   # Used for error messages which have a text which will be exact enough so no stackdump is nessessary. Is handled in our StdErrHandleExc.
-  # Note: we need to suppress the warning: The generated type defines no public methods or properties 
+  # Note: we need to suppress the warning: The generated type defines no public methods or properties
 
 # Set some self defined constant global variables
 if( $null -eq (Get-Variable -Scope global -ErrorAction SilentlyContinue -Name ComputerName) -or $null -eq $global:InfoLineColor ){ # check wether last variable already exists because reload safe
@@ -140,6 +140,7 @@ function ForEachParallel {
          [Parameter(Mandatory=$false)]                        [Int32]                                    $MaxThreads=8 )
   # Note: for some unknown reason we sometimes get a red line "One or more errors occurred."
   # and maybe "Collection was modified; enumeration operation may not execute." but it continuous successfully.
+  # We assume it is because it uses internally autoload module and this is not fully multithreading/parallel safe.
   BEGIN{
     try{
       # if( ($scriptblock.ToString() -replace "`$_","" -replace "`$true","" -replace "`$false","") -match "`$" ){
@@ -151,7 +152,7 @@ function ForEachParallel {
       #   $sharedQueue = [System.Collections.Queue]::Synchronized([System.Collections.Queue]::new());
       $pool = [Runspacefactory]::CreateRunspacePool(1,$maxthreads,$iss,$host); $pool.open();
       # alternative: $pool = [Runspacefactory]::CreateRunspacePool($iss); $pool.SetMinRunspaces(1) | Out-Null; $pool.SetMaxRunspaces($maxthreads) | Out-Null;
-      # no effect: $pool.ApartmentState = "MTA";
+      # has no effect: $pool.ApartmentState = "MTA";
       $threads = @();
       $scriptBlock = $ExecutionContext.InvokeCommand.NewScriptBlock("param(`$_)$([Environment]::NewLine)"+$scriptblock.ToString());
     }catch{ $Host.UI.WriteErrorLine("ForEachParallel-BEGIN: $($_)"); }
@@ -512,7 +513,7 @@ function AssertRcIsOk                         ( [String[]] $linesToOutProgress =
                                                     OutProgress "Dump of logfile=$($logFileToOutProgressIfFailed):";
                                                     Get-Content -Encoding $encodingIfNoBom -LiteralPath $logFileToOutProgressIfFailed |
                                                       Where-Object{$null -ne $_} | ForEach-Object{ OutProgress "  $_"; }
-                                                  }catch{ 
+                                                  }catch{
                                                     OutVerbose "Ignoring problems on reading $logFileToOutProgressIfFailed failed because $($_.Exception.Message)";
                                                   }
                                                   throw [Exception] $msg;
@@ -525,7 +526,7 @@ function ScriptGetCurrentFuncName             (){ return [String] ((Get-PSCallSt
 function ScriptGetAndClearLastRc              (){ [Int32] $rc = 0;
                                                 if( ((test-path "variable:LASTEXITCODE") -and $null -ne $LASTEXITCODE <# if no windows command was done then $LASTEXITCODE is null #> -and $LASTEXITCODE -ne 0) -or -not $? ){ $rc = $LASTEXITCODE; ScriptResetRc; }
                                                 return [Int32] $rc; }
-function ScriptResetRc                        (){ $error.clear(); & "cmd.exe" "/C" "EXIT 0"; $error.clear(); AssertRcIsOk; } # reset ERRORLEVEL to 0
+function ScriptResetRc                        (){ $error.clear(); $global:LASTEXITCODE = 0; $error.clear(); AssertRcIsOk; } # reset $LASTEXITCODE (ERRORLEVEL to 0); non-portable alternative: & "cmd.exe" "/C" "EXIT 0"
 function ScriptNrOfScopes                     (){ [Int32] $i = 1; while($true){
                                                 try{ Get-Variable null -Scope $i -ValueOnly -ErrorAction SilentlyContinue | Out-Null; $i++;
                                                 }catch{ <# ex: System.Management.Automation.PSArgumentOutOfRangeException #> return [Int32] ($i-1); } } }
@@ -603,16 +604,16 @@ function ProcessRestartInElevatedAdminMode    (){ if( (ProcessIsRunningInElevate
                                                   throw [Exception] "Exit done, but it did not work, so it throws now an exception.";
                                                 } }
 function ProcessGetCurrentThreadId            (){ return [Int32] [Threading.Thread]::CurrentThread.ManagedThreadId; }
-function ProcessGetNrOfCores                  (){ return [Int32] (Get-WMIObject Win32_ComputerSystem).NumberOfLogicalProcessors; }
+function ProcessGetNrOfCores                  (){ return [Int32] (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors; }
 function ProcessListRunnings                  (){ return [Object[]] (@()+(Get-Process * | Where-Object{$null -ne $_} | Where-Object{ $_.Id -ne 0 } | Sort-Object ProcessName)); }
 function ProcessListRunningsFormatted         (){ return [Object[]] (@()+( ProcessListRunnings | Select-Object Name, Id,
                                                     @{Name="CpuMSec";Expression={[Decimal]::Floor($_.TotalProcessorTime.TotalMilliseconds).ToString().PadLeft(7,' ')}},
                                                     StartTime, @{Name="Prio";Expression={($_.BasePriority)}}, @{Name="WorkSet";Expression={($_.WorkingSet64)}}, Path |
                                                     StreamToTableString  )); }
-function ProcessListRunningsAsStringArray     (){ return [String[]] (@()+(ProcessListRunnings |
+function ProcessListRunningsAsStringArray     (){ return [String[]] (StringSplitIntoLines (@()+(ProcessListRunnings |
                                                     Where-Object{$null -ne $_} |
                                                     Format-Table -auto -HideTableHeaders " ",ProcessName,ProductVersion,Company |
-                                                    StreamToStringDelEmptyLeadAndTrLines)); }
+                                                    StreamToStringDelEmptyLeadAndTrLines))); }
 function ProcessIsRunning                     ( [String] $processName ){ return [Boolean] ($null -ne (Get-Process -ErrorAction SilentlyContinue ($processName -replace ".exe",""))); }
 function ProcessCloseMainWindow               ( [String] $processName ){ # enter name without exe extension.
                                                 while( (ProcessIsRunning $processName) ){
@@ -633,7 +634,7 @@ function ProcessGetCommandInEnvPathOrAltPaths ( [String] $commandNameOptionalWit
                                                   if( (FileExists $f) ){ return [String] $f; } }
                                                 throw [Exception] "$(ScriptGetCurrentFunc): commandName=`"$commandNameOptionalWithExtension`" was wether found in env-path=`"$env:PATH`" nor in alternativePaths=`"$alternativePaths`". $downloadHintMsg"; }
 function ProcessStart                         ( [String] $cmd, [String[]] $cmdArgs = @(), [Boolean] $careStdErrAsOut = $false, [Boolean] $traceCmd = $false ){
-                                                # Mainly intended for starting a program with a window, 
+                                                # Mainly intended for starting a program with a window,
                                                 # but is also used for starting a command in path when arguments are provided in an array.
                                                 # The advantages in contrast of using the call operator (&) are:
                                                 # - you do not have to call AssertRcIsOk afterwards
@@ -655,25 +656,25 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 # There is a special handling of the commandline as descripted in "Parsing C++ command-line arguments"
                                                 # https://docs.microsoft.com/en-us/cpp/cpp/main-function-command-line-args
                                                 # - Arguments are delimited by white space, which is either a space or a tab.
-                                                # - The first argument (argv[0]) is treated specially. It represents the program name. 
-                                                #   Because it must be a valid pathname, parts surrounded by double quote marks (") are allowed. 
-                                                #   The double quote marks aren't included in the argv[0] output. 
-                                                #   The parts surrounded by double quote marks prevent interpretation of a space or tab character 
+                                                # - The first argument (argv[0]) is treated specially. It represents the program name.
+                                                #   Because it must be a valid pathname, parts surrounded by double quote marks (") are allowed.
+                                                #   The double quote marks aren't included in the argv[0] output.
+                                                #   The parts surrounded by double quote marks prevent interpretation of a space or tab character
                                                 #   as the end of the argument. The later rules in this list don't apply.
-                                                # - A string surrounded by double quote marks is interpreted as a single argument, 
-                                                #   which may contain white-space characters. A quoted string can be embedded in an argument. 
-                                                #   The caret (^) isn't recognized as an escape character or delimiter. 
-                                                #   Within a quoted string, a pair of double quote marks is interpreted as a single escaped double quote mark. 
-                                                #   If the command line ends before a closing double quote mark is found, 
+                                                # - A string surrounded by double quote marks is interpreted as a single argument,
+                                                #   which may contain white-space characters. A quoted string can be embedded in an argument.
+                                                #   The caret (^) isn't recognized as an escape character or delimiter.
+                                                #   Within a quoted string, a pair of double quote marks is interpreted as a single escaped double quote mark.
+                                                #   If the command line ends before a closing double quote mark is found,
                                                 #   then all the characters read so far are output as the last argument.
                                                 # - A double quote mark preceded by a backslash (\") is interpreted as a literal double quote mark (").
                                                 # - Backslashes are interpreted literally, unless they immediately precede a double quote mark.
-                                                # - If an even number of backslashes is followed by a double quote mark, 
-                                                #   then one backslash (\) is placed in the argv array for every pair of backslashes (\\), 
+                                                # - If an even number of backslashes is followed by a double quote mark,
+                                                #   then one backslash (\) is placed in the argv array for every pair of backslashes (\\),
                                                 #   and the double quote mark (") is interpreted as a string delimiter.
-                                                # - If an odd number of backslashes is followed by a double quote mark, 
-                                                #   then one backslash (\) is placed in the argv array for every pair of backslashes (\\). 
-                                                #   The double quote mark is interpreted as an escape sequence by the remaining backslash, 
+                                                # - If an odd number of backslashes is followed by a double quote mark,
+                                                #   then one backslash (\) is placed in the argv array for every pair of backslashes (\\).
+                                                #   The double quote mark is interpreted as an escape sequence by the remaining backslash,
                                                 #   causing a literal double quote mark (") to be placed in argv.
                                                 AssertRcIsOk;
                                                 [String] $exec = (Get-Command $cmd).Path;
@@ -772,7 +773,7 @@ function HelpGetType                          ( [Object] $obj ){ return [String]
 function OsPsVersion                          (){ return [String] (""+$Host.Version.Major+"."+$Host.Version.Minor); } # alternative: $PSVersionTable.PSVersion.Major
 function OsIsWinVistaOrHigher                 (){ return [Boolean] ([Environment]::OSVersion.Version -ge (new-object "Version" 6,0)); }
 function OsIsWin7OrHigher                     (){ return [Boolean] ([Environment]::OSVersion.Version -ge (new-object "Version" 6,1)); }
-function OsIs64BitOs                          (){ return [Boolean] (Get-WmiObject -Class Win32_OperatingSystem -ComputerName $ComputerName -ErrorAction SilentlyContinue).OSArchitecture -eq "64-Bit"; }
+function OsIs64BitOs                          (){ return [Boolean] (Get-CimInstance -Class Win32_OperatingSystem -ErrorAction SilentlyContinue).OSArchitecture -eq "64-Bit"; }
 function OsIsHibernateEnabled                 (){
                                                 if( (FileNotExists "$env:SystemDrive/hiberfil.sys") ){ return [Boolean] $false; }
                                                 if( OsIsWin7OrHigher ){ return [Boolean] (RegistryGetValueAsString "HKLM:\SYSTEM\CurrentControlSet\Control\Power" "HibernateEnabled") -eq "1"; }
@@ -781,7 +782,7 @@ function OsIsHibernateEnabled                 (){
                                                 [String] $out = @()+(& "$env:SystemRoot/system32/POWERCFG.EXE" "-AVAILABLESLEEPSTATES" | Where-Object{
                                                   $_ -like "Die folgenden Standbymodusfunktionen sind auf diesem System verf*" -or $_ -like "Die folgenden Ruhezustandfunktionen sind auf diesem System verf*" });
                                                 AssertRcIsOk; return [Boolean] ((($out.Contains("Ruhezustand") -or $out.Contains("Hibernate"))) -and (FileExists "$env:SystemDrive/hiberfil.sys")); }
-function OsInfoMainboardPhysicalMemorySum     (){ return [Int64] (Get-WMIObject -class Win32_PhysicalMemory | Measure-Object -Property capacity -Sum).Sum; }
+function OsInfoMainboardPhysicalMemorySum     (){ return [Int64] (Get-CimInstance -class Win32_PhysicalMemory | Measure-Object -Property capacity -Sum).Sum; }
 function OsWindowsFeatureGetInstalledNames    (){ # Requires windows-server-os or at least Win10Prof with installed RSAT https://www.microsoft.com/en-au/download/details.aspx?id=45520
                                                   Import-Module ServerManager; return [String[]] (@()+(Get-WindowsFeature | Where-Object{ $_.InstallState -eq "Installed" } | ForEach-Object{ $_.Name })); } # states: Installed, Available, Removed.
 function OsWindowsFeatureDoInstall            ( [String] $name ){ # ex: Web-Server, Web-Mgmt-Console, Web-Scripting-Tools, Web-Basic-Auth, Web-Windows-Auth, NET-FRAMEWORK-45-Core, NET-FRAMEWORK-45-ASPNET, Web-HTTP-Logging, Web-NET-Ext45, Web-ASP-Net45, Telnet-Server, Telnet-Client.
@@ -1206,12 +1207,10 @@ function ServiceListRunnings                  (){
                                                   StreamToStringDelEmptyLeadAndTrLines)); }
 function ServiceListExistings                 (){ # We could also use Get-Service but members are lightly differnet;
                                                 # 2017-06 we got (RuntimeException: You cannot call a method on a null-valued expression.) so we added null check.
-                                                return [System.Management.ManagementObject[]] (@()+(Get-WmiObject win32_service |
-                                                  Where-Object{$null -ne $_} | Sort-Object ProcessId,Name)); }
+                                                return [CimInstance[]](@()+(Get-CimInstance win32_service | Where-Object{$null -ne $_} | Sort-Object ProcessId,Name)); }
 function ServiceListExistingsAsStringArray    (){
-                                                return [String[]] (@()+(ServiceListExistings | Where-Object{$null -ne $_} |
-                                                  Format-Table -auto -HideTableHeaders " ",ProcessId,Name,StartMode,State |
-                                                  StreamToStringDelEmptyLeadAndTrLines)); }
+                                                return [String[]] (StringSplitIntoLines (@()+(ServiceListExistings | Where-Object{$null -ne $_} |
+                                                  Format-Table -auto -HideTableHeaders ProcessId,Name,StartMode,State | StreamToStringDelEmptyLeadAndTrLines ))); }
 function ServiceNotExists                     ( [String] $serviceName ){
                                                 return [Boolean] -not (ServiceExists $serviceName); }
 function ServiceExists                        ( [String] $serviceName ){
@@ -1810,7 +1809,7 @@ function FileAdsDownloadedFromInternetDel     ( [String] $srcFile ){
 function DriveMapTypeToString                 ( [UInt32] $driveType ){
                                                 return [String] $(switch($driveType){ 1{"NoRootDir"} 2{"RemovableDisk"} 3{"LocalDisk"} 4{"NetworkDrive"} 5{"CompactDisk"} 6{"RamDisk"} default{"UnknownDriveType=driveType"}}); }
 function DriveList                            (){
-                                                return [Object[]] (@()+(Get-WmiObject "Win32_LogicalDisk" |
+                                                return [Object[]] (@()+(Get-CimInstance "Win32_LogicalDisk" |
                                                   Where-Object{$null -ne $_} |
                                                   Select-Object DeviceID, FileSystem, Size, FreeSpace, VolumeName, DriveType, @{Name="DriveTypeName";Expression={(DriveMapTypeToString $_.DriveType)}}, ProviderName)); }
 function CredentialStandardizeUserWithDomain  ( [String] $username ){
@@ -1899,17 +1898,6 @@ function ShareListAll                         ( [String] $selectShareName = "" )
                                                   Where-Object{ $selectShareName -eq "" -or $_.Name -eq $selectShareName } |
                                                   Select-Object Name, ShareType, Path, Description, ShareState, ConcurrentUserLimit, CurrentUsers |
                                                   Sort-Object TypeName, Name); }
-function ShareListAllByWmi                    ( [String] $selectShareName = "" ){
-                                                # As ShareListAll but uses older wmi and not newer module SmbShare
-                                                [String] $computerName = ".";
-                                                OutVerbose "List shares of machine=$computerName selectShareName=`"$selectShareName`"";
-                                                # Exclude: AccessMask,InstallDate,MaximumAllowed,Description,Type,Status,@{Name="Descr";Expression={($_.Description).PadLeft(1,"-")}};
-                                                [String] $filter = ""; if( $selectShareName -ne ""){ $filter = "Name='$selectShareName'"; }
-                                                # Status: "OK","Error","Degraded","Unknown","Pred Fail","Starting","Stopping","Service","Stressed","NonRecover","No Contact","Lost Comm"
-                                                return [PSCustomObject[]] (@()+(Get-WmiObject -Class Win32_Share -ComputerName $computerName -Filter $filter |
-                                                  Where-Object{$null -ne $_} |
-                                                  Select-Object Path, @{Name="TypeName";Expression={(ShareGetTypeName $_.Type)}}, @{Name="FullName";Expression={"$(DirSep)$(DirSep)$computerName$(DirSep)"+$_.Name}}, @{Name="Description";Expression={$_.Caption}}, Name, AllowMaximum, Status |
-                                                  Sort-Object TypeName, Name)); }
 function ShareLocksList                       ( [String] $path = "" ){
                                                 # list currenty read or readwrite locked open files of a share, requires elevated admin mode
                                                 ProcessRestartInElevatedAdminMode;
@@ -1937,62 +1925,10 @@ function ShareCreate                          ( [String] $shareName, [String] $d
                                                 ProcessRestartInElevatedAdminMode;
                                                 # alternative: -FolderEnumerationMode AccessBased; Note: this is not allowed but it is the default: -ContinuouslyAvailable $true
                                                 [Object] $dummyObj = New-SmbShare -Path $dir -Name $shareName -Description $descr -ConcurrentUserLimit $nrOfAccessUsers -FolderEnumerationMode Unrestricted -FullAccess (PrivGetGroupEveryone); }
-function ShareCreateByWmi                     ( [String] $shareName, [String] $dir, [String] $descr = "", [Int32] $nrOfAccessUsers = 25, [Boolean] $ignoreIfAlreadyExists = $true ){
-                                                [String] $typeName = "DiskDrive";
-                                                if( !(DirExists $dir) ){ throw [ExcMsg] "Cannot create share because original directory not exists: `"$dir`""; }
-                                                DirAssertExists $dir "Cannot create share";
-                                                [UInt32] $typeNr = ShareGetTypeNr $typeName;
-                                                [Object] $existingShare = ShareListAll $shareName |
-                                                  Where-Object{$null -ne $_} |
-                                                  Where-Object{ $_.Path -ieq $dir -and $_.TypeName -eq $typeName } |
-                                                  Select-Object -First 1;
-                                                if( $null -ne $existingShare ){
-                                                  OutVerbose "Already exists shareName=`"$shareName`" dir=`"$dir`" typeName=$typeName";
-                                                  if( $ignoreIfAlreadyExists ){ return; }
-                                                }
-                                                # Optionals:
-                                                # MaximumAllowed: With this parameter, you can specify the maximum number of users allowed to concurrently use the shared resource (e.g., 25 users).
-                                                # Description   : You use this parameter to describe the resource being shared (e.g., temp share).
-                                                # Password      : Using this parameter, you can set a password for the shared resource on a server that is running
-                                                #                 with share-level security. If the server is running with user-level security, this parameter is ignored.
-                                                # Access        : You use this parameter to specify a Security Descriptor (SD) for user-level permissions.
-                                                #                 An SD contains information about the permissions, owner, and access capabilities of the resource.
-                                                [Object] $obj = (Get-WmiObject Win32_Share -List).Create( $dir, $shareName, $typeNr, $nrOfAccessUsers, $descr );
-                                                [Int32] $rc = $obj.ReturnValue;
-                                                if( $rc -ne 0 ){
-                                                  [String] $errMsg = switch( $rc ){ 0{"Ok, Success"} 2{"Access denied"} 8{"Unknown failure"} 9{"Invalid name"} 10{"Invalid level"} 21{"Invalid parameter"}
-                                                    22{"Duplicate share"} 23{"Redirected path"} 24{"Unknown device or directory"} 25{"Net name not found"} default{"Unknown rc=$rc"} }
-                                                  throw [ExcMsg] "$(ScriptGetCurrentFunc)(dir=`"$dir`",sharename=`"$shareName`",typenr=$typeNr) failed because $errMsg";
-                                                } }
-                                                # TODO later add function ShareCreate by using New-SmbShare
-                                                #   https://docs.microsoft.com/en-us/powershell/module/smbshare/new-smbshare?view=win10-ps
 function ShareRemove                          ( [String] $shareName ){ # no action if it not exists
                                                 if( -not (ShareExists $shareName) ){ return; }
                                                 OutProgress "Remove shareName=`"$shareName`"";
                                                 Remove-SmbShare -Name $shareName -Confirm:$false; }
-function ShareRemoveByWmi                     ( [String] $shareName ){
-                                                [Object] $share = Get-WmiObject -Class Win32_Share -ComputerName "." -Filter "Name='$shareName'";
-                                                if( $null -eq $share ){ return; }
-                                                OutProgress "Remove shareName=`"$shareName`" typeName=$(ShareGetTypeName $share.Type) path=$($share.Path)";
-                                                [Object] $obj = $share.delete();
-                                                [Int32] $rc = $obj.ReturnValue;
-                                                if( $rc -ne 0 ){
-                                                  [String] $errMsg = switch( $rc ){
-                                                    # Note: The following list was taken from create-fails, so it is not verified.
-                                                    0{"Ok, Success"}
-                                                    2{"Access denied"}
-                                                    8{"Unknown failure"}
-                                                    9{"Invalid name"}
-                                                    10{"Invalid level"}
-                                                    21{"Invalid parameter"}
-                                                    22{"Duplicate share"}
-                                                    23{"Redirected path"}
-                                                    24{"Unknown device or directory"}
-                                                    25{"Net name not found"}
-                                                    default{"Unknown rc=$rc"}
-                                                  }
-                                                  throw [ExcMsg] "$(ScriptGetCurrentFunc)(sharename=`"$shareName`") failed because $errMsg";
-                                                } }
 function MountPointLocksListAll               (){
                                                 OutVerbose "List all mount point locks"; return [Object] (Get-SmbConnection |
                                                 Select-Object ServerName,ShareName,UserName,Credential,NumOpens,ContinuouslyAvailable,Encrypted,PSComputerName,Redirected,Signed,SmbInstance,Dialect |
@@ -2101,7 +2037,7 @@ function NetAdapterGetConnectionStatusName    ( [Int32] $netConnectionStatusNr )
                                                   12{"Credentials required"}
                                                   default{"unknownNr=$netConnectionStatusNr"} }); }
 function NetAdapterListAll                    (){
-                                                return [Object[]] (@()+(Get-WmiObject -Class win32_networkadapter |
+                                                return [Object[]] (@()+(Get-CimInstance -Class win32_networkadapter |
                                                   Where-Object{$null -ne $_} |
                                                   Select-Object Name,NetConnectionID,MACAddress,Speed,@{Name="Status";Expression={(NetAdapterGetConnectionStatusName $_.NetConnectionStatus)}})); }
 function NetPingHostIsConnectable             ( [String] $hostName, [Boolean] $doRetryWithFlushDns = $false ){
@@ -2717,7 +2653,7 @@ function GithubCreatePullRequest              ( [String] $repo, [String] $toBran
                                                 # repo has format [HOST/]OWNER/REPO
                                                 OutProgress "Create a github-pull-request from $fromBranch to $toBranch in repo: $repo";
                                                 if( $title -eq "" ){ $title = "Merge $fromBranch to $toBranch"; }
-                                                [String[]] $prUrls = @()+(GithubListPullRequests $repo $toBranch $fromBranch | 
+                                                [String[]] $prUrls = @()+(GithubListPullRequests $repo $toBranch $fromBranch |
                                                   Where-Object{$null -ne $_} | ForEach-Object{ $_.url });
                                                 if( $prUrls.Count -gt 0 ){
                                                   OutProgress "A pull request for branch $fromBranch into $toBranch already exists: $($prUrls[0])";
@@ -2748,7 +2684,7 @@ function GitTortoiseCommit                    ( [String] $workDir, [String] $com
                                                 Start-Process -NoNewWindow -Wait -FilePath "$tortoiseExe" -ArgumentList @("/command:commit","/path:`"$workDir`"", "/logmsg:$commitMessage"); AssertRcIsOk; }
 function GitListCommitComments                ( [String] $tarDir, [String] $localRepoDir, [String] $fileExtension = ".tmp",
                                                   [String] $prefix = "Log.", [Int32] $doOnlyIfOlderThanAgeInDays = 14 ){
-                                                # Reads commit messages and changed files info from localRepoDir 
+                                                # Reads commit messages and changed files info from localRepoDir
                                                 # and overwrites it to two target files to target dir.
                                                 # For building the filenames it takes the two last dir parts and writes the files with the names:
                                                 # - Log.NameOfRepoParent.NameOfRepo.CommittedComments.tmp
@@ -3713,24 +3649,25 @@ function InfoAboutExistingShares              (){
                                                 [String[]] $result = @( "Info about existing shares:", "" );
                                                 foreach( $shareObj in (ShareListAll | Sort-Object Name) ){
                                                   [Object] $share = $shareObj | Select-Object -ExpandProperty Name;
-                                                  [Object] $objShareSec = Get-WMIObject -Class Win32_LogicalShareSecuritySetting -Filter "name='$share'";
+                                                  [Object] $objShareSec = Get-CimInstance -Class Win32_LogicalShareSecuritySetting -Filter "name='$share'";
                                                   [String] $s = "  "+$shareObj.Name.PadRight(12)+" = "+("'"+$shareObj.Path+"'").PadRight(5)+" "+$shareObj.Description;
-                                                  try{
-                                                    [Object] $sd = $objShareSec.GetSecurityDescriptor().Descriptor;
-                                                    foreach( $ace in $sd.DACL ){
-                                                      [Object] $username = $ace.Trustee.Name;
-                                                      if( $null -ne $ace.Trustee.Domain -and $ace.Trustee.Domain -ne "" ){ $username = "$($ace.Trustee.Domain)\$username" }
-                                                      if( $null -eq $ace.Trustee.Name   -or  $ace.Trustee.Name   -eq "" ){ $username = $ace.Trustee.SIDString }
-                                                      [Object] $o = New-Object Security.AccessControl.FileSystemAccessRule($username,$ace.AccessMask,$ace.AceType);
-                                                      # ex: FileSystemRights=FullControl; AccessControlType=Allow; IsInherited=False; InheritanceFlags=None; PropagationFlags=None; IdentityReference=Jeder;
-                                                      # ex: FileSystemRights=FullControl; AccessControlType=Allow; IsInherited=False; InheritanceFlags=None; PropagationFlags=None; IdentityReference=VORDEFINIERT\Administratoren;
-                                                      $s += "$([Environment]::NewLine)"+"".PadRight(26)+" (ACT="+$o.AccessControlType+",INH="+$o.IsInherited+",FSR="+$o.FileSystemRights+",INHF="+$o.InheritanceFlags+",PROP="+$o.PropagationFlags+",IDREF="+$o.IdentityReference+") ";
-                                                    }
-                                                  }catch{ $s += "$([Environment]::NewLine)"+"".PadRight(26)+" (unknown)"; }
+                                                  # Since migration from wmi to cim we cannot get acls anymore, refactor it later:
+                                                  #   try{
+                                                  #     [Object] $sd = $objShareSec.GetSecurityDescriptor().Descriptor;
+                                                  #     foreach( $ace in $sd.DACL ){
+                                                  #       [Object] $username = $ace.Trustee.Name;
+                                                  #       if( $null -ne $ace.Trustee.Domain -and $ace.Trustee.Domain -ne "" ){ $username = "$($ace.Trustee.Domain)\$username" }
+                                                  #       if( $null -eq $ace.Trustee.Name   -or  $ace.Trustee.Name   -eq "" ){ $username = $ace.Trustee.SIDString }
+                                                  #       [Object] $o = New-Object Security.AccessControl.FileSystemAccessRule($username,$ace.AccessMask,$ace.AceType);
+                                                  #       # ex: FileSystemRights=FullControl; AccessControlType=Allow; IsInherited=False; InheritanceFlags=None; PropagationFlags=None; IdentityReference=Jeder;
+                                                  #       # ex: FileSystemRights=FullControl; AccessControlType=Allow; IsInherited=False; InheritanceFlags=None; PropagationFlags=None; IdentityReference=VORDEFINIERT\Administratoren;
+                                                  #       $s += "$([Environment]::NewLine)"+"".PadRight(26)+" (ACT="+$o.AccessControlType+",INH="+$o.IsInherited+",FSR="+$o.FileSystemRights+",INHF="+$o.InheritanceFlags+",PROP="+$o.PropagationFlags+",IDREF="+$o.IdentityReference+") ";
+                                                  #     }
+                                                  #   }catch{ $s += "$([Environment]::NewLine)"+"".PadRight(26)+" (unknown)"; }
                                                   $result += $s;
                                                 }
                                                 return [String[]] $result; }
-function InfoAboutSystemInfo                  (){
+function InfoAboutSystemInfo                  (){ # Works only on Windows
                                                 ProcessAssertInElevatedAdminMode; # because DISM.exe
                                                 [String[]] $out = @()+(& "systeminfo.exe"); AssertRcIsOk $out;
                                                 # Get default associations for file extensions to programs for windows 10, this can be used later for imports.
@@ -3744,7 +3681,7 @@ function InfoAboutSystemInfo                  (){
                                                 #
                                                 [String[]] $result = @( "InfoAboutSystemInfo:", "" );
                                                 $result += $out;
-                                                $result += "OS-SerialNumber: "+(Get-WmiObject Win32_OperatingSystem|Select-Object -ExpandProperty SerialNumber);
+                                                $result += "OS-SerialNumber: "+(Get-CimInstance Win32_OperatingSystem|Select-Object -ExpandProperty SerialNumber);
                                                 $result += @( "", "", "List of associations of fileextensions to a filetypes:"   , (& "cmd.exe" "/c" "ASSOC") ); AssertRcIsOk;
                                                 $result += @( "", "", "List of associations of filetypes to executable programs:", (& "cmd.exe" "/c" "FTYPE") ); AssertRcIsOk;
                                                 $result += @( "", "", "List of DefaultAppAssociations:"                          , (FileReadContentAsString $f "Default") );
@@ -3766,7 +3703,7 @@ function InfoAboutRunningProcessesAndServices (){
                                                   ,"AvailablePowershellModules:" ,(Get-Module -ListAvailable)
                                                   # usually: AppLocker, BitsTransfer, PSDiagnostics, TroubleshootingPack, WebAdministration, SQLASCMDLETS, SQLPS.
                                                 ); }
-function InfoHdSpeed                          (){
+function InfoHdSpeed                          (){ # Works only on Windows
                                                 ProcessRestartInElevatedAdminMode;
                                                 [String[]] $out1 = @()+(& "winsat.exe" "disk" "-seq" "-read"  "-drive" "c"); AssertRcIsOk $out1;
                                                 [String[]] $out2 = @()+(& "winsat.exe" "disk" "-seq" "-write" "-drive" "c"); AssertRcIsOk $out2; return [String[]] @( $out1, $out2 ); }
@@ -4052,7 +3989,7 @@ function ToolGithubApiDownloadLatestReleaseDir( [String] $repoUrl ){
                                                 FsEntryMoveByPatternToDir "$dir0$(DirSep)*" $tarDir;
                                                 DirDelete $dir0;
                                                 return [String] $tarDir; }
-function ToolSetAssocFileExtToCmd             ( [String[]] $fileExtensions, [String] $cmd, [String] $ftype = "", [Boolean] $assertPrgExists = $false ){
+function ToolSetAssocFileExtToCmd             ( [String[]] $fileExtensions, [String] $cmd, [String] $ftype = "", [Boolean] $assertPrgExists = $false ){ # Works only on Windows
                                                 # Sets the association of a file extension to a command by overwriting it.
                                                 # FileExtensions: must begin with a dot, must not content blanks or commas,
                                                 #   if it is only a dot then it is used for files without a file ext.
@@ -4209,7 +4146,7 @@ function ToolInstallOrUpdate                  ( [String] $installMedia, [String]
                                                 # If not it will be installed or updated by calling installmedia asynchronously which is in general a half automatic installation procedure.
                                                 # Example: ToolInstallOrUpdate "Freeware\NetworkClient\Browser\OpenSource-MPL2 Firefox V89.0 64bit multilang 2021.exe" "2021-05-27" "firefox.exe" "C:\Program Files\Mozilla Firefox ; C:\Prg\Network\Browser\OpenSource-MPL2 Firefox\" "Not install autoupdate";
                                                 [String[]] $installDirs = @()+(StringSplitToArray ";" $installDirsSemicSep);
-                                                [DateTime] $mainTargetFileMinDate = DateTimeFromStringIso $mainTargetFileMinIsoDate; 
+                                                [DateTime] $mainTargetFileMinDate = DateTimeFromStringIso $mainTargetFileMinIsoDate;
                                                 [DateTime] $mainTargetFileDate = [DateTime]::MinValue; # default also means not installed
                                                 [String]   $installDirsStr = $installDirs | ForEach-Object{ "`"$_`"; " };
                                                 Assert ($installDirs.Count -gt 0) "Missing an installDir";
@@ -4228,7 +4165,7 @@ function ToolInstallOrUpdate                  ( [String] $installMedia, [String]
                                                   OutInfo "Installmedia `"$installMedia`"";
                                                   $installDirs | ForEach-Object{ OutInfo "  Accepted-Installdir: `"$_`""; };
                                                   if( $installHints -ne "" ){ OutInfo "  InstallHints: $installHints"; }
-                                                  if( StdInAskForBoolean ){ 
+                                                  if( StdInAskForBoolean ){
                                                     & $installMedia; AssertRcIsOk;
                                                   }
                                                 }else{
@@ -4248,25 +4185,6 @@ function MnCommonPsToolLibSelfUpdate          ( [Boolean] $doWaitForEnterKeyIfFa
                                                 [Boolean] $performPing = $true;
                                                 [Boolean] $dummyResult = ToolPerformFileUpdateAndIsActualized $moduleFile $url $requireElevatedAdminMode $doWaitForEnterKeyIfFailed $additionalOkUpdMsg $assertFilePreviouslyExists $performPing;
                                               }
-
-# DEPRECATED:
-function GitCloneOrFetchOrPull                ( [String] $tarRootDir, [String] $urlAndOptionalBranch, [Boolean] $usePullNotFetch = $false, [Boolean] $errorAsWarning = $false ){
-                                                OutWarning "Warning: GitCloneOrFetchOrPull is deprecated since 2022-03, please replace by GitCmd";
-                                                GitCmd $(switch($usePullNotFetch){($true){"CloneOrPull"}default{"CloneOrFetch"}}) $tarRootDir $urlAndOptionalBranch $errorAsWarning; }
-function GitCloneOrFetchIgnoreError           ( [String] $tarRootDir, [String] $urlAndOptionalBranch ){
-                                                OutWarning "Warning: GitCloneOrFetchIgnoreError is deprecated since 2022-03, please replace by GitCmd";
-                                                GitCmd "CloneOrFetch" $tarRootDir $urlAndOptionalBranch $true; }
-function GitCloneOrPullIgnoreError            ( [String] $tarRootDir, [String] $urlAndOptionalBranch ){
-                                                OutWarning "Warning: GitCloneOrPullIgnoreError is deprecated since 2022-03, please replace by GitCmd";
-                                                GitCmd "CloneOrPull"  $tarRootDir $urlAndOptionalBranch $true; }
-function ToolTfsInitLocalWorkspaceIfNotDone   ( [String] $url, [String] $rootDir ){
-                                                OutWarning "Warning: ToolTfsInitLocalWorkspaceIfNotDone is deprecated since 2022-04, please replace by TfsInitLocalWorkspaceIfNotDone";
-                                                TfsInitLocalWorkspaceIfNotDone $url $rootDir; }
-function FsEntryHasTrailingBackslash          ( [String] $fsEntry ){ OutWarning "Warning: FsEntryHasTrailingBackslash is deprecated since 2022-03, please replace by FsEntryHasTrailingDirSep"; return FsEntryHasTrailingDirSep $fsEntry; }
-function FsEntryRemoveTrailingBackslash       ( [String] $fsEntry ){ OutWarning "Warning: FsEntryRemoveTrailingBackslash is deprecated since 2022-03, please replace by FsEntryRemoveTrailingDirSep"; return FsEntryHasTrailingDirSep $fsEntry; }
-function FsEntryMakeTrailingBackslash         ( [String] $fsEntry ){ OutWarning "Warning: FsEntryMakeTrailingBackslash is deprecated since 2022-03, please replace by FsEntryMakeTrailingDirSep"; return FsEntryHasTrailingDirSep $fsEntry; }
-
-
 
 # ----------------------------------------------------------------------------------------------------
 
@@ -4293,6 +4211,7 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 # - Do Not Use: Avoid using $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") or Write-Error because different behaviour of powershell.exe and powershell_ise.exe
 # - Extensions: download and install PowerShell Community Extensions (PSCX) https://github.com/Pscx/Pscx for ntfs-junctions and symlinks.
 # - Special predefined variables which are not yet used in this script (use by $global:anyprefefinedvar; names are case insensitive):
+#   https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_automatic_variables
 #   $null, $true, $false  - some constants
 #   $args                 - Contains an array of the parameters passed to a function.
 #   $error                - Contains objects for which an error occurred while being processed in a cmdlet.
@@ -4307,7 +4226,8 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #   @( "a1", "a2" ) -contains "a2", -notcontains, "abcdef" -match "b[CD]", -notmatch, "abcdef" -cmatch "b[cd]", -notcmatch, -not
 # - Automatic variables see: http://technet.microsoft.com/en-us/library/dd347675.aspx
 #   $?            : Contains True if last operation succeeded and False otherwise.
-#   $LASTEXITCODE : Contains the exit code of the last Win32 executable execution. Can be null if not windows command was called. Should never manually set, even not: $global:LASTEXITCODE = $null;
+#   $LASTEXITCODE : Contains the exit code of the last Win32 executable execution, 0 is ok.
+#                   Can be null if not windows command was called. Should not manually set, but if yes then as: $global:LASTEXITCODE = $null;
 # - Available colors for console -foregroundcolor and -backgroundcolor:
 #   Black DarkBlue DarkGreen DarkCyan DarkRed DarkMagenta DarkYellow Gray DarkGray Blue Green Cyan Red Magenta Yellow White
 # - Do not use write-host, use write-output. See http://www.jsnover.com/blog/2013/12/07/write-host-considered-harmful/
@@ -4416,7 +4336,7 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 # - Run a script:
 #   - runs script in script scope, variables and functions do not persists in shell after script end:
 #       ".\myscript.ps1"
-#   - Dot Sourcing Operator (.) runs script in local scope, variables and functions persists in shell after script end, 
+#   - Dot Sourcing Operator (.) runs script in local scope, variables and functions persists in shell after script end,
 #     used to include ps artefacts:
 #       . ".\myscript.ps1"
 #       . { write-Output "Test"; }
@@ -4476,3 +4396,5 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #   then all arguments are not passed!!!  In that case you need to perform the following statement:  pwsh -Command MyPsScript.ps1 anyParam...
 # - param ( [Parameter()] [ValidateSet("Yes", "No", "Maybe")] [String] $opt )
 # - Use  Set-PSDebug -trace 1; Set-PSDebug -trace 2;  to trace each line or use  Set-PSDebug -step  for singlestep mode until  Set-PSDebug -Off;
+# - Note: WMI commands should be replaced by CIM counterparts for portability,
+#   see https://devblogs.microsoft.com/powershell/introduction-to-cim-cmdlets/

@@ -16,7 +16,7 @@ function Test_String(){
   AssertIsFalse  (StringIsFilled " `r");
   Assert         (StringIsFilled "abc");
   Assert         (StringIsInt32                      "123"       );
-  Assert         (StringIsInt64                      "9111222333");                               
+  Assert         (StringIsInt64                      "9111222333");
   Assert         ((StringAsInt32                     "123"       )                -eq 123         );
   Assert         ((StringAsInt64                     "9111222333")                -eq 9111222333  );
   Assert         ((StringLeft                        "abc" 2)                     -eq "ab"        );

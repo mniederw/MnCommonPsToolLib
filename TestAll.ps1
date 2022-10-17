@@ -2,12 +2,12 @@
 
 Write-Output "Test all - run all examples, the script analyser and the unit tests with pwsh (powershell)";
 
-Write-Output "Show Platform   = $([System.Environment]::OSVersion.Platform)"; # "Win32NT" or "Unix"
-Write-Output "Show OS         = $($PSVersionTable.OS)"; # "Microsoft Windows 10.0.19042" or ...
-Write-Output "Show IsWindows  = $($IsWindows)";
-Write-Output "Show IsLinux    = $($IsLinux)";
-Write-Output "Show IsMacOS    = $($IsMacOS)";
-Write-Output "Show CurrentDir = `"$PWD`"";
+Write-Output "Show Platform         = $([System.Environment]::OSVersion.Platform)"; # "Win32NT" or "Unix"
+Write-Output "Show OS               = $($PSVersionTable.OS)"; # "Microsoft Windows 10.0.19042" or ...
+Write-Output "Show IsWindows        = $($IsWindows)";
+Write-Output "Show IsLinux          = $($IsLinux)";
+Write-Output "Show IsMacOS          = $($IsMacOS)";
+Write-Output "Show CurrentDir       = `"$PWD`"";
   # Local-Win10   : "D:\mywork\MyOwner\MyRepo"
   # Github-Windows: "D:\a\MyRepo\MyRepo"
   # Github-ubuntu : "/home/runner/work/MnCommonPsToolLib/MnCommonPsToolLib"
@@ -17,8 +17,9 @@ Write-Output "Show GITHUB_WORKSPACE = `"$($env:GITHUB_WORKSPACE)`"";
   # Github-Win10  : "D:\a\MyRepo\MyRepo"
   # Github-ubuntu : "/home/runner/work/MnCommonPsToolLib/MnCommonPsToolLib"
 
-Write-Output "Show PSModulePath = `"`"";
-$($env:PSModulePath).Split(";:") | Where-Object{ $null -ne $_ } | ForEach-Object{ Write-Output "Show PSModulePath += `";$_`""; }
+Write-Output "Show PSModulePath     = `"`"";
+$($env:PSModulePath).Split(";:") | Where-Object{ $null -ne $_ } | ForEach-Object{
+  Write-Output "Show PSModulePath     += `";$_`""; }
   # Local-Win10   : ";C:\Users\myuser\Documents\WindowsPowerShell\Modules"
   #                 ";C:\Program Files (x86)\WindowsPowerShell\Modules"
   #                 ";C:\Windows\system32\WindowsPowerShell\v1.0\Modules"
@@ -42,21 +43,21 @@ $($env:PSModulePath).Split(";:") | Where-Object{ $null -ne $_ } | ForEach-Object
 # Github-ubuntu : ":/home/runner/.local/share/powershell/Modules"
   #                 ":/usr/local/share/powershell/Modules"
   #                 ":/opt/microsoft/powershell/7/Modules"
-  
+
 Write-Output "Set mode to stop on errors.";
-$Global:ErrorActionPreference = "Stop"; 
+$Global:ErrorActionPreference = "Stop";
 trap [Exception] { $Host.UI.WriteErrorLine("Trap: $_"); Read-Host; break; }
 
-Write-Output "Set disable autoloading modules.";
-$PSModuleAutoLoadingPreference = "none";
+# disabled because it would not find for example Write-Output anymore:
+#   Write-Output "Set disable autoloading modules."; $PSModuleAutoLoadingPreference = "none";
 
 Write-Output "Extend PSModulePath by current dir.";
 [String] $pathsep = ":"; if( $IsWindows ){ $pathsep = ";"; }
 [Environment]::SetEnvironmentVariable("PSModulePath","${env:PSModulePath}$pathsep$PWD","Process"); # add ps module to path
 
-Write-Output "Load library";
+Write-Output "Load our library";
 Import-Module "MnCommonPsToolLib.psm1";
-Write-Output "Show MnCommonPsToolLibVersion: $Global:MnCommonPsToolLibVersion"; # "6.01"
+Write-Output "Show MnCommonPsToolLibVersion: $Global:MnCommonPsToolLibVersion"; # ex: "7.01"
 
 Write-Output "Remove all aliases except (cd,cat,clear,echo,dir,cp,mv,popd,pushd,rm,rmdir);";
 ProcessRemoveAllAlias @("cd","cat","clear","echo","dir","cp","mv","popd","pushd","rm","rmdir");
