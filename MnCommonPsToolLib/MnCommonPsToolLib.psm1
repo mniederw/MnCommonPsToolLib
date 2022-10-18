@@ -441,7 +441,7 @@ function OutStartTranscriptInTempDir          ( [String] $name = "MnCommonPsTool
                                                 if( $name -eq "" ){ $name = "MnCommonPsToolLib"; }
                                                 [String] $pattern = "yyyy yyyy-MM yyyy-MM-dd";
                                                 if( $useHHMMSS ){ $pattern += "_HH'h'mm'm'SS's'"; }
-                                                [String] $f = "$env:TEMP/$name/$((DateTimeNowAsStringIso $pattern).Replace(" ","/")).$name.txt";
+                                                [String] $f = "$env:TEMP/tmp/$name/$((DateTimeNowAsStringIso $pattern).Replace(" ","/")).$name.txt"; # works for windows and linux
                                                 Start-Transcript -Path $f -Append -IncludeInvocationHeader | Out-Null;
                                                 return [String] $f; }
 function OutStopTranscript                    (){ Stop-Transcript; }
@@ -494,7 +494,7 @@ function StdOutEndMsgCareInteractiveMode      ( [Int32] $delayInSec = 1 ){
                                                 if( $global:ModeDisallowInteractions -or $global:ModeNoWaitForEnterAtEnd ){
                                                   OutSuccess "Ok, done. Ending in $delayInSec second(s)."; ProcessSleepSec $delayInSec;
                                                 }else{ OutSuccess "Ok, done. Press Enter to Exit;"; StdInReadLine; } }
-function Assert                               ( [Boolean] $cond, [String] $failReason = "" ){
+function Assert                               ( [Boolean] $cond, [String] $failReason = "condition is false." ){
                                                 if( -not $cond ){ throw [Exception] "Assertion failed because $failReason"; } }
 function AssertIsFalse                        ( [Boolean] $cond, [String] $failReason = "" ){
                                                 if( $cond ){ throw [Exception] "Assertion-Is-False failed because $failReason"; } }
@@ -583,7 +583,7 @@ function StreamFromCsvStrings                 ( [Char] $delimiter = ',' ){ $inpu
 function ProcessFindExecutableInPath          ( [String] $exec ){ # Return full path or empty if not found.
                                                 [Object] $p = (Get-Command $exec -ErrorAction SilentlyContinue); if( $null -eq $p ){ return [String] ""; } return [String] $p.Source; }
 function ProcessIsRunningInElevatedAdminMode  (){ return [Boolean] ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"); }
-function ProcessAssertInElevatedAdminMode     (){ if( -not (ProcessIsRunningInElevatedAdminMode) ){ throw [Exception] "Assertion failed because requires to be in elevated admin mode"; } }
+function ProcessAssertInElevatedAdminMode     (){ Assert (ProcessIsRunningInElevatedAdminMode) "requires to be in elevated admin mode"; }
 function ProcessRestartInElevatedAdminMode    (){ if( (ProcessIsRunningInElevatedAdminMode) ){ return; }
                                                 # ex: "C:\myscr.ps1" or if interactive then statement name ex: "ProcessRestartInElevatedAdminMode"
                                                 [String] $cmd = @( (ScriptGetTopCaller) ) + $Global:ArgsForRestartInElevatedAdminMode;
@@ -1217,7 +1217,7 @@ function ServiceExists                        ( [String] $serviceName ){
                                                 return [Boolean] ($null -ne (Get-Service $serviceName -ErrorAction SilentlyContinue)); }
 function ServiceAssertExists                  ( [String] $serviceName ){
                                                 OutVerbose "Assert service exists: $serviceName";
-                                                if( ServiceNotExists $serviceName ){ throw [Exception] "Assertion failed because service not exists: $serviceName"; } }
+                                                Assert (ServiceExists $serviceName) "service not exists: $serviceName"; }
 function ServiceGet                           ( [String] $serviceName ){
                                                 return [Object] (Get-Service -Name $serviceName -ErrorAction SilentlyContinue); } # Standard result is name,displayname,status.
 function ServiceGetState                      ( [String] $serviceName ){
