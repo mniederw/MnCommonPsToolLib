@@ -7,9 +7,9 @@ Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version
 function Test_FsEntry_Dir_File_Drive_Share_Mount_PsDrive(){
   OutProgress (ScriptGetCurrentFuncName);
   Assert         ((FsEntryGetAbsolutePath "") -eq "" );
-  Assert         ((FsEntryMakeRelative "C:\MyDir\Dir1\Dir2" "C:\MyDir") -eq "Dir1\Dir2");
-  Assert         ((FsEntryMakeRelative "C:\MyDir\Dir1\Dir2" "C:\MyDir" $true) -eq ".\Dir1\Dir2");
-  Assert         ((FsEntryMakeRelative "C:\MyDir" "C:\MyDir\") -eq ".");
+  Assert         ((FsEntryMakeRelative "$HOME\MyDir\Dir1\Dir2" "$HOME\MyDir"      ) -eq   "Dir1\Dir2");
+  Assert         ((FsEntryMakeRelative "$HOME\MyDir\Dir1\Dir2" "$HOME\MyDir" $true) -eq ".\Dir1\Dir2");
+  Assert         ((FsEntryMakeRelative "$HOME\MyDir"           "$HOME\MyDir\"     ) -eq ".");
   # TODO:
   #   DirSep                               (){ return [Char] [IO.Path]::DirectorySeparatorChar; }
   #   FsEntryEsc                           ( [String] $fsentry ){ AssertNotEmpty $fsentry "file-system-entry"; # Escaping is not nessessary if a command supports -LiteralPath.
@@ -22,7 +22,7 @@ function Test_FsEntry_Dir_File_Drive_Share_Mount_PsDrive(){
   #                                          # Works without IO to file system; if $fsEntry is not equal or below dir then it throws;
   #                                          # if fs-entry is equal the below-dir then it returns a dot;
   #                                          # a trailing backslash of the fs entry is not changed;
-  #                                          # trailing backslashes for belowDir are not nessessary. ex: "Dir1\Dir2" -eq (FsEntryMakeRelative "C:\MyDir\Dir1\Dir2" "C:\MyDir");
+  #                                          # trailing backslashes for belowDir are not nessessary. ex: "Dir1\Dir2" -eq (FsEntryMakeRelative "$HOME\Dir1\Dir2" "$HOME");
   #   FsEntryHasTrailingDirSep             ( [String] $fsEntry ){ return [Boolean] ($fsEntry.EndsWith("\") -or $fsEntry.EndsWith("/")); }
   #   FsEntryRemoveTrailingDirSep          ( [String] $fsEntry ){ [String] $r = $fsEntry;
   #   FsEntryMakeTrailingDirSep            ( [String] $fsEntry ){

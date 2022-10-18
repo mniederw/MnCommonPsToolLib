@@ -1326,7 +1326,7 @@ function FsEntryMakeRelative                  ( [String] $fsEntry, [String] $bel
                                                 # Works without IO to file system; if $fsEntry is not equal or below dir then it throws;
                                                 # if fs-entry is equal the below-dir then it returns a dot;
                                                 # a trailing backslash of the fs entry is not changed;
-                                                # trailing backslashes for belowDir are not nessessary. ex: "Dir1\Dir2" -eq (FsEntryMakeRelative "C:\MyDir\Dir1\Dir2" "C:\MyDir");
+                                                # trailing backslashes for belowDir are not nessessary. ex: "Dir1\Dir2" -eq (FsEntryMakeRelative "$HOME\Dir1\Dir2" "$HOME");
                                                 AssertNotEmpty $belowDir "belowDir";
                                                 $belowDir = FsEntryMakeTrailingDirSep (FsEntryGetAbsolutePath $belowDir);
                                                 $fsEntry = FsEntryGetAbsolutePath $fsEntry;
