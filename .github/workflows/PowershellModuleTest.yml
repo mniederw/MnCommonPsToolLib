@@ -68,14 +68,14 @@ jobs:
         shell: bash
         run: |
           echo "Running on OS=${{runner.os}} ; $(which pwsh) ; $(pwsh --version)"; # 2022-08: Linux ; /usr/bin/pwsh ; Powershell V7.2.5
-          echo "GetTempPath: $([System.IO.Path]::GetTempPath())"; # ex: "/tmp/"
-          echo "Env-Tmpdir : $($env:TMPDIR)"; # ex: ""
           printenv;
 
       - name: Test all
         shell: pwsh
         run: |
           echo "Running on OS=${{runner.os}} ; $(which pwsh) ; $(pwsh --version)"; # 2022-08: Linux ; /opt/microsoft/powershell/7/pwsh ; Powershell V7.2.5
+          echo "GetTempPath: $([System.IO.Path]::GetTempPath())"; # ex: "/tmp/"
+          echo "Env-Tmpdir : $($env:TMPDIR)"; # ex: ""
           & "./TestAll.ps1";
 
       - name: If tests on trunk of a push were successful then create PR to main
