@@ -604,7 +604,6 @@ function ProcessRestartInElevatedAdminMode    (){ if( (ProcessIsRunningInElevate
                                                   throw [Exception] "Exit done, but it did not work, so it throws now an exception.";
                                                 } }
 function ProcessGetCurrentThreadId            (){ return [Int32] [Threading.Thread]::CurrentThread.ManagedThreadId; }
-function ProcessGetNrOfCores                  (){ return [Int32] (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors; }
 function ProcessListRunnings                  (){ return [Object[]] (@()+(Get-Process * | Where-Object{$null -ne $_} | Where-Object{ $_.Id -ne 0 } | Sort-Object ProcessName)); }
 function ProcessListRunningsFormatted         (){ return [Object[]] (@()+( ProcessListRunnings | Select-Object Name, Id,
                                                     @{Name="CpuMSec";Expression={[Decimal]::Floor($_.TotalProcessorTime.TotalMilliseconds).ToString().PadLeft(7,' ')}},
@@ -4187,6 +4186,13 @@ function MnCommonPsToolLibSelfUpdate          ( [Boolean] $doWaitForEnterKeyIfFa
                                               }
 
 # ----------------------------------------------------------------------------------------------------
+
+if( "$($env:WINDIR)" -ne "" ){ # running under windows
+  # OutProgress "$PSScriptRoot : Running on windows";
+  . "$PSScriptRoot/MnCommonPsToolLib_Windows.ps1";
+}else{
+  # OutProgress "$PSScriptRoot : Running not on windows";
+}
 
 Export-ModuleMember -function *; # Export all functions from this script which are above this line (types are implicit usable).
 
