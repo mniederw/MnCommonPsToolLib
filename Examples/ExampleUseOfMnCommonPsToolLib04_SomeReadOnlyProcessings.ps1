@@ -68,6 +68,7 @@ function ExampleUseEnvironmentVarsOfDifferentScopes {
   OutProgress "Environment Variable Temp of scope Process: `"$v1`""; # GithubWorkflowWindowsLaters: "C:\Users\RUNNER~1\AppData\Local\Temp"
   OutProgress "Environment Variable Temp of scope User   : `"$v2`""; # GithubWorkflowWindowsLaters: "C:\Users\runneradmin\AppData\Local\Temp"
   OutProgress "Environment Variable Temp of scope Machine: `"$v3`""; # GithubWorkflowWindowsLaters: "C:\Windows\TEMP"
+  OutProgress "`$env:Temp                                 : `"$($env:Temp)`"";
   Assert ($v1 -eq $env:Temp);
   ProcessEnvVarSet "MnCommonPsToolLibExampleVar" "Testvalue";
   Assert ($env:MnCommonPsToolLibExampleVar -eq "Testvalue");
