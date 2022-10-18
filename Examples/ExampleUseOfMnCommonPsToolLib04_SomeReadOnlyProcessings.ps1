@@ -21,7 +21,7 @@ function ExampleUseCommon(){
 function ExampleUseFsEntries(){
   OutInfo "$($MyInvocation.MyCommand)";
   OutProgress "Current dir is: $(FsEntryGetAbsolutePath '.')";
-  [String] $d = "$HOME\Documents";
+  [String] $d = "$HOME/Documents";
   [String[]] $a = @()+(FsEntryListAsStringArray $d $true $false $true | Where-Object{$null -ne $_});
   OutProgress "The folder '$d' contains $($a.Count) number of files";
   [String[]] $a2 = @()+($a | Select-Object -First 2);

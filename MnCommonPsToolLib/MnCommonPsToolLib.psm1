@@ -1326,7 +1326,7 @@ function FsEntryMakeRelative                  ( [String] $fsEntry, [String] $bel
                                                 # Works without IO to file system; if $fsEntry is not equal or below dir then it throws;
                                                 # if fs-entry is equal the below-dir then it returns a dot;
                                                 # a trailing backslash of the fs entry is not changed;
-                                                # trailing backslashes for belowDir are not nessessary. ex: "Dir1\Dir2" -eq (FsEntryMakeRelative "$HOME\Dir1\Dir2" "$HOME");
+                                                # trailing backslashes for belowDir are not nessessary. ex: "Dir1/Dir2" -eq (FsEntryMakeRelative "$HOME/Dir1/Dir2" "$HOME");
                                                 AssertNotEmpty $belowDir "belowDir";
                                                 $belowDir = FsEntryMakeTrailingDirSep (FsEntryGetAbsolutePath $belowDir);
                                                 $fsEntry = FsEntryGetAbsolutePath $fsEntry;
@@ -1764,9 +1764,9 @@ function FileDelete                           ( [String] $file, [Boolean] $ignor
                                                   try{
                                                     Remove-Item -Force:$ignoreReadonly -LiteralPath $file;
                                                     return;
-                                                  }catch [System.Management.Automation.ItemNotFoundException] { # example: ItemNotFoundException: Cannot find path '$HOME\myfile.lnk' because it does not exist.
+                                                  }catch [System.Management.Automation.ItemNotFoundException] { # example: ItemNotFoundException: Cannot find path '$HOME/myfile.lnk' because it does not exist.
                                                     return; #
-                                                  }catch [System.UnauthorizedAccessException] { # example: Access to the path '$HOME\Desktop\desktop.ini' is denied.
+                                                  }catch [System.UnauthorizedAccessException] { # example: Access to the path '$HOME/Desktop/desktop.ini' is denied.
                                                     if( -not $ignoreAccessDenied ){ throw; }
                                                     OutWarning "Warning: Ignoring UnauthorizedAccessException for Remove-Item -Force:$ignoreReadonly -LiteralPath `"$file`""; return;
                                                   }catch{ # ex: IOException: The process cannot access the file '$HOME\myprog.lnk' because it is being used by another process.
@@ -1814,7 +1814,7 @@ function DriveList                            (){
                                                   Select-Object DeviceID, FileSystem, Size, FreeSpace, VolumeName, DriveType, @{Name="DriveTypeName";Expression={(DriveMapTypeToString $_.DriveType)}}, ProviderName)); }
 function CredentialStandardizeUserWithDomain  ( [String] $username ){
                                                 # Allowed username as input: "", "u0", "u0@domain", "@domain\u0", "domain\u0"   used because for unknown reasons sometimes a username like user@domain does not work, it requires domain\user.
-                                                if( $username.Contains("\") -or -not $username.Contains("@") ){
+                                                if( $username.Contains("\") -or $username.Contains("/") -or -not $username.Contains("@") ){
                                                   return [String] $username;
                                                 }
                                                 [String[]] $u = $username -split "@",2;
