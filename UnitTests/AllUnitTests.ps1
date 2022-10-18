@@ -6,7 +6,6 @@ Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version
 
 #GlobalSetModeVerboseEnable;
 OutInfo "MnCommonPsToolLibUnitTest - running powershell V$($Host.Version.ToString())";
-
 OutInfo "MnCommonPsToolLibUnitTest - perform some tests which do not require elevated admin mode";
 
 & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Array.ps1";
