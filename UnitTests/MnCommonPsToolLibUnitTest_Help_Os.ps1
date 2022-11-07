@@ -6,6 +6,7 @@ Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version
 
 function Test_Help_Os(){
   OutProgress (ScriptGetCurrentFuncName);
+  if( "$($env:WINDIR)" -eq "" ){ OutProgress "Not running on windows, so bypass test."; return; }
   # TODO:
   #   HelpHelp                             (){ Get-Help     | ForEach-Object{ OutInfo $_; } }
   #   HelpListOfAllVariables               (){ Get-Variable | Sort-Object Name | ForEach-Object{ OutInfo "$($_.Name.PadRight(32)) $($_.Value)"; } } # Select-Object Name, Value | StreamToListString
