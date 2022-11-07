@@ -6,6 +6,7 @@ Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version
 
 function Test_Process_Job(){
   OutProgress (ScriptGetCurrentFuncName);
+  if( "$($env:WINDIR)" -eq "" ){ OutProgress "Not running on windows, so bypass test."; return; }
   # TODO:
   #   ProcessFindExecutableInPath          ( [String] $exec )
   #   ProcessIsRunningInElevatedAdminMode  ()
