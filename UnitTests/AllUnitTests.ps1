@@ -29,8 +29,7 @@ OutInfo "MnCommonPsToolLibUnitTest - perform some tests which do not require ele
 & "$PSScriptRoot/MnCommonPsToolLibUnitTest_String.ps1";
 & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Test_IO_Console_StdIn_StdOut_StdErr.ps1";
 & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Tool.ps1";
-
-if( ProcessIsRunningInElevatedAdminMode ){ & "$PSScriptRoot/MnCommonPsToolLibUnitTestElevated.ps1"; }
+& "$PSScriptRoot/MnCommonPsToolLibUnitTestElevated.ps1";
 
 & "$PSScriptRoot/MnCommonPsToolLibScriptAnalyser.ps1" -excludeKnown:$true;
 
