@@ -6,6 +6,7 @@ Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version
 
 function Test_Tool(){
   OutProgress (ScriptGetCurrentFuncName);
+  if( "$($env:WINDIR)" -eq "" ){ OutProgress "Not running on windows, so bypass test."; return; }
   Assert         (((ToolVs2019UserFolderGetLatestUsed) -eq "") -or ((ToolVs2019UserFolderGetLatestUsed).Contains("\\AppData\\Local\\Microsoft\\VisualStudio\\16.0")));
   # TODO:
   #   ToolTailFile                         ( [String] $file ){ OutProgress "Show tail of file until ctrl-c is entered"; Get-Content -Wait $file; }

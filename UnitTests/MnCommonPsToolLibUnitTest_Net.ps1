@@ -6,6 +6,7 @@ Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version
 
 function Test_Net(){
   OutProgress (ScriptGetCurrentFuncName);
+  if( "$($env:WINDIR)" -eq "" ){ OutProgress "Not running on windows, so bypass test."; return; }
   # TODO:
   #   NetExtractHostName                   ( [String] $url ){ return [String] ([System.Uri]$url).Host; }
   #   NetUrlUnescape                       ( [String] $url ){ return [String] [uri]::UnescapeDataString($url); } # convert for example %20 to blank.

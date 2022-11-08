@@ -6,6 +6,8 @@ Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version
 
 function TestElevated(){
   OutProgress (ScriptGetCurrentFuncName);
+  if( -not (ProcessIsRunningInElevatedAdminMode) ){ OutProgress "Not running in elevated mode, so bypass test."; return; }
+
   OutInfo "MnCommonPsToolLibUnitTestElevated - perform things requiring elevated admid mode";
 
   OutProgress "ToolWin10PackageGetState of OpenSSH.Client: $(ToolWin10PackageGetState "OpenSSH.Client")"
@@ -15,5 +17,6 @@ function TestElevated(){
   OutSuccess "Ok, done.";
 }
 
+if( "$($env:WINDIR)" -eq "" ){ OutProgress "Not running on windows, so bypass test."; return; }
 TestElevated;
 StdInAskForEnter;

@@ -39,7 +39,7 @@ function Test_Git_Svn_Tfs(){
   #   GitTortoiseCommit                    ( [String] $workDir, [String] $commitMessage = "" ){
   #   GitListCommitComments                ( [String] $tarDir, [String] $localRepoDir, [String] $fileExtension = ".tmp",
   #                                            [String] $prefix = "Log.", [Int32] $doOnlyIfOlderThanAgeInDays = 14 ){
-  #                                          # Reads commit messages and changed files info from localRepoDir 
+  #                                          # Reads commit messages and changed files info from localRepoDir
   #                                          # and overwrites it to two target files to target dir.
   #                                          # For building the filenames it takes the two last dir parts and writes the files with the names:
   #                                          # - Log.NameOfRepoParent.NameOfRepo.CommittedComments.tmp

@@ -6,7 +6,6 @@ Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version
 
 #GlobalSetModeVerboseEnable;
 OutInfo "MnCommonPsToolLibUnitTest - running powershell V$($Host.Version.ToString())";
-
 OutInfo "MnCommonPsToolLibUnitTest - perform some tests which do not require elevated admin mode";
 
 & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Array.ps1";
@@ -21,6 +20,7 @@ OutInfo "MnCommonPsToolLibUnitTest - perform some tests which do not require ele
 & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Priv.ps1";
 & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Process_Job.ps1";
 & "$PSScriptRoot/MnCommonPsToolLibUnitTest_PsCommon.ps1";
+& "$PSScriptRoot/MnCommonPsToolLibUnitTest_PsCommonWithLintWarnings.ps1";
 & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Registry.ps1";
 & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Script.ps1";
 & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Service_Task.ps1";
@@ -29,8 +29,7 @@ OutInfo "MnCommonPsToolLibUnitTest - perform some tests which do not require ele
 & "$PSScriptRoot/MnCommonPsToolLibUnitTest_String.ps1";
 & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Test_IO_Console_StdIn_StdOut_StdErr.ps1";
 & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Tool.ps1";
-
-if( ProcessIsRunningInElevatedAdminMode ){ & "$PSScriptRoot/MnCommonPsToolLibUnitTestElevated.ps1"; }
+& "$PSScriptRoot/MnCommonPsToolLibUnitTestElevated.ps1";
 
 & "$PSScriptRoot/MnCommonPsToolLibScriptAnalyser.ps1" -excludeKnown:$true;
 

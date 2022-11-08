@@ -16,7 +16,7 @@ function Test_String(){
   AssertIsFalse  (StringIsFilled " `r");
   Assert         (StringIsFilled "abc");
   Assert         (StringIsInt32                      "123"       );
-  Assert         (StringIsInt64                      "9111222333");                               
+  Assert         (StringIsInt64                      "9111222333");
   Assert         ((StringAsInt32                     "123"       )                -eq 123         );
   Assert         ((StringAsInt64                     "9111222333")                -eq 9111222333  );
   Assert         ((StringLeft                        "abc" 2)                     -eq "ab"        );
@@ -39,7 +39,7 @@ function Test_String(){
   Assert         ((StringRemoveOptEnclosingDblQuotes "`"abc`"")                   -eq "abc"       );
   Assert         ((StringArrayInsertIndent           @("abc","def") 2)[1]         -eq "  def"     );
   Assert         ((StringArrayDistinct               @("abc","def","abc")).Count  -eq 2           );
-  Assert         ((StringArrayConcat                 @("abc","def"))              -eq "abc`r`ndef");
+  Assert         ((StringArrayConcat                 @("abc","def"))              -eq ("abc"+[Environment]::NewLine+"def"));
   Assert         ((StringArrayContains @("a","b") "a"                    ) -eq $true );
   Assert         ((StringArrayContains @("a","b") "A"                    ) -eq $false);
   Assert         ((StringArrayContains @("a","b") "x"                    ) -eq $false);

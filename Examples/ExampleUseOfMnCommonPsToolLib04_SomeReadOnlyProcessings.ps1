@@ -21,7 +21,7 @@ function ExampleUseCommon(){
 function ExampleUseFsEntries(){
   OutInfo "$($MyInvocation.MyCommand)";
   OutProgress "Current dir is: $(FsEntryGetAbsolutePath '.')";
-  [String] $d = "$HOME\Documents";
+  [String] $d = "$HOME/Documents";
   [String[]] $a = @()+(FsEntryListAsStringArray $d $true $false $true | Where-Object{$null -ne $_});
   OutProgress "The folder '$d' contains $($a.Count) number of files";
   [String[]] $a2 = @()+($a | Select-Object -First 2);
@@ -52,6 +52,7 @@ function ExampleUseParallelStatementsHavingRandomWaitBetween1and2Seconds {
 
 function ExampleUseAsynchronousJob {
   OutInfo "$($MyInvocation.MyCommand)";
+  if( "$($env:WINDIR)" -eq "" ){ OutProgress "Not running on windows, so bypass test."; return; }
   $job = JobStart { param( $s ); Import-Module "MnCommonPsToolLib.psm1"; OutProgress "Running job and returning a string."; return [String] $s; } "my argument";
   Start-Sleep -Seconds 1;
   [String] $res = JobWaitForEnd $job.Id;
@@ -62,13 +63,15 @@ function ExampleUseAsynchronousJob {
 
 function ExampleUseEnvironmentVarsOfDifferentScopes {
   OutInfo "$($MyInvocation.MyCommand)";
-  $v1 = ProcessEnvVarGet "Temp" ([System.EnvironmentVariableTarget]::Process);
-  $v2 = ProcessEnvVarGet "Temp" ([System.EnvironmentVariableTarget]::User   );
-  $v3 = ProcessEnvVarGet "Temp" ([System.EnvironmentVariableTarget]::Machine);
+  [String] $v = "$($env:Temp)";
+  [String] $v1 = ProcessEnvVarGet "Temp" ([System.EnvironmentVariableTarget]::Process);
+  [String] $v2 = ProcessEnvVarGet "Temp" ([System.EnvironmentVariableTarget]::User   );
+  [String] $v3 = ProcessEnvVarGet "Temp" ([System.EnvironmentVariableTarget]::Machine);
   OutProgress "Environment Variable Temp of scope Process: `"$v1`""; # GithubWorkflowWindowsLaters: "C:\Users\RUNNER~1\AppData\Local\Temp"
   OutProgress "Environment Variable Temp of scope User   : `"$v2`""; # GithubWorkflowWindowsLaters: "C:\Users\runneradmin\AppData\Local\Temp"
   OutProgress "Environment Variable Temp of scope Machine: `"$v3`""; # GithubWorkflowWindowsLaters: "C:\Windows\TEMP"
-  Assert ($v1 -eq $env:Temp);
+  OutProgress "`$env:Temp                                 : `"$v`""; # on linux is empty
+  Assert ($v1 -eq $v);
   ProcessEnvVarSet "MnCommonPsToolLibExampleVar" "Testvalue";
   Assert ($env:MnCommonPsToolLibExampleVar -eq "Testvalue");
   ProcessEnvVarSet "MnCommonPsToolLibExampleVar" "";
