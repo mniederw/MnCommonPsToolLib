@@ -39,7 +39,7 @@ function Test_String(){
   Assert         ((StringRemoveOptEnclosingDblQuotes "`"abc`"")                   -eq "abc"       );
   Assert         ((StringArrayInsertIndent           @("abc","def") 2)[1]         -eq "  def"     );
   Assert         ((StringArrayDistinct               @("abc","def","abc")).Count  -eq 2           );
-  Assert         ((StringArrayConcat                 @("abc","def"))              -eq "abc`r`ndef");
+  Assert         ((StringArrayConcat                 @("abc","def"))              -eq ("abc"+[Environment]::NewLine+"def"));
   Assert         ((StringArrayContains @("a","b") "a"                    ) -eq $true );
   Assert         ((StringArrayContains @("a","b") "A"                    ) -eq $false);
   Assert         ((StringArrayContains @("a","b") "x"                    ) -eq $false);
