@@ -6,7 +6,7 @@ Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version
 
 function TestElevated(){
   OutProgress (ScriptGetCurrentFuncName);
-  if( -not ProcessIsRunningInElevatedAdminMode ){ OutProgress "Not running in elevated mode, so bypass test."; return; }
+  if( -not (ProcessIsRunningInElevatedAdminMode) ){ OutProgress "Not running in elevated mode, so bypass test."; return; }
 
   OutInfo "MnCommonPsToolLibUnitTestElevated - perform things requiring elevated admid mode";
 
