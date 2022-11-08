@@ -5,7 +5,7 @@ Major version will reflect breaking changes, minor identifies extensions and thi
 Breaking changes are usually removed deprecated functions or changed behaviours.
 Current version can be requested by: $MnCommonPsToolLibVersion
 
-2022-11-07  V7.01  Move non portable functions to MnCommonPsToolLib_Windows.ps1, fixed tests
+2022-11-07  V7.02  Move non portable functions to MnCommonPsToolLib_Windows.ps1, fixed tests
 2022-10-17  V7.00  MakePortable Wmi to Cim, ServiceListExistings returntype from [System.Management.ManagementObject[]] to [CimInstance[]],
                    InfoAboutSystemInfo, InfoAboutExistingShares.
                    Remove deprecated: GitCloneOrFetchOrPull, GitCloneOrFetchIgnoreError, GitCloneOrPullIgnoreError, ToolTfsInitLocalWorkspaceIfNotDone,
