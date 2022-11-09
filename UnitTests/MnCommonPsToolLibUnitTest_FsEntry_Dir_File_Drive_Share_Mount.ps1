@@ -15,11 +15,11 @@ function Test_FsEntry_Dir_File_Drive_Share_Mount_PsDrive(){
   #   FsEntryEsc                           ( [String] $fsentry )
   #   FsEntryGetAbsolutePath               ( [String] $fsEntry )
   #   FsEntryGetUncShare                   ( [String] $fsEntry )
-  #   FsEntryMakeValidFileName             ( [String] $str )    
+  #   FsEntryMakeValidFileName             ( [String] $str )
   #   FsEntryMakeRelative                  ( [String] $fsEntry, [String] $belowDir, [Boolean] $prefixWithDotDir = $false )
   #   FsEntryHasTrailingDirSep             ( [String] $fsEntry )
   #   FsEntryRemoveTrailingDirSep          ( [String] $fsEntry )
-  #   FsEntryMakeTrailingDirSep            ( [String] $fsEntry 
+  #   FsEntryMakeTrailingDirSep            ( [String] $fsEntry
   #   FsEntryJoinRelativePatterns          ( [String] $rootDir [String[]] $relativeFsEntriesPatternsSemicolonSeparated )
   #   FsEntryGetFileNameWithoutExt         ( [String] $fsEntry)
   #   FsEntryGetFileName                   ( [String] $fsEntry)
@@ -28,7 +28,7 @@ function Test_FsEntry_Dir_File_Drive_Share_Mount_PsDrive(){
   #   FsEntryIsDir                         ( [String] $fsEntry
   #   FsEntryGetParentDir                  ( [String] $fsEntry
   #   FsEntryExists                        ( [String] $fsEntry
-  #   FsEntryNotExists                     ( [String] $fsEntry 
+  #   FsEntryNotExists                     ( [String] $fsEntry
   #   FsEntryAssertExists                  ( [String] $fsEntry,[String] $text = "Assertion failed" )
   #   FsEntryAssertNotExists               ( [String] $fsEntry [String] $text = "Assertion failed" )
   #   FsEntryGetLastModified               ( [String] $fsEntry )

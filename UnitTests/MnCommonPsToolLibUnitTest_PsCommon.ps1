@@ -45,6 +45,7 @@ function Test_PsCommon(){
   [Boolean] $isOk = $false;
   try{
     [Boolean] $r = "anystring"; # ArgumentTransformationMetadataException: Cannot convert value "System.String" to type "System.Boolean". Boolean parameters accept only Boolean values and numbers, such as $True, $False, 1 or 0.
+	OutVerbose "$r";
   }catch{ $isOk = $true; }
   if( -not $isOk ){
     OutVerbose "  IsInteractive=$(ScriptIsProbablyInteractive); Trap=Enabled; Note: Exception was not throwed and catch block not reached. We found out this happens in batch only for unknown reason. If runing interactive then works ok. Analyse it later.";

@@ -1,4 +1,4 @@
-#!/usr/bin/env pwsh
+﻿#!/usr/bin/env pwsh
 # Do not change the following line, it is a powershell statement and not a comment!
 #Requires -Version 3.0
 param( [String] $sel )

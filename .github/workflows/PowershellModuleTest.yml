@@ -1,6 +1,6 @@
-name: PowershellModuleTest
+﻿name: PowershellModuleTest
 
- # Triggers the workflow on push or pull request events but only for the given branches and ignore changes of some file types
+# Triggers the workflow on push or pull request events but only for the given branches and ignore changes of some file types.
 on:
   push:
     branches:
@@ -18,96 +18,80 @@ on:
       - '.github/workflows/**'
   workflow_dispatch:  # Allows you to run this workflow manually from the Actions tab
   schedule:
-    # cron: minute(0..59) hour(0..23) dayOfMonth(1..31) month(1..12 or JAN..DEC) dayOfWeek(0..6 or SUN-SAT); '* * * * *' seams to be 15min; 
-    #   multivalues comma separated (2,4); ranges with a dash (2-5); increment with slash after min10 each 5 min (10/5); shortes are 5 minutes; in UTC;
+    # cron: minute(0..59) hour(0..23) dayOfMonth(1..31) month(1..12 or JAN..DEC) dayOfWeek(0..6 or SUN-SAT);
+    #   '* * * * *' seams to be 15min; multivalues comma separated (2,4); ranges with a dash (2-5); 
+    #   increment with slash after min10 each 5 min (10/5); shortes are 5 minutes; in UTC;
     #   https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#schedule
-    - cron:  '1 0 * * 0'  # 00:01 each sunday
+    - cron:  '1 0 * * 0'  # 00:01 each sunday with main branch
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
-  build:
 
-    runs-on: ubuntu-latest
-      # Available 2022-08:
-      # - ubuntu-latest   = Ubuntu-V20.04.3-LTS contains PowerShell-V7.2.5, already installed /usr/bin/pwsh
-      # - windows-latest  = WinServer2022
-      # - macos-latest    = macOS 11
-      # - self-hosted     = own machine
-      # More see: https://github.com/actions/virtual-environments/
-
-    name: "${{github.ref_type}}: ${{github.ref_name}} ${{ github.event.repository.updated_at}}" # example: "branch: main 2021-12-31T23:59:59Z"
-
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    runs-on: $
+    name: "Test: ${{matrix.os}}: ${{github.ref_type}}=${{github.ref_name}} ${{github.event.repository.updated_at}}"
+      # example: "Test: windows: branch=main 2021-12-31T23:59:59Z"
     steps:
 
       # Checks-out your repository under $GITHUB_WORKSPACE, see https://github.com/actions/checkout
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      # Default runners have installed: PS7.2.5 and Pester.
-      # More about PS: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-powershell#powershell-module-locations
-      - name: Install from PSGallery some modules as PSScriptAnalyzer and SqlServer
-        shell: pwsh
-        run: |
-          Set-PSRepository PSGallery -InstallationPolicy Trusted ;
-          Install-Module PSScriptAnalyzer, SqlServer, ThreadJob -ErrorAction Stop ;
-
-      - name: Run PSScriptAnalyzer on all ps files - Check ps and make improving suggestions
-        shell: pwsh
-        run: |
-          Invoke-ScriptAnalyzer -Path . -Recurse -Outvariable issues -ExcludeRule PSAvoidUsingConvertToSecureStringWithPlainText, PSAvoidUsingUsernameAndPasswordParams, PSAvoidUsingPlainTextForPassword, PSAvoidUsingEmptyCatchBlock, PSAvoidUsingWriteHost, PSAvoidGlobalVars, PSUseDeclaredVarsMoreThanAssignments, PSAvoidUsingPositionalParameters;
-          $nrOfErrors   = $issues.Where({$_.Severity -eq 'Error'  }).Count;
-          $nrOfWarnings = $issues.Where({$_.Severity -eq 'Warning'}).Count;
-          [String] $msg = "There were total $nrOfErrors errors and $nrOfWarnings warnings.";
-          if( $nrOfErrors -eq 0){ Write-Output $msg; }else{ Write-Error  $msg -ErrorAction Stop; }
-
-      - name: Assert powershell module library exists
-        shell: pwsh
-        run: Test-Path "MnCommonPsToolLib/MnCommonPsToolLib.psm1" | Should -Be $true ;
-
-      - name: Show pwsh by bash
+      - name: Show environment variables of bash
         shell: bash
         run: |
-          echo "Running on OS=${{runner.os}} ; $(which pwsh) ; $(pwsh --version)"; # 2022-08: Linux ; /usr/bin/pwsh ; Powershell V7.2.5
-          printenv;
+          echo "Running on OS=${{runner.os}}; $(which pwsh); $(pwsh --version)"; # example: "Linux; /usr/bin/pwsh; Powershell V7.2.5"
+          printenv; # list all environment variables
 
-      - name: Test all
+      - name: Test all 
         shell: pwsh
+          # Default runners have installed: PS7.2.5 and Pester.
+          # More about PS: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-powershell#powershell-module-locations
         run: |
-          echo "Running on OS=${{runner.os}} ; $(which pwsh) ; $(pwsh --version)"; # 2022-08: Linux ; /opt/microsoft/powershell/7/pwsh ; Powershell V7.2.5
-          echo "GetTempPath: $([System.IO.Path]::GetTempPath())"; # ex: "/tmp/"
-          echo "Env-Tmpdir : $($env:TMPDIR)"; # ex: ""
+          echo "Running on OS=${{runner.os}}; $(which pwsh); $(pwsh --version)"; # example: "Linux; /opt/microsoft/powershell/7/pwsh; Powershell V7.2.5"
           & "./TestAll.ps1";
+          echo "Test ok.";
 
-      - name: If tests on trunk of a push were successful then create PR to main
+  merge:
+    runs-on: ubuntu-latest
+      # Available 2022-08:
+      # - ubuntu-latest   = Ubuntu-V20.04.3-LTS contains PowerShell-V7.2.5, already installed /usr/bin/pwsh
+      # - windows-latest  = WinServer2022
+      # - macos-latest    = macOS 11
+      # - self-hosted     = own machine
+      # - More see: https://github.com/actions/virtual-environments/
+    name: "${{github.ref_type}}: ${{github.ref_name}} ${{github.event.repository.updated_at}}"
+      # example: "branch: main 2021-12-31T23:59:59Z"
+    needs: [test]
+    steps:
+
+      - name: If tests on trunk of a push were successful then create pull request to main
         if: ${{ success() && github.event_name == 'push' && github.ref == 'refs/heads/trunk' && runner.os == 'Linux' }}
         uses: repo-sync/pull-request@v2.6.2  # see: https://github.com/repo-sync/pull-request  works only on linux
         with:
+          pr_title: "Trunk tests ok - merge to main - ${{ github.event.commits[0].message }}"
           destination_branch: "main"
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          pr_title: "Merge trunk to main - ${{ github.event.commits[0].message }}"
-        # alternative - same with another tool:
-        #     uses: vsoch/pull-request-action@1.0.19  # see https://github.com/vsoch/pull-request-action  works only on linux
-        #        env:
-        #          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        #          PULL_REQUEST_BRANCH: "main"
-        #          PULL_REQUEST_TITLE: "Merge trunk to main - ${{ github.event.commits[0].message }}"
-        #          PASS_IF_EXISTS:
 
       - name: The job has succeeded
         if: ${{ success() }}
-        shell: bash
-        run: |
-          echo "Process was ok";
-      
+        run: echo "Process was ok";
+
       - name: The job failed
         if: ${{ ! success() }}
-        shell: bash
-        run: |
-          echo "Process failed or cancelled. ${{ job.status }}."
+        run: echo "Process failed or cancelled. ${{ job.status }}.";
 
 
 
 # More docu: https://docs.github.com/en/actions/learn-github-actions/understanding-github-actions
+# For future:
+#   runs-on: ${{ matrix.os }} # run on multiple OS
+#   strategy:
+#     matrix:
+#       os: [ubuntu-latest, windows-latest, macOS-latest]
 # For future:
 #   strategy:
 #     matrix:
@@ -146,16 +130,18 @@ jobs:
 # For future: Run all *.Tests.ps1 recursively by using https://pester-docs.netlify.app/docs/commands/Invoke-Pester
 # For future: Publish to Gallery: https://scriptingchris.tech/2021/05/16/how-to-setup-a-github-actions-pipeline-for-publishing-your-powershell-module/
 # For future: pnpm install --global lodash;
-# For future:
-#   runs-on: ${{ matrix.os }} # run on multiple OS
-#   strategy:
-#     matrix:
-#       os: [ubuntu-latest, windows-latest, macOS-latest]
-# For future:
+# For future: autocommit
 #   uses: peter-evans/create-pull-request@v4.0.4  # see: https://github.com/peter-evans/create-pull-request
 #     with:
 #       title: 'Merge trunk to main and commit it - ${{ github.event.commits[0].message }}'
 #       body: 'Autogenerated PR and committed from trunk to main'
+# For future: alternative - same as repo-sync/pull-request@v2.6.2 but with another tool:
+#   uses: vsoch/pull-request-action@1.0.19  # see https://github.com/vsoch/pull-request-action  works only on linux
+#     env:
+#       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#       PULL_REQUEST_BRANCH: "main"
+#       PULL_REQUEST_TITLE: "Merge trunk to main - ${{ github.event.commits[0].message }}"
+#       PASS_IF_EXISTS:
 # For future: cache: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-powershell
 # For future: query gh https://docs.github.com/en/actions/using-workflows/using-github-cli-in-workflows
 
