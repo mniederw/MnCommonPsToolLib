@@ -31,7 +31,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-    runs-on: $
+    runs-on: ${{matrix.os}}
     name: "Test: ${{matrix.os}}: ${{github.ref_type}}=${{github.ref_name}} ${{github.event.repository.updated_at}}"
       # example: "Test: windows: branch=main 2021-12-31T23:59:59Z"
     steps:
@@ -102,7 +102,7 @@ jobs:
 #     with:
 #       version: 4.11.1
 #   - name: Install node.js
-#     uses: actions/setup-node@v1
+#     uses: actions/setup-node@v3                 # puts node and npm into path
 #     with:
 #       node-version: ${{ matrix.node-version }}
 #       path: node_modules
@@ -142,6 +142,26 @@ jobs:
 #       PULL_REQUEST_BRANCH: "main"
 #       PULL_REQUEST_TITLE: "Merge trunk to main - ${{ github.event.commits[0].message }}"
 #       PASS_IF_EXISTS:
+#       CI: true
 # For future: cache: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-powershell
 # For future: query gh https://docs.github.com/en/actions/using-workflows/using-github-cli-in-workflows
-
+# For future: checking matrix context
+#   if: matrix.os == 'ubuntu-latest'
+#   if: matrix.os == 'windows-latest'
+#   if: matrix.os == 'macOS-latest'
+# For future: checking runner context
+#   if: runner.os == 'Linux'
+#   if: runner.os == 'Windows'
+#   if: runner.os == 'macOS'
+# For future: checking runner variable:
+#   if [ "$RUNNER_OS" == "Linux" ]; then
+# For future:
+#   run: |
+#        git config --local user.name github-actions
+#        git config --local user.email "actions@github.com"
+#        git add dir1/*
+#        git commit -am "Autocommit $(date)"
+#        git push origin main --force
+#      env:
+#        REPO_KEY: ${{secrets.GITHUB_TOKEN}}
+#        username: github-actions
