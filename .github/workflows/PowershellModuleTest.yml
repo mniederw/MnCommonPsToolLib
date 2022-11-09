@@ -45,6 +45,7 @@ jobs:
           # More about PS: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-powershell#powershell-module-locations
         run: |
           echo "Running on OS=${{runner.os}}; $(which pwsh); $(pwsh --version)"; # example: "Linux; /opt/microsoft/powershell/7/pwsh; Powershell V7.2.5"
+          echo "List all environment variables in pwsh"; Get-Variable;
           & "./TestAll.ps1";
           echo "Test ok.";
 
@@ -56,8 +57,7 @@ jobs:
       # - macos-latest    = macOS 11
       # - self-hosted     = own machine
       # - More see: https://github.com/actions/virtual-environments/
-    name: "Merge"
-      # example: "branch: main 2021-12-31T23:59:59Z"
+    name: "Merge to main if tests are ok"
     needs: [test]
     steps:
 
@@ -69,7 +69,7 @@ jobs:
         shell: bash
         run: |
           echo "Running on OS=${{runner.os}}; $(which pwsh); $(pwsh --version)"; # example: "Linux; /usr/bin/pwsh; Powershell V7.2.5"
-          printenv; # list all environment variables
+          echo "List all environment variables in bash"; printenv;
 
       - name: If tests on trunk of a push were successful then create pull request to main
         if: ${{ success() && github.event_name == 'push' && github.ref == 'refs/heads/trunk' && runner.os == 'Linux' }}
