@@ -31,7 +31,7 @@ OutInfo "MnCommonPsToolLibUnitTest - perform some tests which do not require ele
 & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Tool.ps1";
 & "$PSScriptRoot/MnCommonPsToolLibUnitTestElevated.ps1";
 
-& "$PSScriptRoot/MnCommonPsToolLibScriptAnalyser.ps1" -excludeKnown:$true;
+& "$PSScriptRoot/MnCommonPsToolLibScriptAnalyser.ps1";
 
 OutSuccess "Ok, done.";
 StdInAskForEnter;

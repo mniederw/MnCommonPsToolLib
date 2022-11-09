@@ -4,10 +4,10 @@ function ProcessIsRunningInElevatedAdminMode  (){ return [Boolean] ([Security.Pr
 function ProcessAssertInElevatedAdminMode     (){ Assert (ProcessIsRunningInElevatedAdminMode) "requires to be in elevated admin mode"; }
 function ProcessRestartInElevatedAdminMode    (){ if( (ProcessIsRunningInElevatedAdminMode) ){ return; }
                                                 # ex: "C:\myscr.ps1" or if interactive then statement name ex: "ProcessRestartInElevatedAdminMode"
-                                                [String] $cmd = @( (ScriptGetTopCaller) ) + $Global:ArgsForRestartInElevatedAdminMode;
-                                                if( $Global:ModeDisallowInteractions ){
+                                                [String] $cmd = @( (ScriptGetTopCaller) ) + $global:ArgsForRestartInElevatedAdminMode;
+                                                if( $global:ModeDisallowInteractions ){
                                                   [String] $msg = "Script `"$cmd`" is currently not in elevated admin mode and function ProcessRestartInElevatedAdminMode was called ";
-                                                  $msg += "but currently the mode ModeDisallowInteractions=$Global:ModeDisallowInteractions, ";
+                                                  $msg += "but currently the mode ModeDisallowInteractions=$global:ModeDisallowInteractions, ";
                                                   $msg += "and so restart will not be performed. Now it will continue but it probably will fail.";
                                                   OutWarning "Warning: $msg";
                                                 }else{
@@ -731,7 +731,7 @@ function InfoAboutExistingShares              (){
                                                 [String[]] $result = @( "Info about existing shares:", "" );
                                                 foreach( $shareObj in (ShareListAll | Sort-Object Name) ){
                                                   [Object] $share = $shareObj | Select-Object -ExpandProperty Name;
-                                                  [Object] $objShareSec = Get-CimInstance -Class Win32_LogicalShareSecuritySetting -Filter "name='$share'";
+                                                  [Object] $dummyObjShareSec = Get-CimInstance -Class Win32_LogicalShareSecuritySetting -Filter "name='$share'";
                                                   [String] $s = "  "+$shareObj.Name.PadRight(12)+" = "+("'"+$shareObj.Path+"'").PadRight(5)+" "+$shareObj.Description;
                                                   # Since migration from wmi to cim we cannot get acls anymore, refactor it later:
                                                   #   try{

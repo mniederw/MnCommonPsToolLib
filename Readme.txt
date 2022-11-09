@@ -1,4 +1,4 @@
-Common powershell tool library by Marc Niederwieser
+﻿Common powershell tool library by Marc Niederwieser
 ---------------------------------------------------
 
 License: GPL3, this is freeware.
@@ -32,3 +32,6 @@ Files of this repository:
 
 - .github          : Github workflow configuration which runs on push
                      all examples and unit tests by pwsh (powershell 7.2).
+
+
+All files except BAT files are stored in UTF8-BOM.

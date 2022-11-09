@@ -16,7 +16,7 @@
 # - On writing or appending files they automatically create its path parts.
 # - Notes about tracing information lines:
 #   - Progress : Any change of the system will be notified with color Gray. Is enabled as default.
-#   - Verbose  : Some read io will be notified with (Write-Verbose) which can be enabled by $Global:VerbosePreference. Use $Host.PrivateData.VerboseForegroundColor = 'DarkGray';
+#   - Verbose  : Some read io will be notified with (Write-Verbose) which can be enabled by $global:VerbosePreference. Use $Host.PrivateData.VerboseForegroundColor = 'DarkGray';
 #   - Debug    : Some minor additional information are notified with (Write-Debug) which can be enabled by DebugPreference.
 # - Comparison with null: All such comparing statements have the null constant on the left side ($null -eq $a)
 #   because for arrays this is mandatory (throws: @() -eq $null)
@@ -38,7 +38,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $Global:MnCommonPsToolLibVersion = "7.02"; # more see Releasenotes.txt
+[String] $global:MnCommonPsToolLibVersion = "7.03"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -69,25 +69,25 @@ if( -not [String]  (Get-Variable ModeOutputWithTsPrefix            -Scope Global
                                                                     # if true then it will add before each OutInfo, OutWarning, OutError, OutProgress a timestamp prefix.
 
 # Set some powershell predefined global variables:
-$Global:ErrorActionPreference         = "Stop"                    ; # abort if a called exe will write to stderr, default is 'Continue'. Can be overridden in each command by [-ErrorAction actionPreference]
-$Global:ReportErrorShowExceptionClass = $true                     ; # on trap more detail exception info
-$Global:ReportErrorShowInnerException = $true                     ; # on trap more detail exception info
-$Global:ReportErrorShowStackTrace     = $true                     ; # on trap more detail exception info
-$Global:FormatEnumerationLimit        = 999                       ; # used for Format-Table, but seams not to work, default is 4
-$Global:OutputEncoding                = [Console]::OutputEncoding ; # for pipe to native applications use the same as current console, default is 'System.Text.ASCIIEncoding'
+$global:ErrorActionPreference         = "Stop"                    ; # abort if a called exe will write to stderr, default is 'Continue'. Can be overridden in each command by [-ErrorAction actionPreference]
+$global:ReportErrorShowExceptionClass = $true                     ; # on trap more detail exception info
+$global:ReportErrorShowInnerException = $true                     ; # on trap more detail exception info
+$global:ReportErrorShowStackTrace     = $true                     ; # on trap more detail exception info
+$global:FormatEnumerationLimit        = 999                       ; # used for Format-Table, but seams not to work, default is 4
+$global:OutputEncoding                = [Console]::OutputEncoding ; # for pipe to native applications use the same as current console, default is 'System.Text.ASCIIEncoding'
 if( $null -ne $Host.PrivateData ){ # if running as job then it is null
   $Host.PrivateData.VerboseForegroundColor = 'DarkGray'; # for verbose messages the default is yellow which is bad because it is flashy and equal to warnings
   $Host.PrivateData.DebugForegroundColor   = 'DarkRed' ; # for debug   messages the default is yellow which is bad because it is flashy and equal to warnings
 }
 
 # Leave the following global variables on their default values, is here written just for documentation:
-#   $Global:InformationPreference   SilentlyContinue   # Available: Stop, Inquire, Continue, SilentlyContinue.
-#   $Global:VerbosePreference       SilentlyContinue   # Available: Stop, Inquire, Continue(=show verbose and continue), SilentlyContinue(=default=no verbose).
-#   $Global:DebugPreference         SilentlyContinue   # Available: Stop, Inquire, Continue, SilentlyContinue.
-#   $Global:ProgressPreference      Continue           # Available: Stop, Inquire, Continue, SilentlyContinue.
-#   $Global:WarningPreference       Continue           # Available: Stop, Inquire, Continue, SilentlyContinue. Can be overridden in each command by [-WarningAction actionPreference]
-#   $Global:ConfirmPreference       High               # Available: None, Low, Medium, High.
-#   $Global:WhatIfPreference        False              # Available: False, True.
+#   $global:InformationPreference   SilentlyContinue   # Available: Stop, Inquire, Continue, SilentlyContinue.
+#   $global:VerbosePreference       SilentlyContinue   # Available: Stop, Inquire, Continue(=show verbose and continue), SilentlyContinue(=default=no verbose).
+#   $global:DebugPreference         SilentlyContinue   # Available: Stop, Inquire, Continue, SilentlyContinue.
+#   $global:ProgressPreference      Continue           # Available: Stop, Inquire, Continue, SilentlyContinue.
+#   $global:WarningPreference       Continue           # Available: Stop, Inquire, Continue, SilentlyContinue. Can be overridden in each command by [-WarningAction actionPreference]
+#   $global:ConfirmPreference       High               # Available: None, Low, Medium, High.
+#   $global:WhatIfPreference        False              # Available: False, True.
 
 # We like english error messages
 [System.Threading.Thread]::CurrentThread.CurrentUICulture = [System.Globalization.CultureInfo]::GetCultureInfo('en-US');
@@ -211,12 +211,12 @@ function ForEachParallel {
 
 # ----- exported tools and types -----
 
-function GlobalSetModeVerboseEnable           ( [Boolean] $val = $true ){ $Global:VerbosePreference = $(switch($val){($true){"Continue"}default{"SilentlyContinue"}}); }
-function GlobalSetModeHideOutProgress         ( [Boolean] $val = $true ){ $Global:ModeHideOutProgress      = $val; }
-function GlobalSetModeDisallowInteractions    ( [Boolean] $val = $true ){ $Global:ModeDisallowInteractions = $val; }
-function GlobalSetModeNoWaitForEnterAtEnd     ( [Boolean] $val = $true ){ $Global:ModeNoWaitForEnterAtEnd  = $val; }
-function GlobalSetModeEnableAutoLoadingPref   ( [Boolean] $val = $true ){ $Global:PSModuleAutoLoadingPreference = $(switch($val){($true){$null}default{"none"}}); } # enable or disable autoloading modules, available internal values: All (=default), ModuleQualified, None.
-function GlobalSetModeOutputWithTsPrefix      ( [Boolean] $val = $true ){ $Global:ModeOutputWithTsPrefix   = $val; }
+function GlobalSetModeVerboseEnable           ( [Boolean] $val = $true ){ $global:VerbosePreference = $(switch($val){($true){"Continue"}default{"SilentlyContinue"}}); }
+function GlobalSetModeHideOutProgress         ( [Boolean] $val = $true ){ $global:ModeHideOutProgress      = $val; }
+function GlobalSetModeDisallowInteractions    ( [Boolean] $val = $true ){ $global:ModeDisallowInteractions = $val; }
+function GlobalSetModeNoWaitForEnterAtEnd     ( [Boolean] $val = $true ){ $global:ModeNoWaitForEnterAtEnd  = $val; }
+function GlobalSetModeEnableAutoLoadingPref   ( [Boolean] $val = $true ){ $global:PSModuleAutoLoadingPreference = $(switch($val){($true){$null}default{"none"}}); } # enable or disable autoloading modules, available internal values: All (=default), ModuleQualified, None.
+function GlobalSetModeOutputWithTsPrefix      ( [Boolean] $val = $true ){ $global:ModeOutputWithTsPrefix   = $val; }
 
 function StringIsNullOrEmpty                  ( [String] $s ){ return [Boolean] [String]::IsNullOrEmpty($s); }
 function StringIsNotEmpty                     ( [String] $s ){ return [Boolean] (-not [String]::IsNullOrEmpty($s)); }
@@ -412,7 +412,7 @@ function ConsoleSetGuiProperties              (){ # set standard sizes which mak
                                                 }
                                                 $script:consoleSetGuiProperties_DoneOnce = $true; }
 function OutGetTsPrefix                       ( [Boolean] $forceTsPrefix = $false ){
-                                                return [String] $(switch($forceTsPrefix -or $Global:ModeOutputWithTsPrefix){($true){"$(DateTimeNowAsStringIso) "}default{""}}); }
+                                                return [String] $(switch($forceTsPrefix -or $global:ModeOutputWithTsPrefix){($true){"$(DateTimeNowAsStringIso) "}default{""}}); }
 function OutStringInColor                     ( [String] $color, [String] $line, [Boolean] $noNewLine = $true ){
                                                 # NoNewline is used because on multi threading usage, line text and newline can be interrupted between.
                                                 Write-Host -ForegroundColor $color -NoNewline:$noNewLine $line; }
@@ -424,10 +424,10 @@ function OutError                             ( [String] $line ){
                                                 $Host.UI.WriteErrorLine("$(OutGetTsPrefix)$line"); } # Writes a stderr line in red.
 function OutProgress                          ( [String] $line, [Int32] $indentLevel = 1 ){
                                                 # Used for tracing changing actions, otherwise use OutVerbose.
-                                                if( $Global:ModeHideOutProgress ){ return; }
+                                                if( $global:ModeHideOutProgress ){ return; }
                                                 OutStringInColor Gray "$(OutGetTsPrefix)$("  "*$indentLevel)$line$([Environment]::NewLine)"; }
 function OutProgressText                      ( [String] $str ){
-                                                if( $Global:ModeHideOutProgress ){ return; }
+                                                if( $global:ModeHideOutProgress ){ return; }
                                                 OutStringInColor Gray "$(OutGetTsPrefix)$str"; }
 function OutVerbose                           ( [String] $line ){
                                                 # Output depends on $VerbosePreference, used in general for tracing some important arguments or command results mainly of IO-operations.
@@ -482,7 +482,7 @@ function StdOutBegMsgCareInteractiveMode      ( [String] $mode = "" ){ # Availab
                                                 [String[]] $availableModes = @( "DoRequestAtBegin", "NoRequestAtBegin", "NoWaitAtEnd", "MinimizeConsole" );
                                                 [Boolean] $modesAreValid = ((@()+($modes | Where-Object{$null -ne $_} | Where-Object{ $availableModes -notcontains $_})).Count -eq 0 );
                                                 Assert $modesAreValid "StdOutBegMsgCareInteractiveMode was called with unknown mode=`"$mode`", expected one of ($availableModes).";
-                                                $Global:ModeNoWaitForEnterAtEnd = $modes -contains "NoWaitAtEnd";
+                                                $global:ModeNoWaitForEnterAtEnd = $modes -contains "NoWaitAtEnd";
                                                 if( -not $global:ModeDisallowInteractions -and $modes -notcontains "NoRequestAtBegin" ){ StdInAskForAnswerWhenInInteractMode; }
                                                 if( $modes -contains "MinimizeConsole" ){ OutProgress "Minimize console"; ProcessSleepSec 0; ConsoleMinimize; } }
 function StdInAskForAnswerWhenInInteractMode  ( [String] $line = "Are you sure (y/n)? ", [String] $expectedAnswer = "y" ){
@@ -669,7 +669,8 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 }
                                                 if( $traceCmd ){ OutProgress $traceInfo; }
                                                 [Int32] $i = 1;
-                                                [String] $verboseInfo = "`"$exec`" " + ($cmdArgs | Where-Object { $null -ne $_ } | ForEach-Object { "Arg[$i]=`"$_`""; $i += 1; } );
+                                                [String] $verboseText = "`"$exec`" " + ($cmdArgs | Where-Object { $null -ne $_ } | ForEach-Object { "Arg[$i]=`"$_`""; $i += 1; } );
+                                                OutVerbose "ProcessStart $verboseText";
                                                 $prInfo = New-Object System.Diagnostics.ProcessStartInfo;
                                                 $prInfo.FileName = $exec;
                                                 $prInfo.Arguments = $cmdArgs;
@@ -702,7 +703,7 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 [String] $out = $bufStdOut.ToString();
                                                 [String] $err = $bufStdErr.ToString().Trim(); if( $err -ne "" ){ $err = [Environment]::NewLine + $err; }
                                                 [Boolean] $doThrow = $exitCode -ne 0 -or ($err -ne "" -and -not $careStdErrAsOut);
-                                                if( $Global:ErrorActionPreference -ne "Continue" -and $doThrow ){
+                                                if( $global:ErrorActionPreference -ne "Continue" -and $doThrow ){
                                                   if( -not $traceCmd ){ OutProgress $traceInfo; } # in case of an error output command line, if not yet done
                                                   StringSplitIntoLines $out | Where-Object{$null -ne $_} |
                                                     Where-Object{ StringIsFilled $_ } |
@@ -719,9 +720,14 @@ function ProcessEnvVarGet                     ( [String] $name, [System.Environm
 function ProcessEnvVarSet                     ( [String] $name, [String] $val, [System.EnvironmentVariableTarget] $scope = [System.EnvironmentVariableTarget]::Process ){
                                                  # Scope: MACHINE, USER, PROCESS.
                                                  OutProgress "SetEnvironmentVariable scope=$scope $name=`"$val`""; [Environment]::SetEnvironmentVariable($name,$val,$scope); }
-function ProcessRemoveAllAlias                ( [String[]] $excludeAliasNames = @(), [Boolean] $doTrace = $false ){ # remove all existing aliases on any levels (local, script, private, and global).
-                                                # Is used because in powershell v5 ((also v7) there are a predefined list of about 180 aliases in each session which cannot be avoided.
+function ProcessRemoveAllAlias                ( [String[]] $excludeAliasNames = @(), [Boolean] $doTrace = $false ){
+                                                # remove all existing aliases on any levels (local, script, private, and global).
+                                                # We recommend to exclude the followings: @("cd","cat","clear","echo","dir","cp","mv","popd","pushd","rm","rmdir").
+                                                # In powershell v5 (also v7) there are a predefined list of about 180 aliases in each session which cannot be avoided.
                                                 # This is very bad because there are also aliases defined as curl->Invoke-WebRequest or wget->Invoke-WebRequest which are incompatible to their known tools.
+                                                # Also the Invoke-ScriptAnalyzer results with a warning as example:
+                                                #   PSAvoidUsingCmdletAliases 'cd' is an alias of 'Set-Location'. Alias can introduce possible problems and make scripts hard to maintain.
+                                                #   Please consider changing alias to its full content.
                                                 # All aliases can be listed by:
                                                 #   powershell -NoProfile { Get-Alias | Select-Object Name, Definition, Visibility, Options, Module | StreamToTableString }
                                                 # example: ProcessRemoveAllAlias @("cd","cat","clear","echo","dir","cp","mv","popd","pushd","rm","rmdir");
@@ -1253,7 +1259,7 @@ function FileMove                             ( [String] $srcFile, [String] $tar
                                                 OutProgress "FileMove(Overwrite=$overwrite) `"$srcFile`" to `"$tarFile`"$(switch($(FileExists $(FsEntryEsc $tarFile))){($true){'(Target exists)'}default{''}})";
                                                 FsEntryCreateParentDir $tarFile;
                                                 Move-Item -Force:$overwrite -LiteralPath $srcFile -Destination $tarFile; }
-function FileGetHexStringOfHash128BitsMd5     ( [String] $srcFile ){ return [String] (get-filehash -Algorithm "MD5"    $srcFile).Hash; }
+function FileGetHexStringOfHash128BitsMd5     ( [String] $srcFile ){ [String] $m = "MD5"; return [String] (get-filehash -Algorithm $md $srcFile).Hash; } # 2008: is broken. Because PSScriptAnalyzer.PSAvoidUsingBrokenHashAlgorithms we put name into a variable.
 function FileGetHexStringOfHash256BitsSha2    ( [String] $srcFile ){ return [String] (get-filehash -Algorithm "SHA256" $srcFile).Hash; } # 2017-11 ps standard is SHA256, available are: SHA1;SHA256;SHA384;SHA512;MACTripleDES;MD5;RIPEMD160
 function FileGetHexStringOfHash512BitsSha2    ( [String] $srcFile ){ return [String] (get-filehash -Algorithm "SHA512" $srcFile).Hash; } # 2017-12: this is our standard for ps
 function FileUpdateItsHashSha2FileIfNessessary( [String] $srcFile ){
@@ -1657,7 +1663,9 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                 #   So if the current curl.exe is that from system32 folder then we self are looking for crt file in path var and use it for https requests.
                                                 if( $curlExe -eq "$env:SystemRoot/System32/curl.exe" ){
                                                   Get-Command -CommandType Application -Name curl-ca-bundle.crt -ErrorAction SilentlyContinue |
-                                                    Select-Object -First 1 | Foreach-Object { $curlCaCert = $_.Path; };
+                                                    Select-Object -First 1 | Foreach-Object {
+                                                      $curlCaCert = $_.Path; # note: the script analyser tells us that this variable is assigned but not used, why? Do we have a problem here?
+                                                    };
                                                 }
                                                 if( -not $url.StartsWith("http:") -and (FileExists $curlCaCert) ){
                                                   $opt += @( "--cacert", $curlCaCert); }
@@ -1937,10 +1945,10 @@ function GitShowChanges                       ( [String] $repoDir ){
                                                   Where-Object{$null -ne $_} |
                                                   Where-Object{ StringIsFilled $_; })); }
 function GitSwitch                            ( [String] $repoDir, [String] $branch ){
-                                                [String] $out = (ProcessStart "git" @("-C", (FsEntryRemoveTrailingDirSep $repoDir), "switch", $branch) -careStdErrAsOut:$true -traceCmd:$true); }
+                                                [String] $dummy = (ProcessStart "git" @("-C", (FsEntryRemoveTrailingDirSep $repoDir), "switch", $branch) -careStdErrAsOut:$true -traceCmd:$true); }
 function GitAdd                               ( [String] $fsEntryToAdd ){
                                                 [String] $repoDir = FsEntryGetAbsolutePath "$(FsEntryFindInParents $fsEntryToAdd ".git")/.."; # not trailing slash allowed
-                                                [String] $out = (ProcessStart "git" @("-C", $repoDir, "add", $fsEntryToAdd) -traceCmd:$true); }
+                                                [String] $dummy = (ProcessStart "git" @("-C", $repoDir, "add", $fsEntryToAdd) -traceCmd:$true); }
 function GitMerge                             ( [String] $repoDir, [String] $branch, [Boolean] $errorAsWarning = $false ){
                                                 # merge branch (remotes/origin) into current repodir, no-commit, no-fast-forward
                                                 Assert ($branch.Length -gt 0) "branch name is empty";
