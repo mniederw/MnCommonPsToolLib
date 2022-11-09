@@ -30,22 +30,14 @@ jobs:
   test:
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest]
-        # , macos-latest
+        os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{matrix.os}}
     name: "Test: ${{matrix.os}}: ${{github.ref_type}}=${{github.ref_name}} ${{github.event.repository.updated_at}}"
       # example: "Test: windows: branch=main 2021-12-31T23:59:59Z"
     steps:
 
-      # Checks-out your repository under $GITHUB_WORKSPACE, see https://github.com/actions/checkout
       - name: Checkout repository
         uses: actions/checkout@v3
-
-      - name: Show environment variables of bash
-        shell: bash
-        run: |
-          echo "Running on OS=${{runner.os}}; $(which pwsh); $(pwsh --version)"; # example: "Linux; /usr/bin/pwsh; Powershell V7.2.5"
-          printenv; # list all environment variables
 
       - name: Test all 
         shell: pwsh
@@ -68,6 +60,16 @@ jobs:
       # example: "branch: main 2021-12-31T23:59:59Z"
     needs: [test]
     steps:
+
+      # Checks-out your repository under $GITHUB_WORKSPACE, see https://github.com/actions/checkout
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Show environment variables of bash
+        shell: bash
+        run: |
+          echo "Running on OS=${{runner.os}}; $(which pwsh); $(pwsh --version)"; # example: "Linux; /usr/bin/pwsh; Powershell V7.2.5"
+          printenv; # list all environment variables
 
       - name: If tests on trunk of a push were successful then create pull request to main
         if: ${{ success() && github.event_name == 'push' && github.ref == 'refs/heads/trunk' && runner.os == 'Linux' }}

@@ -94,13 +94,14 @@ function ExampleUseNetDownloadIsSuccessful {
   OutSuccess "Ok, done.";
 }
 
-function ExampleUseListFirstFivePublicReposOfGithubOrgArduino {
+function ExampleUseListFirstFivePublicReposOfGithubOrg {
   OutInfo "$($MyInvocation.MyCommand)";
   # find by: https://api.github.com/search/users?q=type:org
   [String[]] $orgs = @( "arduino", "google", "microsoft", "github", "EpicGames", "facebook", "openai", "alibaba", "apple", "dotnet" );
   # note: using this can lead to error: "Response status code does not indicate success: 403 (rate limit exceeded)."
   # so we choose randomly one and hope this works.
   [String] $randomOrg = $orgs[(Get-Random -Minimum 0 -Maximum ($orgs.Count))];
+  OutProgress "List first 5 public repos of github org $randomOrg ";
   ToolGithubApiListOrgRepos $randomOrg | Select-Object -First 5 Url, archived, language, default_branch, LicName |
     StreamToTableString | Foreach-Object { OutProgress $_; };
   OutSuccess "Ok, done.";
@@ -118,5 +119,5 @@ ExampleUseAsynchronousJob;
 ExampleUseEnvironmentVarsOfDifferentScopes;
 ExampleUseNetDownloadToString;
 ExampleUseNetDownloadIsSuccessful;
-ExampleUseListFirstFivePublicReposOfGithubOrgArduino;
+ExampleUseListFirstFivePublicReposOfGithubOrg;
 StdInReadLine "Press enter to exit.";
