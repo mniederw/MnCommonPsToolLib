@@ -102,9 +102,14 @@ function ExampleUseListFirstFivePublicReposOfGithubOrg {
   # so we choose randomly one and hope this works.
   [String] $randomOrg = $orgs[(Get-Random -Minimum 0 -Maximum ($orgs.Count))];
   OutProgress "List first 5 public repos of github org $randomOrg ";
+  try{
   ToolGithubApiListOrgRepos $randomOrg | Select-Object -First 5 Url, archived, language, default_branch, LicName |
     StreamToTableString | Foreach-Object { OutProgress $_; };
-  OutSuccess "Ok, done.";
+    OutSuccess "Ok, done.";
+  }catch{
+    if( -not $_.Exception.Message.Contains("403 (rate limit exceeded)") ){ throw; }
+    OutSuccess "Ok, done. We got 403(rate-limit-exceeded) which we must ignore because it occurrs sometimes.";
+  }
 }
 
 
