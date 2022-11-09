@@ -30,7 +30,8 @@ jobs:
   test:
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, windows-latest]
+        # , macos-latest
     runs-on: ${{matrix.os}}
     name: "Test: ${{matrix.os}}: ${{github.ref_type}}=${{github.ref_name}} ${{github.event.repository.updated_at}}"
       # example: "Test: windows: branch=main 2021-12-31T23:59:59Z"
@@ -63,7 +64,7 @@ jobs:
       # - macos-latest    = macOS 11
       # - self-hosted     = own machine
       # - More see: https://github.com/actions/virtual-environments/
-    name: "${{github.ref_type}}: ${{github.ref_name}} ${{github.event.repository.updated_at}}"
+    name: "Merge"
       # example: "branch: main 2021-12-31T23:59:59Z"
     needs: [test]
     steps:
