@@ -56,7 +56,7 @@ jobs:
       # - macos-latest    = macOS 11
       # - self-hosted     = own machine
       # - More see: https://github.com/actions/virtual-environments/
-    name: "Merge"
+    name: "Merge if tests are ok"
       # example: "branch: main 2021-12-31T23:59:59Z"
     needs: [test]
     steps:
