@@ -38,7 +38,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $global:MnCommonPsToolLibVersion = "7.03"; # more see Releasenotes.txt
+[String] $global:MnCommonPsToolLibVersion = "7.04"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -2596,6 +2596,11 @@ function TfsGetNewestNoOverwrite              ( [String] $wsdir, [String] $tfsPa
                                                 if( ((FsEntryFindInParents $wsdir "`$tf") -eq "") -and ((FsEntryFindInParents $wsdir "`$tf1") -eq "") -and ((FsEntryFindInParents $wsdir "`$tf2") -eq "") ){
                                                   OutProgress "Not found any dir (`"`$tf`",`"`$tf1`",`"`$tf2`") in parents of `"$wsdir`", so calling init workspace.";
                                                   TfsInitLocalWorkspaceIfNotDone $url (FsEntryGetParentDir $wsdir);
+                                                }else{
+                                                  # If workspace was some months not used then for the get command we got the error:
+                                                  # "Der Arbeitsbereich kann nicht bestimmt werden. Dies lässt sich möglicherweise durch Ausführen von "tf workspaces /collection:Teamprojektsammlungs-URL" beheben."
+                                                  # After performing this it worked, so we now perform this each time.
+                                                  [Boolean] $dummy = TfsHasLocalMachWorkspace url;
                                                 }
                                                 if( FileNotExists $wsdir ){ DirCreate $wsdir; }
                                                 [String] $cd = (Get-Location); Set-Location $wsdir; try{ # alternative option: /noprompt
