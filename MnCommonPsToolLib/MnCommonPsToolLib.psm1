@@ -38,7 +38,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $global:MnCommonPsToolLibVersion = "7.04"; # more see Releasenotes.txt
+[String] $global:MnCommonPsToolLibVersion = "7.05"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -581,9 +581,11 @@ function StreamToFile                         ( [String] $file, [Boolean] $overw
                                                 $input | Out-File -Force -NoClobber:$(-not $overwrite) -Encoding $encoding -LiteralPath $file; }
 function StreamFromCsvStrings                 ( [Char] $delimiter = ',' ){ $input | ConvertFrom-Csv -Delimiter $delimiter; }
 function ProcessFindExecutableInPath          ( [String] $exec ){ # Return full path or empty if not found.
-                                                [Object] $p = (Get-Command $exec -ErrorAction SilentlyContinue); if( $null -eq $p ){ return [String] ""; } return [String] $p.Source; }
+                                                [Object] $p = (Get-Command $exec -ErrorAction SilentlyContinue); 
+                                                if( $null -eq $p ){ return [String] ""; } return [String] $p.Source; }
 function ProcessGetCurrentThreadId            (){ return [Int32] [Threading.Thread]::CurrentThread.ManagedThreadId; }
-function ProcessListRunnings                  (){ return [Object[]] (@()+(Get-Process * | Where-Object{$null -ne $_} | Where-Object{ $_.Id -ne 0 } | Sort-Object ProcessName)); }
+function ProcessListRunnings                  (){ return [Object[]] (@()+(Get-Process * | Where-Object{$null -ne $_} | 
+                                                    Where-Object{ $_.Id -ne 0 } | Sort-Object ProcessName)); }
 function ProcessListRunningsFormatted         (){ return [Object[]] (@()+( ProcessListRunnings | Select-Object Name, Id,
                                                     @{Name="CpuMSec";Expression={[Decimal]::Floor($_.TotalProcessorTime.TotalMilliseconds).ToString().PadLeft(7,' ')}},
                                                     StartTime, @{Name="Prio";Expression={($_.BasePriority)}}, @{Name="WorkSet";Expression={($_.WorkingSet64)}}, Path |
@@ -603,7 +605,8 @@ function ProcessKill                          ( [String] $processName ){ # kill 
                                                 [System.Diagnostics.Process[]] $p = Get-Process ($processName -replace ".exe","") -ErrorAction SilentlyContinue;
                                                 if( $null -ne $p ){ OutProgress "ProcessKill $processName"; $p.Kill(); } }
 function ProcessSleepSec                      ( [Int32] $sec ){ Start-Sleep -Seconds $sec; }
-function ProcessListInstalledAppx             (){ return [String[]] (@()+(Get-AppxPackage | Where-Object{$null -ne $_} | Select-Object PackageFullName | Sort-Object PackageFullName)); }
+function ProcessListInstalledAppx             (){ return [String[]] (@()+(Get-AppxPackage | Where-Object{$null -ne $_} | 
+                                                    Select-Object PackageFullName | Sort-Object PackageFullName)); }
 function ProcessGetCommandInEnvPathOrAltPaths ( [String] $commandNameOptionalWithExtension, [String[]] $alternativePaths = @(), [String] $downloadHintMsg = ""){
                                                 [System.Management.Automation.CommandInfo] $cmd = Get-Command -CommandType Application -Name $commandNameOptionalWithExtension -ErrorAction SilentlyContinue | Select-Object -First 1;
                                                 if( $null -ne $cmd ){ return [String] $cmd.Path; }
@@ -2067,13 +2070,30 @@ function GitAssertAutoCrLfIsDisabled          (){ # use this before using git
                                                 $line = (& "git" "config" "--list" "--global" | Where-Object{ $_ -like "core.autocrlf=*" }); AssertRcIsOk;
                                                 if( $line -eq "" ){ OutVerbose "ok, git-global-autocrlf is undefined."; return; }
                                                 throw [ExcMsg] "Git is globally configured to use auto crlf conversions, it is strongly recommended never use this because unexpected state and merge behaviours. Please change it by calling GitDisableAutoCrLf and then retry."; }
+function GetSetGlobalVar                      ( [String] $var, [String] $val ){ # if val is empty then it will unset the var.
+                                                AssertNotEmpty $var;
+                                                # check if defined
+                                                [String] $a = "$(& "git" "config" "--list" "--global" | Where-Object{ $_ -like "$var=*" })"; AssertRcIsOk;
+                                                 # if defined then we can get value; this statement would throw if var would not be defined
+                                                if( $a -ne "" ){ $a = (& "git" "config" "--global" $var); AssertRcIsOk; }
+                                                if( $a -eq $val ){
+                                                  OutDebug "GetSetGlobalVar: $var=`"$val`" was already done.";
+                                                }else{
+                                                  if( $val -eq "" ){
+                                                    OutProgress "GetSetGlobalVar: $var=`"$val`" (will unset var)";
+                                                    & "git" "config" "--global" --unset $var; AssertRcIsOk;
+                                                  }else{
+                                                    OutProgress "GetSetGlobalVar: $var=`"$val`" ";
+                                                    & "git" "config" "--global" $var $val; AssertRcIsOk;
+                                                  }
+                                                } }
 function GitDisableAutoCrLf                   (){ # no output if nothing done.
                                                 [String] $line = (& "git" "config" "--list" "--global" | Where-Object{ $_ -like "core.autocrlf=false" }); AssertRcIsOk;
                                                 if( $line -ne "" ){ OutVerbose "ok, git-global-autocrlf is defined as false."; return; }
                                                 $line = (& "git" "config" "--list" "--global" | Where-Object{ $_ -like "core.autocrlf=*" }); AssertRcIsOk;
                                                 if( $line -eq "" ){ OutVerbose "ok, git-global-autocrlf is undefined."; return; }
                                                 OutProgress "Setting git-global-autocrlf to false because current value was: `"$line`"";
-                                                & "git" "config" "--global" "core.autocrlf" "false"; AssertRcIsOk; <# maybe later: git config --global --unset core.autocrlf #> }
+                                                GetSetGlobalVar "core.autocrlf" "false"; }
 function GitCloneOrPullUrls                   ( [String[]] $listOfRepoUrls, [String] $tarRootDirOfAllRepos, [Boolean] $errorAsWarning = $false ){
                                                 # Works later multithreaded and errors are written out, collected and throwed at the end.
                                                 # If you want single threaded then call it with only one item in the list.
@@ -3053,9 +3073,11 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #   - Powershell V2 Bug: checking strings for $null is different between if and switch tests:
 #     http://stackoverflow.com/questions/12839479/powershell-treats-empty-string-as-equivalent-to-null-in-switch-statements-but-no
 #   - Variable or function argument of type String is never $null, if $null is assigned then always empty is stored.
-#     [String] $s; $s = $null; Assert ($null -ne $s); Assert ($s -eq "");
+#       [String] $s; $s = $null; Assert ($null -ne $s); Assert ($s -eq "");
 #     But if type String is within a struct then it can be null.
-#     Add-Type -TypeDefinition "public struct MyStruct {public string MyVar;}"; Assert( $null -eq (New-Object MyStruct).MyVar );
+#       Add-Type -TypeDefinition "public struct MyStruct {public string MyVar;}"; Assert( $null -eq (New-Object MyStruct).MyVar );
+#     And the string variable is null IF IT IS RUNNING IN A SCRIPT in ps5or7, if running interactive then it is not null:
+#       [String] $a = @() | Where-Object{ $false }; echo "IsStringNull: $($null -eq $a)";
 #   - GetFullPath() works not with the current dir but with the working dir where powershell was started (ex. when running as administrator).
 #     http://stackoverflow.com/questions/4071775/why-is-powershell-resolving-paths-from-home-instead-of-the-current-directory/4072205
 #     powershell.exe         ;

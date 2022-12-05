@@ -901,6 +901,7 @@ function ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [Strin
                                                 # ex: ToolCreateLnkIfNotExists $false "" "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\LinkToNotepad.lnk" "C:\Windows\notepad.exe";
                                                 # ex: ToolCreateLnkIfNotExists $false "" "$env:APPDATA\Microsoft\Internet Explorer\Quick Launch\LinkToNotepad.lnk" "C:\Windows\notepad.exe";
                                                 # If $forceRecreate is false and target lnkfile already exists then it does nothing.
+                                                # Icon: If next to the srcFile an ico file with the same filename exists then this will be taken.
                                                 [String] $descr = $srcFile;
                                                 if( $ignoreIfSrcFileNotExists -and (FileNotExists $srcFile) ){
                                                   OutVerbose "NotCreatedBecauseSourceFileNotExists: $lnkFile"; return;
@@ -918,13 +919,16 @@ function ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [Strin
                                                       FsEntryCreateParentDir $lnkFile;
                                                       [Object] $wshShell = New-Object -comObject WScript.Shell;
                                                       [Object] $s = $wshShell.CreateShortcut($lnkFile); # do not use FsEntryEsc otherwise [ will be created as `[
-                                                      $s.TargetPath = FsEntryEsc $srcFile;
+                                                      [String] $src = FsEntryEsc $srcFile;
+                                                      [String] $ico = (StringRemoveRight $src (FsEntryGetFileExtension $src) $false) + ".ico";
+                                                      if( (FileNotExists $ico) ){ $ico = ",0"; }
+                                                      $s.TargetPath = $src;
                                                       $s.Arguments = $argLine;
                                                       $s.WorkingDirectory = FsEntryEsc $workDir;
                                                       $s.Description = $descr;
+                                                      $s.IconLocation = $ico; # $s.IconLocation = ",0" "myprog.exe, 0" "myprog.ico";
                                                       # $s.WindowStyle = 1; 1=Normal; 3=Maximized; 7=Minimized;
                                                       # $s.Hotkey = "CTRL+SHIFT+F"; # requires restart explorer
-                                                      # $s.IconLocation = "myprog.exe, 0"; $s.IconLocation = "myprog.ico";
                                                       # $s.RelativePath = ...
                                                       $s.Save(); # does overwrite
                                                     }catch{
