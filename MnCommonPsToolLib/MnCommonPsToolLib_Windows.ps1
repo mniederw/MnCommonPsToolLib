@@ -1193,18 +1193,69 @@ function ToolInstallOrUpdate                  ( [String] $installMedia, [String]
                                                   }
                                                 }else{
                                                   OutProgress "Is up-to-date: `"$installMedia`"";
+                                                } }
+function ToolInstallNuPckMgrAndCommonPsGalMo(){
+                                                OutInfo     "Install or actualize Nuget Package Manager and from PSGallery some common modules: ";
+                                                OutProgress "  InstallModules: SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate. Update-Help. ";
+                                                OutProgress "  Needs about 1 min.";
+                                                ProcessRestartInElevatedAdminMode;
+                                                OutProgress "Update NuGet"; # works asynchron
+                                                [String[]] $out = (Install-PackageProvider -Name NuGet -Force | Select-Object Name, Status, Version, Source);
+                                                $out | ForEach-Object{ OutProgress "  $_"; };
+                                                OutProgress "List of installed modules having an installdate:";
+                                                Get-InstalledModule | Where-Object{$null -ne $_ -and $null -ne $_.InstalledDate } | Select-Object Name | Get-InstalledModule -AllVersions |
+                                                  Select-Object Name, Version, InstalledDate, UpdatedDate, Dependencies, Repository, PackageManagementProvider, InstalledLocation | StreamToTableString;
+                                                OutProgress "Set repository PSGallery:";
+                                                Set-PSRepository PSGallery -InstallationPolicy Trusted; # uses 14 sec
+                                                # https://docs.microsoft.com/en-us/powershell/scripting/how-to-use-docs?view=powershell-7.2  take lts version
+                                                OutProgress "Install modules: PowerShellGet, SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate";
+                                                # alternatives: Install-Module -Force [-MinimumVersion <String>] [-MaximumVersion <String>] [-RequiredVersion <String>]
+                                                Install-Module -AcceptLicense -Scope AllUsers -Name PowerShellGet, SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate;
+                                                OutProgress "Update  modules: PowerShellGet, SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate";
+                                                Update-Module PowerShellGet, SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate;
+                                                # Set-Culture -CultureInfo de-CH; # change default culture for current user
+                                                OutProgress "Current Culture: $((Get-Culture).Name) = $((Get-Culture).DisplayName) "; # show current culture, ex: "de-CH"
+                                                OutProgress "update-help";
+                                                try{
+                                                  (update-help -ErrorAction continue *>&1) | ForEach-Object{ OutProgress "  $_"; };
+                                                }catch{
+                                                  # example 2022-02: update-help : Failed to update Help for the module(s) 'ConfigDefender, PSReadline' with UI culture(s) {en-US} : 
+                                                  #   Unable to retrieve the HelpInfo XML file for UI culture en-US. 
+                                                  #   Make sure the HelpInfoUri property in the module manifest is valid or check your network connection and then try the command again.
+                                                  OutWarning "Warning: Update-help failed because $($_.Exception.Message), ignored.";
                                                 }
-                                              }
+                                                OutProgress "List of installed modules having an installdate:";
+                                                Get-InstalledModule | Where-Object{$null -ne $_ -and $null -ne $_.InstalledDate } | Select-Object Name | Get-InstalledModule -AllVersions |
+                                                  Select-Object Name, Version, InstalledDate, UpdatedDate, Dependencies, Repository, PackageManagementProvider, InstalledLocation | StreamToTableString;
+                                                # Hints:
+                                                # - Install-Module -Force -Name myModule; # 2021-12: Paralled installed V1.0.0.1 and V2.2.5
+                                                #   we got: WARNING: The version '1.4.7' of module 'myModule' is currently in use. Retry the operation after closing the applications.
+                                                # - https://github.com/PowerShell/PSReadLine
+                                                # - Install-Module -Force -Name PsReadline; # 2021-12: Paralled installed V1.0.0.1 and V2.2.5
+                                                #   Install-Module -Force -SkipPublisherCheck -Name Pester;
+                                                #   Note: Ein zuvor installiertes, von Microsoft signiertes Modul Pester V3.4.0 verursacht Konflikte 
+                                                #     mit dem neuen Modul Pester V5.3.1 vom Herausgeber CN=DigiCert Assured ID Root CA, OU=www.digicert.com, O=DigiCert Inc, C=US. 
+                                                #     Durch die Installation des neuen Moduls kann das System instabil werden. Falls Sie trotzdem eine Installation oder ein Update durchführen möchten, verwenden Sie den -SkipPublisherCheck-Parameter.
+                                                #     And Update-Module : Das Modul 'Pester' wurde nicht mithilfe von 'Install-Module' installiert und kann folglich nicht aktualisiert werden.
+                                                # - Example: Uninstall-Module -MaximumVersion "0.9.99" -Name SqlServer;
+                                                }
 function MnCommonPsToolLibSelfUpdate          ( [Boolean] $doWaitForEnterKeyIfFailed = $false ){
                                                 # If installed in standard mode (saved under c:\Program Files\WindowsPowerShell\Modules\...)
-                                                # then it performs a self update to the newest version from github.
-                                                [String]  $moduleName = "MnCommonPsToolLib";
-                                                [String]  $tarRootDir = "$Env:ProgramW6432$(DirSep)WindowsPowerShell$(DirSep)Modules"; # more see: https://msdn.microsoft.com/en-us/library/dd878350(v=vs.85).aspx
-                                                [String]  $moduleFile = "$tarRootDir$(DirSep)$moduleName$(DirSep)$moduleName.psm1";
-                                                [String]  $url = "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/master/$moduleName/$moduleName.psm1";
+                                                # then it performs a self update to the newest version from github otherwise output a note.
                                                 [String]  $additionalOkUpdMsg = "`n  Please restart all processes which currently loaded this module before using changed functions of this library.";
                                                 [Boolean] $requireElevatedAdminMode = $true;
                                                 [Boolean] $assertFilePreviouslyExists = $true;
                                                 [Boolean] $performPing = $true;
+                                                [String]  $moduleName = "MnCommonPsToolLib";
+                                                [String]  $tarRootDir = "$Env:ProgramW6432$(DirSep)WindowsPowerShell$(DirSep)Modules"; # more see: https://msdn.microsoft.com/en-us/library/dd878350(v=vs.85).aspx
+                                                [String]  $moduleFile = "$tarRootDir$(DirSep)$moduleName$(DirSep)$moduleName.psm1";
+                                                if( (FileNotExists $moduleFile) ){ OutProgress "MnCommonPsToolLibSelfUpdate: Note: Cannot self update because is not installed in standard mode under c:\Program Files\WindowsPowerShell\Modules\ "; return; }
+                                                #
+                                                [String]  $moduleFile = "$tarRootDir$(DirSep)$moduleName$(DirSep)$moduleName.psm1";
+                                                [String]  $url = "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/master/$moduleName/$moduleName.psm1";
+                                                [Boolean] $dummyResult = ToolPerformFileUpdateAndIsActualized $moduleFile $url $requireElevatedAdminMode $doWaitForEnterKeyIfFailed $additionalOkUpdMsg $assertFilePreviouslyExists $performPing;
+                                                #
+                                                [String]  $moduleFile = "$tarRootDir$(DirSep)$moduleName$(DirSep)$moduleName_Windows.psm1";
+                                                [String]  $url = "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/master/$moduleName/$moduleName_Windows.psm1";
                                                 [Boolean] $dummyResult = ToolPerformFileUpdateAndIsActualized $moduleFile $url $requireElevatedAdminMode $doWaitForEnterKeyIfFailed $additionalOkUpdMsg $assertFilePreviouslyExists $performPing;
                                               }
