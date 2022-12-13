@@ -38,7 +38,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $global:MnCommonPsToolLibVersion = "7.07"; # more see Releasenotes.txt
+[String] $global:MnCommonPsToolLibVersion = "7.08"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -241,6 +241,7 @@ function StringRemoveRight                    ( [String] $str, [String] $strRigh
                                                 return [String] $(switch(($ignoreCase -and $s -eq $strRight) -or $s -ceq $strRight){ ($true){StringRemoveRightNr $str $strRight.Length} default{$str} }); }
 function StringRemoveOptEnclosingDblQuotes    ( [String] $s ){ if( $s.Length -ge 2 -and $s.StartsWith("`"") -and $s.EndsWith("`"") ){
                                                 return [String] $s.Substring(1,$s.Length-2); } return [String] $s; }
+function StringMakeNonNull                    ( [String] $s ){ if( $null -eq $s ){ return ""; }else{ return $s; } }
 function StringArrayInsertIndent              ( [String[]] $lines, [Int32] $nrOfBlanks ){
                                                 return [String[]] (@()+($lines | Where-Object{$null -ne $_} | ForEach-Object{ ((" "*$nrOfBlanks)+$_); })); }
 function StringArrayDistinct                  ( [String[]] $lines ){ return [String[]] (@()+($lines | Where-Object{$null -ne $_} | Select-Object -Unique)); }
@@ -2064,36 +2065,38 @@ function GitListCommitComments                ( [String] $tarDir, [String] $loca
                                                 }
                                                 GitGetLog $false "$tarDir/$prefix$repoName.CommittedComments$fileExtension";
                                                 GitGetLog $true  "$tarDir/$prefix$repoName.CommittedChangedFiles$fileExtension"; }
-function GitAssertAutoCrLfIsDisabled          (){ # use this before using git
-                                                [String] $line = (& "git" "config" "--list" "--global" | Where-Object{ $_ -like "core.autocrlf=false" }); AssertRcIsOk;
-                                                if( $line -ne "" ){ OutVerbose "ok, git-global-autocrlf is defined as false."; return; }
-                                                $line = (& "git" "config" "--list" "--global" | Where-Object{ $_ -like "core.autocrlf=*" }); AssertRcIsOk;
-                                                if( $line -eq "" ){ OutVerbose "ok, git-global-autocrlf is undefined."; return; }
-                                                throw [ExcMsg] "Git is globally configured to use auto crlf conversions, it is strongly recommended never use this because unexpected state and merge behaviours. Please change it by calling GitDisableAutoCrLf and then retry."; }
-function GetSetGlobalVar                      ( [String] $var, [String] $val ){ # if val is empty then it will unset the var.
+function GitAssertAutoCrLfIsDisabled          (){ # use this before using git; do not use core.autocrlf=true because it will lead sometimes to conflicts;
+                                                [String] $line1 = (StringMakeNonNull (& "git" "config" "--list" "--global" | Where-Object{ $_ -like "core.autocrlf=true" })); AssertRcIsOk;
+                                                [String] $line2 = (StringMakeNonNull (& "git" "config" "--list" "--system" | Where-Object{ $_ -like "core.autocrlf=true" })); AssertRcIsOk;
+                                                if( $line1 -ne "" -or $line2 -ne "" ){
+                                                  [String] $errmsg = "it is strongly recommended never use this because unexpected state and merge behaviours. Please change it by calling GitDisableAutoCrLf and then retry.";
+                                                  if( $line1 -ne "" ){ throw [ExcMsg] "Git is globally configured to use autocrlf conversions, $errmsg"; }
+                                                  if( $line2 -ne "" ){ throw [ExcMsg] "Git is systemwide configured to use autocrlf conversions, $errmsg"; }
+                                                }
+                                                OutVerbose "ok, git-autocrlf is globally and systemwide defined as false or undefined."; }
+function GitSetGlobalVar                      ( [String] $var, [String] $val, [Boolean] $useSystemNotGlobal = $false ){
+                                                # if val is empty then it will unset the var. 
+                                                # If option $useSystemNotGlobal is true then system-wide variable are set instead of the global.
+                                                # The order of priority for configuration levels is: local, global, system.
                                                 AssertNotEmpty $var;
                                                 # check if defined
-                                                [String] $a = "$(& "git" "config" "--list" "--global" | Where-Object{ $_ -like "$var=*" })"; AssertRcIsOk;
+                                                [String] $globalScope = "--global"; if( $useSystemNotGlobal ){ $globalScope = "--system"; }
+                                                [String] $a = "$(& "git" "config" "--list" $globalScope | Where-Object{ $_ -like "$var=*" })"; AssertRcIsOk;
                                                  # if defined then we can get value; this statement would throw if var would not be defined
-                                                if( $a -ne "" ){ $a = (& "git" "config" "--global" $var); AssertRcIsOk; }
+                                                if( $a -ne "" ){ $a = (& "git" "config" $globalScope $var); AssertRcIsOk; }
                                                 if( $a -eq $val ){
-                                                  OutDebug "GetSetGlobalVar: $var=`"$val`" was already done.";
+                                                  OutDebug "GitSetVar$($globalScope): $var=`"$val`" was already done.";
                                                 }else{
                                                   if( $val -eq "" ){
-                                                    OutProgress "GetSetGlobalVar: $var=`"$val`" (will unset var)";
-                                                    & "git" "config" "--global" --unset $var; AssertRcIsOk;
+                                                    OutProgress "GitSetVar$($globalScope): $var=`"$val`" (will unset var)";
+                                                    & "git" "config" $globalScope --unset $var; AssertRcIsOk;
                                                   }else{
-                                                    OutProgress "GetSetGlobalVar: $var=`"$val`" ";
-                                                    & "git" "config" "--global" $var $val; AssertRcIsOk;
+                                                    OutProgress "GitSetVar$($globalScope): $var=`"$val`" ";
+                                                    & "git" "config" $globalScope $var $val; AssertRcIsOk;
                                                   }
                                                 } }
 function GitDisableAutoCrLf                   (){ # no output if nothing done.
-                                                [String] $line = (& "git" "config" "--list" "--global" | Where-Object{ $_ -like "core.autocrlf=false" }); AssertRcIsOk;
-                                                if( $line -ne "" ){ OutVerbose "ok, git-global-autocrlf is defined as false."; return; }
-                                                $line = (& "git" "config" "--list" "--global" | Where-Object{ $_ -like "core.autocrlf=*" }); AssertRcIsOk;
-                                                if( $line -eq "" ){ OutVerbose "ok, git-global-autocrlf is undefined."; return; }
-                                                OutProgress "Setting git-global-autocrlf to false because current value was: `"$line`"";
-                                                GetSetGlobalVar "core.autocrlf" "false"; }
+                                                GitSetGlobalVar "core.autocrlf" "false"; GitSetGlobalVar "core.autocrlf" "false" $true; }
 function GitCloneOrPullUrls                   ( [String[]] $listOfRepoUrls, [String] $tarRootDirOfAllRepos, [Boolean] $errorAsWarning = $false ){
                                                 # Works later multithreaded and errors are written out, collected and throwed at the end.
                                                 # If you want single threaded then call it with only one item in the list.
@@ -3014,6 +3017,9 @@ function ToolGithubApiDownloadLatestReleaseDir( [String] $repoUrl ){
                                                 FsEntryMoveByPatternToDir "$dir0$(DirSep)*" $tarDir;
                                                 DirDelete $dir0;
                                                 return [String] $tarDir; }
+
+
+function GetSetGlobalVar( [String] $var, [String] $val){ OutProgress "GetSetGlobalVar is OBSOLETE, replace it now by GitSetGlobalVar.";  GitSetGlobalVar $var $val; }
 
 # ----------------------------------------------------------------------------------------------------
 
