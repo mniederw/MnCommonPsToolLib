@@ -5,7 +5,7 @@ param( [String] $sel )
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 $Global:ErrorActionPreference = "Stop";
 $PSModuleAutoLoadingPreference = "none"; # disable autoloading modules
-trap [Exception] { $Host.UI.WriteErrorLine($_); Read-Host; break; }
+trap [Exception] { $Host.UI.WriteErrorLine($_); $HOST.UI.RawUI.ReadKey()|OutNull; break; }
 function OutStringInColor                     ( [String] $color, [String] $line, [Boolean] $noNewLine = $true ){ Write-Host -ForegroundColor $color -NoNewline:$noNewLine $line; }
 function OutInfo                              ( [String] $line ){ OutStringInColor "White" $line $false; }
 function OutProgress                          ( [String] $line ){ OutStringInColor "Gray"  $line $false; }

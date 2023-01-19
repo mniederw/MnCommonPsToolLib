@@ -722,7 +722,7 @@ function JuniperNcEstablishVpnConn            ( [String] $secureCredentialFile, 
 function JuniperNcEstablishVpnConnAndRdp      ( [String] $rdpfile, [String] $url, [String] $realm ){
                                                 [String] $secureCredentialFile = "$rdpfile.vpn-uspw.$ComputerName.txt";
                                                 JuniperNcEstablishVpnConn $secureCredentialFile $url $realm;
-                                                RdpConnect $rdpfile; }
+                                                ToolRdpConnect $rdpfile; }
 function InfoAboutComputerOverview            (){
                                                 return [String[]] @( "InfoAboutComputerOverview:", "", "ComputerName   : $ComputerName", "UserName       : $env:UserName",
                                                 "Datetime       : $(DateTimeNowAsStringIso 'yyyy-MM-dd HH:mm')", "ProductKey     : $(OsGetWindowsProductKey)",
@@ -828,8 +828,8 @@ function InfoGetInstalledDotNetVersion        ( [Boolean] $alsoOutInstalledClrAn
                                                 elseif( $relKey -ge 378389 ){ $relStr = "4.5"           ; }
                                                 return [String] $relStr; }
 function ToolRdpConnect                       ( [String] $rdpfile, [String] $mstscOptions = "" ){
-                                                # Some mstsc options: /edit /admin  (use /edit temporary to set password in .rdp file)
-                                                OutProgress "RdpConnect: `"$rdpfile`" $mstscOptions";
+                                                # Run RDP gui program with some mstsc options: /edit /admin  (use /edit temporary to set password in .rdp file)
+                                                OutProgress "ToolRdpConnect: `"$rdpfile`" $mstscOptions";
                                                 & "$env:SystemRoot/system32/mstsc.exe" $mstscOptions $rdpfile; AssertRcIsOk;
                                               }
 function ToolHibernateModeEnable              (){
