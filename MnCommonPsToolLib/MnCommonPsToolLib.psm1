@@ -38,7 +38,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $global:MnCommonPsToolLibVersion = "7.10"; # more see Releasenotes.txt
+[String] $global:MnCommonPsToolLibVersion = "7.11"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -274,6 +274,7 @@ function StringFromErrorRecord                ( [System.Management.Automation.Er
                                                 [String] $nl = [Environment]::NewLine;
                                                  $msg += "$nl  ScriptStackTrace: $nl    $($er.ScriptStackTrace -replace `"$nl`",`"$nl    `")"; # ex: at <ScriptBlock>, C:\myfile.psm1: line 800 at MyFunc
                                                  $msg += "$nl  InvocationInfo:$nl    $($er.InvocationInfo.PositionMessage -replace `"$nl`",`"$nl    `")"; # At D:\myfile.psm1:800 char:83 \n   + ...   +   ~~~
+                                                 $msg += "$nl  Ts=$(DateTimeNowAsStringIso) User=$($env:username) mach=$($env:COMPUTERNAME) ";
                                                  # $msg += "$nl  InvocationInfoLine: $($er.InvocationInfo.Line -replace `"$nl`",`" `" -replace `"\s+`",`" `" )";
                                                  # $msg += "$nl  InvocationInfoMyCommand: $($er.InvocationInfo.MyCommand)"; # ex: ForEach-Object
                                                  # $msg += "$nl  InvocationInfoInvocationName: $($er.InvocationInfo.InvocationName)"; # ex: ForEach-Object
@@ -531,7 +532,7 @@ function ScriptResetRc                        (){ $error.clear(); $global:LASTEX
 function ScriptNrOfScopes                     (){ [Int32] $i = 1; while($true){
                                                 try{ Get-Variable null -Scope $i -ValueOnly -ErrorAction SilentlyContinue | Out-Null; $i++;
                                                 }catch{ <# ex: System.Management.Automation.PSArgumentOutOfRangeException #> return [Int32] ($i-1); } } }
-function ScriptGetProcessCommandLine          (){ return [String] ([environment]::commandline); } # ex: "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" "& \"C:\myscript.ps1\"";
+function ScriptGetProcessCommandLine          (){ return [String] ([environment]::commandline); } # ex: "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" "& \"C:\myscript.ps1\"";  or  "C:\Program Files\PowerShell\7\pwsh.dll" -nologo
 function ScriptGetDirOfLibModule              (){ return [String] $PSScriptRoot ; } # Get dir       of this script file of this function or empty if not from a script; alternative: (Split-Path -Parent -Path ($script:MyInvocation.MyCommand.Path))
 function ScriptGetFileOfLibModule             (){ return [String] $PSCommandPath; } # Get full path of this script file of this function or empty if not from a script. alternative1: try{ return [String] (Get-Variable MyInvocation -Scope 1 -ValueOnly).MyCommand.Path; }catch{ return [String] ""; }  alternative2: $script:MyInvocation.MyCommand.Path
 function ScriptGetCallerOfLibModule           (){ return [String] $MyInvocation.PSCommandPath; } # Result can be empty or implicit module if called interactive. alternative for dir: $MyInvocation.PSScriptRoot.
@@ -2367,18 +2368,11 @@ function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url
                                                     AssertRcIsOk (FileReadContentAsLines $tmp $encodingIfNoBom) $true;
                                                     break;
                                                   }catch{
-                                                    # ex: "svn: E170013: Unable to connect to a repository at URL 'https://mycomp/svn/Work/mydir'"
                                                     # ex: "svn: E230001: Server SSL certificate verification failed: issuer is not trusted"
-                                                    # ex: "svn: E120106: ra_serf: The server sent a truncated HTTP response body"
-                                                    # ex: "svn: E155037: Previous operation has not finished; run 'cleanup' if it was interrupted"
-                                                    # ex: "svn: E155004: Run 'svn cleanup' to remove locks (type 'svn help cleanup' for details)"
-                                                    # ex: "svn: E175002: REPORT request on '/svn/Work/!svn/me' failed"
-                                                    # ex: "svn: E200014: Checksum mismatch for '...file...'"
-                                                    # ex: "svn: E200030: sqlite[S10]: disk I/O error, executing statement 'VACUUM '"
                                                     # ex: "svn: E205000: Try 'svn help checkout' for more information"
                                                     # Note: if throwed then tmp file is empty.
                                                     [String] $m = $_.Exception.Message;
-                                                    if( $m.Contains(" E170013:") ){
+                                                    if( $m.Contains(" E170013:") ){  # ex: "svn: E170013: Unable to connect to a repository at URL 'https://mycomp/svn/Work/mydir'"
                                                       $m += " Note for E170013: Possibly a second error line with E230001=Server-SSL-certificate-verification-failed is given to output " +
                                                         "but if powershell trapping is enabled then this second error line is not given to exception message, so this information is lost " +
                                                         "and so after third retry it stops. Now you have the following three options in recommended order: " +
@@ -2392,13 +2386,15 @@ function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url
                                                     }
                                                     [String] $msg = "$(ScriptGetCurrentFunc)(dir=`"$workDir`",url=$url,user=$user) failed because $m. Logfile=`"$svnLogFile`".";
                                                     FileAppendLineWithTs $svnLogFile $msg;
-                                                    [Boolean] $isKnownProblemToSolveWithRetry = $m.Contains(" E120106:") -or
-                                                      $m.Contains(" E155037:") -or
-                                                      $m.Contains(" E155004:") -or
-                                                      $m.Contains(" E170013:") -or
-                                                      $m.Contains(" E175002:") -or
-                                                      $m.Contains(" E200014:") -or
-                                                      $m.Contains(" E200030:");
+                                                    [Boolean] $isKnownProblemToSolveWithRetry = 
+                                                      $m.Contains(" E120106:") -or # ex: "svn: E120106: ra_serf: The server sent a truncated HTTP response body"
+                                                      $m.Contains(" E155037:") -or # ex: "svn: E155037: Previous operation has not finished; run 'cleanup' if it was interrupted"
+                                                      $m.Contains(" E155004:") -or # ex: "svn: E155004: Run 'svn cleanup' to remove locks (type 'svn help cleanup' for details)"
+                                                      $m.Contains(" E175002:") -or # ex: "svn: E175002: REPORT request on '/svn/Work/!svn/me' failed"
+                                                      $m.Contains(" E200014:") -or # ex: "svn: E200014: Checksum mismatch for '...file...'"
+                                                      $m.Contains(" E200030:") -or # ex: "svn: E200030: sqlite[S10]: disk I/O error, executing statement 'VACUUM '"
+                                                      $m.Contains(" E730054:") -or # ex: "svn: E730054: Error running context: Eine vorhandene Verbindung wurde vom Remotehost geschlossen."
+                                                      $m.Contains(" E170013:")   ; # ex: "svn: E170013: Unable to connect to a repository at URL 'https://mycomp/svn/Work/mydir'"
                                                     if( -not $isKnownProblemToSolveWithRetry -or $nrOfTries -ge $maxNrOfTries ){ throw [ExcMsg] $msg; }
                                                     [String] $msg2 = "Is try nr $nrOfTries of $maxNrOfTries, will do cleanup, wait 30 sec and if not reached max then retry.";
                                                     OutWarning "Warning: $msg $msg2";
@@ -3035,21 +3031,23 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 # Powershell useful additional documentation
 # ==========================================
 #
+# - Enable powershell: Before using any powershell script you must enable on 64bit and on 32bit environment!
+#   It requires admin rights so either run a cmd.exe shell with admin mode and call:
+#     PS7  :  pwsh -Command Set-ExecutionPolicy -Scope LocalMachine Unrestricted
+#     64bit:  %SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe Set-Executionpolicy -Scope LocalMachine Unrestricted
+#     32bit:  %SystemRoot%\syswow64\WindowsPowerShell\v1.0\powershell.exe Set-Executionpolicy -Scope LocalMachine Unrestricted
+#   or start each powershell and run:  Set-Executionpolicy Unrestricted 
+#   or run: reg.exe add "HKLM\SOFTWARE\Microsoft\PowerShell\1\ShellIds\Microsoft.PowerShell" /f /t REG_SZ /v "ExecutionPolicy" /d "Unrestricted"
+#   or run any ps1 even when in restricted mode with:  PowerShell.exe -ExecutionPolicy Unrestricted -NoProfile -File "myfile.ps1"
+#   Default is: powershell.exe Set-Executionpolicy Restricted
+#   More: get-help about_signing
+#   For being able to doubleclick a ps1 file or run a shortcut for a ps1 file, do in Systemcontrol->Standardprograms you can associate .ps1 
+#     with       C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
+#     or better  "C:\Program Files\PowerShell\7\pwsh.EXE"
 # - Common parameters used enable stdandard options:
 #   [-Verbose] [-Debug] [-ErrorAction <ActionPreference>] [-WarningAction <ActionPreference>] [-ErrorVariable <String>] [-WarningVariable <String>] [-OutVariable <String>] [-OutBuffer <Int32>]
 # - Parameter attribute declarations (ex: Mandatory, Position): https://msdn.microsoft.com/en-us/library/ms714348(v=vs.85).aspx
 # - Parameter validation attributes (ex: ValidateRange): https://social.technet.microsoft.com/wiki/contents/articles/15994.powershell-advanced-function-parameter-attributes.aspx#Parameter_Validation_Attributes
-# - Enable powershell: before using any powershell script you must enable on 64bit and on 32bit environment!
-#   It requires admin rights so either run a cmd.exe shell with admin mode and call:
-#     64bit:  %SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe Set-Executionpolicy -Scope LocalMachine Unrestricted
-#     32bit:  %SystemRoot%\syswow64\WindowsPowerShell\v1.0\powershell.exe Set-Executionpolicy -Scope LocalMachine Unrestricted
-#   or the Set-Executionpolicy Unrestricted commandlet in both powershells
-#   or run: reg.exe add "HKLM\SOFTWARE\Microsoft\PowerShell\1\ShellIds\Microsoft.PowerShell" /f /t REG_SZ /v "ExecutionPolicy" /d "Unrestricted"
-#   or run any ps1 even when in restricted mode with:  PowerShell.exe -ExecutionPolicy Unrestricted -NoProfile -File "myfile.ps1"
-#   default is: powershell.exe Set-Executionpolicy Restricted
-#   more: get-help about_signing
-#   in Systemsteuerung->Standardprogramme you can associate .ps1 with C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
-#   and make a shortcut ony any .ps1 file, then on clicking on shortcut it will run, but does not work if .ps1 is doubleclicked.
 # - Do Not Use: Avoid using $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") or Write-Error because different behaviour of powershell.exe and powershell_ise.exe
 # - Extensions: download and install PowerShell Community Extensions (PSCX) https://github.com/Pscx/Pscx for ntfs-junctions and symlinks.
 # - Special predefined variables which are not yet used in this script (use by $global:anyprefefinedvar; names are case insensitive):

@@ -6,6 +6,10 @@ Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including unin
 $Global:ErrorActionPreference = "Stop";
 $PSModuleAutoLoadingPreference = "none"; # disable autoloading modules
 trap [Exception] { $Host.UI.WriteErrorLine($_); $HOST.UI.RawUI.ReadKey()|OutNull; break; }
+Import-Module Microsoft.PowerShell.Management; # load: Get-ChildItem
+Import-Module Microsoft.PowerShell.Utility   ; # load: Write-Host
+Import-Module Microsoft.PowerShell.Security  ; # load: Get-Executionpolicy
+
 function OutStringInColor                     ( [String] $color, [String] $line, [Boolean] $noNewLine = $true ){ Write-Host -ForegroundColor $color -NoNewline:$noNewLine $line; }
 function OutInfo                              ( [String] $line ){ OutStringInColor "White" $line $false; }
 function OutProgress                          ( [String] $line ){ OutStringInColor "Gray"  $line $false; }
@@ -105,6 +109,7 @@ OutProgress     "  By using this software you agree with the terms of GPL3. ";
 OutProgress     "  ";
 OutProgress     "  Current environment:";
 OutProgress     "    IsInElevatedAdminMode            = $(ProcessIsRunningInElevatedAdminMode).";
+OutProgress     "    Executionpolicy-LocalMachine     = $(Get-Executionpolicy).";
 OutProgress     "    ShellSessionIs64not32Bit         = $(ShellSessionIs64not32Bit). ";
 OutProgress     "    PsModulePath contains SrcRootDir = $(OsPsModulePathContains $srcRootDir). ";
 OutProgress     "    PsModuleFolder(allUsers,64bit)   = '$tarRootDir64bit'. ";
