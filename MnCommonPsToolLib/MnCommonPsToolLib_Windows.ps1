@@ -1208,9 +1208,18 @@ function ToolInstallNuPckMgrAndCommonPsGalMo(){
                                                 OutProgress "Set repository PSGallery:";
                                                 Set-PSRepository PSGallery -InstallationPolicy Trusted; # uses 14 sec
                                                 # https://docs.microsoft.com/en-us/powershell/scripting/how-to-use-docs?view=powershell-7.2  take lts version
-                                                OutProgress "Install modules: PowerShellGet, SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate";
+                                                OutProgress "Install-Module -AcceptLicense -Scope AllUsers -Name PowerShellGet, SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate; ";
                                                 # alternatives: Install-Module -Force [-MinimumVersion <String>] [-MaximumVersion <String>] [-RequiredVersion <String>]
-                                                Install-Module -AcceptLicense -Scope AllUsers -Name PowerShellGet, SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate;
+                                                try{
+                                                  Install-Module -AcceptLicense -Scope AllUsers -Name PowerShellGet, SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate;
+                                                }catch{
+                                                    # Install-Module : A parameter cannot be found that matches parameter name 'AcceptLicense'. ParameterBindingException
+                                                    [String] $err = $_.Exception.Message;
+                                                    OutProgress "Failed because $err";
+                                                    OutProgress "Sometimes it failed because unknown parameter AcceptLicense, so we retry without it. ";
+                                                    OutProgress "Install-Module -Scope AllUsers -Name PowerShellGet, SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate; ";
+                                                    Install-Module -Scope AllUsers -Name PowerShellGet, SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate;
+                                                }
                                                 OutProgress "Update  modules: PowerShellGet, SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate";
                                                 Update-Module PowerShellGet, SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate;
                                                 # Set-Culture -CultureInfo de-CH; # change default culture for current user
