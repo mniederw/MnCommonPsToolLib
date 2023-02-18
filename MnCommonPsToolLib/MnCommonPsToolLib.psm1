@@ -3006,7 +3006,7 @@ function ToolGithubApiDownloadLatestReleaseDir( [String] $repoUrl ){
                                                 NetDownloadFileByCurl "$apiUrl/zipball" $tarZip;
                                                 ToolUnzip $tarZip $tarDir; # Ex: ./mniederw-MnCommonPsToolLib-25dbfb0/*
                                                 FileDelete $tarZip;
-                                                 # list flat dirs, ex: "C:\Temp\User_u2\MnCoPsToLib_catkmrpnfdp\mniederw-MnCommonPsToolLib-25dbfb0\"
+                                                 # list flat dirs, ex: "C:\Temp\MnCoPsToLib_catkmrpnfdp\mniederw-MnCommonPsToolLib-25dbfb0\"
                                                 [String[]] $dirs = (@()+(FsEntryListAsStringArray $tarDir $false $true $false));
                                                 if( $dirs.Count -ne 1 ){ throw [ExcMsg] "Expected one dir in `"$tarDir`" instead of: $dirs"; }
                                                 [String] $dir0 = $dirs[0];
