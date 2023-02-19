@@ -1267,3 +1267,4 @@ function MnCommonPsToolLibSelfUpdate          ( [Boolean] $doWaitForEnterKeyIfFa
                                                 [String]  $modFile     = "$tarRootDir/$moduleName/${moduleName}_Windows.ps1";
                                                 [String]  $url         = "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/master/$moduleName/${moduleName}_Windows.ps1";
                                                 [Boolean] $dummyResult = ToolPerformFileUpdateAndIsActualized $modFile $url $requireElevatedAdminMode $doWaitForEnterKeyIfFailed $additionalOkUpdMsg $assertFilePreviouslyExists $performPing;
+                                                }
