@@ -31,7 +31,7 @@ function Test_PsCommon(){
   Assert ("xyz".SubString(1,0) -eq "");
   Assert (("abc" -split ",").Count -eq 1 -and "abc,".Split(",").Count -eq 2 -and ",abc".Split(",").Count -eq 2);
   # No IO is done for the followings:
-  if( "$($env:WINDIR)" -eq "" ){ # not windows
+  if( ! (OsIsWindows) ){ # not windows
     Assert ([System.IO.Path]::GetDirectoryName("\\anyhostname\AnyFolder\") -eq "");
     Assert ([System.IO.Path]::GetDirectoryName("//anyhostname/AnyFolder/") -eq "/anyhostname/AnyFolder");
     Assert ("" -eq [System.IO.Path]::GetDirectoryName("C:\"));

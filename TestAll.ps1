@@ -44,7 +44,7 @@ $($env:PSModulePath).Split(";:") | Where-Object{ $null -ne $_ } | ForEach-Object
   # Local-Ubuntu  : ":/home/nn/.local/share/powershell/Modules"
   #                 ":/usr/local/share/powershell/Modules"
   #                 ":/opt/microsoft/powershell/7/Modules"
-# Github-ubuntu : ":/home/runner/.local/share/powershell/Modules"
+  # Github-ubuntu : ":/home/runner/.local/share/powershell/Modules"
   #                 ":/usr/local/share/powershell/Modules"
   #                 ":/opt/microsoft/powershell/7/Modules"
 
