@@ -12,10 +12,11 @@ Import-Module Microsoft.PowerShell.Security  ; # load: Get-Executionpolicy
 [String] $ps5WinModuleDir   = "$env:SystemRoot\system32\WindowsPowerShell\v1.0\Modules\";
 
 function OutStringInColor                     ( [String] $color, [String] $line, [Boolean] $noNewLine = $true ){ Write-Host -ForegroundColor $color -NoNewline:$noNewLine $line; }
-function OutInfo                              ( [String] $line ){ OutStringInColor "White" $line $false; }
-function OutProgress                          ( [String] $line ){ OutStringInColor "Gray"  $line $false; }
-function OutProgressText                      ( [String] $line ){ OutStringInColor "Gray"  $line $true ; }
-function OutQuestion                          ( [String] $line ){ OutStringInColor "Cyan"  $line $true ; }
+function OutInfo                              ( [String] $line ){ OutStringInColor "White"  $line $false; }
+function OutWarning                           ( [String] $line ){ OutStringInColor "Yellow" $line $false; }
+function OutProgress                          ( [String] $line ){ OutStringInColor "Gray"   $line $false; }
+function OutProgressText                      ( [String] $line ){ OutStringInColor "Gray"   $line $true ; }
+function OutQuestion                          ( [String] $line ){ OutStringInColor "Cyan"   $line $true ; }
 function DirSep                               (){ return [Char] [IO.Path]::DirectorySeparatorChar; }
 function FsEntryHasTrailingDirSep             ( [String] $fsEntry ){ return [Boolean] ($fsEntry.EndsWith("\") -or $fsEntry.EndsWith("/")); }
 function FsEntryRemoveTrailingDirSep          ( [String] $fsEntry ){ [String] $r = $fsEntry;
