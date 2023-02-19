@@ -9,7 +9,8 @@ trap [Exception] { $Host.UI.WriteErrorLine($_); $HOST.UI.RawUI.ReadKey()|OutNull
 Import-Module Microsoft.PowerShell.Management; # load: Get-ChildItem
 Import-Module Microsoft.PowerShell.Utility   ; # load: Write-Host
 Import-Module Microsoft.PowerShell.Security  ; # load: Get-Executionpolicy
-[String] $ps5WinModuleDir   = "$env:SystemRoot\system32\WindowsPowerShell\v1.0\Modules\";
+[String] $ps5WinModuleDir = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\Modules\";
+[String] $ps5ModuleDir    = "$env:ProgramFiles\WindowsPowerShell\Modules\";
 
 function OutStringInColor                     ( [String] $color, [String] $line, [Boolean] $noNewLine = $true ){ Write-Host -ForegroundColor $color -NoNewline:$noNewLine $line; }
 function OutInfo                              ( [String] $line ){ OutStringInColor "White"  $line $false; }
@@ -33,7 +34,7 @@ function OsPsModulePathAdd                    ( [String] $dir ){ if( OsPsModuleP
                                                 OsPsModulePathSet ((OsPsModulePathList)+@( (FsEntryRemoveTrailingDirSep $dir) )); }
 function OsPsModulePathDel                    ( [String] $dir ){ OsPsModulePathSet (OsPsModulePathList |
                                                 Where-Object{ (FsEntryRemoveTrailingDirSep $_) -ne (FsEntryRemoveTrailingDirSep $dir) }); }
-function OsPsModulePathSet                    ( [String[]] $pathList ){ [Environment]::SetEnvironmentVariable("PSModulePath", ($pathList -join ";"), "Machine"); }
+function OsPsModulePathSet                    ( [String[]] $pathList ){ [Environment]::SetEnvironmentVariable("PSModulePath", ($pathList -join ";")+";", "Machine"); }
 function DirExists                            ( [String] $dir ){ try{ return [Boolean] (Test-Path -PathType Container -LiteralPath $dir ); }
                                                 catch{ throw [Exception] "DirExists($dir) failed because $($_.Exception.Message)"; } }
 function DirListDirs                          ( [String] $d ){ return [String[]] (@()+(Get-ChildItem -Force -Directory -Path $d | ForEach-Object{ $_.FullName })); }
@@ -66,7 +67,7 @@ function InstallSrcPathToPsModulePathIfNotInst( [String] $srcDir ){ OutProgress 
 function SelfUpdate                           (){ $PSModuleAutoLoadingPreference = "All"; # "none" = Disabled. "All" = Auto load when cmd not found.
                                                 try{ Import-Module "MnCommonPsToolLib.psm1"; MnCommonPsToolLib\MnCommonPsToolLibSelfUpdate; }
                                                 catch{ OutProgress "Please restart shell and maybe calling file manager and retry"; throw; } }
-function AddToPsModulePathPs5WinModDir        (){ [String] $dir = $ps5WinModuleDir;
+function AddToPsModulePath                    ( [String] $dir ){
                                                 if( (OsPsModulePathContains $dir) ){
                                                   OutProgress "Ok, matches expectations for system variable PsModulePath that it contains `"$dir`".";
                                                 }else{
@@ -114,6 +115,7 @@ OutProgress     "  from the common ps module folder for all users for 32 and 64 
 OutProgress     "  and it removes the path entry from the ps module path environment variable. ";
 OutProgress     "  As long as ps7 not contains all of ps5 modules we strongly recommend that ";
 OutProgress     "  PsModulePath also contains Ps5WinModDir: `"$ps5WinModuleDir`"";
+OutProgress     "  and Ps5ModuleDir: `"$ps5ModuleDir`"";
 OutProgress     "  Imporant note: After any installation the current running programs which are ";
 OutProgress     "  using the old PsModulePath or which did load previously the old module, they ";
 OutProgress     "  need to be restarted before they can use new installed module. This usually ";
@@ -126,6 +128,7 @@ OutProgress     "    Executionpolicy-LocalMachine       = $(Get-Executionpolicy)
 OutProgress     "    ShellSessionIs64not32Bit           = $(ShellSessionIs64not32Bit). ";
 OutProgress     "    PsModulePath contains SrcRootDir   = $(OsPsModulePathContains $srcRootDir). ";
 OutProgress     "    PsModulePath contains Ps5WinModDir = $(OsPsModulePathContains $ps5WinModuleDir). ";
+OutProgress     "    PsModulePath contains Ps5ModuleDir = $(OsPsModulePathContains $ps5ModuleDir). ";
 OutProgress     "    PsModuleFolder(allUsers,64bit)     = '$tarRootDir64bit'. ";
 OutProgress     "    PsModuleFolder(allUsers,32bit)     = '$tarRootDir32bit'. ";
 OutProgress     "    SrcRootDir                         = '$srcRootDir'. ";
@@ -135,10 +138,10 @@ OutInfo         "  I = Install or reinstall in standard mode. ";
 OutInfo         "  A = Alternative installation for developers which uses module at current location to change and test the module. ";
 OutInfo         "  N = Uninstall all modes. ";
 OutInfo         "  U = When installed in standard mode do update from web. "; # in future do download and also switch to standard mode.
-OutInfo         "  W = Add Ps5WinModDir to system PsModulePath environment variable. ";
+OutInfo         "  W = Add Ps5WinModDir and Ps5ModuleDir to system PsModulePath environment variable. ";
 OutInfo         "  Q = Quit. `n";
-if( ! (OsPsModulePathContains $ps5WinModuleDir) ){
-  OutWarning    "  Warning: PsModulePath not contains Ps5WinModDir, it is strongly recommended to add it (see menu items)! ";
+if( ! (OsPsModulePathContains $ps5WinModuleDir) -or ! (OsPsModulePathContains $ps5ModuleDir) ){
+  OutWarning    "  Warning: PsModulePath not contains Ps5WinModDir or Ps5ModuleDir, it is strongly recommended to add them (see menu items)! ";
 }
 if( $sel -ne "" ){ OutProgress "Selection: $sel "; }
 while( @("I","A","N","U","W","Q") -notcontains $sel ){
@@ -161,6 +164,6 @@ if( $sel -eq "A" ){ UninstallDir $moduleTarDir32bit;
                     InstallSrcPathToPsModulePathIfNotInst $srcRootDir;
                     OutProgressText "Current installation modes: "; CurrentInstallationModes "Green"; }
 if( $sel -eq "U" ){ SelfUpdate; }
-if( $sel -eq "W" ){ AddToPsModulePathPs5WinModDir; }
+if( $sel -eq "W" ){ AddToPsModulePath $ps5WinModuleDir; AddToPsModulePath $ps5ModuleDir; }
 if( $sel -eq "Q" ){ OutProgress "Quit."; }
 OutQuestion "Finished. Press enter to exit. "; Read-Host;
