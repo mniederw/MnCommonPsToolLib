@@ -3,39 +3,43 @@
 # Published at: https://github.com/mniederw/MnCommonPsToolLib
 # Licensed under GPL3. This is freeware.
 #
-# This library encapsulates many common commands for the purpose of supporting compatibility between 
-# multi platforms, simplifying commands, fixing usual problems, supporting tracing information, 
+# This library encapsulates many common commands for the purpose of supporting compatibility between
+# multi platforms, simplifying commands, fixing usual problems, supporting tracing information,
 # making behaviour compatible for usage with powershell.exe and powershell_ise.exe and acts as documentation.
 # It is splitted in a mulitplatform compatible part and a part which runs only on Windows.
 # Some functions depends on that its subtools as git, svn, etc. are available via path variable.
 #
 # Recommendations and notes about common approaches of this library:
-# - Unit-Tests: Many functions are included and they are run either automatically by github workflow (on win, linux and osx) or by manual starts.
+# - Unit-Tests: Many functions are included and they are run either
+#   automatically by github workflow (on win, linux and osx) or by manual starts.
 # - Indenting format of library functions: The statements are indented in the way that they are easy readable as documentation.
-# - Typesafe: Functions and its arguments and return values are always specified with its type to assert type reliablility as far as possible.
+# - Typesafe: Functions and its arguments and return values are always specified with its type
+#   to assert type reliablility as far as possible.
 # - Avoid null values: Whenever possible null values are generally avoided. For example arrays gets empty instead of null.
 # - Win-1252/UTF8: Text file contents are written per default as UTF8-BOM for improving compatibility between multi platforms.
 #   They are read in Win-1252(=ANSI) if they have no BOM (byte order mark) or otherwise according to BOM.
 # - Create files: On writing or appending files they automatically create its path parts.
 # - Notes about tracing information lines:
 #   - Progress : Any change of the system will be notified with color Gray. Is enabled as default.
-#   - Verbose  : Some io functions will be enriched with Write-Verbose infos. which are written in DarkGray and can be enabled by VerbosePreference.
+#   - Verbose  : Some io functions will be enriched with Write-Verbose infos. which are written in DarkGray
+#     and can be enabled by VerbosePreference.
 #   - Debug    : Some minor additional information are enriched with Write-Debug, which can be enabled by DebugPreference.
 # - Comparison with null: All such comparing statements have the null constant on the left side ($null -eq $a)
 #   because for arrays this is mandatory (throws: @() -eq $null)
-# - Null Arrays: All powershell function returning an array should always return an empty array instead of null 
+# - Null Arrays: All powershell function returning an array should always return an empty array instead of null
 #   for avoiding counting null as one element when added to an empty array.
 # - More: Powershell useful knowledge and additional documentation see bottom of MnCommonPsToolLib.psm1
 #
 # Example usages of this module for a .ps1 script:
 #      # Simple example for using MnCommonPsToolLib
-#      Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
+#      Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1";
+#      Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 #      OutInfo "Hello world";
 #      OutProgress "Working";
 #      StdInReadLine "Press enter to exit.";
 # More examples see: https://github.com/mniederw/MnCommonPsToolLib/tree/main/Examples
 #
-# 2013-2022 produced by Marc Niederwieser, Switzerland.
+# 2013-2023 produced by Marc Niederwieser, Switzerland.
 
 
 
@@ -589,10 +593,10 @@ function StreamToFile                         ( [String] $file, [Boolean] $overw
                                                 $input | Out-File -Force -NoClobber:$(-not $overwrite) -Encoding $encoding -LiteralPath $file; }
 function StreamFromCsvStrings                 ( [Char] $delimiter = ',' ){ $input | ConvertFrom-Csv -Delimiter $delimiter; }
 function ProcessFindExecutableInPath          ( [String] $exec ){ # Return full path or empty if not found.
-                                                [Object] $p = (Get-Command $exec -ErrorAction SilentlyContinue); 
+                                                [Object] $p = (Get-Command $exec -ErrorAction SilentlyContinue);
                                                 if( $null -eq $p ){ return [String] ""; } return [String] $p.Source; }
 function ProcessGetCurrentThreadId            (){ return [Int32] [Threading.Thread]::CurrentThread.ManagedThreadId; }
-function ProcessListRunnings                  (){ return [Object[]] (@()+(Get-Process * | Where-Object{$null -ne $_} | 
+function ProcessListRunnings                  (){ return [Object[]] (@()+(Get-Process * | Where-Object{$null -ne $_} |
                                                     Where-Object{ $_.Id -ne 0 } | Sort-Object ProcessName)); }
 function ProcessListRunningsFormatted         (){ return [Object[]] (@()+( ProcessListRunnings | Select-Object Name, Id,
                                                     @{Name="CpuMSec";Expression={[Decimal]::Floor($_.TotalProcessorTime.TotalMilliseconds).ToString().PadLeft(7,' ')}},
@@ -613,7 +617,7 @@ function ProcessKill                          ( [String] $processName ){ # kill 
                                                 [System.Diagnostics.Process[]] $p = Get-Process ($processName -replace ".exe","") -ErrorAction SilentlyContinue;
                                                 if( $null -ne $p ){ OutProgress "ProcessKill $processName"; $p.Kill(); } }
 function ProcessSleepSec                      ( [Int32] $sec ){ Start-Sleep -Seconds $sec; }
-function ProcessListInstalledAppx             (){ return [String[]] (@()+(Get-AppxPackage | Where-Object{$null -ne $_} | 
+function ProcessListInstalledAppx             (){ return [String[]] (@()+(Get-AppxPackage | Where-Object{$null -ne $_} |
                                                     Select-Object PackageFullName | Sort-Object PackageFullName)); }
 function ProcessGetCommandInEnvPathOrAltPaths ( [String] $commandNameOptionalWithExtension, [String[]] $alternativePaths = @(), [String] $downloadHintMsg = ""){
                                                 [System.Management.Automation.CommandInfo] $cmd = Get-Command -CommandType Application -Name $commandNameOptionalWithExtension -ErrorAction SilentlyContinue | Select-Object -First 1;
@@ -2084,7 +2088,7 @@ function GitAssertAutoCrLfIsDisabled          (){ # use this before using git; d
                                                 }
                                                 OutVerbose "ok, git-autocrlf is globally and systemwide defined as false or undefined."; }
 function GitSetGlobalVar                      ( [String] $var, [String] $val, [Boolean] $useSystemNotGlobal = $false ){
-                                                # if val is empty then it will unset the var. 
+                                                # if val is empty then it will unset the var.
                                                 # If option $useSystemNotGlobal is true then system-wide variable are set instead of the global.
                                                 # The order of priority for configuration levels is: local, global, system.
                                                 AssertNotEmpty $var;
@@ -2394,7 +2398,7 @@ function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url
                                                     }
                                                     [String] $msg = "$(ScriptGetCurrentFunc)(dir=`"$workDir`",url=$url,user=$user) failed because $m. Logfile=`"$svnLogFile`".";
                                                     FileAppendLineWithTs $svnLogFile $msg;
-                                                    [Boolean] $isKnownProblemToSolveWithRetry = 
+                                                    [Boolean] $isKnownProblemToSolveWithRetry =
                                                       $m.Contains(" E120106:") -or # ex: "svn: E120106: ra_serf: The server sent a truncated HTTP response body"
                                                       $m.Contains(" E155037:") -or # ex: "svn: E155037: Previous operation has not finished; run 'cleanup' if it was interrupted"
                                                       $m.Contains(" E155004:") -or # ex: "svn: E155004: Run 'svn cleanup' to remove locks (type 'svn help cleanup' for details)"
@@ -3044,12 +3048,12 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #     PS7  :  pwsh -Command Set-ExecutionPolicy -Scope LocalMachine Unrestricted
 #     64bit:  %SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe Set-Executionpolicy -Scope LocalMachine Unrestricted
 #     32bit:  %SystemRoot%\syswow64\WindowsPowerShell\v1.0\powershell.exe Set-Executionpolicy -Scope LocalMachine Unrestricted
-#   or start each powershell and run:  Set-Executionpolicy Unrestricted 
+#   or start each powershell and run:  Set-Executionpolicy Unrestricted
 #   or run: reg.exe add "HKLM\SOFTWARE\Microsoft\PowerShell\1\ShellIds\Microsoft.PowerShell" /f /t REG_SZ /v "ExecutionPolicy" /d "Unrestricted"
 #   or run any ps1 even when in restricted mode with:  PowerShell.exe -ExecutionPolicy Unrestricted -NoProfile -File "myfile.ps1"
 #   Default is: powershell.exe Set-Executionpolicy Restricted
 #   More: get-help about_signing
-#   For being able to doubleclick a ps1 file or run a shortcut for a ps1 file, do in Systemcontrol->Standardprograms you can associate .ps1 
+#   For being able to doubleclick a ps1 file or run a shortcut for a ps1 file, do in Systemcontrol->Standardprograms you can associate .ps1
 #     with       C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
 #     or better  "C:\Program Files\PowerShell\7\pwsh.EXE"
 # - Common parameters used enable stdandard options:
@@ -3129,7 +3133,7 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #     Recommendation: When comparing array with null then always put null on the left side.
 #       More simple when comparing any value with null then always put null on the left side.
 #   - A powershell function returning and empty array is compatible with returning $null.
-#     But nevertheless it is essential wether it returns an empty array or null because 
+#     But nevertheless it is essential wether it returns an empty array or null because
 #     when adding the result of the call to an empty array then it results in count =0 or =1.
 #     see https://stackoverflow.com/questions/18476634/powershell-doesnt-return-an-empty-array-as-an-array
 #       function ReturnEmptyArray(){ return [String[]] @(); }
@@ -3164,7 +3168,7 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #   - String without comparison as condition:  Assert ( "anystring" ); Assert ( "$false" );
 #   - PS is poisoning the current scope by its aliases. List all aliases by: alias; For example: Alias curl -> Invoke-WebRequest ; Alias wget -> Invoke-WebRequest ; Alias diff -> Compare-Object ;
 #   - Automatically added folders (2023-02):
-#     - ps7: %USERPROFILE%\Documents\PowerShell\Modules\         location for current users for any modules     
+#     - ps7: %USERPROFILE%\Documents\PowerShell\Modules\         location for current users for any modules
 #     - ps5: %USERPROFILE%\Documents\WindowsPowerShell\Modules\  location for current users for any modules
 #     - ps7: %ProgramW6432%\PowerShell\Modules\                  location for all     users for any modules (ps7 and up, multiplatform)
 #     - ps7: %ProgramW6432%\powershell\7\Modules\                location for all     users for any modules (ps7 only  , multiplatform)
