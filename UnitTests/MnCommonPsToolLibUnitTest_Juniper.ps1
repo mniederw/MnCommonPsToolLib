@@ -6,7 +6,7 @@ Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version
 
 function Test_Juniper(){
   OutProgress (ScriptGetCurrentFuncName);
-  if( "$($env:WINDIR)" -eq "" ){ OutProgress "Not running on windows, so bypass test."; return; }
+  if( ! OsIsWindows ){ OutProgress "Not running on windows, so bypass test."; return; }
   # TODO:
   #   JuniperNcEstablishVpnConn            ( [String] $secureCredentialFile, [String] $url, [String] $realm ){
   #                                          [String] $serviceName = "DsNcService";

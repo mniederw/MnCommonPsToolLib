@@ -1,37 +1,43 @@
-﻿# Common powershell tool library
-# 2013-2022 produced by Marc Niederwieser, Switzerland. Licensed under GPL3. This is freeware.
+﻿# MnCommonPsToolLib - Common Powershell Tool Library for PS5 and PS7 and multiplatforms (Windows, Linux and OSX)
+@ --------------------------------------------------------------------------------------------------------------
 # Published at: https://github.com/mniederw/MnCommonPsToolLib
+# Licensed under GPL3. This is freeware.
 #
-# This library encapsulates many common commands for the purpose of:
-#   Making behaviour compatible for usage with powershell.exe and powershell_ise.exe,
-#   fixing problems, supporting tracing information, simplifying commands and acts as documentation.
+# This library encapsulates many common commands for the purpose of supporting compatibility between 
+# multi platforms, simplifying commands, fixing usual problems, supporting tracing information, 
+# making behaviour compatible for usage with powershell.exe and powershell_ise.exe and acts as documentation.
+# It is splitted in a mulitplatform compatible part and a part which runs only on Windows.
+# Some functions depends on that its subtools as git, svn, etc. are available via path variable.
 #
-# Recommendations and notes about our common approaches:
+# Recommendations and notes about common approaches of this library:
+# - Unit-Tests: Many functions are included and they are run either automatically by github workflow (on win, linux and osx) or by manual starts.
+# - Indenting format of library functions: The statements are indented in the way that they are easy readable as documentation.
 # - Typesafe: Functions and its arguments and return values are always specified with its type to assert type reliablility as far as possible.
-# - Avoid null values: Whenever possible null values are generally tried to be avoided. For example arrays gets empty instead of null.
-# - ANSI/UTF8: Text file contents are written per default as UTF8-BOM for improving compatibility to other platforms besides Windows.
-#   They are read in ANSI if they have no BOM (byte order mark) or otherwise according to BOM.
-# - Indenting format of this file: The statements of the functions below are indented in the given way
-#   because function names should be easy readable as documentation.
-# - On writing or appending files they automatically create its path parts.
+# - Avoid null values: Whenever possible null values are generally avoided. For example arrays gets empty instead of null.
+# - Win-1252/UTF8: Text file contents are written per default as UTF8-BOM for improving compatibility between multi platforms.
+#   They are read in Win-1252(=ANSI) if they have no BOM (byte order mark) or otherwise according to BOM.
+# - Create files: On writing or appending files they automatically create its path parts.
 # - Notes about tracing information lines:
 #   - Progress : Any change of the system will be notified with color Gray. Is enabled as default.
-#   - Verbose  : Some read io will be notified with (Write-Verbose) which can be enabled by $global:VerbosePreference. Use $Host.PrivateData.VerboseForegroundColor = 'DarkGray';
-#   - Debug    : Some minor additional information are notified with (Write-Debug) which can be enabled by DebugPreference.
+#   - Verbose  : Some io functions will be enriched with Write-Verbose infos. which are written in DarkGray and can be enabled by VerbosePreference.
+#   - Debug    : Some minor additional information are enriched with Write-Debug, which can be enabled by DebugPreference.
 # - Comparison with null: All such comparing statements have the null constant on the left side ($null -eq $a)
 #   because for arrays this is mandatory (throws: @() -eq $null)
-# - All powershell function returning an array should always return empty array instead of null because  ((@()+(AnyFuncReturnNull)).Count -eq 1);
-#   We achieve that for example by return [String[]] (@()+($arrCanBeNull));
-# - After calling a powershell function returning an array you should always preceed it with
-#   an empty array (@()+(f)) to avoid null values or alternatively use append operator ($a = @(); $a += f).
-
+# - Null Arrays: All powershell function returning an array should always return an empty array instead of null 
+#   for avoiding counting null as one element when added to an empty array.
+# - More: Powershell useful knowledge and additional documentation see bottom of MnCommonPsToolLib.psm1
+#
 # Example usages of this module for a .ps1 script:
 #      # Simple example for using MnCommonPsToolLib
 #      Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 #      OutInfo "Hello world";
 #      OutProgress "Working";
 #      StdInReadLine "Press enter to exit.";
-#   More examples see: https://github.com/mniederw/MnCommonPsToolLib/tree/main/Examples
+# More examples see: https://github.com/mniederw/MnCommonPsToolLib/tree/main/Examples
+#
+# 2013-2022 produced by Marc Niederwieser, Switzerland.
+
+
 
 # Do not change the following line, it is a powershell statement and not a comment! Note: if it would be run interactively then it would throw: RuntimeException: Error on creating the pipeline.
 #Requires -Version 3.0
@@ -724,7 +730,8 @@ function ProcessEnvVarGet                     ( [String] $name, [System.Environm
                                                 return [String] [Environment]::GetEnvironmentVariable($name,$scope); }
 function ProcessEnvVarSet                     ( [String] $name, [String] $val, [System.EnvironmentVariableTarget] $scope = [System.EnvironmentVariableTarget]::Process ){
                                                  # Scope: MACHINE, USER, PROCESS.
-                                                 OutProgress "SetEnvironmentVariable scope=$scope $name=`"$val`""; [Environment]::SetEnvironmentVariable($name,$val,$scope); }
+                                                 OutProgress "SetEnvironmentVariable scope=$scope $name=`"$val`"";
+                                                 [Environment]::SetEnvironmentVariable($name,$val,$scope); }
 function ProcessRemoveAllAlias                ( [String[]] $excludeAliasNames = @(), [Boolean] $doTrace = $false ){
                                                 # remove all existing aliases on any levels (local, script, private, and global).
                                                 # We recommend to exclude the followings: @("cd","cat","clear","echo","dir","cp","mv","popd","pushd","rm","rmdir").
@@ -752,6 +759,7 @@ function HelpListOfAllModules                 (){ Get-Module -ListAvailable | So
 function HelpListOfAllExportedCommands        (){ (Get-Module -ListAvailable).ExportedCommands.Values | Sort-Object Name | Select-Object Name, ModuleName; }
 function HelpGetType                          ( [Object] $obj ){ return [String] $obj.GetType(); }
 function OsPsVersion                          (){ return [String] (""+$Host.Version.Major+"."+$Host.Version.Minor); } # alternative: $PSVersionTable.PSVersion.Major
+function OsIsWindows                          (){ return [Boolean] ("$($env:WINDIR)" -ne ""); }
 function OsPsModulePathList                   (){ return [String[]] ([Environment]::GetEnvironmentVariable("PSModulePath", "Machine").
                                                   Split(";",[System.StringSplitOptions]::RemoveEmptyEntries)); }
 function OsPsModulePathContains               ( [String] $dir ){ # ex: "D:\MyGitRoot\MyGitAccount\MyPsLibRepoName"
@@ -3019,17 +3027,17 @@ function GetSetGlobalVar( [String] $var, [String] $val){ OutProgress "GetSetGlob
 
 # ----------------------------------------------------------------------------------------------------
 
-if( "$($env:WINDIR)" -ne "" ){ # running under windows
-  # OutProgress "$PSScriptRoot : Running on windows";
+if( OsIsWindows ){ # running under windows
+  OutVerbose "$PSScriptRoot : Running on windows";
   . "$PSScriptRoot/MnCommonPsToolLib_Windows.ps1";
 }else{
-  # OutProgress "$PSScriptRoot : Running not on windows";
+  OutVerbose "$PSScriptRoot : Running not on windows";
 }
 
 Export-ModuleMember -function *; # Export all functions from this script which are above this line (types are implicit usable).
 
-# Powershell useful additional documentation
-# ==========================================
+# Powershell useful knowledge and additional documentation
+# ========================================================
 #
 # - Enable powershell: Before using any powershell script you must enable on 64bit and on 32bit environment!
 #   It requires admin rights so either run a cmd.exe shell with admin mode and call:
@@ -3120,15 +3128,16 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #     [Boolean] $r = @() -eq $null; # this throws!
 #     Recommendation: When comparing array with null then always put null on the left side.
 #       More simple when comparing any value with null then always put null on the left side.
-#   - A powershell function cannot return empty array instead it will return $null.
-#     But nevertheless it is essential wether it returns an empty array or null because when adding the result of the call to an empty array then it results in count =0 or =1.
+#   - A powershell function returning and empty array is compatible with returning $null.
+#     But nevertheless it is essential wether it returns an empty array or null because 
+#     when adding the result of the call to an empty array then it results in count =0 or =1.
 #     see https://stackoverflow.com/questions/18476634/powershell-doesnt-return-an-empty-array-as-an-array
 #       function ReturnEmptyArray(){ return [String[]] @(); }
 #       function ReturnNullArray(){ return [String[]] $null; }
-#       if( $null -eq (ReturnEmptyArray) ){ write-Output "ok reached, function return null"; }
-#       if( $null -eq (ReturnNullArray)  ){ write-Output "ok reached, function return null"; }
-#       if( (@()+(ReturnEmptyArray                          )).Count -eq 0 ){ write-Output "ok reached, function return null"; }
-#       if( (@()+(ReturnNullArray                           )).Count -eq 1 ){ write-Output "ok reached, function return null but one element"; }
+#       if( $null -eq (ReturnEmptyArray) ){ write-Output "ok reached, function return empty array which is equal to null"; }
+#       if( $null -eq (ReturnNullArray)  ){ write-Output "ok reached, function return null  array which is equal to null"; }
+#       if( (@()+(ReturnEmptyArray                          )).Count -eq 0 ){ write-Output "ok reached, function return empty array which counts as 0"; }
+#       if( (@()+(ReturnNullArray                           )).Count -eq 1 ){ write-Output "ok reached, function return null array which counts as one element"; }
 #       if( (@()+(ReturnNullArray|Where-Object{$null -ne $_})).Count -eq 0 ){ write-Output "ok reached, function return null but converted to empty array"; }
 #     Recommendation: After a call of a function which returns an array then add an empty array.
 #       If its possible that a function can returns null instead of an empty array then also use (|Where-Object{$null -ne $_})
@@ -3154,12 +3163,17 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #       or redo the expression within a ForEach-Object loop to get correct throwed message.
 #   - String without comparison as condition:  Assert ( "anystring" ); Assert ( "$false" );
 #   - PS is poisoning the current scope by its aliases. List all aliases by: alias; For example: Alias curl -> Invoke-WebRequest ; Alias wget -> Invoke-WebRequest ; Alias diff -> Compare-Object ;
-# - Standard module paths:
-#   - %windir%\system32\WindowsPowerShell\v1.0\Modules    location for windows modules for all users
-#   - %ProgramW6432%\WindowsPowerShell\Modules\           location for any modules     for all users and             64bit environment (ex: "C:\Program Files")
-#   - %ProgramFiles(x86)%\WindowsPowerShell\Modules\      location for any modules     for all users and             32bit environment (ex: "C:\Program Files (x86")
-#   - %ProgramFiles%\WindowsPowerShell\Modules\           location for any modules     for all users and current 64/32 bit environment (ex: "C:\Program Files (x86)" or "C:\Program Files")
-#   - %USERPROFILE%\Documents\WindowsPowerShell\Modules   location for any modules     for current users
+#   - Automatically added folders (2023-02):
+#     - ps7: %USERPROFILE%\Documents\PowerShell\Modules\         location for current users for any modules     
+#     - ps5: %USERPROFILE%\Documents\WindowsPowerShell\Modules\  location for current users for any modules
+#     - ps7: %ProgramW6432%\PowerShell\Modules\                  location for all     users for any modules (ps7 and up, multiplatform)
+#     - ps7: %ProgramW6432%\powershell\7\Modules\                location for all     users for any modules (ps7 only  , multiplatform)
+#     - ps5: %ProgramW6432%\WindowsPowerShell\Modules\           location for all     users for any modules (ps5 and up) and             64bit environment (ex: "C:\Program Files")
+#     - ps5: %ProgramFiles(x86)%\WindowsPowerShell\Modules\      location for all     users for any modules (ps5 and up) and             32bit environment (ex: "C:\Program Files (x86")
+#     - ps5: %ProgramFiles%\WindowsPowerShell\Modules\           location for all     users for any modules (ps5 and up) and current 64/32 bit environment (ex: "C:\Program Files (x86)" or "C:\Program Files")
+#   - Not automatically added but currently strongly recommended additional folder:
+#     - %SystemRoot%\system32\WindowsPowerShell\v1.0\Modules\    location for windows modules for all users (ps5 and up)
+#       In future if ps7 can completely replace ps5 then we can remove this folder.
 # - Scopes for variables, aliases, functions and psdrives:
 #   - Local           : Current scope, is one of the other scopes: global, script, private, numbered scopes.
 #   - Global          : Active after first script start, includes automatic variables (http://ss64.com/ps/syntax-automatic-variables.html),
@@ -3240,3 +3254,7 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 # - Use  Set-PSDebug -trace 1; Set-PSDebug -trace 2;  to trace each line or use  Set-PSDebug -step  for singlestep mode until  Set-PSDebug -Off;
 # - Note: WMI commands should be replaced by CIM counterparts for portability,
 #   see https://devblogs.microsoft.com/powershell/introduction-to-cim-cmdlets/
+
+
+# - After calling a powershell function returning an array you should always preceed it with
+#   an empty array (@()+(f)) to avoid null values or alternatively use append operator ($a = @(); $a += f).
