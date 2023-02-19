@@ -5,7 +5,7 @@ Major version will reflect breaking changes, minor identifies extensions and thi
 Breaking changes are usually removed deprecated functions or changed behaviours.
 Current version can be requested by: $MnCommonPsToolLibVersion
 
-2023-02-19  V7.12  Extend ToolInstallNuPckMgrAndCommonPsGalMo. Added OsIsWindows. Doc PSModulePath.
+2023-02-19  V7.12  Extend ToolInstallNuPckMgrAndCommonPsGalMo. Added OsIsWindows. Doc PSModulePath. Fix MnCommonPsToolLibSelfUpdate.
 2023-02-01  V7.11  Extend SvnCheckoutAndUpdate, Improve Install.ps1 for pwsh, extend EnablePowerShell-bat-file for pwsh.
 2023-01-02  V7.10  Fix name ToolRdpConnect.
 2023-01-02  V7.09  Fix MnCommonPsToolLibSelfUpdate.
