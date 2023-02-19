@@ -6,7 +6,7 @@ Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version
 
 function Test_Priv(){
   OutProgress (ScriptGetCurrentFuncName);
-  if( ! OsIsWindows ){ OutProgress "Not running on windows, so bypass test."; return; }
+  if( ! (OsIsWindows) ){ OutProgress "Not running on windows, so bypass test."; return; }
   # TODO:
   #   PrivGetUserFromName                  ( [String] $username ){ # optionally as domain\username
   #   PrivGetUserCurrent                   (){ return [System.Security.Principal.IdentityReference] ([System.Security.Principal.WindowsIdentity]::GetCurrent().User); } # alternative: PrivGetUserFromName "$env:userdomain\$env:username"

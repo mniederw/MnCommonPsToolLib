@@ -6,7 +6,7 @@ Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version
 
 function Test_Info(){
   OutProgress (ScriptGetCurrentFuncName);
-  if( ! OsIsWindows ){ OutProgress "Not running on windows, so bypass test."; return; }
+  if( ! (OsIsWindows) ){ OutProgress "Not running on windows, so bypass test."; return; }
   # TODO: InfoAboutComputerOverview            (){
   OutInfo "InfoAboutExistingShares:"; OutProgress (InfoAboutExistingShares);
   # TODO: InfoAboutSystemInfo                  (){

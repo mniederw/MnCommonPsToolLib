@@ -3027,7 +3027,7 @@ function GetSetGlobalVar( [String] $var, [String] $val){ OutProgress "GetSetGlob
 
 # ----------------------------------------------------------------------------------------------------
 
-if( OsIsWindows ){ # running under windows
+if( (OsIsWindows) ){ # running under windows
   OutVerbose "$PSScriptRoot : Running on windows";
   . "$PSScriptRoot/MnCommonPsToolLib_Windows.ps1";
 }else{

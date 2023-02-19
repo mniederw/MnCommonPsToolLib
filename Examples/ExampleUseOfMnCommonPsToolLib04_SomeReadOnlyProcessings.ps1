@@ -52,7 +52,7 @@ function ExampleUseParallelStatementsHavingRandomWaitBetween1and2Seconds {
 
 function ExampleUseAsynchronousJob {
   OutInfo "$($MyInvocation.MyCommand)";
-  if( ! OsIsWindows ){ OutProgress "Not running on windows, so bypass test."; return; }
+  if( ! (OsIsWindows) ){ OutProgress "Not running on windows, so bypass test."; return; }
   $job = JobStart { param( $s ); Import-Module "MnCommonPsToolLib.psm1"; OutProgress "Running job and returning a string."; return [String] $s; } "my argument";
   Start-Sleep -Seconds 1;
   [String] $res = JobWaitForEnd $job.Id;
