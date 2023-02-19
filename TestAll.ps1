@@ -26,7 +26,7 @@ $($env:PSModulePath).Split(";:") | Where-Object{ $null -ne $_ } | ForEach-Object
   Write-Output "Show PSModulePath     += `";$_`""; }
   # Local-Win10   : ";C:\Users\myuser\Documents\WindowsPowerShell\Modules"
   #                 ";C:\Program Files (x86)\WindowsPowerShell\Modules"
-  #                 ";C:\Windows\system32\WindowsPowerShell\v1.0\Modules"
+  #                 ";C:\Windows\System32\WindowsPowerShell\v1.0\Modules"
   #                 ";C:\Program Files\WindowsPowerShell\Modules"
   #                 ";D:\MyWork\PortableProg\Tool\PowerShellModules"
   #                 ";D:\MyWork\SrcGit\mniederw\MnCommonPsToolLib"
@@ -38,7 +38,7 @@ $($env:PSModulePath).Split(";:") | Where-Object{ $null -ne $_ } | ForEach-Object
   #                 ";C:\\Modules\azure_2.1.0"
   #                 ";C:\Users\packer\Documents\WindowsPowerShell\Modules"
   #                 ";C:\Program Files\WindowsPowerShell\Modules"
-  #                 ";C:\Windows\system32\WindowsPowerShell\v1.0\Modules"
+  #                 ";C:\Windows\System32\WindowsPowerShell\v1.0\Modules"
   #                 ";C:\Program Files\Microsoft SQL Server\130\Tools\PowerShell\Modules\"
   #                 ";C:\Program Files (x86)\Google\Cloud SDK\google-cloud-sdk\platform\PowerShell"
   # Local-Ubuntu  : ":/home/nn/.local/share/powershell/Modules"

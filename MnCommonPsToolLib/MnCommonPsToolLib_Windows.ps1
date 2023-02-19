@@ -38,7 +38,7 @@ function OsIsHibernateEnabled                 (){
                                                 if( OsIsWin7OrHigher ){ return [Boolean] (RegistryGetValueAsString "HKLM:\SYSTEM\CurrentControlSet\Control\Power" "HibernateEnabled") -eq "1"; }
                                                 # win7     ex: Die folgenden Standbymodusfunktionen sind auf diesem System verfügbar: Standby ( S1 S3 ) Ruhezustand Hybrider Standbymodus
                                                 # winVista ex: Die folgenden Ruhezustandfunktionen sind auf diesem System verfügbar: Standby ( S3 ) Ruhezustand Hybrider Standbymodus
-                                                [String] $out = @()+(& "$env:SystemRoot/system32/POWERCFG.EXE" "-AVAILABLESLEEPSTATES" | Where-Object{
+                                                [String] $out = @()+(& "$env:SystemRoot/System32/powercfg.exe" "-AVAILABLESLEEPSTATES" | Where-Object{
                                                   $_ -like "Die folgenden Standbymodusfunktionen sind auf diesem System verf*" -or $_ -like "Die folgenden Ruhezustandfunktionen sind auf diesem System verf*" });
                                                 AssertRcIsOk; return [Boolean] ((($out.Contains("Ruhezustand") -or $out.Contains("Hibernate"))) -and (FileExists "$env:SystemDrive/hiberfil.sys")); }
 function OsInfoMainboardPhysicalMemorySum     (){ return [Int64] (Get-CimInstance -class Win32_PhysicalMemory | Measure-Object -Property capacity -Sum).Sum; }
@@ -334,7 +334,7 @@ function RegistrySetValue                     ( [String] $key, [String] $name, [
 function RegistryImportFile                   ( [String] $regFile ){
                                                 OutProgress "RegistryImportFile `"$regFile`""; FileAssertExists $regFile;
                                                 try{ <# unbelievable, it writes success to stderr #>
-                                                  & "$env:SystemRoot/system32/reg.exe" "IMPORT" $regFile *>&1 | Out-Null; AssertRcIsOk;
+                                                  & "$env:SystemRoot/System32/reg.exe" "IMPORT" $regFile *>&1 | Out-Null; AssertRcIsOk;
                                                 }catch{ <# ignore always: System.Management.Automation.RemoteException Der Vorgang wurde erfolgreich beendet. #>
                                                   [String[]] $expectedMsgs = @( "Der Vorgang wurde erfolgreich beendet.", "The operation completed successfully." );
                                                   if( $expectedMsgs -notcontains $_.Exception.Message ){
@@ -501,7 +501,7 @@ function ServiceMapHiddenToCurrentName        ( [String] $serviceName ){
                                                 # Hidden services on Windows 10: Some services do not have a static service name because they do not have any associated DLL or executable.
                                                 # This method maps a symbolic name as MessagingService_###### by the currently correct service name (ex: "MessagingService_26a344").
                                                 # The ###### symbolizes a random hex string of 5-6 chars. ex: (ServiceMapHiddenName "MessagingService_######") -eq "MessagingService_26a344";
-                                                # Currently all these known hidden services are internally started by "C:\WINDOWS\system32\svchost.exe -k UnistackSvcGroup". The following are known:
+                                                # Currently all these known hidden services are internally started by "C:\WINDOWS\System32\svchost.exe -k UnistackSvcGroup". The following are known:
                                                 [String[]] $a = @( "MessagingService_######", "PimIndexMaintenanceSvc_######", "UnistoreSvc_######", "UserDataSvc_######", "WpnUserService_######", "CDPUserSvc_######", "OneSyncSvc_######" );
                                                 if( $a -notcontains $serviceName ){ return [String] $serviceName; }
                                                 [String] $mask = $serviceName -replace "_######","_*";
@@ -830,7 +830,7 @@ function InfoGetInstalledDotNetVersion        ( [Boolean] $alsoOutInstalledClrAn
 function ToolRdpConnect                       ( [String] $rdpfile, [String] $mstscOptions = "" ){
                                                 # Run RDP gui program with some mstsc options: /edit /admin  (use /edit temporary to set password in .rdp file)
                                                 OutProgress "ToolRdpConnect: `"$rdpfile`" $mstscOptions";
-                                                & "$env:SystemRoot/system32/mstsc.exe" $mstscOptions $rdpfile; AssertRcIsOk;
+                                                & "$env:SystemRoot/System32/mstsc.exe" $mstscOptions $rdpfile; AssertRcIsOk;
                                               }
 function ToolHibernateModeEnable              (){
                                                 OutInfo "Enable hibernate mode";
@@ -840,7 +840,7 @@ function ToolHibernateModeEnable              (){
                                                   OutWarning "Warning: Cannot enable hibernate because has not enought hd-space (RAM=$(OsInfoMainboardPhysicalMemorySum),DriveC-Free=$(DriveFreeSpace 'C'); ignored.";
                                                 }else{
                                                   ProcessRestartInElevatedAdminMode;
-                                                  & "$env:SystemRoot/system32/POWERCFG.EXE" "-HIBERNATE" "ON"; AssertRcIsOk;
+                                                  & "$env:SystemRoot/System32/powercfg.exe" "-HIBERNATE" "ON"; AssertRcIsOk;
                                                 }
                                               }
 function ToolHibernateModeDisable             (){
@@ -849,7 +849,7 @@ function ToolHibernateModeDisable             (){
                                                   OutProgress "Ok, is disabled.";
                                                 }else{
                                                   ProcessRestartInElevatedAdminMode;
-                                                  & "$env:SystemRoot/system32/POWERCFG.EXE" "-HIBERNATE" "OFF"; AssertRcIsOk;
+                                                  & "$env:SystemRoot/System32/powercfg.exe" "-HIBERNATE" "OFF"; AssertRcIsOk;
                                                 }
                                               }
 function ToolActualizeHostsFileByMaster       ( [String] $srcHostsFile ){
@@ -1054,7 +1054,7 @@ function ToolSetAssocFileExtToCmd             ( [String[]] $fileExtensions, [Str
                                                       }
                                                       $ft = $ft.Split("=")[-1]; # "Microsoft.PowerShellScript.1" or "ps1file"
                                                     }
-                                                     # ex: Microsoft.PowerShellScript.1="C:\WINDOWS\system32\WindowsPowerShell\v1.0\powershell.exe" "%1"
+                                                     # ex: Microsoft.PowerShellScript.1="C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe" "%1"
                                                     [String] $out = (& cmd.exe /c "ftype $ft=$exec"); AssertRcIsOk;
                                                     OutProgress "SetFileAssociation ext=$($ext.PadRight(6)) ftype=$($ft.PadRight(20)) cmd=$exec";
                                                   }

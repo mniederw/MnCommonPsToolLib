@@ -7,9 +7,9 @@ ECHO.
 ECHO Current mode on ps7       environment: 
   IF     EXIST "%ProgramFiles%\PowerShell\7\pwsh.EXE" ( "%ProgramFiles%\PowerShell\7\pwsh.EXE" -Command Get-Executionpolicy ) ELSE ( ECHO pwsh not found )
 ECHO Current mode on ps5-64bit environment: 
-  %SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe -Command Get-Executionpolicy
+  %SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe -Command Get-Executionpolicy
 ECHO Current mode on ps5-32bit environment:
-  %SystemRoot%\syswow64\WindowsPowerShell\v1.0\powershell.exe -Command Get-Executionpolicy
+  %SystemRoot%\SysWOW64\WindowsPowerShell\v1.0\powershell.exe -Command Get-Executionpolicy
 ECHO.
 ECHO Available modes:
 ECHO   Restricted    - No ps scripts can be run, ps can be used only in interactive mode. Default after OS installation.
@@ -46,12 +46,12 @@ IF EXIST "%ProgramFiles%\PowerShell\7\pwsh.EXE" (
                                     IF %ERRORLEVEL% NEQ 0 ( ECHO Error: rc=%ERRORLEVEL% & PAUSE & EXIT /B 1 )
 )
 
-  ECHO Enable Bypass for ps5-64bit: "%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe" -Command Set-Executionpolicy Bypass
-                                    "%SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe" -Command Set-Executionpolicy Bypass
+  ECHO Enable Bypass for ps5-64bit: "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -Command Set-Executionpolicy Bypass
+                                    "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -Command Set-Executionpolicy Bypass
                                     IF %ERRORLEVEL% NEQ 0 ( ECHO Error: rc=%ERRORLEVEL% & PAUSE & EXIT /B 1 )
 
-                                    ECHO Enable Bypass for ps5-32bit: "%SystemRoot%\syswow64\WindowsPowerShell\v1.0\powershell.exe" -Command Set-Executionpolicy Bypass
-                                    "%SystemRoot%\syswow64\WindowsPowerShell\v1.0\powershell.exe" -Command Set-Executionpolicy Bypass
+                                    ECHO Enable Bypass for ps5-32bit: "%SystemRoot%\SysWOW64\WindowsPowerShell\v1.0\powershell.exe" -Command Set-Executionpolicy Bypass
+                                    "%SystemRoot%\SysWOW64\WindowsPowerShell\v1.0\powershell.exe" -Command Set-Executionpolicy Bypass
                                     IF %ERRORLEVEL% NEQ 0 ( ECHO Error: rc=%ERRORLEVEL% & PAUSE & EXIT /b 1 )
 
 ECHO.

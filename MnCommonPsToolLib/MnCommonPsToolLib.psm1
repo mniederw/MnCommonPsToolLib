@@ -773,7 +773,7 @@ function OsPsModulePathAdd                    ( [String] $dir ){ if( OsPsModuleP
                                                 OsPsModulePathSet ((OsPsModulePathList)+@( (FsEntryRemoveTrailingDirSep $dir) )); }
 function OsPsModulePathDel                    ( [String] $dir ){ OsPsModulePathSet (OsPsModulePathList |
                                                 Where-Object{ (FsEntryRemoveTrailingDirSep $_) -ne (FsEntryRemoveTrailingDirSep $dir) }); }
-function OsPsModulePathSet                    ( [String[]] $pathList ){ [Environment]::SetEnvironmentVariable("PSModulePath", ($pathList -join ";"), "Machine"); }
+function OsPsModulePathSet                    ( [String[]] $pathList ){ [Environment]::SetEnvironmentVariable("PSModulePath", ($pathList -join ";")+";", "Machine"); }
 function PrivAclRegRightsToString              ( [System.Security.AccessControl.RegistryRights] $r ){
                                                 [String] $result = "";
                                                 # Ref: https://docs.microsoft.com/en-us/dotnet/api/system.security.accesscontrol.registryrights?view=netframework-4.8
@@ -3046,8 +3046,8 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 # - Enable powershell: Before using any powershell script you must enable on 64bit and on 32bit environment!
 #   It requires admin rights so either run a cmd.exe shell with admin mode and call:
 #     PS7  :  pwsh -Command Set-ExecutionPolicy -Scope LocalMachine Unrestricted
-#     64bit:  %SystemRoot%\system32\WindowsPowerShell\v1.0\powershell.exe Set-Executionpolicy -Scope LocalMachine Unrestricted
-#     32bit:  %SystemRoot%\syswow64\WindowsPowerShell\v1.0\powershell.exe Set-Executionpolicy -Scope LocalMachine Unrestricted
+#     64bit:  %SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe Set-Executionpolicy -Scope LocalMachine Unrestricted
+#     32bit:  %SystemRoot%\SysWOW64\WindowsPowerShell\v1.0\powershell.exe Set-Executionpolicy -Scope LocalMachine Unrestricted
 #   or start each powershell and run:  Set-Executionpolicy Unrestricted
 #   or run: reg.exe add "HKLM\SOFTWARE\Microsoft\PowerShell\1\ShellIds\Microsoft.PowerShell" /f /t REG_SZ /v "ExecutionPolicy" /d "Unrestricted"
 #   or run any ps1 even when in restricted mode with:  PowerShell.exe -ExecutionPolicy Unrestricted -NoProfile -File "myfile.ps1"
@@ -3101,10 +3101,10 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #                              Write-Output hi > .\a.tmp   ;
 #                              [System.IO.Path]::GetFullPath(".\a.tmp")     <# is correct "$HOME\a.tmp"     #>;
 #     powershell.exe as Admin;
-#                              Get-Location                                 <# ex: C:\WINDOWS\system32 #>;
+#                              Get-Location                                 <# ex: C:\WINDOWS\System32 #>;
 #                              Set-Location $HOME;
-#                              [System.IO.Path]::GetFullPath(".\a.tmp")     <# is wrong   "C:\WINDOWS\system32\a.tmp" #>;
-#                              [System.IO.Directory]::GetCurrentDirectory() <# is         "C:\WINDOWS\system32"       #>;
+#                              [System.IO.Path]::GetFullPath(".\a.tmp")     <# is wrong   "C:\WINDOWS\System32\a.tmp" #>;
+#                              [System.IO.Directory]::GetCurrentDirectory() <# is         "C:\WINDOWS\System32"       #>;
 #                              (get-location).Path                          <# is         "$HOME"                     #>;
 #                              Resolve-Path .\a.tmp                         <# is correct "$HOME\a.tmp"               #>;
 #                              (Get-Item -Path ".\a.tmp" -Verbose).FullName <# is correct "$HOME\a.tmp"               #>;
@@ -3176,7 +3176,7 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #     - ps5: %ProgramFiles(x86)%\WindowsPowerShell\Modules\      location for all     users for any modules (ps5 and up) and             32bit environment (ex: "C:\Program Files (x86")
 #     - ps5: %ProgramFiles%\WindowsPowerShell\Modules\           location for all     users for any modules (ps5 and up) and current 64/32 bit environment (ex: "C:\Program Files (x86)" or "C:\Program Files")
 #   - Not automatically added but currently strongly recommended additional folder:
-#     - %SystemRoot%\system32\WindowsPowerShell\v1.0\Modules\    location for windows modules for all users (ps5 and up)
+#     - %SystemRoot%\System32\WindowsPowerShell\v1.0\Modules\    location for windows modules for all users (ps5 and up)
 #       In future if ps7 can completely replace ps5 then we can remove this folder.
 # - Scopes for variables, aliases, functions and psdrives:
 #   - Local           : Current scope, is one of the other scopes: global, script, private, numbered scopes.
