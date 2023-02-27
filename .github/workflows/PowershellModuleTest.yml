@@ -33,7 +33,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{matrix.os}} # run on multiple OS
-    name: "${{github.job}}: ${{matrix.os}}: ${{github.ref_type}}=${{github.ref_name}} ${{github.event.repository.updated_at}}"
+    name: "Test on ${{matrix.os}}: ${{github.ref_type}}=${{github.ref_name}} ${{github.event.repository.updated_at}}"
       # example: "Test: windows: branch=main 2021-12-31T23:59:59Z"
     steps:
 
@@ -45,12 +45,12 @@ jobs:
           # Default runners have installed: PS7.2.5 and Pester.
           # More about PS: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-powershell#powershell-module-locations
         run: |
-          echo "Running on OS=${{runner.os}}/${env:imageos}; $(which pwsh); $(pwsh --version)"; # example: "Linux/ubuntu22; /opt/microsoft/powershell/7/pwsh; Powershell V7.2.5"
+          echo "Running on OS=${{runner.os}}; $(which pwsh); $(pwsh --version)"; # example: "Linux; /opt/microsoft/powershell/7/pwsh; Powershell V7.2.5"
           echo "List all environment variables in pwsh"; Get-Variable;
           & "./TestAll.ps1";
           echo "Test ok.";
   Merge:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest  # must run on linux because tool for creating pr
       # Available 2022-08:
       # - ubuntu-latest   = Ubuntu-V20.04.3-LTS contains PowerShell-V7.2.5, already installed /usr/bin/pwsh
       # - windows-latest  = WinServer2022
@@ -68,10 +68,11 @@ jobs:
       - name: Show environment variables of bash
         shell: bash
         run: |
-          echo "Running on OS=${{runner.os}}/${env:imageos}; $(which pwsh); $(pwsh --version)"; # example: "Linux; /usr/bin/pwsh; Powershell V7.2.5"
+          echo "Running on OS=${{runner.os}}; $(which pwsh); $(pwsh --version)"; # example: "Linux; /usr/bin/pwsh; Powershell V7.2.5"
+          echo "RepoRef     = ${{github.ref}};"        # example: "refs/heads/trunk"
           echo "Repo        = ${{github.repository}};" # example: "mniederw/MnCommonPsToolLib"
           echo "Actor       = ${{github.actor}};"      # example: "mniederw"
-          echo "EventName   = ${{github.event_name}};" # example: "schedule","push"
+          echo "EventName   = ${{github.event_name}};" # example: "schedule", "push", "workflow_dispatch"
           echo "ActionUrl   = https://github.com/${{github.repository}}/actions/runs/${{github.run_id}};" # example: "https://github.com/mniederw/MnCommonPsToolLib/actions/runs/4272755554"
           echo "Action      = ${{github.workflow}} #${{github.run_number}};" # example: "PowershellModuleTest #570"
           echo "WorkflowRef = ${{github.workflow_ref}};" # example: "mniederw/MnCommonPsToolLib/.github/workflows/PowershellModuleTest.yml@refs/heads/main"
@@ -84,8 +85,9 @@ jobs:
           #   GITHUB_STEP_SUMMARY     = /home/runner/work/_temp/_runner_file_commands/step_summary_dddaeb53-3cd8-4be8-b76c-5fa50a64656c
           #   INVOCATION_ID           = 765a5a77e7694d118c0feadb5fdc152d
           echo "List all environment variables in bash"; printenv;
-      - name: If tests on trunk of a push were successful then create pull request to destination branch
-        if: ${{ success() && github.event_name == 'push' && github.ref == 'refs/heads/trunk' && runner.os == 'Linux' }}
+
+      - name: If tests on trunk of a push or workflow_dispatch were successful then create pull request to main
+        if: ${{ success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')  && github.ref == 'refs/heads/trunk' && runner.os == 'Linux' }}
         uses: repo-sync/pull-request@v2.6.2  # see: https://github.com/repo-sync/pull-request  works only on linux
         with:
           pr_title: "Merge ${{github.ref_name}} to main - Unittests are successful - ${{ github.event.commits[0].message }}"
