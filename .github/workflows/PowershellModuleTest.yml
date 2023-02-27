@@ -1,7 +1,7 @@
 ﻿name: PowershellModuleTest
 env:
   destination_branch: "main"
-run-name: "PowershellModuleTest on 3 platforms and create PR to ${{destination_branch}}"
+run-name: "PowershellModuleTest on 3 platforms and create PR to main"
 
 # Triggers the workflow on push or pull request events but only for the given branches and ignore changes of some file types.
 on:
