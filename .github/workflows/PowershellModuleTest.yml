@@ -3,7 +3,7 @@
 env:
   destBranch: "main"
 
-run-name: "PowershellModuleTest on 3 os's and create PR to ${destBranch}"
+run-name: "PowershellModuleTest on 3 os's and create PR"
 
 
 # Triggers the workflow on push or pull request events but only for the given branches and ignore changes of some file types.
