@@ -1,5 +1,7 @@
 ﻿name: PowershellModuleTest
-run-name: "PowershellModuleTest on 3 platforms"
+env:
+  destination_branch: "main"
+run-name: "PowershellModuleTest on 3 platforms and create PR to ${{destination_branch}}"
 
 # Triggers the workflow on push or pull request events but only for the given branches and ignore changes of some file types.
 on:
@@ -26,9 +28,6 @@ on:
     - cron:  '1 0 * * 0'  # 00:01 each sunday with main branch
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
-env:
-  destination_branch: "main"
-
 jobs:
 
   Test:
@@ -61,7 +60,7 @@ jobs:
       # - macos-latest    = macOS 11
       # - self-hosted     = own machine
       # - More see: https://github.com/actions/virtual-environments/
-    name: "Merge to ${{env.destination_branch}} if all unittests are ok"
+    name: "Merge to ${{destination_branch}} if all unittests are ok"
     needs: [test]
     steps:
 
@@ -89,11 +88,11 @@ jobs:
           #   INVOCATION_ID           = 765a5a77e7694d118c0feadb5fdc152d
           echo "List all environment variables in bash"; printenv;
 
-      - name: If tests on trunk of a push were successful then create pull request to main
+      - name: If tests on trunk of a push were successful then create pull request to destination branch
         if: ${{ success() && github.event_name == 'push' && github.ref == 'refs/heads/trunk' && runner.os == 'Linux' }}
         uses: repo-sync/pull-request@v2.6.2  # see: https://github.com/repo-sync/pull-request  works only on linux
         with:
-          pr_title: "Merge ${{github.ref_name}} to ${{env.destination_branch}} - Unittests are successful - ${{ github.event.commits[0].message }}"
+          pr_title: "Merge ${{github.ref_name}} to ${{destination_branch}} - Unittests are successful - ${{ github.event.commits[0].message }}"
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Output job state
