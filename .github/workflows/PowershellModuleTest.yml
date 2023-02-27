@@ -1,4 +1,4 @@
-﻿name: PowershellModuleTest
+﻿﻿name: PowershellModuleTest
 # variables
 env:
   destBranch: "main"
