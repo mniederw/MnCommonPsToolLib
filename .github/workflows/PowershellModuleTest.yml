@@ -57,10 +57,10 @@ jobs:
       # - macos-latest    = macOS 11
       # - self-hosted     = own machine
       # - More see: https://github.com/actions/virtual-environments/
-    name: "Merge to main if tests are ok"
-    needs: [test]
     env:
       destination_branch: "main"
+    name: "Merge to ${{env.destination_branch}} if all unittests are ok"
+    needs: [test]
     steps:
 
       # Checks-out your repository under $GITHUB_WORKSPACE, see https://github.com/actions/checkout
@@ -91,7 +91,7 @@ jobs:
         if: ${{ success() && github.event_name == 'push' && github.ref == 'refs/heads/trunk' && runner.os == 'Linux' }}
         uses: repo-sync/pull-request@v2.6.2  # see: https://github.com/repo-sync/pull-request  works only on linux
         with:
-          pr_title: "Merge ${{github.ref_name}} to ${{destination_branch}} - Unittests are successful - ${{ github.event.commits[0].message }}"
+          pr_title: "Merge ${{github.ref_name}} to ${{env.destination_branch}} - Unittests are successful - ${{ github.event.commits[0].message }}"
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Output job state
