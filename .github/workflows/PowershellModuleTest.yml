@@ -44,7 +44,7 @@ jobs:
           # Default runners have installed: PS7.2.5 and Pester.
           # More about PS: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-powershell#powershell-module-locations
         run: |
-          echo "Running on OS=${{runner.os}}/${{ImageOS}}; $(which pwsh); $(pwsh --version)"; # example: "Linux/ubuntu22; /opt/microsoft/powershell/7/pwsh; Powershell V7.2.5"
+          echo "Running on OS=${{runner.os}}/${{env.imageos}}; $(which pwsh); $(pwsh --version)"; # example: "Linux/ubuntu22; /opt/microsoft/powershell/7/pwsh; Powershell V7.2.5"
           echo "List all environment variables in pwsh"; Get-Variable;
           & "./TestAll.ps1";
           echo "Test ok.";
@@ -68,7 +68,7 @@ jobs:
       - name: Show environment variables of bash
         shell: bash
         run: |
-          echo "Running on OS=${{runner.os}}/${{ImageOS}}; $(which pwsh); $(pwsh --version)"; # example: "Linux; /usr/bin/pwsh; Powershell V7.2.5"
+          echo "Running on OS=${{runner.os}}/${{env.imageos}}; $(which pwsh); $(pwsh --version)"; # example: "Linux; /usr/bin/pwsh; Powershell V7.2.5"
           echo "Repo        = ${{github.repository}};" # example: "mniederw/MnCommonPsToolLib"
           echo "Actor       = ${{github.actor}};"      # example: "mniederw"
           echo "EventName   = ${{github.event_name}};" # example: "schedule","push"
