@@ -1,10 +1,6 @@
 ﻿name: PowershellModuleTest
 run-name: "PowershellModuleTest on 3 platforms and create PR to main"
 
-# variables
-env:
-  destination_branch: "main"
-
 # Triggers the workflow on push or pull request events but only for the given branches and ignore changes of some file types.
 on:
   push:
@@ -49,7 +45,7 @@ jobs:
           # Default runners have installed: PS7.2.5 and Pester.
           # More about PS: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-powershell#powershell-module-locations
         run: |
-          echo "Running on OS=${{runner.os}}/${{env.imageos}}; $(which pwsh); $(pwsh --version)"; # example: "Linux/ubuntu22; /opt/microsoft/powershell/7/pwsh; Powershell V7.2.5"
+          echo "Running on OS=${{runner.os}}/${env:imageos}; $(which pwsh); $(pwsh --version)"; # example: "Linux/ubuntu22; /opt/microsoft/powershell/7/pwsh; Powershell V7.2.5"
           echo "List all environment variables in pwsh"; Get-Variable;
           & "./TestAll.ps1";
           echo "Test ok.";
@@ -61,8 +57,8 @@ jobs:
       # - macos-latest    = macOS 11
       # - self-hosted     = own machine
       # - More see: https://github.com/actions/virtual-environments/
-    name: "Merge to ${destination_branch} if all unittests are ok"
-    needs: [test]
+    name: "Merge to main if all unittests are ok"
+    needs: [Test]
     steps:
 
       # Checks-out your repository under $GITHUB_WORKSPACE, see https://github.com/actions/checkout
@@ -72,7 +68,7 @@ jobs:
       - name: Show environment variables of bash
         shell: bash
         run: |
-          echo "Running on OS=${{runner.os}}/${{env.imageos}}; $(which pwsh); $(pwsh --version)"; # example: "Linux; /usr/bin/pwsh; Powershell V7.2.5"
+          echo "Running on OS=${{runner.os}}/${env:imageos}; $(which pwsh); $(pwsh --version)"; # example: "Linux; /usr/bin/pwsh; Powershell V7.2.5"
           echo "Repo        = ${{github.repository}};" # example: "mniederw/MnCommonPsToolLib"
           echo "Actor       = ${{github.actor}};"      # example: "mniederw"
           echo "EventName   = ${{github.event_name}};" # example: "schedule","push"
@@ -92,11 +88,10 @@ jobs:
         if: ${{ success() && github.event_name == 'push' && github.ref == 'refs/heads/trunk' && runner.os == 'Linux' }}
         uses: repo-sync/pull-request@v2.6.2  # see: https://github.com/repo-sync/pull-request  works only on linux
         with:
-          pr_title: "Merge ${{github.ref_name}} to ${destination_branch} - Unittests are successful - ${{ github.event.commits[0].message }}"
+          pr_title: "Merge ${{github.ref_name}} to main - Unittests are successful - ${{ github.event.commits[0].message }}"
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Output job state
-        # if: ${{ ! success() }}
         run: echo "Process ${{ job.status }}."; # job.status = [success,failure,cancelled].
 
 
