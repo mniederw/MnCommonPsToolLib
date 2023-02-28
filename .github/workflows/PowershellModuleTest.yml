@@ -1,4 +1,5 @@
 ﻿name: PowershellModuleTest
+run-name: "PowershellModuleTest on 3 platforms and create pull request to main"
 
 # Triggers the workflow on push or pull request events but only for the given branches and ignore changes of some file types.
 on:
@@ -27,12 +28,12 @@ on:
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
 
-  test:
+  Test:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-    runs-on: ${{matrix.os}}
-    name: "Test: ${{matrix.os}}: ${{github.ref_type}}=${{github.ref_name}} ${{github.event.repository.updated_at}}"
+    runs-on: ${{matrix.os}} # run on multiple OS
+    name: "Test on ${{matrix.os}} ${{github.ref_type}}=${{github.ref_name}} ${{github.event.repository.updated_at}}"
       # example: "Test: windows: branch=main 2021-12-31T23:59:59Z"
     steps:
 
@@ -49,16 +50,16 @@ jobs:
           & "./TestAll.ps1";
           echo "Test ok.";
 
-  merge:
-    runs-on: ubuntu-latest
+  Merge:
+    runs-on: ubuntu-latest  # must run on linux because tool for creating pr
       # Available 2022-08:
       # - ubuntu-latest   = Ubuntu-V20.04.3-LTS contains PowerShell-V7.2.5, already installed /usr/bin/pwsh
       # - windows-latest  = WinServer2022
       # - macos-latest    = macOS 11
       # - self-hosted     = own machine
       # - More see: https://github.com/actions/virtual-environments/
-    name: "Merge to main if tests are ok"
-    needs: [test]
+    name: "Merge to main if all unittests are ok"
+    needs: [Test]
     steps:
 
       # Checks-out your repository under $GITHUB_WORKSPACE, see https://github.com/actions/checkout
@@ -69,32 +70,37 @@ jobs:
         shell: bash
         run: |
           echo "Running on OS=${{runner.os}}; $(which pwsh); $(pwsh --version)"; # example: "Linux; /usr/bin/pwsh; Powershell V7.2.5"
+          echo "RepoRef     = ${{github.ref}};"        # example: "refs/heads/trunk"
+          echo "Repo        = ${{github.repository}};" # example: "mniederw/MnCommonPsToolLib"
+          echo "Actor       = ${{github.actor}};"      # example: "mniederw"
+          echo "EventName   = ${{github.event_name}};" # example: "schedule", "push", "workflow_dispatch"
+          echo "ActionUrl   = https://github.com/${{github.repository}}/actions/runs/${{github.run_id}};" # example: "https://github.com/mniederw/MnCommonPsToolLib/actions/runs/4272755554"
+          echo "Action      = ${{github.workflow}} #${{github.run_number}};" # example: "PowershellModuleTest #570"
+          echo "WorkflowRef = ${{github.workflow_ref}};" # example: "mniederw/MnCommonPsToolLib/.github/workflows/PowershellModuleTest.yml@refs/heads/main"
+          # More usuful variables: 
+          #   RUNNER_WORKSPACE        = /home/runner/work/MnCommonPsToolLib
+          #   GITHUB_WORKSPACE        = /home/runner/work/MnCommonPsToolLib/MnCommonPsToolLib
+          #   RUNNER_TEMP             = /home/runner/work/_temp
+          #   GITHUB_ENV              = /home/runner/work/_temp/_runner_file_commands/set_env_dddaeb53-3cd8-4be8-b76c-5fa50a64656c
+          #   GITHUB_OUTPUT           = /home/runner/work/_temp/_runner_file_commands/set_output_dddaeb53-3cd8-4be8-b76c-5fa50a64656c
+          #   GITHUB_STEP_SUMMARY     = /home/runner/work/_temp/_runner_file_commands/step_summary_dddaeb53-3cd8-4be8-b76c-5fa50a64656c
+          #   INVOCATION_ID           = 765a5a77e7694d118c0feadb5fdc152d
           echo "List all environment variables in bash"; printenv;
 
-      - name: If tests on trunk of a push were successful then create pull request to main
-        if: ${{ success() && github.event_name == 'push' && github.ref == 'refs/heads/trunk' && runner.os == 'Linux' }}
+      - name: If tests on trunk of a push or workflow_dispatch were successful then create pull request to main
+        if: ${{ success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')  && github.ref == 'refs/heads/trunk' && runner.os == 'Linux' }}
         uses: repo-sync/pull-request@v2.6.2  # see: https://github.com/repo-sync/pull-request  works only on linux
         with:
-          pr_title: "Trunk tests ok - merge to main - ${{ github.event.commits[0].message }}"
-          destination_branch: "main"
+          pr_title: "Merge ${{github.ref_name}} to main - Unittests are successful - ${{ github.event.commits[0].message }}"
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: The job has succeeded
-        if: ${{ success() }}
-        run: echo "Process was ok";
-
-      - name: The job failed
-        if: ${{ ! success() }}
-        run: echo "Process failed or cancelled. ${{ job.status }}.";
+      - name: Output job state
+        if: ${{ always() }}  # if alternatives: success(), failure(), cancelled(), 
+        run: echo "Process ${{ job.status }}."; # job.status = [success,failure,cancelled].
 
 
 
 # More docu: https://docs.github.com/en/actions/learn-github-actions/understanding-github-actions
-# For future:
-#   runs-on: ${{ matrix.os }} # run on multiple OS
-#   strategy:
-#     matrix:
-#       os: [ubuntu-latest, windows-latest, macOS-latest]
 # For future:
 #   strategy:
 #     matrix:
