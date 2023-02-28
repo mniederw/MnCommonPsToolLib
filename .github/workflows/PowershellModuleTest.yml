@@ -1,5 +1,5 @@
 ﻿name: PowershellModuleTest
-run-name: "PowershellModuleTest on 3 platforms and create PR to main"
+run-name: "PowershellModuleTest on 3 platforms and create pull request to main"
 
 # Triggers the workflow on push or pull request events but only for the given branches and ignore changes of some file types.
 on:
@@ -33,7 +33,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{matrix.os}} # run on multiple OS
-    name: "Test on ${{matrix.os}}: ${{github.ref_type}}=${{github.ref_name}} ${{github.event.repository.updated_at}}"
+    name: "Test on ${{matrix.os}} ${{github.ref_type}}=${{github.ref_name}} ${{github.event.repository.updated_at}}"
       # example: "Test: windows: branch=main 2021-12-31T23:59:59Z"
     steps:
 
@@ -49,6 +49,7 @@ jobs:
           echo "List all environment variables in pwsh"; Get-Variable;
           & "./TestAll.ps1";
           echo "Test ok.";
+
   Merge:
     runs-on: ubuntu-latest  # must run on linux because tool for creating pr
       # Available 2022-08:
@@ -94,6 +95,7 @@ jobs:
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Output job state
+        if: ${{ always() }}  # if alternatives: success(), failure(), cancelled(), 
         run: echo "Process ${{ job.status }}."; # job.status = [success,failure,cancelled].
 
 
