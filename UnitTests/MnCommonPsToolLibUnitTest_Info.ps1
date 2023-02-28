@@ -14,12 +14,12 @@ function Test_Info(){
   OutProgress $a;
     # InfoAboutComputerOverview:
     # 
-    # ComputerName   : mycomputer
-    # UserName       : u1
-    # Datetime       : 2022-12-31 13:14
-    # ProductKey     : XY123-88888-88888-88888-88888
-    # ConnetedDrives : C:\ D:\
-    # PathVariable   : C:\Program Files\...
+    # ComputerName    : mycomputer
+    # UserName        : u1
+    # Datetime        : 2022-12-31 13:14
+    # ProductKey      : XY123-88888-88888-88888-88888
+    # ConnectedDrives : C:\ D:\
+    # PathVariable    : C:\Program Files\...
     # 
   Assert ($a -like "*PathVariable*");
   #
@@ -54,7 +54,7 @@ function Test_Info(){
   #
   OutInfo "InfoGetInstalledDotNetVersion";
   InfoGetInstalledDotNetVersion; # to console not output: "4.7.2 or later (533325)"
-  # InfoGetInstalledDotNetVersion $true;  we cannot call this because clrver.exe not exists on multiplatforms
+  InfoGetInstalledDotNetVersion $true;
     #       List Installed DotNet CLRs (clrver.exe):
     #     Installed CLRs: v2.0.50727
     #     Installed CLRs: v4.0.30319
