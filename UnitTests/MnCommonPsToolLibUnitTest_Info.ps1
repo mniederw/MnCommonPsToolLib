@@ -54,7 +54,7 @@ function Test_Info(){
   #
   OutInfo "InfoGetInstalledDotNetVersion";
   InfoGetInstalledDotNetVersion; # to console not output: "4.7.2 or later (533325)"
-  InfoGetInstalledDotNetVersion $true;
+  # InfoGetInstalledDotNetVersion $true;  we cannot call this because clrver.exe not exists on multiplatforms
     #       List Installed DotNet CLRs (clrver.exe):
     #     Installed CLRs: v2.0.50727
     #     Installed CLRs: v4.0.30319
