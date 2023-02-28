@@ -45,12 +45,14 @@ function ScriptGetTopCaller                   (){ [String] $f = $global:MyInvoca
                                                 if( $f.StartsWith("&") ){ $f = $f.Substring(1,$f.Length-1).Trim(); }
                                                 if( ($f -match "^\'.+\'$") -or ($f -match "^\`".+\`"$") ){ $f = $f.Substring(1,$f.Length-2); }
                                                 return [String] $f; } # return empty if called interactive.
+function ProcessIsLesserEqualPs5              (){ return [Boolean] ($PSVersionTable.PSVersion.Major -le 5); }
+function ProcessPsExecutable                  (){ return [String] $(switch((ProcessIsLesserEqualPs5)){ $true{"powershell.exe"} default{"pwsh"}}); }
 function ProcessIsRunningInElevatedAdminMode  (){ return [Boolean] ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).
                                                   IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"); }
 function ProcessRestartInElevatedAdminMode    (){ if( -not (ProcessIsRunningInElevatedAdminMode) ){
                                                 [String[]] $cmd = @( (ScriptGetTopCaller) ) + $sel;
                                                 OutProgress "Not running in elevated administrator mode so elevate current script and exit: `n  $cmd";
-                                                Start-Process -Verb "RunAs" -FilePath "powershell.exe" -ArgumentList "& `"$cmd`" ";
+                                                Start-Process -Verb "RunAs" -FilePath (ProcessPsExecutable) -ArgumentList "& `"$cmd`" ";
                                                 [Environment]::Exit("0"); throw [Exception] "Exit done, but it did not work, so it throws now an exception."; } }
 function ShellSessionIs64not32Bit             (){ if( "$env:ProgramFiles" -eq "$env:ProgramW6432"        ){ return [Boolean] $true ; }
                                                 elseif( "$env:ProgramFiles" -eq "${env:ProgramFiles(x86)}" ){ return [Boolean] $false; }

@@ -7,12 +7,12 @@ Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version
 function Test_Process_Job(){
   OutProgress (ScriptGetCurrentFuncName);
   if( ! (OsIsWindows) ){ OutProgress "Not running on windows, so bypass test."; return; }
-  # TODO:
-  #   ProcessFindExecutableInPath          ( [String] $exec )
-  #   ProcessIsRunningInElevatedAdminMode  ()
-  #   ProcessAssertInElevatedAdminMode     ()
-  #   ProcessRestartInElevatedAdminMode    ()
-  #   ProcessGetCurrentThreadId            ()
+  #
+  Assert (ProcessFindExecutableInPath("") -ne "");
+  [Boolean] $b = ProcessIsRunningInElevatedAdminMode();
+  if( $b ){ ProcessAssertInElevatedAdminMode; }
+  if( $b ){ ProcessRestartInElevatedAdminMode; }
+  Assert ((ProcessGetCurrentThreadId) -gt 0);
   Assert ((ProcessGetNrOfCores) -gt 1);
   Assert ((ProcessListRunnings).Count -gt 20);
   #   ProcessListRunningsFormatted         ()

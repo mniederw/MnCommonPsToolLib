@@ -542,7 +542,7 @@ function ScriptResetRc                        (){ $error.clear(); $global:LASTEX
 function ScriptNrOfScopes                     (){ [Int32] $i = 1; while($true){
                                                 try{ Get-Variable null -Scope $i -ValueOnly -ErrorAction SilentlyContinue | Out-Null; $i++;
                                                 }catch{ <# ex: System.Management.Automation.PSArgumentOutOfRangeException #> return [Int32] ($i-1); } } }
-function ScriptGetProcessCommandLine          (){ return [String] ([environment]::commandline); } # ex: "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" "& \"C:\myscript.ps1\"";  or  "C:\Program Files\PowerShell\7\pwsh.dll" -nologo
+function ScriptGetProcessCommandLine          (){ return [String] ([Environment]::commandline); } # ex: "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" "& \"C:\myscript.ps1\"";  or  "C:\Program Files\PowerShell\7\pwsh.dll" -nologo
 function ScriptGetDirOfLibModule              (){ return [String] $PSScriptRoot ; } # Get dir       of this script file of this function or empty if not from a script; alternative: (Split-Path -Parent -Path ($script:MyInvocation.MyCommand.Path))
 function ScriptGetFileOfLibModule             (){ return [String] $PSCommandPath; } # Get full path of this script file of this function or empty if not from a script. alternative1: try{ return [String] (Get-Variable MyInvocation -Scope 1 -ValueOnly).MyCommand.Path; }catch{ return [String] ""; }  alternative2: $script:MyInvocation.MyCommand.Path
 function ScriptGetCallerOfLibModule           (){ return [String] $MyInvocation.PSCommandPath; } # Result can be empty or implicit module if called interactive. alternative for dir: $MyInvocation.PSScriptRoot.
@@ -592,6 +592,31 @@ function StreamToFile                         ( [String] $file, [Boolean] $overw
                                                 OutProgress "WriteFile $file"; FsEntryCreateParentDir $file;
                                                 $input | Out-File -Force -NoClobber:$(-not $overwrite) -Encoding $encoding -LiteralPath $file; }
 function StreamFromCsvStrings                 ( [Char] $delimiter = ',' ){ $input | ConvertFrom-Csv -Delimiter $delimiter; }
+function ProcessIsLesserEqualPs5              (){ return [Boolean] ($PSVersionTable.PSVersion.Major -le 5); }
+function ProcessPsExecutable                  (){ return [String] $(switch((ProcessIsLesserEqualPs5)){ $true{"powershell.exe"} default{"pwsh"}}); }
+function ProcessIsRunningInElevatedAdminMode  (){ if( (OsIsWindows) ){ return [Boolean] ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"); }
+                                                  return [Boolean] ("$env:SUDO_USER" -ne ""); }
+function ProcessAssertInElevatedAdminMode     (){ Assert (ProcessIsRunningInElevatedAdminMode) "requires to be in elevated admin mode"; }
+function ProcessRestartInElevatedAdminMode    (){ if( (ProcessIsRunningInElevatedAdminMode) ){ return; }
+                                                # ex: "C:\myscr.ps1" or if interactive then statement name ex: "ProcessRestartInElevatedAdminMode"
+                                                [String] $cmd = @( (ScriptGetTopCaller) ) + $global:ArgsForRestartInElevatedAdminMode;
+                                                if( $global:ModeDisallowInteractions ){
+                                                  [String] $msg = "Script `"$cmd`" is currently not in elevated admin mode and function ProcessRestartInElevatedAdminMode was called ";
+                                                  $msg += "but currently the mode ModeDisallowInteractions=$global:ModeDisallowInteractions, ";
+                                                  $msg += "and so restart will not be performed. Now it will continue but it probably will fail.";
+                                                  OutWarning "Warning: $msg";
+                                                }else{
+                                                  $cmd = $cmd -replace "`"","`"`"`""; # see https://docs.microsoft.com/en-us/dotnet/api/system.diagnostics.processstartinfo.arguments
+                                                  $cmd = ([String[]]$(switch(ScriptIsProbablyInteractive){ ($true){@("-NoExit")} default{@()} })) + @("&") + @("`"$cmd`"");
+                                                  OutProgress "Not running in elevated administrator mode so elevate current script and exit:";
+                                                  OutProgress "  $((ProcessPsExecutable)) $cmd";
+                                                  Start-Process -Verb "RunAs" -FilePath (ProcessPsExecutable) -ArgumentList $cmd;
+                                                  # ex: InvalidOperationException: This command cannot be run due to the error: Der Vorgang wurde durch den Benutzer abgebrochen.
+                                                  OutProgress "Exiting in 10 seconds";
+                                                  ProcessSleepSec 10;
+                                                  [Environment]::Exit("0"); # Note: 'Exit 0;' would only leave the last '. mycommand' statement.
+                                                  throw [Exception] "Exit done, but it did not work, so it throws now an exception.";
+                                                } }
 function ProcessFindExecutableInPath          ( [String] $exec ){ # Return full path or empty if not found.
                                                 [Object] $p = (Get-Command $exec -ErrorAction SilentlyContinue);
                                                 if( $null -eq $p ){ return [String] ""; } return [String] $p.Source; }
@@ -643,8 +668,8 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 # You can use StringSplitIntoLines on output to get it as lines.
                                                 # Internally the stdout and stderr are stored to variables and not temporary files to avoid file system IO.
                                                 # Important Note: The original Process.Start(ProcessStartInfo) cannot run a ps1 file
-                                                #   even if $env:PATHEXT contains the PS1 because it does not precede it with (powershell.exe -File).
-                                                #   Our solution will do this by automatically use powershell.exe -NoLogo -File before the ps1 file
+                                                #   even if $env:PATHEXT contains the PS1 because it does not precede it with (powershell.exe -File) or (pwsh -File).
+                                                #   Our solution will do this by automatically use powershell.exe -NoLogo -File  or  pwsh -NoLogo -File  before the ps1 file
                                                 #   and it surrounds the arguments correctly by double-quotes to support blanks in any argument.
                                                 # There is a special handling of the commandline as descripted in "Parsing C++ command-line arguments"
                                                 # https://docs.microsoft.com/en-us/cpp/cpp/main-function-command-line-args
@@ -676,9 +701,9 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 if( $isPs ){
                                                   $cmdArgs = @() + ($cmdArgs | Where-Object { $null -ne $_ } | ForEach-Object {
                                                       $_.Replace("\\","\").Replace("\`"","`""); });
-                                                  $traceInfo = "powershell -File `"$cmd`" $(StringArrayDblQuoteItems $cmdArgs)";
+                                                  $traceInfo = "$((ProcessPsExecutable)) -File `"$cmd`" $(StringArrayDblQuoteItems $cmdArgs)";
                                                   $cmdArgs = @( "-NoLogo", "-File", "`"$exec`"" ) + $cmdArgs;
-                                                  $exec = (Get-Command "powershell.exe").Path;
+                                                  $exec = (Get-Command (ProcessPsExecutable)).Path;
                                                 }else{
                                                   $cmdArgs = @() + (StringArrayDblQuoteItems $cmdArgs);
                                                 }
@@ -763,7 +788,10 @@ function HelpListOfAllModules                 (){ Get-Module -ListAvailable | So
 function HelpListOfAllExportedCommands        (){ (Get-Module -ListAvailable).ExportedCommands.Values | Sort-Object Name | Select-Object Name, ModuleName; }
 function HelpGetType                          ( [Object] $obj ){ return [String] $obj.GetType(); }
 function OsPsVersion                          (){ return [String] (""+$Host.Version.Major+"."+$Host.Version.Minor); } # alternative: $PSVersionTable.PSVersion.Major
-function OsIsWindows                          (){ return [Boolean] ("$($env:WINDIR)" -ne ""); }
+function OsIsWindows                          (){ return [Boolean] ([System.Environment]::OSVersion.Platform -eq "Win32NT"); }
+                                                # Example: Win10Pro: Version="10.0.19044.0"
+                                                # Alternative: "$($env:WINDIR)" -ne ""; In PS6 and up you can use: $IsMacOS, $IsLinux, $IsWindows. 
+                                                # for future: function OsIsLinux(){ return [Boolean] ([System.Environment]::OSVersion.Platform -eq "Unix"); } # example: Ubuntu22: Version="5.15.0.41"
 function OsPsModulePathList                   (){ return [String[]] ([Environment]::GetEnvironmentVariable("PSModulePath", "Machine").
                                                   Split(";",[System.StringSplitOptions]::RemoveEmptyEntries)); }
 function OsPsModulePathContains               ( [String] $dir ){ # ex: "D:\MyGitRoot\MyGitAccount\MyPsLibRepoName"
@@ -3054,7 +3082,7 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #   Default is: powershell.exe Set-Executionpolicy Restricted
 #   More: get-help about_signing
 #   For being able to doubleclick a ps1 file or run a shortcut for a ps1 file, do in Systemcontrol->Standardprograms you can associate .ps1
-#     with       C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
+#     with       "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
 #     or better  "C:\Program Files\PowerShell\7\pwsh.EXE"
 # - Common parameters used enable stdandard options:
 #   [-Verbose] [-Debug] [-ErrorAction <ActionPreference>] [-WarningAction <ActionPreference>] [-ErrorVariable <String>] [-WarningVariable <String>] [-OutVariable <String>] [-OutBuffer <Int32>]

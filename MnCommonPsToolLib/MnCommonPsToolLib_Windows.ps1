@@ -1,26 +1,5 @@
 ﻿# Extension of MnCommonPsToolLib.psm1 - Common powershell tool library - Parts for windows only
 
-function ProcessIsRunningInElevatedAdminMode  (){ return [Boolean] ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"); }
-function ProcessAssertInElevatedAdminMode     (){ Assert (ProcessIsRunningInElevatedAdminMode) "requires to be in elevated admin mode"; }
-function ProcessRestartInElevatedAdminMode    (){ if( (ProcessIsRunningInElevatedAdminMode) ){ return; }
-                                                # ex: "C:\myscr.ps1" or if interactive then statement name ex: "ProcessRestartInElevatedAdminMode"
-                                                [String] $cmd = @( (ScriptGetTopCaller) ) + $global:ArgsForRestartInElevatedAdminMode;
-                                                if( $global:ModeDisallowInteractions ){
-                                                  [String] $msg = "Script `"$cmd`" is currently not in elevated admin mode and function ProcessRestartInElevatedAdminMode was called ";
-                                                  $msg += "but currently the mode ModeDisallowInteractions=$global:ModeDisallowInteractions, ";
-                                                  $msg += "and so restart will not be performed. Now it will continue but it probably will fail.";
-                                                  OutWarning "Warning: $msg";
-                                                }else{
-                                                  $cmd = $cmd -replace "`"","`"`"`""; # see https://docs.microsoft.com/en-us/dotnet/api/system.diagnostics.processstartinfo.arguments
-                                                  $cmd = ([String[]]$(switch(ScriptIsProbablyInteractive){ ($true){@("-NoExit")} default{@()} })) + @("&") + @("`"$cmd`"");
-                                                  OutProgress "Not running in elevated administrator mode so elevate current script and exit:";
-                                                  OutProgress "  powershell.exe $cmd";
-                                                  Start-Process -Verb "RunAs" -FilePath "powershell.exe" -ArgumentList $cmd; # ex: InvalidOperationException: This command cannot be run due to the error: Der Vorgang wurde durch den Benutzer abgebrochen.
-                                                  OutProgress "Exiting in 10 seconds";
-                                                  ProcessSleepSec 10;
-                                                  [Environment]::Exit("0"); # Note: 'Exit 0;' would only leave the last '. mycommand' statement.
-                                                  throw [Exception] "Exit done, but it did not work, so it throws now an exception.";
-                                                } }
 function ProcessGetNrOfCores                  (){ return [Int32] (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors; }
 function ProcessOpenAssocFile                 ( [String] $fileOrUrl ){ & "rundll32" "url.dll,FileProtocolHandler" $fileOrUrl; AssertRcIsOk; }
 function JobStart                             ( [ScriptBlock] $scr, [Object[]] $scrArgs = $null, [String] $name = "Job" ){ # Return job object of type PSRemotingJob, the returned object of the script block can later be requested.
