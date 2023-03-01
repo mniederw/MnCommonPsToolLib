@@ -618,6 +618,7 @@ function ProcessRestartInElevatedAdminMode    (){ if( (ProcessIsRunningInElevate
                                                   throw [Exception] "Exit done, but it did not work, so it throws now an exception.";
                                                 } }
 function ProcessFindExecutableInPath          ( [String] $exec ){ # Return full path or empty if not found.
+                                                if( $exec -eq "" ){ return [String] ""; }
                                                 [Object] $p = (Get-Command $exec -ErrorAction SilentlyContinue);
                                                 if( $null -eq $p ){ return [String] ""; } return [String] $p.Source; }
 function ProcessGetCurrentThreadId            (){ return [Int32] [Threading.Thread]::CurrentThread.ManagedThreadId; }

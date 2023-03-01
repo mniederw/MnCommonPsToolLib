@@ -8,8 +8,8 @@ function Test_Process_Job(){
   OutProgress (ScriptGetCurrentFuncName);
   if( ! (OsIsWindows) ){ OutProgress "Not running on windows, so bypass test."; return; }
   #
-  Assert (ProcessFindExecutableInPath("") -ne "");
-  [Boolean] $b = ProcessIsRunningInElevatedAdminMode();
+  Assert ((ProcessFindExecutableInPath "") -eq "");
+  [Boolean] $b = ProcessIsRunningInElevatedAdminMode;
   if( $b ){ ProcessAssertInElevatedAdminMode; }
   if( $b ){ ProcessRestartInElevatedAdminMode; }
   Assert ((ProcessGetCurrentThreadId) -gt 0);
