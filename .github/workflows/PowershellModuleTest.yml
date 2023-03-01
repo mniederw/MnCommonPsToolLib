@@ -89,11 +89,19 @@ jobs:
 
       - name: If tests on trunk of a push were successful then create pull request to main
         if: ${{ success() && github.event_name == 'push' && github.ref == 'refs/heads/trunk' && runner.os == 'Linux' }}
-        uses: repo-sync/pull-request@v2.6.2  # see: https://github.com/repo-sync/pull-request  works only on linux
+        uses: repo-sync/pull-request@v2.12.1
+          # for parameters see: https://github.com/repo-sync/pull-request
+          # works only on linux, see releases for updating version from time to time 
         with:
           pr_title: "Merge ${{github.ref_name}} to main - Unittests are successful - ${{ github.event.commits[0].message }}"
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-
+          source_branch: ""                          # If blank, default: triggered branch
+          destination_branch: "main"                 #
+          github_token: ${{ secrets.GITHUB_TOKEN }}  # If blank, default: secrets.GITHUB_TOKEN
+          pr_allow_empty: false                      # Creates pull request even if there are no changes
+          pr_label: ""                               # Comma-separated list (no spaces)
+          pr_milestone: ""                           # Milestone name
+          #pr_reviewer: "user1,user2"                # Comma-separated list (no spaces)
+          #pr_assignee: "user1,user2"                # Comma-separated list (no spaces)
       - name: Output job state
         if: ${{ always() }}  # if alternatives: success(), failure(), cancelled(), 
         run: echo "Process ${{ job.status }}."; # job.status = [success,failure,cancelled].
