@@ -702,10 +702,14 @@ function JuniperNcEstablishVpnConnAndRdp      ( [String] $rdpfile, [String] $url
                                                 [String] $secureCredentialFile = "$rdpfile.vpn-uspw.$ComputerName.txt";
                                                 JuniperNcEstablishVpnConn $secureCredentialFile $url $realm;
                                                 ToolRdpConnect $rdpfile; }
-function InfoAboutComputerOverview            (){
-                                                return [String[]] @( "InfoAboutComputerOverview:", "", "ComputerName   : $ComputerName", "UserName       : $env:UserName",
-                                                "Datetime        : $(DateTimeNowAsStringIso 'yyyy-MM-dd HH:mm')", "ProductKey     : $(OsGetWindowsProductKey)",
-                                                "ConnectedDrives : $([System.IO.DriveInfo]::getdrives())", "PathVariable   : $env:PATH" ); }
+function InfoAboutComputerOverview            (){ return [String[]] @(
+                                                "InfoAboutComputerOverview:", "",
+                                                "ComputerName   : $ComputerName",
+                                                "UserName       : $env:UserName",
+                                                "Datetime       : $(DateTimeNowAsStringIso 'yyyy-MM-dd HH:mm')",
+                                                "ProductKey     : $(OsGetWindowsProductKey)",
+                                                "ConnectedDrives: $([System.IO.DriveInfo]::getdrives())",
+                                                "PathVariable   : $env:PATH" ); }
 function InfoAboutExistingShares              (){
                                                 [String[]] $result = @( "Info about existing shares:", "" );
                                                 foreach( $shareObj in (ShareListAll | Sort-Object Name) ){
