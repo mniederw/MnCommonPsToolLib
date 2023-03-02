@@ -48,7 +48,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $global:MnCommonPsToolLibVersion = "7.13"; # more see Releasenotes.txt
+[String] $global:MnCommonPsToolLibVersion = "7.14"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -607,9 +607,10 @@ function ProcessRestartInElevatedAdminMode    (){ if( (ProcessIsRunningInElevate
                                                   OutWarning "Warning: $msg";
                                                 }else{
                                                   $cmd = $cmd -replace "`"","`"`"`""; # see https://docs.microsoft.com/en-us/dotnet/api/system.diagnostics.processstartinfo.arguments
-                                                  $cmd = ([String[]]$(switch(ScriptIsProbablyInteractive){ ($true){@("-NoExit")} default{@()} })) + @("&") + @("`"$cmd`"");
+                                                  $cmd = $(switch((ProcessIsLesserEqualPs5)){ $true{"& `"$cmd`""} default{"-Command $cmd"}});
+                                                  $cmd = $(switch(ScriptIsProbablyInteractive){ ($true){"-NoExit -NoLogo "} default{""} }) + $cmd;
                                                   OutProgress "Not running in elevated administrator mode so elevate current script and exit:";
-                                                  OutProgress "  $((ProcessPsExecutable)) $cmd";
+                                                  OutProgress "  Start-Process -Verb RunAs -FilePath $(ProcessPsExecutable) -ArgumentList $cmd";
                                                   Start-Process -Verb "RunAs" -FilePath (ProcessPsExecutable) -ArgumentList $cmd;
                                                   # ex: InvalidOperationException: This command cannot be run due to the error: Der Vorgang wurde durch den Benutzer abgebrochen.
                                                   OutProgress "Exiting in 10 seconds";
