@@ -410,7 +410,13 @@ function RegistryKeySetAclRule                ( [String] $key, [System.Security.
                                                   $k.Close(); $hk.Close();
                                                 }catch{ throw [Exception] "$(ScriptGetCurrentFunc)($key,$(RegistryPrivRuleToString $rule),$useAddNotSet) failed because $($_.Exception.Message)"; } }
 function ServiceListRunnings                  (){
-                                                return [String[]] (@()+(Get-Service * |
+                                                return [String[]] (@()+(Get-Service -ErrorAction SilentlyContinue * |
+                                                  # 2023-03: for: get-service McpManagementService on we got the following error without any specific error:
+                                                  #   "Get-Service: Service 'McpManagementService (McpManagementService)' cannot be queried due to the following error:" 
+                                                  # In services.msc the description is "<Fehler beim Lesen der Beschreibung. Fehlercode: 15100 >".
+                                                  # Since around 10 years thats the first error on this command, according googling it happens on Win10 and Win11,
+                                                  # please Microsoft fix this asap.
+                                                  # The workaround is to use (ErrorAction SilentlyContinue) what is a dirty solution.
                                                   Where-Object{ $_.Status -eq "Running" } |
                                                   Sort-Object Name |
                                                   Format-Table -auto -HideTableHeaders " ",Name,DisplayName |
