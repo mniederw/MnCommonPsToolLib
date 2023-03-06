@@ -607,7 +607,7 @@ function ProcessRestartInElevatedAdminMode    (){ if( (ProcessIsRunningInElevate
                                                   OutWarning "Warning: $msg";
                                                 }else{
                                                   $cmd = $cmd -replace "`"","`"`"`""; # see https://docs.microsoft.com/en-us/dotnet/api/system.diagnostics.processstartinfo.arguments
-                                                  $cmd = $(switch((ProcessIsLesserEqualPs5)){ $true{"& `"$cmd`""} default{"-Command $cmd"}});
+                                                  $cmd = $(switch((ProcessIsLesserEqualPs5)){ $true{"& `"$cmd`""} default{"-Command `"$cmd`""}});
                                                   $cmd = $(switch(ScriptIsProbablyInteractive){ ($true){"-NoExit -NoLogo "} default{""} }) + $cmd;
                                                   OutProgress "Not running in elevated administrator mode so elevate current script and exit:";
                                                   OutProgress "  Start-Process -Verb RunAs -FilePath $(ProcessPsExecutable) -ArgumentList $cmd";
@@ -1087,19 +1087,23 @@ function FsEntryTrySetOwner                   ( [String] $fsEntry, [System.Secur
                                                 } }
 function FsEntryTrySetOwnerAndAclsIfNotSet    ( [String] $fsEntry, [System.Security.Principal.IdentityReference] $account, [Boolean] $recursive = $false ){
                                                 # usually account is (PrivGetGroupAdministrators)
-                                                [System.Security.AccessControl.FileSystemSecurity] $acl = FsEntryAclGet $fsEntry;
-                                                if( $acl.Owner -ne $account ){
-                                                  FsEntryTrySetOwner $fsEntry $account $false;
-                                                  $acl = FsEntryAclGet $fsEntry;
-                                                }
-                                                [Boolean] $isDir = FsEntryIsDir $fsEntry;
-                                                [System.Security.AccessControl.FileSystemAccessRule] $rule = (PrivFsRuleCreateFullControl $account $isDir);
-                                                if( -not (PrivAclHasFullControl $acl $account $isDir) ){
-                                                  FsEntryAclRuleWrite "Set" $fsEntry $rule $false;
-                                                }
-                                                if( $recursive -and $isDir ){
-                                                  FsEntryListAsStringArray "$fsEntry$(DirSep)*" $false | Where-Object{$null -ne $_} |
-                                                    ForEach-Object{ FsEntryTrySetOwnerAndAclsIfNotSet $_ $account $true };
+                                                try{
+                                                  [System.Security.AccessControl.FileSystemSecurity] $acl = FsEntryAclGet $fsEntry;
+                                                  if( $acl.Owner -ne $account ){
+                                                    FsEntryTrySetOwner $fsEntry $account $false;
+                                                    $acl = FsEntryAclGet $fsEntry;
+                                                  }
+                                                  [Boolean] $isDir = FsEntryIsDir $fsEntry;
+                                                  [System.Security.AccessControl.FileSystemAccessRule] $rule = (PrivFsRuleCreateFullControl $account $isDir);
+                                                  if( -not (PrivAclHasFullControl $acl $account $isDir) ){
+                                                    FsEntryAclRuleWrite "Set" $fsEntry $rule $false;
+                                                  }
+                                                  if( $recursive -and $isDir ){
+                                                    FsEntryListAsStringArray "$fsEntry$(DirSep)*" $false | Where-Object{$null -ne $_} |
+                                                      ForEach-Object{ FsEntryTrySetOwnerAndAclsIfNotSet $_ $account $true };
+                                                  }
+                                                }catch{
+                                                  OutWarning "FsEntryTrySetOwnerAndAclsIfNotSet `"$fsEntry`" $account $recursive : Failed because $($_.Exception.Message)";
                                                 } }
 function FsEntryTryForceRenaming              ( [String] $fsEntry, [String] $extension ){
                                                 if( (FsEntryExists $fsEntry) ){
