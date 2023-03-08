@@ -1188,14 +1188,24 @@ function ToolInstallNuPckMgrAndCommonPsGalMo(){
                                                 OutProgress "  InstallModules: SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate. Update-Help. ";
                                                 OutProgress "  Needs about 1 min.";
                                                 ProcessRestartInElevatedAdminMode;
-                                                OutProgress "Update NuGet"; # works asynchron
-                                                [String[]] $out = (Install-PackageProvider -Name NuGet -Force | Select-Object Name, Status, Version, Source);
-                                                $out | ForEach-Object{ OutProgress "  $_"; };
-                                                OutProgress "List of installed modules having an installdate:";
-                                                Get-InstalledModule | Where-Object{$null -ne $_ -and $null -ne $_.InstalledDate } | Select-Object Name | Get-InstalledModule -AllVersions |
-                                                  Select-Object Name, Version, InstalledDate, UpdatedDate, Dependencies, Repository, PackageManagementProvider, InstalledLocation | StreamToTableString;
                                                 OutProgress "Set repository PSGallery:";
                                                 Set-PSRepository PSGallery -InstallationPolicy Trusted; # uses 14 sec
+                                                OutProgress "List of installed package providers:";
+                                                Get-PackageProvider -ListAvailable | Where-Object{$null -ne $_} |
+                                                  Select-Object Name, Version, DynamicOptions |
+                                                  StreamToTableString;
+                                                OutProgress "Update NuGet"; # works asynchron
+                                                # On PS7 for "Install-PackageProvider NuGet" we got: 
+                                                #   Install-PackageProvider: No match was found for the specified search criteria for the provider 'NuGet'. The package provider requires 'PackageManagement' and 'Provider' tags. Please check if the specified package has the tags.
+                                                # So we ignore errors.
+                                                Install-PackageProvider -Name NuGet -ErrorAction SilentlyContinue | 
+                                                  Select-Object Name, Status, Version, Source |
+                                                  StreamToTableString;
+                                                OutProgress "List of installed modules having an installdate:";
+                                                Get-InstalledModule | Where-Object{$null -ne $_ -and $null -ne $_.InstalledDate } | 
+                                                  Select-Object Name | Get-InstalledModule -AllVersions |
+                                                  Select-Object Name, Version, InstalledDate, UpdatedDate, Dependencies, Repository, PackageManagementProvider, InstalledLocation |
+                                                  StreamToTableString;
                                                 # https://docs.microsoft.com/en-us/powershell/scripting/how-to-use-docs?view=powershell-7.2  take lts version
                                                 OutProgress "Install-Module -AcceptLicense -Scope AllUsers -Name PowerShellGet, SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate; ";
                                                 # alternatives: Install-Module -Force [-MinimumVersion <String>] [-MaximumVersion <String>] [-RequiredVersion <String>]
@@ -1209,8 +1219,11 @@ function ToolInstallNuPckMgrAndCommonPsGalMo(){
                                                     OutProgress "Install-Module -Scope AllUsers -Name PowerShellGet, SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate; ";
                                                     Install-Module -Scope AllUsers -Name PowerShellGet, SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate;
                                                 }
-                                                OutProgress "Update  modules: PowerShellGet, SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate";
-                                                Update-Module PowerShellGet, SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate;
+                                                # On PS7 we would get: Update-Module: Module 'PowerShellGet' was not installed by using Install-Module, so it cannot be updated.
+                                                if( (ProcessIsLesserEqualPs5) ){
+                                                  OutProgress "Update  modules: PowerShellGet, SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate";
+                                                  Update-Module PowerShellGet, SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate;
+                                                }
                                                 # Set-Culture -CultureInfo de-CH; # change default culture for current user
                                                 OutProgress "Current Culture: $((Get-Culture).Name) = $((Get-Culture).DisplayName) "; # show current culture, ex: "de-CH"
                                                 OutProgress "update-help";
@@ -1223,8 +1236,10 @@ function ToolInstallNuPckMgrAndCommonPsGalMo(){
                                                   OutWarning "Warning: Update-help failed because $($_.Exception.Message), ignored.";
                                                 }
                                                 OutProgress "List of installed modules having an installdate:";
-                                                Get-InstalledModule | Where-Object{$null -ne $_ -and $null -ne $_.InstalledDate } | Select-Object Name | Get-InstalledModule -AllVersions |
-                                                  Select-Object Name, Version, InstalledDate, UpdatedDate, Dependencies, Repository, PackageManagementProvider, InstalledLocation | StreamToTableString;
+                                                Get-InstalledModule | Where-Object{$null -ne $_ -and $null -ne $_.InstalledDate } | 
+                                                  Select-Object Name | Get-InstalledModule -AllVersions |
+                                                  Select-Object Name, Version, InstalledDate, UpdatedDate, Dependencies, Repository, PackageManagementProvider, InstalledLocation | 
+                                                  StreamToTableString;
                                                 # Hints:
                                                 # - Install-Module -Force -Name myModule; # 2021-12: Paralled installed V1.0.0.1 and V2.2.5
                                                 #   we got: WARNING: The version '1.4.7' of module 'myModule' is currently in use. Retry the operation after closing the applications.

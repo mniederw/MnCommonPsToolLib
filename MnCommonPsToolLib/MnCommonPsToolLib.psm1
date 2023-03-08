@@ -48,7 +48,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $global:MnCommonPsToolLibVersion = "7.14"; # more see Releasenotes.txt
+[String] $global:MnCommonPsToolLibVersion = "7.16"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -644,8 +644,16 @@ function ProcessKill                          ( [String] $processName ){ # kill 
                                                 [System.Diagnostics.Process[]] $p = Get-Process ($processName -replace ".exe","") -ErrorAction SilentlyContinue;
                                                 if( $null -ne $p ){ OutProgress "ProcessKill $processName"; $p.Kill(); } }
 function ProcessSleepSec                      ( [Int32] $sec ){ Start-Sleep -Seconds $sec; }
-function ProcessListInstalledAppx             (){ return [String[]] (@()+(Get-AppxPackage | Where-Object{$null -ne $_} |
-                                                    Select-Object PackageFullName | Sort-Object PackageFullName)); }
+function ProcessListInstalledAppx             (){ if( ! (OsIsWindows) ){ return [String[]] @(); }
+                                                  if( ! (ProcessIsLesserEqualPs5) ){
+                                                    # 2023-03: Problems using Get-AppxPackage in PS7, see end of: https://github.com/PowerShell/PowerShell/issues/13138
+                                                    Import-Module -Name Appx -UseWindowsPowerShell 3> $null;
+                                                      # We suppress the output: WARNING: Module Appx is loaded in Windows PowerShell using WinPSCompatSession remoting session; 
+                                                      #   please note that all input and output of commands from this module will be deserialized objects. 
+                                                      #  If you want to load this module into PowerShell please use 'Import-Module -SkipEditionCheck' syntax.
+                                                  }
+                                                  return [String[]] (@()+(Get-AppxPackage | Where-Object{$null -ne $_} |
+                                                    ForEach-Object{ "$($_.PackageFullName)" } | Sort)); }
 function ProcessGetCommandInEnvPathOrAltPaths ( [String] $commandNameOptionalWithExtension, [String[]] $alternativePaths = @(), [String] $downloadHintMsg = ""){
                                                 [System.Management.Automation.CommandInfo] $cmd = Get-Command -CommandType Application -Name $commandNameOptionalWithExtension -ErrorAction SilentlyContinue | Select-Object -First 1;
                                                 if( $null -ne $cmd ){ return [String] $cmd.Path; }
