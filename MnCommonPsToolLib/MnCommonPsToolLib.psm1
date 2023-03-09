@@ -48,7 +48,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $global:MnCommonPsToolLibVersion = "7.14"; # more see Releasenotes.txt
+[String] $global:MnCommonPsToolLibVersion = "7.16"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -574,6 +574,7 @@ function StreamToHtmlTableStrings             (){ $input | ConvertTo-Html -Title
 function StreamToHtmlListStrings              (){ $input | ConvertTo-Html -Title "TableData" -Body $null -As List; }
 function StreamToListString                   (){ $input | Format-List -ShowError | StreamToStringDelEmptyLeadAndTrLines; }
 function StreamToFirstPropMultiColumnString   (){ $input | Format-Wide -AutoSize -ShowError | StreamToStringDelEmptyLeadAndTrLines; }
+function StreamToStringIndented               ( [Int32] $nrOfChars = 4 ){ StringSplitIntoLines ($input | StreamToStringDelEmptyLeadAndTrLines) | ForEach-Object{ "$(" "*$nrOfChars)$_" }; }
 function StreamToCsvFile                      ( [String] $file, [Boolean] $overwrite = $false, [String] $encoding = "UTF8" ){
                                                 # If overwrite is false then nothing done if target already exists.
                                                 $input | Export-Csv -Force:$overwrite -NoClobber:$(-not $overwrite) -NoTypeInformation -Encoding $encoding -Path (FsEntryEsc $file); }
@@ -628,7 +629,7 @@ function ProcessListRunnings                  (){ return [Object[]] (@()+(Get-Pr
 function ProcessListRunningsFormatted         (){ return [Object[]] (@()+( ProcessListRunnings | Select-Object Name, Id,
                                                     @{Name="CpuMSec";Expression={[Decimal]::Floor($_.TotalProcessorTime.TotalMilliseconds).ToString().PadLeft(7,' ')}},
                                                     StartTime, @{Name="Prio";Expression={($_.BasePriority)}}, @{Name="WorkSet";Expression={($_.WorkingSet64)}}, Path |
-                                                    StreamToTableString  )); }
+                                                    StreamToTableString )); }
 function ProcessListRunningsAsStringArray     (){ return [String[]] (StringSplitIntoLines (@()+(ProcessListRunnings |
                                                     Where-Object{$null -ne $_} |
                                                     Format-Table -auto -HideTableHeaders " ",ProcessName,ProductVersion,Company |
@@ -644,8 +645,16 @@ function ProcessKill                          ( [String] $processName ){ # kill 
                                                 [System.Diagnostics.Process[]] $p = Get-Process ($processName -replace ".exe","") -ErrorAction SilentlyContinue;
                                                 if( $null -ne $p ){ OutProgress "ProcessKill $processName"; $p.Kill(); } }
 function ProcessSleepSec                      ( [Int32] $sec ){ Start-Sleep -Seconds $sec; }
-function ProcessListInstalledAppx             (){ return [String[]] (@()+(Get-AppxPackage | Where-Object{$null -ne $_} |
-                                                    Select-Object PackageFullName | Sort-Object PackageFullName)); }
+function ProcessListInstalledAppx             (){ if( ! (OsIsWindows) ){ return [String[]] @(); }
+                                                  if( ! (ProcessIsLesserEqualPs5) ){
+                                                    # 2023-03: Problems using Get-AppxPackage in PS7, see end of: https://github.com/PowerShell/PowerShell/issues/13138
+                                                    Import-Module -Name Appx -UseWindowsPowerShell 3> $null;
+                                                      # We suppress the output: WARNING: Module Appx is loaded in Windows PowerShell using WinPSCompatSession remoting session; 
+                                                      #   please note that all input and output of commands from this module will be deserialized objects. 
+                                                      #   If you want to load this module into PowerShell please use 'Import-Module -SkipEditionCheck' syntax.
+                                                  }
+                                                  return [String[]] (@()+(Get-AppxPackage | Where-Object{$null -ne $_} |
+                                                    ForEach-Object{ "$($_.PackageFullName)" } | Sort)); }
 function ProcessGetCommandInEnvPathOrAltPaths ( [String] $commandNameOptionalWithExtension, [String[]] $alternativePaths = @(), [String] $downloadHintMsg = ""){
                                                 [System.Management.Automation.CommandInfo] $cmd = Get-Command -CommandType Application -Name $commandNameOptionalWithExtension -ErrorAction SilentlyContinue | Select-Object -First 1;
                                                 if( $null -ne $cmd ){ return [String] $cmd.Path; }
@@ -1457,6 +1466,7 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                 # If ignoreSslCheck is true then it will currently ignore all following calls,
                                                 #   so this is no good solution (use NetDownloadFileByCurl).
                                                 # Maybe later: OAuth. Ex: https://docs.github.com/en/free-pro-team@latest/rest/overview/other-authentication-methods
+                                                # Alternative on PS5 and PS7: Invoke-RestMethod -Uri "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/main/MnCommonPsToolLib/MnCommonPsToolLib.psm1" -OutFile "$env:TEMP/tmp/p.tmp";
                                                 [String] $authMethod = "Basic"; # Current implemented authMethods: "Basic".
                                                 AssertNotEmpty $url "NetDownloadFile.url"; # alternative check: -or $url.EndsWith("/")
                                                 if( $us -ne "" ){ AssertNotEmpty $pw "password for username=$us"; }
@@ -3292,7 +3302,3 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 # - Use  Set-PSDebug -trace 1; Set-PSDebug -trace 2;  to trace each line or use  Set-PSDebug -step  for singlestep mode until  Set-PSDebug -Off;
 # - Note: WMI commands should be replaced by CIM counterparts for portability,
 #   see https://devblogs.microsoft.com/powershell/introduction-to-cim-cmdlets/
-
-
-# - After calling a powershell function returning an array you should always preceed it with
-#   an empty array (@()+(f)) to avoid null values or alternatively use append operator ($a = @(); $a += f).

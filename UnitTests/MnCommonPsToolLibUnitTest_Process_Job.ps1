@@ -21,7 +21,8 @@ function Test_Process_Job(){
   #   ProcessCloseMainWindow               ( [String] $processName )
   #   ProcessKill                          ( [String] $processName )
   #   ProcessSleepSec                      ( [Int32] $sec )
-  #   ProcessListInstalledAppx             ()
+  OutProgress "ProcessListInstalledAppx";
+  [String[]] $out = ProcessListInstalledAppx; # on linux: empty. On windows example: Microsoft.BingNews_4.34.20074.0_x64__8wekyb3d8bbwe
   #   ProcessGetCommandInEnvPathOrAltPaths ( [String] $commandNameOptionalWithExtension, [String[]] $alternativePaths = @(), [String] $downloadHintMsg = "")
   #   ProcessStart                         ( [String] $cmd, [String[]] $cmdArgs = @(), [Boolean] $careStdErrAsOut = $false, [Boolean] $traceCmd = $false )
   #   ProcessEnvVarGet                     ( [String] $name, [System.EnvironmentVariableTarget] $scope = [System.EnvironmentVariableTarget]::Process )
