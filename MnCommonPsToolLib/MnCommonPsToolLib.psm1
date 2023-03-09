@@ -48,7 +48,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $global:MnCommonPsToolLibVersion = "7.16"; # more see Releasenotes.txt
+[String] $global:MnCommonPsToolLibVersion = "7.17"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -1738,7 +1738,11 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                 DirCreate $tarDir;
                                                 OutVerbose "$curlExe $optForTrace";
                                                 try{
-                                                  [String[]] $out = @()+(& $curlExe $opt); # TODO check wether use: Int32] $rc = ScriptGetAndClearLastRc; if( $rc -ne 0 ){ [String] $err = switch($rc){ 0 {"OK"} 1 {"err"} default {"Unknown(rc=$rc)"} };
+                                                  [String[]] $out = @()+(& $curlExe $opt); # TODO check wether use: [Int32] $rc = ScriptGetAndClearLastRc; if( $rc -ne 0 ){ [String] $err = switch($rc){ 0 {"OK"} 1 {"err"} default {"Unknown(rc=$rc)"} };
+                                                  if( $LASTEXITCODE -eq 23 ){ # curl: (23) write output failed. It seams no retry is applied, so we have to do it on our own.
+                                                    OutProgress "curl: (23) write data chunk to output failed, wait 5 sec and then retry once.";
+                                                    ScriptResetRc; ProcessSleepSec 5; $out = @()+(& $curlExe $opt);
+                                                  }
                                                   if( $LASTEXITCODE -eq 60 ){
                                                     # Curl: (60) SSL certificate problem: unable to get local issuer certificate. More details here: http://curl.haxx.se/docs/sslcerts.html
                                                     # Curl performs SSL certificate verification by default, using a "bundle" of Certificate Authority (CA) public keys (CA certs).
@@ -1753,6 +1757,8 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                   }elseif( $LASTEXITCODE -eq 22 ){
                                                     # curl: (22) The requested URL returned error: 404 Not Found
                                                     throw [Exception] "file not found.";
+                                                  }elseif( $LASTEXITCODE -eq 23 ){
+                                                    throw [Exception] "curl: (23) Write error. Curl could not write data chunk to a output.";
                                                   }elseif( $LASTEXITCODE -eq 77 ){
                                                     # curl: (77) schannel: next InitializeSecurityContext failed: SEC_E_UNTRUSTED_ROOT (0x80090325) - Die Zertifikatkette wurde von einer nicht vertrauenswürdigen Zertifizierungsstelle ausgestellt.
                                                     throw [Exception] "SEC_E_UNTRUSTED_ROOT certificate chain not trustworthy (alternatively use insecure option or add server to curl-ca-bundle.crt next to curl.exe).";
