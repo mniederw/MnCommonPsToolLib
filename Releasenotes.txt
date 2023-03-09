@@ -5,7 +5,7 @@ Major version will reflect breaking changes, minor identifies extensions and thi
 Breaking changes are usually removed deprecated functions or changed behaviours.
 Current version can be requested by: $MnCommonPsToolLibVersion
 
-2023-03-08  V7.16  Fix ProcessListInstalledAppx for PS7.
+2023-03-08  V7.16  Fix ProcessListInstalledAppx for PS7. Add StreamToStringIndented.
 2023-03-05  V7.15  Fix FsEntryTrySetOwnerAndAclsIfNotSet.
 2023-03-02  V7.14  Fix ProcessRestartInElevatedAdminMode for pwsh.
 2023-02-28  V7.13  Extend yml, fix InfoAboutComputerOverview. Improve OsIsWindows. Add ProcessIsLesserEqualPs5, ProcessPsExecutable. Make portable: ProcessIsRunningInElevatedAdminMode.

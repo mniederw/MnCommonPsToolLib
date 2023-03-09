@@ -574,6 +574,7 @@ function StreamToHtmlTableStrings             (){ $input | ConvertTo-Html -Title
 function StreamToHtmlListStrings              (){ $input | ConvertTo-Html -Title "TableData" -Body $null -As List; }
 function StreamToListString                   (){ $input | Format-List -ShowError | StreamToStringDelEmptyLeadAndTrLines; }
 function StreamToFirstPropMultiColumnString   (){ $input | Format-Wide -AutoSize -ShowError | StreamToStringDelEmptyLeadAndTrLines; }
+function StreamToStringIndented               ( [Int32] $nrOfChars = 4 ){ StringSplitIntoLines ($input | StreamToStringDelEmptyLeadAndTrLines) | ForEach-Object{ "$(" "*$nrOfChars)$_" }; }
 function StreamToCsvFile                      ( [String] $file, [Boolean] $overwrite = $false, [String] $encoding = "UTF8" ){
                                                 # If overwrite is false then nothing done if target already exists.
                                                 $input | Export-Csv -Force:$overwrite -NoClobber:$(-not $overwrite) -NoTypeInformation -Encoding $encoding -Path (FsEntryEsc $file); }
@@ -628,7 +629,7 @@ function ProcessListRunnings                  (){ return [Object[]] (@()+(Get-Pr
 function ProcessListRunningsFormatted         (){ return [Object[]] (@()+( ProcessListRunnings | Select-Object Name, Id,
                                                     @{Name="CpuMSec";Expression={[Decimal]::Floor($_.TotalProcessorTime.TotalMilliseconds).ToString().PadLeft(7,' ')}},
                                                     StartTime, @{Name="Prio";Expression={($_.BasePriority)}}, @{Name="WorkSet";Expression={($_.WorkingSet64)}}, Path |
-                                                    StreamToTableString  )); }
+                                                    StreamToTableString )); }
 function ProcessListRunningsAsStringArray     (){ return [String[]] (StringSplitIntoLines (@()+(ProcessListRunnings |
                                                     Where-Object{$null -ne $_} |
                                                     Format-Table -auto -HideTableHeaders " ",ProcessName,ProductVersion,Company |
@@ -1465,6 +1466,7 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                 # If ignoreSslCheck is true then it will currently ignore all following calls,
                                                 #   so this is no good solution (use NetDownloadFileByCurl).
                                                 # Maybe later: OAuth. Ex: https://docs.github.com/en/free-pro-team@latest/rest/overview/other-authentication-methods
+                                                # Alternative on PS5 and PS7: Invoke-RestMethod -Uri "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/main/MnCommonPsToolLib/MnCommonPsToolLib.psm1" -OutFile "$env:TEMP/tmp/p.tmp";
                                                 [String] $authMethod = "Basic"; # Current implemented authMethods: "Basic".
                                                 AssertNotEmpty $url "NetDownloadFile.url"; # alternative check: -or $url.EndsWith("/")
                                                 if( $us -ne "" ){ AssertNotEmpty $pw "password for username=$us"; }
@@ -3300,7 +3302,3 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 # - Use  Set-PSDebug -trace 1; Set-PSDebug -trace 2;  to trace each line or use  Set-PSDebug -step  for singlestep mode until  Set-PSDebug -Off;
 # - Note: WMI commands should be replaced by CIM counterparts for portability,
 #   see https://devblogs.microsoft.com/powershell/introduction-to-cim-cmdlets/
-
-
-# - After calling a powershell function returning an array you should always preceed it with
-#   an empty array (@()+(f)) to avoid null values or alternatively use append operator ($a = @(); $a += f).
