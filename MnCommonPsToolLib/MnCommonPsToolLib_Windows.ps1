@@ -553,13 +553,13 @@ function ShareGetTypeNr                       ( [String] $typeName ){
                                                 "DiskDriveAdmin"{2147483648} "PrintQueueAdmin"{2147483649} "DeviceAdmin"{2147483650} "IPCAdmin"{2147483651} default{4294967295} }); }
 function ShareExists                          ( [String] $shareName ){
                                                 return [Boolean] ($null -ne (Get-SMBShare | Where-Object{$null -ne $_} |
-                                                  Where-Object{ $shareName -ne "" -and $_.Name -eq $shareName })); }
+                                                  Where-Object{ $shareName -ne "" -and (FsEntryIsEqual $_.Name $shareName) })); }
 function ShareListAll                         ( [String] $selectShareName = "" ){
                                                 # uses newer module SmbShare
                                                 OutVerbose "List shares selectShareName=`"$selectShareName`"";
                                                 # Ex: ShareState: Online, ...; ShareType: InterprocessCommunication, PrintQueue, FileSystemDirectory;
                                                 return [Object] (Get-SMBShare | Where-Object{$null -ne $_} |
-                                                  Where-Object{ $selectShareName -eq "" -or $_.Name -eq $selectShareName } |
+                                                  Where-Object{ $selectShareName -eq "" -or (FsEntryIsEqual $_.Name $selectShareName) } |
                                                   Select-Object Name, ShareType, Path, Description, ShareState, ConcurrentUserLimit, CurrentUsers |
                                                   Sort-Object TypeName, Name); }
 function ShareLocksList                       ( [String] $path = "" ){
@@ -627,7 +627,7 @@ function MountPointCreate                     ( [String] $drive, [String] $mount
                                                 [String] $traceInfo = "MountPointCreate drive=$drive mountPoint=$($mountPoint.PadRight(22)) us=$($us.PadRight(12)) pw=*** state=";
                                                 if( -not $noPreLogMsg ){ OutProgressText $traceInfo; }
                                                 [Object] $smbMap = MountPointGetByDrive $drive;
-                                                if( $null -ne $smbMap -and $smbMap.RemotePath -eq $mountPoint -and $smbMap.Status -eq "OK" ){
+                                                if( $null -ne $smbMap -and (FsEntryIsEqual $smbMap.RemotePath $mountPoint) -and $smbMap.Status -eq "OK" ){
                                                   OutStringInColor $(switch($noPreLogMsg){($true){"Gray"}default{"Green"}}) "OkNoChange.$([Environment]::NewLine)";
                                                   return;
                                                 }
@@ -787,7 +787,7 @@ function InfoAboutNetConfig                   (){
                                                 ,"NetGetNbtStat:"      ,(NetGetNbtStat)  , ""
                                                 ,"NetGetAdapterSpeed:" ,(NetAdapterListAll | StreamToTableString | StreamToStringIndented)  ,"" ); }
 function InfoGetInstalledDotNetVersion        ( [Boolean] $alsoOutInstalledClrAndRunningProc = $false ){
-                                                # Requires clrver.exe in path, for example "C:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.7.1 Tools\x64\clrver.exe"
+                                                # Requires clrver.exe in path, for example "C:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.x Tools\x64\clrver.exe"
                                                 if( $alsoOutInstalledClrAndRunningProc ){
                                                   [String[]] $a = @();
                                                   $a += "List Installed DotNet CLRs (clrver.exe):";
@@ -805,16 +805,17 @@ function InfoGetInstalledDotNetVersion        ( [Boolean] $alsoOutInstalledClrAn
                                                 [Int32] $relKey = (Get-ItemProperty "HKLM:SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full").Release;
                                                 # see: https://docs.microsoft.com/en-us/dotnet/framework/migration-guide/how-to-determine-which-versions-are-installed
                                                 [String]                      $relStr = "No 4.5 or later version detected.";
-                                                if    ( $relKey -ge 461814 ){ $relStr = "4.7.2 or later ($relKey)"; } # on Win10CreatorsUpdate
-                                                elseif( $relKey -ge 461808 ){ $relStr = "4.7.2 or later"; }
-                                                elseif( $relKey -ge 461308 ){ $relStr = "4.7.1"         ; }
-                                                elseif( $relKey -ge 460798 ){ $relStr = "4.7"           ; }
-                                                elseif( $relKey -ge 394802 ){ $relStr = "4.6.2"         ; }
-                                                elseif( $relKey -ge 394254 ){ $relStr = "4.6.1"         ; }
-                                                elseif( $relKey -ge 393295 ){ $relStr = "4.6"           ; }
-                                                elseif( $relKey -ge 379893 ){ $relStr = "4.5.2"         ; }
-                                                elseif( $relKey -ge 378675 ){ $relStr = "4.5.1"         ; }
-                                                elseif( $relKey -ge 378389 ){ $relStr = "4.5"           ; }
+                                                if    ( $relKey -ge 533320 ){ $relStr = "4.8.1 or later ($relKey)"; } # on Win10CreatorsUpdate
+                                                elseif( $relKey -ge 528040 ){ $relStr = "4.8"  ; }
+                                                elseif( $relKey -ge 461808 ){ $relStr = "4.7.2"; }
+                                                elseif( $relKey -ge 461308 ){ $relStr = "4.7.1"; }
+                                                elseif( $relKey -ge 460798 ){ $relStr = "4.7"  ; }
+                                                elseif( $relKey -ge 394802 ){ $relStr = "4.6.2"; }
+                                                elseif( $relKey -ge 394254 ){ $relStr = "4.6.1"; }
+                                                elseif( $relKey -ge 393295 ){ $relStr = "4.6"  ; }
+                                                elseif( $relKey -ge 379893 ){ $relStr = "4.5.2"; }
+                                                elseif( $relKey -ge 378675 ){ $relStr = "4.5.1"; }
+                                                elseif( $relKey -ge 378389 ){ $relStr = "4.5"  ; }
                                                 return [String] $relStr; }
 function ToolRdpConnect                       ( [String] $rdpfile, [String] $mstscOptions = "" ){
                                                 # Run RDP gui program with some mstsc options: /edit /admin  (use /edit temporary to set password in .rdp file)
