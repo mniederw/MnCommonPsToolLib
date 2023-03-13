@@ -1729,15 +1729,11 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                 #   for the curl-ca-bundle.crt file as it is descripted in https://curl.se/docs/sslcerts.html
                                                 #   we needed a solution for this. So, when the urls-protocol is not http and the current curl.exe is that
                                                 #   from system32 folder then the first found curl-ca-bundle.crt file in path var is used for cacert option.
-                                                OutProgress "curlCaCert=$curlCaCert";
                                                 if( (FsEntryIsEqual $curlExe "$env:SystemRoot/System32/curl.exe") ){
-                                                  [String] $s = Get-Command -CommandType Application -Name curl-ca-bundle.crt -ErrorAction SilentlyContinue |
-                                                    Select-Object -First 1 | Foreach-Object { $_.Path };
-                                                  OutProgress "curlCaCert=$curlCaCert s=$s";
+                                                  [String] $s = StringMakeNonNull (Get-Command -CommandType Application -Name curl-ca-bundle.crt -ErrorAction SilentlyContinue |
+                                                    Select-Object -First 1 | Foreach-Object { $_.Path });
                                                   if( $s -ne "" ){ $curlCaCert = $s; }
-                                                  OutProgress "curlCaCert=$curlCaCert s=$s";
                                                 }
-                                                OutProgress "curlCaCert=$curlCaCert";
                                                 if( (FileExists $curlCaCert) ){ $opt += @( "--cacert", $curlCaCert); }
                                                 $opt += @( "--url", $url );
                                                 [String] $optForTrace = StringArrayDblQuoteItems $opt.Replace("--user $($us):$pw","--user $($us):***");
