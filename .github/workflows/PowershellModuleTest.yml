@@ -46,7 +46,7 @@ jobs:
 
       - name: Install tools (curl) on macOS
         if: ${{ runner.os == 'macOS' }}
-        run: brew install curl;
+        run: ; # brew install curl; # Warning: curl 7.88.1 is already installed and up-to-date. To reinstall 7.88.1, run: brew reinstall curl
 
       - name: Install tools (curl) on Windows
         if: ${{ runner.os == 'Windows' }}

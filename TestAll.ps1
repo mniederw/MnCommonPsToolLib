@@ -77,17 +77,14 @@ Write-Output "Show OsPsVersion: $(OsPsVersion)"; # "7.2"
 
 Write-Output "";
 Write-Output "Running all examples and unit tests, input requests are aborted";
-Write-Output "--------------------------------------------------------------------------------------";
-& "Examples/ExampleUseOfMnCommonPsToolLib01_HelloWorldWaitForEnter.ps1"; # waiting is aborted
-Write-Output "--------------------------------------------------------------------------------------";
-& "Examples/ExampleUseOfMnCommonPsToolLib02_StdBegAndEndInteractiveModeStmts.ps1"; # waiting is aborted
-Write-Output "--------------------------------------------------------------------------------------";
-& "Examples/ExampleUseOfMnCommonPsToolLib03_NoWaitAtEnd.ps1";
-Write-Output "--------------------------------------------------------------------------------------";
-& "Examples/ExampleUseOfMnCommonPsToolLib04_SomeReadOnlyProcessings.ps1";
-Write-Output "--------------------------------------------------------------------------------------";
-& "UnitTests/AllUnitTests.ps1";
-Write-Output "--------------------------------------------------------------------------------------";
+
+Write-Output ("-"*86); & "Examples/ExampleUseOfMnCommonPsToolLib01_HelloWorldWaitForEnter.ps1"; # waiting is aborted
+Write-Output ("-"*86); & "Examples/ExampleUseOfMnCommonPsToolLib02_StdBegAndEndInteractiveModeStmts.ps1"; # waiting is aborted
+Write-Output ("-"*86); & "Examples/ExampleUseOfMnCommonPsToolLib03_NoWaitAtEnd.ps1";
+Write-Output ("-"*86); & "Examples/ExampleUseOfMnCommonPsToolLib04_SomeReadOnlyProcessings.ps1";
+Write-Output ("-"*86); & "UnitTests/AllUnitTests.ps1";
+Write-Output ("-"*86); 
+
 Write-Output "Ok, UnitTest was successful!";
 
 StdInAskForEnter;

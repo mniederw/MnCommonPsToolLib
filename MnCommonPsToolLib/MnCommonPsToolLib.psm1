@@ -1548,16 +1548,16 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                 } }
 function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false, 
                                                 [Boolean] $onlyIfNewer = $false, [Boolean] $errorAsWarning = $false ){
-                                                # Download a single file by overwrite it (as NetDownloadFile), requires curl.exe in path.
+                                                # Download a single file by overwrite it (as NetDownloadFile), requires curl executable in path.
                                                 # Redirections are followed, timestamps are also fetched, logging info is stored in a global logfile,
                                                 # for user agent info a mozilla firefox is set,
-                                                # if file curl-ca-bundle.crt exists next to curl.exe then this is taken.
+                                                # if file curl-ca-bundle.crt exists next to curl executable then this is taken.
                                                 # Supported protocols: DICT, FILE, FTP, FTPS, Gopher, HTTP, HTTPS, IMAP, IMAPS, LDAP, LDAPS, 
                                                 #                      POP3, POP3S, RTMP, RTSP, SCP, SFTP, SMB, SMTP, SMTPS, Telnet and TFTP.
                                                 # Supported features:  SSL certificates, HTTP POST, HTTP PUT, FTP uploading, HTTP form based upload, 
                                                 #                      proxies, HTTP/2, cookies, user+password authentication (Basic, Plain, Digest, 
                                                 #                      CRAM-MD5, NTLM, Negotiate and Kerberos), file transfer resume, proxy tunneling and more.
-                                                # ex: curl.exe --show-error --output $tarFile --silent --create-dirs --connect-timeout 70 --retry 2 --retry-delay 5 --remote-time --stderr - --user "$($us):$pw" $url;
+                                                # ex: curl --show-error --output $tarFile --silent --create-dirs --connect-timeout 70 --retry 2 --retry-delay 5 --remote-time --stderr - --user "$($us):$pw" $url;
                                                 AssertNotEmpty $url "NetDownloadFileByCurl.url";
                                                 if( $us -ne "" ){ AssertNotEmpty $pw "password for username=$us"; }
                                                 [String[]] $opt = @( # see https://curl.haxx.se/docs/manpage.html
@@ -1723,12 +1723,12 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                 if( $us -ne "" ){ $opt += @( "--user", "$($us):$pw" ); }
                                                 if( $ignoreSslCheck ){ $opt += "--insecure"; }
                                                 if( $onlyIfNewer -and (FileExists $tarFile) ){ $opt += @( "--time-cond", $tarFile); }
-                                                [String] $curlExe = ProcessGetCommandInEnvPathOrAltPaths "curl.exe" @() "Please download it from http://curl.haxx.se/download.html and install it and add dir to path env var.";
+                                                [String] $curlExe = ProcessGetCommandInEnvPathOrAltPaths "curl" @() "Please download it from http://curl.haxx.se/download.html and install it and add dir to path env var.";
                                                 [String] $curlCaCert = Join-Path (FsEntryGetParentDir $curlExe) "curl-ca-bundle.crt";
-                                                # 2021-10: Because windows has its own curl.exe in windows-system32 folder and it does not care the search rule
+                                                # 2021-10: Because windows has its own curl executable in windows-system32 folder and it does not care the search rule
                                                 #   for the curl-ca-bundle.crt file as it is descripted in https://curl.se/docs/sslcerts.html
-                                                #   we needed a solution for this. So, when the urls-protocol is not http and the current curl.exe is that
-                                                #   from system32 folder then the first found curl-ca-bundle.crt file in path var is used for cacert option.
+                                                #   we needed a solution for this. So, when the current curl executable is that from system32 folder 
+                                                #   then the first found curl-ca-bundle.crt file in path var is used for cacert option.
                                                 if( (FsEntryIsEqual $curlExe "$env:SystemRoot/System32/curl.exe") ){
                                                   [String] $s = StringMakeNonNull (Get-Command -CommandType Application -Name curl-ca-bundle.crt -ErrorAction SilentlyContinue |
                                                     Select-Object -First 1 | Foreach-Object { $_.Path });
@@ -3044,7 +3044,7 @@ function ToolGithubApiDownloadLatestReleaseDir( [String] $repoUrl ){
                                                 # ex: $apiUrl = "https://api.github.com/repos/mniederw/MnCommonPsToolLib"
                                                 [String] $url = "$apiUrl/releases/latest";
                                                 OutProgress "Download: $url";
-                                                [Object] $apiObj = (& "curl.exe" -s $url) | ConvertFrom-Json; AssertRcIsOk;
+                                                [Object] $apiObj = (& "curl" -s $url) | ConvertFrom-Json; AssertRcIsOk;
                                                 [String] $relName = "$($apiObj.name) [$($apiObj.target_commitish),$($apiObj.created_at.Substring(0,10)),$($apiObj.tag_name)]";
                                                 OutProgress "Selected: `"$relName`"";
                                                 # ex: $apiObj.zipball_url = "https://api.github.com/repos/mniederw/MnCommonPsToolLib/zipball/V4.9"
