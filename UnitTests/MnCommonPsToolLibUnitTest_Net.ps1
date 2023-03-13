@@ -22,12 +22,12 @@ function Test_Net(){
   #   NetWebRequestLastModifiedFailSafe    ( [String] $url ){ # Requests metadata from a downloadable file. Return DateTime.MaxValue in case of any problem
   #
   [String] $url = "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/main/Readme.txt";
-  [String] $tar = "$env:TEMP/tmp/MnCommonPsToolLib_UnitTest_NetDownloadFileByCurl.txt";
-  NetDownloadFile       $url $tar; Assert ((FileGetSize $tar) -gt 0); FileDelete $tar;
-  NetDownloadFileByCurl $url $tar; Assert ((FileGetSize $tar) -gt 0); FileDelete $tar;
-  Assert ((NetDownloadToString $url) -gt 0);
-  Assert ((NetDownloadToStringByCurl $url) -gt 0);
-  Assert (NetDownloadIsSuccessful $url);
+  [String] $tar = "$env:TEMP/tmp/MnCommonPsToolLib_UnitTest_Net.tmp";
+  OutProgress "NetDownloadFile"          ; NetDownloadFile       $url $tar; Assert ((FileGetSize $tar) -gt 0); FileDelete $tar;
+  OutProgress "NetDownloadFileByCurl"    ; NetDownloadFileByCurl $url $tar; Assert ((FileGetSize $tar) -gt 0); FileDelete $tar;
+  OutProgress "NetDownloadToString"      ; Assert ((NetDownloadToString $url) -gt 0);
+  OutProgress "NetDownloadToStringByCurl"; Assert ((NetDownloadToStringByCurl $url) -gt 0);
+  OutProgress "NetDownloadIsSuccessful"  ; Assert (NetDownloadIsSuccessful $url);
   #
   #   NetDownloadSite                      ( [String] $url, [String] $tarDir, [Int32] $level = 999, [Int32] $maxBytes = ([Int32]::MaxValue), [String] $us = "",
   #                                            [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Int32] $limitRateBytesPerSec = ([Int32]::MaxValue),
