@@ -105,7 +105,7 @@ jobs:
           echo "List all environment variables in bash"; printenv;
 
       - name: If tests on trunk of a push were successful then create pull request to main
-        if: ${{ success() && github.event_name == 'push' && github.ref == 'refs/heads/trunk' && runner.os == 'Linux' }}
+        if: ${{ success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/trunk' && runner.os == 'Linux' }}
         uses: repo-sync/pull-request@v2.12.1
           # for parameters see: https://github.com/repo-sync/pull-request
           # works only on linux, see releases for updating version from time to time 
