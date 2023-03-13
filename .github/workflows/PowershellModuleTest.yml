@@ -104,7 +104,7 @@ jobs:
           #   INVOCATION_ID           = 765a5a77e7694d118c0feadb5fdc152d
           echo "List all environment variables in bash"; printenv;
 
-      - name: If tests on trunk of a push were successful then create pull request to main
+      - name: If tests on trunk of a push or workflow_dispatch was successful then create pull request to main
         if: ${{ success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/trunk' && runner.os == 'Linux' }}
         uses: repo-sync/pull-request@v2.12.1
           # for parameters see: https://github.com/repo-sync/pull-request
