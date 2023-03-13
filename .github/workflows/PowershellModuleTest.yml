@@ -44,7 +44,7 @@ jobs:
         shell: pwsh
         run: |
           if( "${{runner.os}}" -eq "Linux" ){
-            which curl;
+            which curl; # /usr/bin/curl
             # alternative: sudo apt install -y curl; # curl is already the newest version (7.81.0-1ubuntu1.8).
           }elseif( "${{runner.os}}" -eq "macOS" ){
             which curl; # /usr/local/opt/curl/bin/curl
