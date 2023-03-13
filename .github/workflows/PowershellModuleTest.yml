@@ -40,12 +40,24 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
+      - name: Install tools (curl)
+        if: ${{ runner.os == 'Linux' }}
+        run: sudo apt install -y curl;
+
+      - name: Install tools (curl)
+        if: ${{ runner.os == 'macOS' }}
+        run: sudo port install curl;
+
+      - name: Install tools (curl)
+        if: ${{ runner.os == 'Windows' }}
+        run: ;
+
       - name: Test all 
         shell: pwsh
           # Default runners have installed: PS7.2.5 and Pester.
           # More about PS: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-powershell#powershell-module-locations
         run: |
-          echo "Running on OS=${{runner.os}}; $(which pwsh); $(pwsh --version)"; # example: "Linux; /opt/microsoft/powershell/7/pwsh; Powershell V7.2.9"
+          echo "Running on OS=${{runner.os}}; $(which pwsh); $(pwsh --version)"; # example: "Linux; /opt/microsoft/powershell/7/pwsh; Powershell V7.2.9" or "OS=macOS; /usr/local/microsoft/powershell/7/pwsh; PowerShell 7.2.9" or "OS=Windows; /c/Program Files/PowerShell/7/pwsh; PowerShell 7.2.10"
           echo "List all environment variables in pwsh"; Get-Variable;
           & "./TestAll.ps1";
           echo "Test ok.";

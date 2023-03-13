@@ -22,11 +22,15 @@ function Test_Net(){
   #
   [String] $url = "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/main/Readme.txt";
   [String] $tar = "$env:TEMP/tmp/MnCommonPsToolLib_UnitTest_Net.tmp";
-  OutProgress "NetDownloadFile"          ; NetDownloadFile       $url $tar; Assert ((FileGetSize $tar) -gt 0); FileDelete $tar;
-  OutProgress "NetDownloadFileByCurl"    ; NetDownloadFileByCurl $url $tar; Assert ((FileGetSize $tar) -gt 0); FileDelete $tar;
-  OutProgress "NetDownloadToString"      ; Assert ((NetDownloadToString $url) -gt 0);
-  OutProgress "NetDownloadToStringByCurl"; Assert ((NetDownloadToStringByCurl $url) -gt 0);
   OutProgress "NetDownloadIsSuccessful"  ; Assert (NetDownloadIsSuccessful $url);
+  OutProgress "NetDownloadFile"          ; NetDownloadFile       $url $tar; Assert ((FileGetSize $tar) -gt 0); FileDelete $tar;
+  OutProgress "NetDownloadToString"      ; Assert ((NetDownloadToString $url) -gt 0);
+  if( (ProcessFindExecutableInPath "curl") -eq "" ){
+    OutProgress "Curl is not in path, so cannot test methods using it.";
+  }else{
+    OutProgress "NetDownloadFileByCurl"    ; NetDownloadFileByCurl $url $tar; Assert ((FileGetSize $tar) -gt 0); FileDelete $tar;
+    OutProgress "NetDownloadToStringByCurl"; Assert ((NetDownloadToStringByCurl $url) -gt 0);
+  }
   #
   #   NetDownloadSite                      ( [String] $url, [String] $tarDir, [Int32] $level = 999, [Int32] $maxBytes = ([Int32]::MaxValue), [String] $us = "",
   #                                            [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Int32] $limitRateBytesPerSec = ([Int32]::MaxValue),
