@@ -40,15 +40,15 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Install tools (curl)
+      - name: Install tools (curl) on Linux
         if: ${{ runner.os == 'Linux' }}
         run: sudo apt install -y curl;
 
-      - name: Install tools (curl)
+      - name: Install tools (curl) on macOS
         if: ${{ runner.os == 'macOS' }}
-        run: sudo port install curl;
+        run: ;
 
-      - name: Install tools (curl)
+      - name: Install tools (curl) on Windows
         if: ${{ runner.os == 'Windows' }}
         run: ;
 
