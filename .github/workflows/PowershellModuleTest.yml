@@ -46,7 +46,7 @@ jobs:
 
       - name: Install tools (curl) on macOS
         if: ${{ runner.os == 'macOS' }}
-        run: ;
+        run: brew install curl;
 
       - name: Install tools (curl) on Windows
         if: ${{ runner.os == 'Windows' }}
