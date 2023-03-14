@@ -48,7 +48,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $global:MnCommonPsToolLibVersion = "7.17"; # more see Releasenotes.txt
+[String] $global:MnCommonPsToolLibVersion = "7.18"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -663,27 +663,28 @@ function ProcessGetCommandInEnvPathOrAltPaths ( [String] $commandNameOptionalWit
                                                   if( (FileExists $f) ){ return [String] $f; } }
                                                 throw [Exception] "$(ScriptGetCurrentFunc): commandName=`"$commandNameOptionalWithExtension`" was wether found in env-path=`"$env:PATH`" nor in alternativePaths=`"$alternativePaths`". $downloadHintMsg"; }
 function ProcessStart                         ( [String] $cmd, [String[]] $cmdArgs = @(), [Boolean] $careStdErrAsOut = $false, [Boolean] $traceCmd = $false ){
-                                                # Mainly intended for starting a program with a window,
-                                                # but is also used for starting a command in path when arguments are provided in an array.
+                                                # Start any gui or console command including ps scripts in path and provide arguments in an array, waits for output
+                                                # and returns output as a single string. You can use StringSplitIntoLines on output to get it as lines.
                                                 # The advantages in contrast of using the call operator (&) are:
-                                                # - you do not have to call AssertRcIsOk afterwards
-                                                # - empty-string parameters can be passed to the calling program
-                                                # - it has no side effects if the parameters contains special characters as quotes, double-quotes or $-characters.
-                                                # - the calling command can easy be written to output for tracing
-                                                # Returns output as a single string.
+                                                # - You do not have to call AssertRcIsOk afterwards, in case of an error it throws.
+                                                # - Empty-string parameters can be passed to the calling program.
+                                                # - It has no side effects if the parameters contains special characters as quotes, double-quotes or $-characters.
+                                                # - as tracing the calling command can easy be written to output.
+                                                # The only known disadvantage currently is, it is not optimized for line oriented output because it returns a single string.
                                                 # As working directory the current dir is taken which makes it compatible to call operator.
-                                                # If careStdErrAsOut is true then stderr will be appended to stdout and stderr is set to empty which means this leads not to an error.
+                                                # If careStdErrAsOut is true then output on stderr will not lead to an error, instead it will be appended to stdout.
                                                 # If exitCode is not 0 or stderr is not empty then it throws.
-                                                # But if ErrorActionPreference is Continue then stderr is appended to output and not error is produced.
-                                                # In case and error is throwed then it will first OutProgress the non empty stdout lines.
-                                                # You can use StringSplitIntoLines on output to get it as lines.
-                                                # Internally the stdout and stderr are stored to variables and not temporary files to avoid file system IO.
+                                                # But if ErrorActionPreference is Continue then stderr is appended to output and no error is produced.
+                                                # In case an error is throwed then it will first OutProgress the non empty stdout lines.
+                                                # Internally the stdout and stderr are stored to variables and not to temporary files to avoid file system IO.
                                                 # Important Note: The original Process.Start(ProcessStartInfo) cannot run a ps1 file
                                                 #   even if $env:PATHEXT contains the PS1 because it does not precede it with (powershell.exe -File) or (pwsh -File).
-                                                #   Our solution will do this by automatically use powershell.exe -NoLogo -File  or  pwsh -NoLogo -File  before the ps1 file
+                                                #   Our solution will do this by automatically preceed the ps1 file by  powershell.exe -NoLogo -File  or  pwsh -NoLogo -File
                                                 #   and it surrounds the arguments correctly by double-quotes to support blanks in any argument.
-                                                # There is a special handling of the commandline as descripted in "Parsing C++ command-line arguments"
-                                                # https://docs.microsoft.com/en-us/cpp/cpp/main-function-command-line-args
+                                                #
+                                                # Generally for each call of an executable the commandline is handled by some special rules which are descripted in
+                                                # "Parsing C++ command-line arguments" https://docs.microsoft.com/en-us/cpp/cpp/main-function-command-line-args
+                                                # As follow:
                                                 # - Arguments are delimited by white space, which is either a space or a tab.
                                                 # - The first argument (argv[0]) is treated specially. It represents the program name.
                                                 #   Because it must be a valid pathname, parts surrounded by double quote marks (") are allowed.
@@ -720,7 +721,7 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 }
                                                 if( $traceCmd ){ OutProgress $traceInfo; }
                                                 [Int32] $i = 1;
-                                                [String] $verboseText = "`"$exec`" " + ($cmdArgs | Where-Object { $null -ne $_ } | ForEach-Object { "Arg[$i]=`"$_`""; $i += 1; } );
+                                                [String] $verboseText = "`"$exec`" " + ($cmdArgs | Where-Object { $null -ne $_ } | ForEach-Object { "Arg[$i]=$_"; $i += 1; } );
                                                 OutVerbose "ProcessStart $verboseText";
                                                 $prInfo = New-Object System.Diagnostics.ProcessStartInfo;
                                                 $prInfo.FileName = $exec;
@@ -881,6 +882,10 @@ function FsEntryJoinRelativePatterns          ( [String] $rootDir, [String[]] $r
                                                   Where-Object{$null -ne $_} |
                                                   ForEach-Object{ $a += (StringSplitToArray ";" $_); };
                                                 return [String[]] (@()+($a | ForEach-Object{ "$rootDir$(DirSep)$_" })); }
+function FsEntryIsEqual                       ( [String] $fs1, [String] $fs2, [Boolean] $caseSensitive = $false ){
+                                                # compare independent on slash or backslash dir separator.
+                                                if( $caseSensitive ){ return [Boolean] (FsEntryGetAbsolutePath $fs1) -ceq (FsEntryGetAbsolutePath $fs2); }
+                                                return [Boolean] (FsEntryGetAbsolutePath $fs1) -eq (FsEntryGetAbsolutePath $fs2); }
 function FsEntryGetFileNameWithoutExt         ( [String] $fsEntry ){
                                                 return [String] [System.IO.Path]::GetFileNameWithoutExtension((FsEntryRemoveTrailingDirSep $fsEntry)); }
 function FsEntryGetFileName                   ( [String] $fsEntry ){
@@ -1060,7 +1065,7 @@ function FsEntryAclRuleWrite                  ( [String] $modeSetAddOrDel, [Stri
                                                     ForEach-Object{ FsEntryAclRuleWrite $modeSetAddOrDel $_ $rule $true };
                                                 } }
 function FsEntryTrySetOwner                   ( [String] $fsEntry, [System.Security.Principal.IdentityReference] $account, [Boolean] $recursive = $false ){
-                                                # usually account is (PrivGetGroupAdministrators)
+                                                # usually account is (PrivGetGroupAdministrators); if the entry itself cannot be set then it tries to set on its parent the fullcontrol for admins.
                                                 ProcessRestartInElevatedAdminMode;
                                                 PrivEnableTokenPrivilege SeTakeOwnershipPrivilege;
                                                 PrivEnableTokenPrivilege SeRestorePrivilege;
@@ -1069,7 +1074,7 @@ function FsEntryTrySetOwner                   ( [String] $fsEntry, [System.Secur
                                                 try{
                                                   [System.IO.FileSystemInfo] $fs = Get-Item -Force -LiteralPath $fsEntry;
                                                   if( $acl.Owner -ne $account ){
-                                                    OutProgress "FsEntryTrySetOwner `"$fsEntry`" `"$($account.ToString())`"";
+                                                    OutProgress "FsEntryTrySetOwner `"$fsEntry`" `"$($account.ToString())`" recursive=$recursive ";
                                                     if( $fs.PSIsContainer ){
                                                       try{
                                                         $fs.SetAccessControl((PrivDirSecurityCreateOwner $account));
@@ -1078,7 +1083,7 @@ function FsEntryTrySetOwner                   ( [String] $fsEntry, [System.Secur
                                                         $fs.Parent.SetAccessControl((PrivDirSecurityCreateFullControl (PrivGetGroupAdministrators)));
                                                         $fs.SetAccessControl((PrivDirSecurityCreateOwner $account));
                                                       }
-                                                    }else{
+                                                    }else{ # is a file
                                                       try{
                                                         $fs.SetAccessControl((PrivFileSecurityCreateOwner $account));
                                                       }catch{
@@ -1541,26 +1546,30 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                   $msg = "  NetDownloadFile(url=$url ,us=$us,tar=$tarFile) failed because $msg";
                                                   if( -not $errorAsWarning ){ throw [ExcMsg] $msg; } OutWarning "Warning: $msg";
                                                 } }
-function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Boolean] $onlyIfNewer = $false, [Boolean] $errorAsWarning = $false ){
-                                                # Download a single file by overwrite it (as NetDownloadFile), requires curl.exe in path,
-                                                # timestamps are also taken, logging info is stored in a global logfile, redirections are followed,
+function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false, 
+                                                [Boolean] $onlyIfNewer = $false, [Boolean] $errorAsWarning = $false ){
+                                                # Download a single file by overwrite it (as NetDownloadFile), requires curl executable in path.
+                                                # Redirections are followed, timestamps are also fetched, logging info is stored in a global logfile,
                                                 # for user agent info a mozilla firefox is set,
-                                                # if file curl-ca-bundle.crt exists next to curl.exe then this is taken.
-                                                # Supported protocols: DICT, FILE, FTP, FTPS, Gopher, HTTP, HTTPS, IMAP, IMAPS, LDAP, LDAPS, POP3, POP3S, RTMP, RTSP, SCP, SFTP, SMB, SMTP, SMTPS, Telnet and TFTP.
-                                                # Supported features:  SSL certificates, HTTP POST, HTTP PUT, FTP uploading, HTTP form based upload, proxies, HTTP/2, cookies,
-                                                #                      user+password authentication (Basic, Plain, Digest, CRAM-MD5, NTLM, Negotiate and Kerberos), file transfer resume, proxy tunneling and more.
-                                                # ex: curl.exe --show-error --output $tarFile --silent --create-dirs --connect-timeout 70 --retry 2 --retry-delay 5 --remote-time --stderr - --user "$($us):$pw" $url;
-                                                AssertNotEmpty $url "NetDownloadFileByCurl.url"; # alternative check: -or $url.EndsWith("/")
+                                                # if file curl-ca-bundle.crt exists next to curl executable then this is taken.
+                                                # Supported protocols: DICT, FILE, FTP, FTPS, Gopher, HTTP, HTTPS, IMAP, IMAPS, LDAP, LDAPS, 
+                                                #                      POP3, POP3S, RTMP, RTSP, SCP, SFTP, SMB, SMTP, SMTPS, Telnet and TFTP.
+                                                # Supported features:  SSL certificates, HTTP POST, HTTP PUT, FTP uploading, HTTP form based upload, 
+                                                #                      proxies, HTTP/2, cookies, user+password authentication (Basic, Plain, Digest, 
+                                                #                      CRAM-MD5, NTLM, Negotiate and Kerberos), file transfer resume, proxy tunneling and more.
+                                                # ex: curl --show-error --output $tarFile --silent --create-dirs --connect-timeout 70 --retry 2 --retry-delay 5 --remote-time --stderr - --user "$($us):$pw" $url;
+                                                AssertNotEmpty $url "NetDownloadFileByCurl.url";
                                                 if( $us -ne "" ){ AssertNotEmpty $pw "password for username=$us"; }
                                                 [String[]] $opt = @( # see https://curl.haxx.se/docs/manpage.html
                                                    "--show-error"                            # Show error. With -s, make curl show errors when they occur
                                                   ,"--fail"                                  # if http response code is 4xx or 5xx then fail, but 3XX (redirects) are ok.
-                                                  ,"--output", "`"$tarFile`""                # Write to FILE instead of stdout
+                                                  ,"--output", $tarFile                      # Write to FILE instead of stdout
                                                   ,"--silent"                                # Silent mode (don't output anything), no progress meter
                                                   ,"--create-dirs"                           # create the necessary local directory hierarchy as needed of --output file
                                                   ,"--connect-timeout", "70"                 # in sec
-                                                  ,"--retry","2"                             #
-                                                  ,"--retry-delay","5"                       #
+                                                  ,"--retry","2"                             # Retry request NUM times if transient problems occur
+                                                  ,"--retry-delay","5"                       # Wait SECONDS between retries
+                                                  ,"--tlsv1.2"                               # Use TLSv1.2 (SSL)
                                                   ,"--remote-time"                           # Set the remote file's time on the local output
                                                   ,"--location"                              # Follow redirects (H)
                                                   ,"--max-redirs","50"                       # Maximum number of redirects allowed, default is 50, 0 means error on redir (H)
@@ -1669,8 +1678,6 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                   # --remote-time                            # Set the remote file's time on the local output
                                                   # --request COMMAND                        # Specify request command to use
                                                   # --resolve HOST:PORT:ADDRESS              # Force resolve of HOST:PORT to ADDRESS
-                                                  # --retry NUM                              # Retry request NUM times if transient problems occur
-                                                  # --retry-delay SECONDS                    # Wait SECONDS between retries
                                                   # --retry-max-time SECONDS                 # Retry only within this period
                                                   # --sasl-ir                                # Enable initial response in SASL authentication
                                                   # --socks4 HOST[:PORT]                     # SOCKS4 proxy on given host + port
@@ -1693,7 +1700,6 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                   # --tlsv1                                  # Use => TLSv1 (SSL)
                                                   # --tlsv1.0                                # Use TLSv1.0 (SSL)
                                                   # --tlsv1.1                                # Use TLSv1.1 (SSL)
-                                                  ,"--tlsv1.2"                               # Use TLSv1.2 (SSL)
                                                   # --trace FILE                             # Write a debug trace to FILE
                                                   # --trace-ascii FILE                       # Like --trace, but without hex output
                                                   # --trace-time                             # Add time stamps to trace/verbose output
@@ -1712,61 +1718,46 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                   # --url URL                                # URL to work with
                                                   # --insecure                               # Allow connections to SSL sites without certs check
                                                   # --cacert cacert.pem                      # CA certificate to verify peer against (SSL), see https://curl.haxx.se/docs/caextract.html, .pem or .crt file
-                                                  ,"--user-agent", "`"Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:68.0) Gecko/20100101 Firefox/68.0`""  # Send User-Agent STRING to server (H), we take latest ESR
+                                                  ,"--user-agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:68.0) Gecko/20100101 Firefox/68.0"  # Send User-Agent STRING to server (H), we take latest ESR
                                                 );
                                                 if( $us -ne "" ){ $opt += @( "--user", "$($us):$pw" ); }
                                                 if( $ignoreSslCheck ){ $opt += "--insecure"; }
                                                 if( $onlyIfNewer -and (FileExists $tarFile) ){ $opt += @( "--time-cond", $tarFile); }
-                                                [String] $curlExe = ProcessGetCommandInEnvPathOrAltPaths "curl.exe" @() "Please download it from http://curl.haxx.se/download.html and install it and add dir to path env var.";
-                                                [String] $curlCaCert = "$(FsEntryGetParentDir $curlExe)$(DirSep)curl-ca-bundle.crt";
-                                                # 2021-10: Because windows has its own curl.exe and windows-system32 folder is one of the first folders in path var
-                                                #   and does not care a file curl-ca-bundle.crt next to the exe as it is descripted in https://curl.se/docs/sslcerts.html we need a solution for it.
-                                                #   So if the current curl.exe is that from system32 folder then we self are looking for crt file in path var and use it for https requests.
-                                                if( $curlExe -eq "$env:SystemRoot/System32/curl.exe" ){
-                                                  Get-Command -CommandType Application -Name curl-ca-bundle.crt -ErrorAction SilentlyContinue |
-                                                    Select-Object -First 1 | Foreach-Object {
-                                                      $curlCaCert = $_.Path; # note: the script analyser tells us that this variable is assigned but not used, why? Do we have a problem here?
-                                                    };
+                                                [String] $curlExe = ProcessGetCommandInEnvPathOrAltPaths "curl" @() "Please download it from http://curl.haxx.se/download.html and install it and add dir to path env var.";
+                                                [String] $curlCaCert = Join-Path (FsEntryGetParentDir $curlExe) "curl-ca-bundle.crt";
+                                                # 2021-10: Because windows has its own curl executable in windows-system32 folder and it does not care the search rule
+                                                #   for the curl-ca-bundle.crt file as it is descripted in https://curl.se/docs/sslcerts.html
+                                                #   we needed a solution for this. So, when the current curl executable is that from system32 folder 
+                                                #   then the first found curl-ca-bundle.crt file in path var is used for cacert option.
+                                                if( (FsEntryIsEqual $curlExe "$env:SystemRoot/System32/curl.exe") ){
+                                                  [String] $s = StringMakeNonNull (Get-Command -CommandType Application -Name curl-ca-bundle.crt -ErrorAction SilentlyContinue |
+                                                    Select-Object -First 1 | Foreach-Object { $_.Path });
+                                                  if( $s -ne "" ){ $curlCaCert = $s; }
                                                 }
-                                                if( -not $url.StartsWith("http:") -and (FileExists $curlCaCert) ){
-                                                  $opt += @( "--cacert", $curlCaCert); }
+                                                if( (FileExists $curlCaCert) ){ $opt += @( "--cacert", $curlCaCert); }
                                                 $opt += @( "--url", $url );
-                                                [String] $optForTrace = $opt.Replace("--user $($us):$pw","--user $($us):***");
+                                                [String] $optForTrace = StringArrayDblQuoteItems $opt.Replace("--user $($us):$pw","--user $($us):***");
                                                 OutProgress "NetDownloadFileByCurl $url";
                                                 OutProgress "  to `"$tarFile`"";
                                                 [String] $tarDir = FsEntryGetParentDir $tarFile;
                                                 DirCreate $tarDir;
-                                                OutVerbose "$curlExe $optForTrace";
+                                                OutVerbose "`"$curlExe`" $optForTrace";
                                                 try{
-                                                  [String[]] $out = @()+(& $curlExe $opt); # TODO check wether use: [Int32] $rc = ScriptGetAndClearLastRc; if( $rc -ne 0 ){ [String] $err = switch($rc){ 0 {"OK"} 1 {"err"} default {"Unknown(rc=$rc)"} };
-                                                  if( $LASTEXITCODE -eq 23 ){ # curl: (23) write output failed. It seams no retry is applied, so we have to do it on our own.
-                                                    OutProgress "curl: (23) write data chunk to output failed, wait 5 sec and then retry once.";
-                                                    ScriptResetRc; ProcessSleepSec 5; $out = @()+(& $curlExe $opt);
-                                                  }
-                                                  if( $LASTEXITCODE -eq 60 ){
-                                                    # Curl: (60) SSL certificate problem: unable to get local issuer certificate. More details here: http://curl.haxx.se/docs/sslcerts.html
-                                                    # Curl performs SSL certificate verification by default, using a "bundle" of Certificate Authority (CA) public keys (CA certs).
-                                                    # If the default bundle file isn't adequate, you can specify an alternate file using the --cacert option.
-                                                    # If this HTTPS server uses a certificate signed by a CA represented in the bundle, the certificate verification probably failed
-                                                    # due to a problem with the certificate (it might be expired, or the name might not match the domain name in the URL).
-                                                    # If you'd like to turn off curl's verification of the certificate, use the -k (or --insecure) option.
-                                                    throw [Exception] "SSL certificate problem as expired or domain name not matches, alternatively use option to ignore ssl check.";
-                                                  }elseif( $LASTEXITCODE -eq 6 ){
-                                                    # curl: (6) Could not resolve host: github.com
-                                                    throw [Exception] "host not found.";
-                                                  }elseif( $LASTEXITCODE -eq 22 ){
-                                                    # curl: (22) The requested URL returned error: 404 Not Found
-                                                    throw [Exception] "file not found.";
-                                                  }elseif( $LASTEXITCODE -eq 23 ){
-                                                    throw [Exception] "curl: (23) Write error. Curl could not write data chunk to a output.";
-                                                  }elseif( $LASTEXITCODE -eq 77 ){
-                                                    # curl: (77) schannel: next InitializeSecurityContext failed: SEC_E_UNTRUSTED_ROOT (0x80090325) - Die Zertifikatkette wurde von einer nicht vertrauenswürdigen Zertifizierungsstelle ausgestellt.
-                                                    throw [Exception] "SEC_E_UNTRUSTED_ROOT certificate chain not trustworthy (alternatively use insecure option or add server to curl-ca-bundle.crt next to curl.exe).";
-                                                  }elseif( $LASTEXITCODE -ne 0 ){
-                                                    throw [Exception] "LastExitCode=$LASTEXITCODE.";
-                                                  }
-                                                  AssertRcIsOk $out $true;
-                                                  OutVerbose (StringArrayInsertIndent $out 2); # ex: Warning: Transient problem: timeout Will retry in 5 seconds. 2 retries left.
+                                                  [String] $out = (ProcessStart $curlExe $opt);
+                                                  # curl error codes:
+                                                  #   23: "write data chunk to output failed." Write error. Curl could not write data chunk to a output.
+                                                  #   60: "SSL certificate problem as expired or domain name not matches, alternatively use option to ignore ssl check."
+                                                  #       SSL certificate problem: unable to get local issuer certificate. More details here: http://curl.haxx.se/docs/sslcerts.html
+                                                  #       Curl performs SSL certificate verification by default, using a "bundle" of Certificate Authority (CA) public keys (CA certs).
+                                                  #       If the default bundle file isn't adequate, you can specify an alternate file using the --cacert option.
+                                                  #       If this HTTPS server uses a certificate signed by a CA represented in the bundle, the certificate verification probably failed
+                                                  #       due to a problem with the certificate (it might be expired, or the name might not match the domain name in the URL).
+                                                  #       If you'd like to turn off curl's verification of the certificate, use the -k (or --insecure) option.
+                                                  #    6: "host not found." Could not resolve host: github.com
+                                                  #   22: "file not found." The requested URL returned error: 404 Not Found
+                                                  #   77: "SEC_E_UNTRUSTED_ROOT certificate chain not trustworthy (alternatively use insecure option or add server to curl-ca-bundle.crt next to curl.exe)."
+                                                  #       schannel: next InitializeSecurityContext failed: SEC_E_UNTRUSTED_ROOT (0x80090325) - Die Zertifikatkette wurde von einer nicht vertrauenswürdigen Zertifizierungsstelle ausgestellt.
+                                                  OutVerbose $out;
                                                   OutProgress "  Ok, downloaded $(FileGetSize $tarFile) bytes.";
                                                 }catch{
                                                   [String] $msg = "  ($curlExe $optForTrace) failed because $($_.Exception.Message)";
@@ -3053,7 +3044,7 @@ function ToolGithubApiDownloadLatestReleaseDir( [String] $repoUrl ){
                                                 # ex: $apiUrl = "https://api.github.com/repos/mniederw/MnCommonPsToolLib"
                                                 [String] $url = "$apiUrl/releases/latest";
                                                 OutProgress "Download: $url";
-                                                [Object] $apiObj = (& "curl.exe" -s $url) | ConvertFrom-Json; AssertRcIsOk;
+                                                [Object] $apiObj = (& "curl" -s $url) | ConvertFrom-Json; AssertRcIsOk;
                                                 [String] $relName = "$($apiObj.name) [$($apiObj.target_commitish),$($apiObj.created_at.Substring(0,10)),$($apiObj.tag_name)]";
                                                 OutProgress "Selected: `"$relName`"";
                                                 # ex: $apiObj.zipball_url = "https://api.github.com/repos/mniederw/MnCommonPsToolLib/zipball/V4.9"
@@ -3256,16 +3247,20 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #   - Call operator (&), runs a script, executable, function or scriptblock,
 #     - Creates a new script scope which is deleted after script end, so it is side effect safe. Changes to global variables are also lost.
 #         & "./myscript.ps1" ...arguments... ; & $mycmd ...args... ; & { mycmd1; mycmd2 } AssertRcIsOk;
-#     - Very important: if an empty argument should be specified then two quotes as '' or "" or $null or $myEmptyVar
-#       do not work (will make the argument not present),
-#       it requires '""' or "`"`"" or `"`" or use a blank as " ". This is really a big fail, it is very bad and dangerous!
-#       Why is an empty string not handled similar as a filled string?
-#       The best workaround is to use ALWAYS escaped double-quotes for EACH argument: & "myexe.exe" `"$arg1`" `"`" `"$arg3`";
-#       But even then it is NOT ALLOWED that content contains a double-quote.
-#       There is also no proper solution if quotes instead of double-quotes are used.
-#       Maybe because these problems there is the recommendation of checker-tools to use options instead of positional arguments to specify parameters.
 #     - Precedence of commands: Alias > Function > Filter > Cmdlet > Application > ExternalScript > Script.
 #     - Override precedence of commands by using get-command, ex: Get-Command -commandType Application Ping
+#     - Very important for empty arguments or arguments with blanks: 
+#       PS5: If an empty argument should be specified then two quotes as '' or "" or $null or $myEmptyVar
+#         do not work (will make the argument not present),
+#         it requires '""' or "`"`"" or `"`" or use a blank as " ". This is really a big fail, it is very bad and dangerous!
+#         Why is an empty string not handled similar as a filled string?
+#         The best workaround is to use ALWAYS escaped double-quotes for EACH argument: & "myexe.exe" `"$arg1`" `"`" `"$arg3`";
+#         But even then it is NOT ALLOWED that content contains a double-quote.
+#         There is also no proper solution if quotes instead of double-quotes are used.
+#         Maybe because these problems there is the recommendation of checker-tools 
+#         to use options instead of positional arguments to specify parameters.
+#         Best recommended solution: Use from our library: ProcessStart $exe $opt -traceCmd:$true;
+#       PS7: It works as it should, without additional double-double-quotes.
 #   - Evaluate (string expansion) and run a command given in a string, does not create a new script scope
 #     and so works in local scope. Care for code injection.
 #       Invoke-Expression [-command] string [CommonParameters]
