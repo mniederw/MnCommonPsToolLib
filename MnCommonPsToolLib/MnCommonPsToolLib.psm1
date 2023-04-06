@@ -30,6 +30,14 @@
 #   for avoiding counting null as one element when added to an empty array.
 # - More: Powershell useful knowledge and additional documentation see bottom of MnCommonPsToolLib.psm1
 #
+# Recommendations for windows environment:
+# - Use UTF-8 not Win1252 as standard, for example we use the following line in a startup script file:
+#   ToolAddLineToConfigFile $Profile "$Global:OutputEncoding = [Console]::OutputEncoding = [Console]::InputEncoding  = [Text.UTF8Encoding]::UTF8; # AUTOCREATED LINE BY StartupOnLogon, set pipelining to utf8.";
+# - As alternative use in each relevant ps script file the following statement:
+#   $Global:OutputEncoding = [Console]::OutputEncoding = [Console]::InputEncoding  = [Text.UTF8Encoding]::UTF8;
+# - As further alternative switch your windows (intl.cpl):
+#   Region->Administrative->Change-System-Locale:Beta-Use-Unicode-utf-8-for-worldwide-lang-support: enable.
+#
 # Example usages of this module for a .ps1 script:
 #      # Simple example for using MnCommonPsToolLib
 #      Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1";
@@ -84,7 +92,7 @@ $global:ReportErrorShowExceptionClass = $true                     ; # on trap mo
 $global:ReportErrorShowInnerException = $true                     ; # on trap more detail exception info
 $global:ReportErrorShowStackTrace     = $true                     ; # on trap more detail exception info
 $global:FormatEnumerationLimit        = 999                       ; # used for Format-Table, but seams not to work, default is 4
-$global:OutputEncoding                = [Console]::OutputEncoding ; # for pipe to native applications use the same as current console, default is 'System.Text.ASCIIEncoding'
+$global:OutputEncoding                = [Console]::OutputEncoding ; # for pipe to native applications use the same as current console, on ps5 the default is 'System.Text.ASCIIEncoding' on ps7 it is utf-8
 if( $null -ne $Host.PrivateData ){ # if running as job then it is null
   $Host.PrivateData.VerboseForegroundColor = 'DarkGray'; # for verbose messages the default is yellow which is bad because it is flashy and equal to warnings
   $Host.PrivateData.DebugForegroundColor   = 'DarkRed' ; # for debug   messages the default is yellow which is bad because it is flashy and equal to warnings

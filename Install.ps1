@@ -116,8 +116,7 @@ OutProgress     "  An uninstallation does both, it removes the copied folder ";
 OutProgress     "  from the common ps module folder for all users for 32 and 64 bit ";
 OutProgress     "  and it removes the path entry from the ps module path environment variable. ";
 OutProgress     "  As long as ps7 not contains all of ps5 modules we strongly recommend that ";
-OutProgress     "  PsModulePath also contains Ps5WinModDir: `"$ps5WinModuleDir`"";
-OutProgress     "  and Ps5ModuleDir: `"$ps5ModuleDir`"";
+OutProgress     "  PsModulePath also contains Ps5WinModDir and Ps5ModuleDir. ";
 OutProgress     "  Imporant note: After any installation the current running programs which are ";
 OutProgress     "  using the old PsModulePath or which did load previously the old module, they ";
 OutProgress     "  need to be restarted before they can use new installed module. This usually ";
@@ -125,16 +124,27 @@ OutProgress     "  applies for a file manager or powershell sessions, but not fo
 OutProgress     "  By using this software you agree with the terms of GPL3. ";
 OutProgress     "  ";
 OutProgress     "  Current environment:";
+OutProgress     "    Ps5WinModDir                       = `"$ps5WinModuleDir`". ";
+OutProgress     "    Ps5ModuleDir                       = `"$ps5ModuleDir`". ";
+OutProgress     "    PsModuleFolder(allUsers,64bit)     = `"$tarRootDir64bit`". ";
+OutProgress     "    PsModuleFolder(allUsers,32bit)     = `"$tarRootDir32bit`". ";
+OutProgress     "    SrcRootDir                         = `"$srcRootDir`". ";
 OutProgress     "    IsInElevatedAdminMode              = $(ProcessIsRunningInElevatedAdminMode).";
 OutProgress     "    Executionpolicy-LocalMachine       = $(Get-Executionpolicy).";
 OutProgress     "    ShellSessionIs64not32Bit           = $(ShellSessionIs64not32Bit). ";
-OutProgress     "    PsModulePath contains SrcRootDir   = $(OsPsModulePathContains $srcRootDir). ";
 OutProgress     "    PsModulePath contains Ps5WinModDir = $(OsPsModulePathContains $ps5WinModuleDir). ";
 OutProgress     "    PsModulePath contains Ps5ModuleDir = $(OsPsModulePathContains $ps5ModuleDir). ";
-OutProgress     "    PsModuleFolder(allUsers,64bit)     = '$tarRootDir64bit'. ";
-OutProgress     "    PsModuleFolder(allUsers,32bit)     = '$tarRootDir32bit'. ";
-OutProgress     "    SrcRootDir                         = '$srcRootDir'. ";
+OutProgress     "    PsModulePath contains SrcRootDir   = $(OsPsModulePathContains $srcRootDir). ";
 OutProgressText "    Current installation modes         = "; CurrentInstallationModes;
+if( ! (ShellSessionIs64not32Bit) ){
+  OutWarning "    Warning: Your current sessing is 32bit, it is recommended to generally use 64bit! ";
+}
+if( ! (OsPsModulePathContains $ps5WinModuleDir) ){
+  OutWarning "    Warning: PsModulePath not contains Ps5WinModDir, it is strongly recommended to add them (see menu items)! ";
+}
+if( ! (OsPsModulePathContains $ps5ModuleDir) ){
+  OutWarning "    Warning: PsModulePath not contains Ps5ModuleDir, it is strongly recommended to add them (see menu items)! ";
+}
 OutInfo         "";
 OutInfo         "  I = Install or reinstall in standard mode. ";
 OutInfo         "  A = Alternative installation for developers which uses module at current location to change and test the module. ";
@@ -142,9 +152,6 @@ OutInfo         "  N = Uninstall all modes. ";
 OutInfo         "  U = When installed in standard mode do update from web. "; # in future do download and also switch to standard mode.
 OutInfo         "  W = Add Ps5WinModDir and Ps5ModuleDir to system PsModulePath environment variable. ";
 OutInfo         "  Q = Quit. `n";
-if( ! (OsPsModulePathContains $ps5WinModuleDir) -or ! (OsPsModulePathContains $ps5ModuleDir) ){
-  OutWarning    "  Warning: PsModulePath not contains Ps5WinModDir or Ps5ModuleDir, it is strongly recommended to add them (see menu items)! ";
-}
 if( $sel -ne "" ){ OutProgress "Selection: $sel "; }
 while( @("I","A","N","U","W","Q") -notcontains $sel ){
   OutQuestion "Enter selection case insensitive and press enter: ";
