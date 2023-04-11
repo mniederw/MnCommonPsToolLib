@@ -673,6 +673,7 @@ function ProcessGetCommandInEnvPathOrAltPaths ( [String] $commandNameOptionalWit
 function ProcessStart                         ( [String] $cmd, [String[]] $cmdArgs = @(), [Boolean] $careStdErrAsOut = $false, [Boolean] $traceCmd = $false ){
                                                 # Start any gui or console command including ps scripts in path and provide arguments in an array, waits for output
                                                 # and returns output as a single string. You can use StringSplitIntoLines on output to get it as lines.
+                                                # Console input is disabled.
                                                 # The advantages in contrast of using the call operator (&) are:
                                                 # - You do not have to call AssertRcIsOk afterwards, in case of an error it throws.
                                                 # - Empty-string parameters can be passed to the calling program.
@@ -687,7 +688,8 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 # Internally the stdout and stderr are stored to variables and not to temporary files to avoid file system IO.
                                                 # Important Note: The original Process.Start(ProcessStartInfo) cannot run a ps1 file
                                                 #   even if $env:PATHEXT contains the PS1 because it does not precede it with (powershell.exe -File) or (pwsh -File).
-                                                #   Our solution will do this by automatically preceed the ps1 file by  powershell.exe -NoLogo -File  or  pwsh -NoLogo -File
+                                                #   Our solution will do this by automatically preceed the ps1 file by
+                                                #   pwsh -NoLogo -File  or  powershell.exe -NoLogo -File
                                                 #   and it surrounds the arguments correctly by double-quotes to support blanks in any argument.
                                                 #
                                                 # Generally for each call of an executable the commandline is handled by some special rules which are descripted in
@@ -722,7 +724,8 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                   $cmdArgs = @() + ($cmdArgs | Where-Object { $null -ne $_ } | ForEach-Object {
                                                       $_.Replace("\\","\").Replace("\`"","`""); });
                                                   $traceInfo = "$((ProcessPsExecutable)) -File `"$cmd`" $(StringArrayDblQuoteItems $cmdArgs)";
-                                                  $cmdArgs = @( "-NoLogo", "-File", "`"$exec`"" ) + $cmdArgs;
+                                                  $cmdArgs = @( "-NoLogo", "-NonInteractive", "-File", "`"$exec`"" ) + $cmdArgs;
+                                                  # Note: maybe for future we require: pwsh -NoProfileLoadTime
                                                   $exec = (Get-Command (ProcessPsExecutable)).Path;
                                                 }else{
                                                   $cmdArgs = @() + (StringArrayDblQuoteItems $cmdArgs);
@@ -737,10 +740,16 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 $prInfo.CreateNoWindow = $true;
                                                 $prInfo.WindowStyle = "Normal";
                                                 $prInfo.UseShellExecute = $false; <# UseShellExecute must be false when redirect io #>
-                                                $prInfo.RedirectStandardError = $true; $prInfo.RedirectStandardOutput = $true;
-                                                $prInfo.RedirectStandardInput = $false;
+                                                $prInfo.RedirectStandardError = $true;
+                                                $prInfo.RedirectStandardOutput = $true;
+                                                $prInfo.RedirectStandardInput = $false; # parent and child have same standard-input and no additional pipe created.
+                                                # for future use: $prInfo.StandardOutputEncoding = Encoding.UTF8;
+                                                # for future use: $prInfo.StandardErrorEncoding = Encoding.UTF8;
+                                                # for future use: $prInfo.StandardInputEncoding = Encoding.UTF8;
                                                 $prInfo.WorkingDirectory = (Get-Location);
-                                                $pr = New-Object System.Diagnostics.Process; $pr.StartInfo = $prInfo;
+                                                $pr = New-Object System.Diagnostics.Process;
+                                                $pr.StartInfo = $prInfo;
+                                                $pr.EnableRaisingEvents = $false; # default is false; we not need it because we wait for end
                                                 # Note: We can not simply call WaitForExit() and after that read stdout and stderr streams because it could hang endless.
                                                 # The reason is the called program can produce child processes which can inherit redirect handles which can be still open
                                                 # while a subprocess exited and so WaitForExit which does wait for EOFs can block forever.
@@ -753,7 +762,6 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 [Object] $eventStdOut = Register-ObjectEvent -InputObject $pr -EventName OutputDataReceived -Action $actionReadStdOut -MessageData $bufStdOut;
                                                 [Object] $eventStdErr = Register-ObjectEvent -InputObject $pr -EventName ErrorDataReceived  -Action $actionReadStdErr -MessageData $bufStdErr;
                                                 [void]$pr.Start();
-                                                $pr.BeginOutputReadLine();
                                                 $pr.BeginErrorReadLine();
                                                 $pr.WaitForExit();
                                                 [Int32] $exitCode = $pr.ExitCode;
