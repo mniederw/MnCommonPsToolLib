@@ -32,7 +32,7 @@
 #
 # Recommendations for windows environment:
 # - Use UTF-8 not Win1252 as standard, for example we use the following line in a startup script file:
-#   ToolAddLineToConfigFile $Profile "$Global:OutputEncoding = [Console]::OutputEncoding = [Console]::InputEncoding  = [Text.UTF8Encoding]::UTF8; # AUTOCREATED LINE BY StartupOnLogon, set pipelining to utf8.";
+#   ToolAddLineToConfigFile $Profile "`$Global:OutputEncoding = [Console]::OutputEncoding = [Console]::InputEncoding  = [Text.UTF8Encoding]::UTF8; # AUTOCREATED LINE BY StartupOnLogon, set pipelining to utf8.";
 # - As alternative use in each relevant ps script file the following statement:
 #   $Global:OutputEncoding = [Console]::OutputEncoding = [Console]::InputEncoding  = [Text.UTF8Encoding]::UTF8;
 # - As further alternative switch your windows (intl.cpl):
@@ -56,7 +56,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $global:MnCommonPsToolLibVersion = "7.19"; # more see Releasenotes.txt
+[String] $global:MnCommonPsToolLibVersion = "7.20"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -459,7 +459,7 @@ function OutClear                             (){ Clear-Host; }
 function OutStartTranscriptInTempDir          ( [String] $name = "MnCommonPsToolLib", [Boolean] $useHHMMSS = $false ){
                                                  # append everything from console to logfile, return full path name of logfile. Optionally use precision by seconds for file name.
                                                 if( $name -eq "" ){ $name = "MnCommonPsToolLib"; }
-                                                [String] $pattern = "yyyy-MM-dd";
+                                                [String] $pattern = "yyyy yyyy-MM yyyy-MM-dd";
                                                 if( $useHHMMSS ){ $pattern += "_HH'h'mm'm'SS's'"; }
                                                 [String] $f = "$env:TEMP/tmp/$name/$((DateTimeNowAsStringIso $pattern).Replace(" ","/")).$name.txt"; # works for windows and linux
                                                 Start-Transcript -Path $f -Append -IncludeInvocationHeader | Out-Null;
@@ -762,6 +762,7 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 [Object] $eventStdOut = Register-ObjectEvent -InputObject $pr -EventName OutputDataReceived -Action $actionReadStdOut -MessageData $bufStdOut;
                                                 [Object] $eventStdErr = Register-ObjectEvent -InputObject $pr -EventName ErrorDataReceived  -Action $actionReadStdErr -MessageData $bufStdErr;
                                                 [void]$pr.Start();
+                                                $pr.BeginOutputReadLine();
                                                 $pr.BeginErrorReadLine();
                                                 $pr.WaitForExit();
                                                 [Int32] $exitCode = $pr.ExitCode;
@@ -2393,10 +2394,14 @@ function SvnStatus                            ( [String] $workDir, [Boolean] $sh
                                                 return [Boolean] $hasAnyChange; }
 function SvnRevert                            ( [String] $workDir, [String[]] $relativeRevertFsEntries ){
                                                 # Undo the specified fs-entries if they have any pending change.
-                                                foreach( $f in $relativeRevertFsEntries ){
-                                                  FileAppendLineWithTs $svnLogFile "SvnRevert(`"$workDir$(DirSep)$f`")";
-                                                  [String[]] $out = @()+(& (SvnExe) "revert" "--recursive" "$workDir$(DirSep)$f"); AssertRcIsOk $out;
-                                                  FileAppendLines $svnLogFile (StringArrayInsertIndent $out 2);
+                                                foreach( $e in $relativeRevertFsEntries ){
+                                                  [String] $f = "$workDir$(DirSep)$e";
+                                                  FileAppendLineWithTs $svnLogFile "SvnRevert(`"$f`")";
+                                                  # avoid:  svn: E155010: The node 'C:\MyWorkDir\UnexistingDir' was not found.
+                                                  if( (FsEntryExists $f) ){
+                                                    [String[]] $out = @()+(& (SvnExe) "revert" "--recursive" "$f"); AssertRcIsOk $out;
+                                                    FileAppendLines $svnLogFile (StringArrayInsertIndent $out 2);
+                                                  }
                                                 } }
 function SvnTortoiseCommit                    ( [String] $workDir ){
                                                 FileAppendLineWithTs $svnLogFile "SvnTortoiseCommit(`"$workDir`") call checkin dialog";
