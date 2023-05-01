@@ -633,7 +633,6 @@ function MountPointCreate                     ( [String] $drive, [String] $mount
                                                 }
                                                 MountPointRemove $drive $mountPoint $true; # Required because New-SmbMapping has no force param.
                                                 try{
-                                                  # alternative: SaveCredentials
                                                   if( $pw -eq ""){
                                                     $dummyObj = New-SmbMapping -LocalPath $drive -RemotePath $mountPoint -Persistent $true -UserName $us;
                                                   }else{
@@ -1202,6 +1201,9 @@ function ToolInstallNuPckMgrAndCommonPsGalMo(){
                                                 Install-PackageProvider -Name NuGet -ErrorAction SilentlyContinue | 
                                                   Select-Object Name, Status, Version, Source |
                                                   StreamToTableString | StreamToStringIndented;
+                                                OutProgress "List of modules:";
+                                                Get-Module | Sort Name | Select-Object Name,ModuleType,Version,Path |
+                                                  StreamToTableString | StreamToStringIndented;
                                                 OutProgress "List of installed modules having an installdate:";
                                                 Get-InstalledModule | Where-Object{$null -ne $_ -and $null -ne $_.InstalledDate } | 
                                                   Select-Object Name | Get-InstalledModule -AllVersions |
@@ -1223,7 +1225,7 @@ function ToolInstallNuPckMgrAndCommonPsGalMo(){
                                                 # On PS7 we would get: Update-Module: Module 'PowerShellGet' was not installed by using Install-Module, so it cannot be updated.
                                                 if( (ProcessIsLesserEqualPs5) ){
                                                   OutProgress "Update  modules: PowerShellGet, SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate";
-                                                  Update-Module PowerShellGet, SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate;
+                                                  Update-Module -AcceptLicense -Scope AllUsers -Name PowerShellGet, SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate;
                                                 }
                                                 # Set-Culture -CultureInfo de-CH; # change default culture for current user
                                                 OutProgress "Current Culture: $((Get-Culture).Name) = $((Get-Culture).DisplayName) "; # show current culture, ex: "de-CH"
