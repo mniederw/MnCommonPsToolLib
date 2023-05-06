@@ -16,7 +16,7 @@ function Test_Tool(){
   #   ToolHibernateModeEnable              (){
   #   ToolHibernateModeDisable             (){
   #   ToolActualizeHostsFileByMaster       ( [String] $srcHostsFile ){
-  #   ToolAddLineToConfigFile              ( [String] $file, [String] $line, [String] $encoding = "UTF8" ){ # if file not exists or line not found case sensitive in file then the line is appended
+  #   ToolAddLineToConfigFile              ( [String] $file, [String] $line, [String] $existingFileEncodingIfNoBom = "Default" ){ # if file not exists or line not found case sensitive in file then the line is appended
   #   ToolCreate7zip                       ( [String] $srcDirOrFile, [String] $tar7zipFile ){ # target must end with 7z. uses 7z.exe in path or in "C:/Program Files/7-Zip/"
   #   ToolUnzip                            ( [String] $srcZipFile, [String] $tarDir ){ # tarDir is created if it not exists, no overwriting, requires DotNetFX4.5.
   #   ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [String] $workDir, [String] $lnkFile, [String] $srcFile, [String[]] $arguments = @(),

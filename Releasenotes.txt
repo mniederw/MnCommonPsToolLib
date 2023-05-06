@@ -5,6 +5,7 @@ Major version will reflect breaking changes, minor identifies extensions and thi
 Breaking changes are usually removed deprecated functions or changed behaviours.
 Current version can be requested by: $MnCommonPsToolLibVersion
 
+2023-05-08  V7.22  Specialize encoding from UTF8 to UTF8BOM for StreamToCsvFile, StreamToXmlFile, StreamToFile, FileWriteFromString, FileWriteFromLines, FileCreateEmpty, FileAppendLine, FileAppendLines, ToolAddLineToConfigFile.
 2023-05-02  V7.21  Fix AssertRcIsOk.
 2023-05-01  V7.20  Fix SvnRevert, fix ProcessStart, extend ToolInstallNuPckMgrAndCommonPsGalMo, extend OutStartTranscriptInTempDir.
 2023-04-13  V7.19  Fix OutStartTranscriptInTempDir.

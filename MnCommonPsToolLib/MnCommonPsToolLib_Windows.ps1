@@ -959,7 +959,7 @@ function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [St
                                                   [String] $fn = FsEntryGetFileName $f; $fn = StringRemoveRight $fn $srcFileExtMenuLink;
                                                   $fn = StringRemoveRight $fn $srcFileExtMenuLinkOpt; $fn = $fn.TrimEnd();
                                                   [String] $lnkFile = "$($m)$(DirSep)$($relBelowSrcDir)$(DirSep)$fn.lnk";
-                                                  [String] $encodingIfNoBom = "Default";
+                                                  [String] $encodingIfNoBom = "Default"; # Encoding Default is ANSI on windows and UTF8 on other platforms.
                                                   [String] $cmdLine = FileReadContentAsLines $f $encodingIfNoBom | Select-Object -First 1;
                                                   [String] $addTraceInfo = "";
                                                   [Boolean] $forceRecreate = FileNotExistsOrIsOlder $lnkFile $f;
