@@ -16,8 +16,12 @@
 # - Typesafe: Functions and its arguments and return values are always specified with its type
 #   to assert type reliablility as far as possible.
 # - Avoid null values: Whenever possible null values are generally avoided. For example arrays gets empty instead of null.
-# - Win-1252/UTF8: Text file contents are written per default as UTF8-BOM for improving compatibility between multi platforms.
-#   They are read in Win-1252(=ANSI) if they have no BOM (byte order mark) or otherwise according to BOM.
+# - Encoding in PS is not consistent (different in PS5/PS7, Win/Linux)
+#   So for improving compatibility between multi platforms
+#   we are writing text file contents per default as UTF8 with BOM (byte order mark).
+#   For reading if they have no BOM then they are read with "Default",
+#   which is Win-1252(=ANSI) on windows and UTF8 on other platforms.
+#   Note: On PS5 there is no encoding as UTF8NoBOM, so for UTF8 it generally writes a BOM.
 # - Create files: On writing or appending files they automatically create its path parts.
 # - Notes about tracing information lines:
 #   - Progress : Any change of the system will be notified with color Gray. Is enabled as default.
@@ -32,9 +36,9 @@
 #
 # Recommendations for windows environment:
 # - Use UTF-8 not Win1252 as standard, for example we use the following line in a startup script file:
-#   ToolAddLineToConfigFile $Profile "`$Global:OutputEncoding = [Console]::OutputEncoding = [Console]::InputEncoding  = [Text.UTF8Encoding]::UTF8; # AUTOCREATED LINE BY StartupOnLogon, set pipelining to utf8.";
+#   ToolAddLineToConfigFile $Profile "`$Global:OutputEncoding = [Console]::OutputEncoding = [Console]::InputEncoding = [Text.UTF8Encoding]::UTF8; # AUTOCREATED LINE BY StartupOnLogon, set pipelining to utf8.";
 # - As alternative use in each relevant ps script file the following statement:
-#   $Global:OutputEncoding = [Console]::OutputEncoding = [Console]::InputEncoding  = [Text.UTF8Encoding]::UTF8;
+#   $Global:OutputEncoding = [Console]::OutputEncoding = [Console]::InputEncoding = [Text.UTF8Encoding]::UTF8;
 # - As further alternative switch your windows (intl.cpl):
 #   Region->Administrative->Change-System-Locale:Beta-Use-Unicode-utf-8-for-worldwide-lang-support: enable.
 #
@@ -56,7 +60,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $global:MnCommonPsToolLibVersion = "7.20"; # more see Releasenotes.txt
+[String] $global:MnCommonPsToolLibVersion = "7.22"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -520,14 +524,15 @@ function AssertIsFalse                        ( [Boolean] $cond, [String] $failR
                                                 if( $cond ){ throw [Exception] "Assertion-Is-False failed because $failReason"; } }
 function AssertNotEmpty                       ( [String] $s, [String] $varName ){
                                                 Assert ($s -ne "") "not allowed empty string for $varName."; }
-function AssertRcIsOk                         ( [String[]] $linesToOutProgress = $null, [Boolean] $useLinesAsExcMessage = $false, [String] $logFileToOutProgressIfFailed = "", [String] $encodingIfNoBom = "Default" ){
+function AssertRcIsOk                         ( [String[]] $linesToOutProgress = $null, [Boolean] $useLinesAsExcMessage = $false, 
+                                                [String] $logFileToOutProgressIfFailed = "", [String] $encodingIfNoBom = "Default" ){
                                                 # Can also be called with a single string; only nonempty progress lines are given out.
                                                 [Int32] $rc = ScriptGetAndClearLastRc;
                                                 if( $rc -ne 0 ){
                                                   if( -not $useLinesAsExcMessage ){ $linesToOutProgress | Where-Object{ StringIsFilled $_ } | ForEach-Object{ OutProgress $_ }; }
                                                   [String] $msg = "Last operation failed [rc=$rc]. ";
                                                   if( $useLinesAsExcMessage ){
-                                                    $msg = $(switch($rc -eq 1 -and $out -ne ""){($true){""}default{$msg}}) + ([String]$linesToOutProgress).Trim();
+                                                    $msg = $(switch($rc -eq 1 -and $linesToOutProgress -ne ""){($true){""}default{$msg}}) + ([String]$linesToOutProgress).Trim();
                                                   }
                                                   try{
                                                     OutProgress "Dump of logfile=$($logFileToOutProgressIfFailed):";
@@ -583,11 +588,13 @@ function StreamToHtmlListStrings              (){ $input | ConvertTo-Html -Title
 function StreamToListString                   (){ $input | Format-List -ShowError | StreamToStringDelEmptyLeadAndTrLines; }
 function StreamToFirstPropMultiColumnString   (){ $input | Format-Wide -AutoSize -ShowError | StreamToStringDelEmptyLeadAndTrLines; }
 function StreamToStringIndented               ( [Int32] $nrOfChars = 4 ){ StringSplitIntoLines ($input | StreamToStringDelEmptyLeadAndTrLines) | ForEach-Object{ "$(" "*$nrOfChars)$_" }; }
-function StreamToCsvFile                      ( [String] $file, [Boolean] $overwrite = $false, [String] $encoding = "UTF8" ){
+function StreamToCsvFile                      ( [String] $file, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM" ){
                                                 # If overwrite is false then nothing done if target already exists.
+                                                if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
                                                 $input | Export-Csv -Force:$overwrite -NoClobber:$(-not $overwrite) -NoTypeInformation -Encoding $encoding -Path (FsEntryEsc $file); }
-function StreamToXmlFile                      ( [String] $file, [Boolean] $overwrite = $false, [String] $encoding = "UTF8" ){
+function StreamToXmlFile                      ( [String] $file, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM" ){
                                                 # If overwrite is false then nothing done if target already exists.
+                                                if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
                                                 $input | Export-Clixml -Force:$overwrite -NoClobber:$(-not $overwrite) -Depth 999999999 -Encoding $encoding -Path (FsEntryEsc $file); }
 function StreamToDataRowsString               ( [String[]] $propertyNames = @() ){ # no header, only rows.
                                                 if( $propertyNames.Count -eq 0 ){ $propertyNames = @("*"); }
@@ -596,9 +603,10 @@ function StreamToTableString                  ( [String[]] $propertyNames = @() 
                                                 # Note: For a simple string array as ex: @("one","two")|StreamToTableString  it results with 4 lines "Length","------","     3","     3".
                                                 if( $propertyNames.Count -eq 0 ){ $propertyNames = @("*"); }
                                                 $input | Format-Table -Wrap -Force -autosize $propertyNames | StreamToStringDelEmptyLeadAndTrLines; }
-function StreamToFile                         ( [String] $file, [Boolean] $overwrite = $true, [String] $encoding = "UTF8" ){
+function StreamToFile                         ( [String] $file, [Boolean] $overwrite = $true, [String] $encoding = "UTF8BOM" ){
                                                 # Will create path of file. overwrite does ignore readonly attribute.
                                                 OutProgress "WriteFile $file"; FsEntryCreateParentDir $file;
+                                                if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
                                                 $input | Out-File -Force -NoClobber:$(-not $overwrite) -Encoding $encoding -LiteralPath $file; }
 function StreamFromCsvStrings                 ( [Char] $delimiter = ',' ){ $input | ConvertFrom-Csv -Delimiter $delimiter; }
 function ProcessIsLesserEqualPs5              (){ return [Boolean] ($PSVersionTable.PSVersion.Major -le 5); }
@@ -744,8 +752,8 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 $prInfo.RedirectStandardOutput = $true;
                                                 $prInfo.RedirectStandardInput = $false; # parent and child have same standard-input and no additional pipe created.
                                                 # for future use: $prInfo.StandardOutputEncoding = Encoding.UTF8;
-                                                # for future use: $prInfo.StandardErrorEncoding = Encoding.UTF8;
-                                                # for future use: $prInfo.StandardInputEncoding = Encoding.UTF8;
+                                                # for future use: $prInfo.StandardErrorEncoding  = Encoding.UTF8;
+                                                # for future use: $prInfo.StandardInputEncoding  = Encoding.UTF8;
                                                 $prInfo.WorkingDirectory = (Get-Location);
                                                 $pr = New-Object System.Diagnostics.Process;
                                                 $pr.StartInfo = $prInfo;
@@ -1231,33 +1239,40 @@ function FileExistsAndIsNewer                 ( [String] $ftar, [String] $fsrc )
 function FileNotExistsOrIsOlder               ( [String] $ftar, [String] $fsrc ){
                                                 return [Boolean] -not (FileExistsAndIsNewer $ftar $fsrc); }
 function FileReadContentAsString              ( [String] $file, [String] $encodingIfNoBom = "Default" ){
+                                                # Encoding Default is ANSI on windows and UTF8 on other platforms.
                                                 return [String] (FileReadContentAsLines $file $encodingIfNoBom | Out-String -Width ([Int32]::MaxValue)); }
 function FileReadContentAsLines               ( [String] $file, [String] $encodingIfNoBom = "Default" ){
-                                                # Note: if BOM exists then this is taken. Otherwise often use "UTF8".
-                                                OutVerbose "FileRead $file"; return [String[]] (@()+(Get-Content -Encoding $encodingIfNoBom -LiteralPath $file)); }
+                                                # Encoding Default is ANSI on windows and UTF8 on other platforms.
+                                                OutVerbose "FileRead $file"; 
+                                                return [String[]] (@()+(Get-Content -Encoding $encodingIfNoBom -LiteralPath $file)); }
 function FileReadJsonAsObject                 ( [String] $jsonFile ){
                                                 Get-Content -Raw -Path $jsonFile | ConvertFrom-Json; }
-function FileWriteFromString                  ( [String] $file, [String] $content, [Boolean] $overwrite = $true, [String] $encoding = "UTF8" ){
+function FileWriteFromString                  ( [String] $file, [String] $content, [Boolean] $overwrite = $true, [String] $encoding = "UTF8BOM" ){
                                                 # Will create path of file. overwrite does ignore readonly attribute.
                                                 OutProgress "WriteFile $file"; FsEntryCreateParentDir $file;
+                                                if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
                                                 Out-File -Force -NoClobber:$(-not $overwrite) -Encoding $encoding -Inputobject $content -LiteralPath $file; }
                                                 # alternative: Set-Content -Encoding $encoding -Path (FsEntryEsc $file) -Value $content; but this would lock file,
                                                 # more see http://stackoverflow.com/questions/10655788/powershell-set-content-and-out-file-what-is-the-difference
-function FileWriteFromLines                   ( [String] $file, [String[]] $lines, [Boolean] $overwrite = $false, [String] $encoding = "UTF8" ){
+function FileWriteFromLines                   ( [String] $file, [String[]] $lines, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM" ){
                                                 OutProgress "WriteFile $file";
+                                                if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
                                                 FsEntryCreateParentDir $file;
                                                 $lines | Out-File -Force -NoClobber:$(-not $overwrite) -Encoding $encoding -LiteralPath $file; }
-function FileCreateEmpty                      ( [String] $file, [Boolean] $overwrite = $false, [Boolean] $quiet = $false ){
+function FileCreateEmpty                      ( [String] $file, [Boolean] $overwrite = $false, [Boolean] $quiet = $false, [String] $encoding = "UTF8BOM" ){
+                                                if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
                                                 if( -not $quiet -and $overwrite ){ OutProgress "FileCreateEmpty-ByOverwrite $file"; }
                                                 FsEntryCreateParentDir $file;
-                                                Out-File -Force -NoClobber:$(-not $overwrite) -Encoding ASCII -LiteralPath $file; }
+                                                Out-File -Force -NoClobber:$(-not $overwrite) -Encoding $encoding -LiteralPath $file; }
 function FileAppendLineWithTs                 ( [String] $file, [String] $line ){ FileAppendLine $file $line $true; }
-function FileAppendLine                       ( [String] $file, [String] $line, [Boolean] $tsPrefix = $false ){
+function FileAppendLine                       ( [String] $file, [String] $line, [Boolean] $tsPrefix = $false, [String] $encoding = "UTF8BOM" ){
+                                                if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
                                                 FsEntryCreateParentDir $file;
-                                                Out-File -Encoding Default -Append -LiteralPath $file -InputObject ($(switch($tsPrefix){($true){"$(DateTimeNowAsStringIso) "}default{""}})+$line); }
-function FileAppendLines                      ( [String] $file, [String[]] $lines ){
+                                                Out-File -Encoding $encoding -Append -LiteralPath $file -InputObject ($(switch($tsPrefix){($true){"$(DateTimeNowAsStringIso) "}default{""}})+$line); }
+function FileAppendLines                      ( [String] $file, [String[]] $lines, [String] $encoding = "UTF8BOM" ){
+                                                if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
                                                 FsEntryCreateParentDir $file;
-                                                $lines | Out-File -Encoding Default -Append -LiteralPath $file; }
+                                                $lines | Out-File -Encoding $encoding -Append -LiteralPath $file; }
 function FileGetTempFile                      (){ return [String] [System.IO.Path]::GetTempFileName(); }
 function FileDelTempFile                      ( [String] $file ){ if( (FileExists $file) ){
                                                 OutDebug "FileDelete -Force `"$file`"";
@@ -1279,11 +1294,11 @@ function FileReadEncoding                     ( [String] $file ){
                                                 if($b.Length -ge 3 -and $b[0] -eq 0x0e -and $b[1] -eq 0xfe -and $b[2] -eq 0xff                     ){ return [String] "SCSU"             ; }
                                                 if($b.Length -ge 4 -and $b[0] -eq 0xfb -and $b[1] -eq 0xee -and $b[2] -eq 0x28                     ){ return [String] "BOCU-1"           ; }
                                                 if($b.Length -ge 4 -and $b[0] -eq 0x84 -and $b[1] -eq 0x31 -and $b[2] -eq 0x95 -and $b[3] -eq 0x33 ){ return [String] "GB-18030"         ; }
-                                                else                                                                                                { return [String] "Default"          ; } } # codepage=1252; =ANSI
+                                                else                                                                                                { return [String] "Default"          ; } } # codepage on windows 1252=ANSI and otherwise UTF8.
 function FileTouch                            ( [String] $file ){
                                                 OutProgress "Touch: `"$file`"";
                                                 if( FileExists $file ){ (Get-Item -Force -LiteralPath $file).LastWriteTime = (Get-Date); }
-                                                else{ FileCreateEmpty $file; } }
+                                                else{ FileCreateEmpty $file $false "ASCII"; } }
 function FileGetLastLines                     ( [String] $file, [Int32] $nrOfLines ){
                                                 Get-content -tail $nrOfLines -LiteralPath $file; }
 function FileContentsAreEqual                 ( [String] $f1, [String] $f2, [Boolean] $allowSecondFileNotExists = $true ){ # first file must exist
@@ -1354,7 +1369,7 @@ function FileUpdateItsHashSha2FileIfNessessary( [String] $srcFile ){
                                                 if( $hashSrc -eq $hashTar ){
                                                   OutProgress "File is up to date, nothing done with `"$hashTarFile`".";
                                                 }else{
-                                                  Out-File -Encoding UTF8 -LiteralPath $hashTarFile -Inputobject $hashSrc;
+                                                  Out-File -Encoding "UTF8" -LiteralPath $hashTarFile -Inputobject $hashSrc;
                                                   OutProgress "Created `"$hashTarFile`".";
                                                 } }
 function CredentialStandardizeUserWithDomain  ( [String] $username ){
@@ -1387,7 +1402,7 @@ function CredentialRemoveFile                 ( [String] $secureCredentialFile )
 function CredentialReadFromFile               ( [String] $secureCredentialFile ){
                                                 [String[]] $s = (@()+(StringSplitIntoLines (FileReadContentAsString $secureCredentialFile "Default")));
                                                 try{ [String] $us = $s[0]; [System.Security.SecureString] $pwSecure = CredentialGetSecureStrFromHexString $s[1];
-                                                  # alternative: New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $User, (Get-Content -Encoding Default -LiteralPath $secureCredentialFile | ConvertTo-SecureString)
+                                                  # alternative: New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $User, (Get-Content -Encoding "Default" -LiteralPath $secureCredentialFile | ConvertTo-SecureString)
                                                   return [System.Management.Automation.PSCredential] (New-Object System.Management.Automation.PSCredential((CredentialStandardizeUserWithDomain $us), $pwSecure));
                                                 }catch{ throw [Exception] "Credential file `"$secureCredentialFile`" has not expected format for decoding credentials, maybe you changed password of current user or current machine id, in that case you may remove it and retry"; } }
 function CredentialCreate                     ( [String] $username = "", [String] $password = "", [String] $accessShortDescription = "" ){
@@ -1528,7 +1543,7 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                     # Defaults: AllowAutoRedirect is true.
                                                     $webclient.Headers.Add("User-Agent",$userAgent);
                                                     # For future use: $webclient.Headers.Add("Content-Type","application/x-www-form-urlencoded");
-                                                    # not relevant because getting byte array: $webclient.Encoding = "Default"; "UTF8";
+                                                    # not relevant because getting byte array: $webclient.Encoding = "Default" or "UTF8";
                                                     if( $us -ne "" ){
                                                       $webclient.Credentials = $cred;
                                                     }
@@ -1780,23 +1795,28 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                   [String] $msg = "  ($curlExe $optForTrace) failed because $($_.Exception.Message)";
                                                   if( -not $errorAsWarning ){ throw [ExcMsg] $msg; } OutWarning "Warning: $msg";
                                                 } }
-function NetDownloadToString                  ( [String] $url, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Boolean] $onlyIfNewer = $false, [String] $encodingIfNoBom = "UTF8" ){
+function NetDownloadToString                  ( [String] $url, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false, 
+                                                  [Boolean] $onlyIfNewer = $false, [String] $encodingIfNoBom = "UTF8" ){
                                                 [String] $tmp = (FileGetTempFile);
                                                 NetDownloadFile $url $tmp $us $pw $ignoreSslCheck $onlyIfNewer;
                                                 [String] $result = (FileReadContentAsString $tmp $encodingIfNoBom);
                                                 FileDelTempFile $tmp; return [String] $result; }
-function NetDownloadToStringByCurl            ( [String] $url, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Boolean] $onlyIfNewer = $false, [String] $encodingIfNoBom = "UTF8" ){
+function NetDownloadToStringByCurl            ( [String] $url, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false, 
+                                                  [Boolean] $onlyIfNewer = $false, [String] $encodingIfNoBom = "UTF8" ){
                                                 [String] $tmp = (FileGetTempFile);
                                                 NetDownloadFileByCurl $url $tmp $us $pw $ignoreSslCheck $onlyIfNewer;
-                                                [String] $result = (FileReadContentAsString $tmp $encodingIfNoBom); FileDelTempFile $tmp; return [String] $result; }
+                                                [String] $result = (FileReadContentAsString $tmp $encodingIfNoBom);
+                                                FileDelTempFile $tmp; return [String] $result; }
 function NetDownloadIsSuccessful              ( [String] $url ){ # test wether an url is downloadable or not
                                                 [Boolean] $res = $false;
                                                 try{ GlobalSetModeHideOutProgress $true; [Boolean] $ignoreSslCheck = $true;
                                                   [String] $dummyStr = NetDownloadToString $url "" "" $ignoreSslCheck; $res = $true;
                                                 }catch{ OutVerbose "Ignoring problems on NetDownloadToString $url failed because $($_.Exception.Message)"; }
                                                 GlobalSetModeHideOutProgress $false; return [Boolean] $res; }
-function NetDownloadSite                      ( [String] $url, [String] $tarDir, [Int32] $level = 999, [Int32] $maxBytes = 0, [String] $us = "",
-                                                  [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Int32] $limitRateBytesPerSec = ([Int32]::MaxValue),
+function NetDownloadSite                      ( [String] $url, [String] $tarDir, [Int32] $level = 999, 
+                                                  [Int32] $maxBytes = 0, [String] $us = "", [String] $pw = "",
+                                                  [Boolean] $ignoreSslCheck = $false,
+                                                  [Int32] $limitRateBytesPerSec = ([Int32]::MaxValue),
                                                   [Boolean] $alsoRetrieveToParentOfUrl = $false ){
                                                 # Mirror site to dir; wget: HTTP, HTTPS, FTP. Logfile is written into target dir. Password is not logged.
                                                 [String] $logf = "$tarDir$(DirSep).Download.$(DateTimeNowAsStringIsoMonth).log";
@@ -2263,7 +2283,7 @@ function SvnEnvInfoGet                        ( [String] $workDir ){
                                                   Where-Object{$null -ne $_} |
                                                   Where-Object{ (FsEntryGetFileName $_) -match "^[0-9a-f]{32}$" } |
                                                   Sort-Object));
-                                                [String] $encodingIfNoBom = "Default";
+                                                [String] $encodingIfNoBom = "Default"; # Encoding Default is ANSI on windows and UTF8 on other platforms.
                                                 foreach( $f in $files ){
                                                   [String[]] $lines = @()+(FileReadContentAsLines $f $encodingIfNoBom);
                                                   # filecontent example:
@@ -2438,7 +2458,7 @@ function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url
                                                   FileAppendLineWithTs $svnLogFile "`"$(SvnExe)`" $logline";
                                                   try{
                                                     & (SvnExe) $opt 2> $tmp | ForEach-Object{ FileAppendLineWithTs $svnLogFile ("  "+$_); OutProgress $_ 2; };
-                                                    [String] $encodingIfNoBom = "Default";
+                                                    [String] $encodingIfNoBom = "Default"; # Encoding Default is ANSI on windows and UTF8 on other platforms.
                                                     AssertRcIsOk (FileReadContentAsLines $tmp $encodingIfNoBom) $true;
                                                     break;
                                                   }catch{
@@ -3025,9 +3045,10 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                 }
                                               }
 function ToolTailFile                         ( [String] $file ){ OutProgress "Show tail of file until ctrl-c is entered"; Get-Content -Wait $file; }
-function ToolAddLineToConfigFile              ( [String] $file, [String] $line, [String] $encoding = "UTF8" ){ # if file not exists or line not found case sensitive in file then the line is appended
+function ToolAddLineToConfigFile              ( [String] $file, [String] $line, [String] $existingFileEncodingIfNoBom = "Default" ){
+                                                # if file not exists or line not found case sensitive in file then the line is appended.
                                                 if( FileNotExists $file ){ FileWriteFromLines $file $line; }
-                                                elseif( -not (StringArrayContains (FileReadContentAsLines $file $encoding) $line) ){ FileAppendLines $file $line; } }
+                                                elseif( -not (StringArrayContains (FileReadContentAsLines $file $existingFileEncodingIfNoBom) $line) ){ FileAppendLines $file $line; } }
 function ToolGithubApiListOrgRepos            ( [String] $org, [System.Management.Automation.PSCredential] $cred = $null ){
                                                 # List all repos (ordered by archived and url) from an org on github.
                                                 # If user and its Personal-Access-Token PAT instead of password is specified then not only public
@@ -3324,3 +3345,5 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 # - Use  Set-PSDebug -trace 1; Set-PSDebug -trace 2;  to trace each line or use  Set-PSDebug -step  for singlestep mode until  Set-PSDebug -Off;
 # - Note: WMI commands should be replaced by CIM counterparts for portability,
 #   see https://devblogs.microsoft.com/powershell/introduction-to-cim-cmdlets/
+# - Encoding problem on PS5: There is no encoding as UTF8NoBOM, so for UTF8 it generally writes a BOM, alternative code would be:
+#   [System.IO.File]::WriteAllLines($f,$lines,(New-Object System.Text.UTF8Encoding $false))

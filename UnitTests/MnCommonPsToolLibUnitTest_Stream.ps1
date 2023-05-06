@@ -23,10 +23,10 @@ function Test_Stream(){
 # StreamToHtmlListStrings              (){ $input | ConvertTo-Html -Title "TableData" -Body $null -As List; }
 # StreamToListString                   (){ $input | Format-List -ShowError | StreamToStringDelEmptyLeadAndTrLines; }
 # StreamToFirstPropMultiColumnString   (){ $input | Format-Wide -AutoSize -ShowError | StreamToStringDelEmptyLeadAndTrLines; }
-# StreamToCsvFile                      ( [String] $file, [Boolean] $overwrite = $false, [String] $encoding = "UTF8" ){
+# StreamToCsvFile                      ( [String] $file, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM" ){
 #                                        # If overwrite is false then nothing done if target already exists.
 #                                        $input | Export-Csv -Force:$overwrite -NoClobber:$(-not $overwrite) -NoTypeInformation -Encoding $encoding -Path (FsEntryEsc $file); }
-# StreamToXmlFile                      ( [String] $file, [Boolean] $overwrite = $false, [String] $encoding = "UTF8" ){
+# StreamToXmlFile                      ( [String] $file, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM" ){
 #                                        # If overwrite is false then nothing done if target already exists.
 #                                        $input | Export-Clixml -Force:$overwrite -NoClobber:$(-not $overwrite) -Depth 999999999 -Encoding $encoding -Path (FsEntryEsc $file); }
 # StreamToDataRowsString               ( [String[]] $propertyNames = @() ){ # no header, only rows.
@@ -36,7 +36,7 @@ function Test_Stream(){
 #                                        # Note: For a simple string array as ex: @("one","two")|StreamToTableString  it results with 4 lines "Length","------","     3","     3".
 #                                        if( $propertyNames.Count -eq 0 ){ $propertyNames = @("*"); }
 #                                        $input | Format-Table -Wrap -Force -autosize $propertyNames | StreamToStringDelEmptyLeadAndTrLines; }
-# StreamToFile                         ( [String] $file, [Boolean] $overwrite = $true, [String] $encoding = "UTF8" ){
+# StreamToFile                         ( [String] $file, [Boolean] $overwrite = $true, [String] $encoding = "UTF8BOM" ){
 #                                        # Will create path of file. overwrite does ignore readonly attribute.
 #                                        OutProgress "WriteFile $file"; FsEntryCreateParentDir $file;
 #                                        $input | Out-File -Force -NoClobber:$(-not $overwrite) -Encoding $encoding -LiteralPath $file; }

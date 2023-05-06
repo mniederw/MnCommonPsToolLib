@@ -76,15 +76,15 @@ function Test_FsEntry_Dir_File_Drive_Share_Mount_PsDrive(){
   #   FileAssertExists                     ( [String] $file ){
   #   FileExistsAndIsNewer                 ( [String] $ftar, [String] $fsrc ){
   #   FileNotExistsOrIsOlder               ( [String] $ftar, [String] $fsrc ){
-  #   FileReadContentAsString              ( [String] $file, [String] $encodingIfNoBom = "Default" ){
-  #   FileReadContentAsLines               ( [String] $file, [String] $encodingIfNoBom = "Default" ){
+  #   FileReadContentAsString              ( [String] $file, [String] $encodingIfNoBom = "Default" ){ # Encoding Default is ANSI on windows and UTF8 on other platforms.
+  #   FileReadContentAsLines               ( [String] $file, [String] $encodingIfNoBom = "Default" ){ # Encoding Default is ANSI on windows and UTF8 on other platforms.
   #   FileReadJsonAsObject                 ( [String] $jsonFile ){
-  #   FileWriteFromString                  ( [String] $file, [String] $content, [Boolean] $overwrite = $true, [String] $encoding = "UTF8" ){
-  #   FileWriteFromLines                   ( [String] $file, [String[]] $lines, [Boolean] $overwrite = $false, [String] $encoding = "UTF8" ){
-  #   FileCreateEmpty                      ( [String] $file, [Boolean] $overwrite = $false, [Boolean] $quiet = $false ){
+  #   FileWriteFromString                  ( [String] $file, [String] $content, [Boolean] $overwrite = $true, [String] $encoding = "UTF8BOM" ){
+  #   FileWriteFromLines                   ( [String] $file, [String[]] $lines, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM" ){
+  #   FileCreateEmpty                      ( [String] $file, [Boolean] $overwrite = $false, [Boolean] $quiet = $false, [String] $encoding = "UTF8BOM" ){
   #   FileAppendLineWithTs                 ( [String] $file, [String] $line ){ FileAppendLine $file $line $true; }
-  #   FileAppendLine                       ( [String] $file, [String] $line, [Boolean] $tsPrefix = $false ){
-  #   FileAppendLines                      ( [String] $file, [String[]] $lines ){
+  #   FileAppendLine                       ( [String] $file, [String] $line, [Boolean] $tsPrefix = $false, [String] $encoding = "UTF8BOM" ){
+  #   FileAppendLines                      ( [String] $file, [String[]] $lines, [String] $encoding = "UTF8BOM" ){
   #   FileGetTempFile                      (){ return [Object] [System.IO.Path]::GetTempFileName(); }
   #   FileDelTempFile                      ( [String] $file ){ if( (FileExists $file) ){
   #   FileReadEncoding                     ( [String] $file ){
