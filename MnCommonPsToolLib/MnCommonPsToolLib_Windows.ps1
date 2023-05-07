@@ -378,14 +378,19 @@ function RegistryKeySetOwner                  ( [String] $key, [System.Security.
                                                 PrivEnableTokenPrivilege SeTakeOwnershipPrivilege;
                                                 PrivEnableTokenPrivilege SeRestorePrivilege;
                                                 PrivEnableTokenPrivilege SeBackupPrivilege;
+                                                [System.Security.AccessControl.RegistrySecurity] $acl = Get-Acl -Path $key;
                                                 try{
                                                   [Microsoft.Win32.RegistryKey] $hk = [Microsoft.Win32.RegistryKey]::OpenBaseKey((RegistryKeyGetHkey $key),[Microsoft.Win32.RegistryView]::Default);
                                                   [Microsoft.Win32.RegistryKey] $k = $hk.OpenSubKey((RegistryKeyGetSubkey $key),[Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,[System.Security.AccessControl.RegistryRights]::TakeOwnership);
-                                                  [System.Security.AccessControl.RegistrySecurity] $acl = $k.GetAccessControl([System.Security.AccessControl.AccessControlSections]::All); # alternatives: None, Audit, Access, Owner, Group, All
+                                                  [System.Security.AccessControl.RegistrySecurity] $acl = $k.GetAccessControl([System.Security.AccessControl.AccessControlSections]::None); # alternatives: None, Audit, Access, Owner, Group, All
+                                                  if( (ProcessIsLesserEqualPs5) ){                 $acl = $k.GetAccessControl([System.Security.AccessControl.AccessControlSections]::All); }
                                                   if( $acl.Owner -eq $account.Value ){ return; }
-                                                  $acl.SetOwner($account); $k.SetAccessControl($acl);
+                                                  $acl.SetOwner([System.Security.Principal.NTAccount]$account);
+                                                  $k.SetAccessControl($acl);
                                                   $k.Close(); $hk.Close();
-                                                  # alternative but sometimes access denied: [System.Security.AccessControl.RegistrySecurity] $acl = RegistryKeyGetAcl $key; $acl.SetOwner($account); Set-Acl -Path $key -AclObject $acl;
+                                                  # alternative but sometimes access denied (probably same problem as with the AccessControlSections None and All):
+                                                  #   [System.Security.AccessControl.RegistrySecurity] $acl = RegistryKeyGetAcl $key;
+                                                  #   $acl.SetOwner($account); Set-Acl -Path $key -AclObject $acl;
                                                 }catch{ throw [Exception] "$(ScriptGetCurrentFunc)($key,$account) failed because $($_.Exception.Message)"; } }
 function RegistryKeySetAclRight               ( [String] $key, [System.Security.Principal.IdentityReference] $account, [String] $regRight = "FullControl" ){
                                                 # ex: "HKLM:\Software\MyManufactor" (PrivGetGroupAdministrators) "FullControl";
@@ -393,7 +398,7 @@ function RegistryKeySetAclRight               ( [String] $key, [System.Security.
 function RegistryKeyAddAclRule                ( [String] $key, [System.Security.AccessControl.RegistryAccessRule] $rule ){
                                                 RegistryKeySetAclRule $key $rule $true; }
 function RegistryKeySetAclRule                ( [String] $key, [System.Security.AccessControl.RegistryAccessRule] $rule, [Boolean] $useAddNotSet = $false ){
-                                                # ex: "HKLM:\Software\MyManufactor" (PrivGetGroupAdministrators) "FullControl";
+                                                # ex: "HKLM:\Software\MyManufactor" (RegistryPrivRuleCreate (PrivGetGroupAdministrators) "FullControl");
                                                 $key = RegistryMapToShortKey $key;
                                                 OutProgress "RegistryKeySetAclRule `"$key`" `"$(RegistryPrivRuleToString $rule)`"";
                                                 RegistryRequiresElevatedAdminMode;
