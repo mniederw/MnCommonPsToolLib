@@ -1298,7 +1298,7 @@ function FileReadEncoding                     ( [String] $file ){
 function FileTouch                            ( [String] $file ){
                                                 OutProgress "Touch: `"$file`"";
                                                 if( FileExists $file ){ (Get-Item -Force -LiteralPath $file).LastWriteTime = (Get-Date); }
-                                                else{ FileCreateEmpty $file $false "ASCII"; } }
+                                                else{ FileCreateEmpty $file $false $false "ASCII"; } }
 function FileGetLastLines                     ( [String] $file, [Int32] $nrOfLines ){
                                                 Get-content -tail $nrOfLines -LiteralPath $file; }
 function FileContentsAreEqual                 ( [String] $f1, [String] $f2, [Boolean] $allowSecondFileNotExists = $true ){ # first file must exist
