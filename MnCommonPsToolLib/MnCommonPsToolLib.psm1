@@ -1566,7 +1566,6 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                     }
                                                   }
                                                   [String] $stateMsg = "  Ok, downloaded $(FileGetSize $tarFile) bytes.";
-                                                  OutVerbose $stateMsg;
                                                   OutProgress $stateMsg;
                                                 }catch{
                                                   # ex: The request was aborted: Could not create SSL/TLS secure channel.
