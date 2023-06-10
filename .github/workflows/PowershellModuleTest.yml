@@ -19,13 +19,14 @@ on:
       - '.github/workflows/**'
   workflow_dispatch:  # Allows you to run this workflow manually from the Actions tab
   schedule:
-    # are working with the default branch only (main).
+    # schedules are taking always the default branch of the repo (master/main).
     # cron: minute(0..59) hour(0..23) dayOfMonth(1..31) month(1..12 or JAN..DEC) dayOfWeek(0..6 or SUN-SAT);
     #   '* * * * *' seams to be 15min; multivalues comma separated (2,4); ranges with a dash (2-5); 
     #   increment with slash after min10 each 5 min (10/5); shortes are 5 minutes; in UTC;
     #   https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#schedule
-    - cron:  '1 0 * * 0'   # 00:01 each sunday with main  branch
-    - cron:  '34 15 * * 4'  # 00:11 each sunday with trunk branch
+    #   (00:01GMT+0 means at: 01:01GMT+1 wintertime, 02:01GMT+2 daylight-saving-time)
+    - cron:  '1 0 * * 0'    # 00:01UTC each sunday with main  branch
+    - cron:  '34 15 * * 4'  # 00:11UTC each sunday with trunk branch
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:

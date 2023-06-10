@@ -366,6 +366,14 @@ function RegistryPrivRuleToString             ( [System.Security.AccessControl.R
                                                 }
                                                 $s += (PrivAclRegRightsToString $rule.RegistryRights);
                                                 return [String] $s; }
+function RegistryKeyGetOwnerAsString          ( [String] $key ){
+                                                # ex: "HKLM:\Software\MyManufactor"
+                                                $key = RegistryMapToShortKey $key;
+                                                [Microsoft.Win32.RegistryKey] $hk = [Microsoft.Win32.RegistryKey]::OpenBaseKey((RegistryKeyGetHkey $key),[Microsoft.Win32.RegistryView]::Default);
+                                                [Microsoft.Win32.RegistryKey] $k = $hk.OpenSubKey((RegistryKeyGetSubkey $key),[Microsoft.Win32.RegistryKeyPermissionCheck]::ReadSubTree);
+                                                [System.Security.AccessControl.RegistrySecurity] $acl = $k.GetAccessControl();
+                                                [System.Security.Principal.IdentityReference] $owner = $acl.GetOwner([System.Security.Principal.NTAccount]);
+                                                return [String] $owner.Value; }
 function RegistryKeySetOwner                  ( [String] $key, [System.Security.Principal.IdentityReference] $account ){
                                                 # ex: "HKLM:\Software\MyManufactor" (PrivGetGroupAdministrators);
                                                 # Changes only if owner is not yet the required one.
@@ -374,11 +382,12 @@ function RegistryKeySetOwner                  ( [String] $key, [System.Security.
                                                 # then it asserts elevated mode and enables some token privileges.
                                                 $key = RegistryMapToShortKey $key;
                                                 OutProgress "RegistryKeySetOwner `"$key`" `"$($account.ToString())`"";
+                                                if( (RegistryKeyGetOwnerAsString $key) -eq $account.Value ){ return; }
                                                 RegistryRequiresElevatedAdminMode;
                                                 PrivEnableTokenPrivilege SeTakeOwnershipPrivilege;
                                                 PrivEnableTokenPrivilege SeRestorePrivilege;
                                                 PrivEnableTokenPrivilege SeBackupPrivilege;
-                                                [System.Security.AccessControl.RegistrySecurity] $acl = Get-Acl -Path $key;
+                                                #[System.Security.AccessControl.RegistrySecurity] $acl = Get-Acl -Path $key;
                                                 try{
                                                   [Microsoft.Win32.RegistryKey] $hk = [Microsoft.Win32.RegistryKey]::OpenBaseKey((RegistryKeyGetHkey $key),[Microsoft.Win32.RegistryView]::Default);
                                                   [Microsoft.Win32.RegistryKey] $k = $hk.OpenSubKey((RegistryKeyGetSubkey $key),[Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,[System.Security.AccessControl.RegistryRights]::TakeOwnership);
