@@ -57,6 +57,7 @@ jobs:
       - name: Install tools
         shell: pwsh
         run: |
+          # Assert installed tools: curl.
           if( "${{runner.os}}" -eq "Linux" ){
             which curl; # /usr/bin/curl
             # alternative: sudo apt install -y curl; # curl is already the newest version (7.81.0-1ubuntu1.8).
@@ -109,6 +110,16 @@ jobs:
           echo "ActionUrl   = https://github.com/${{github.repository}}/actions/runs/${{github.run_id}};" # example: "https://github.com/mniederw/MnCommonPsToolLib/actions/runs/4272755554"
           echo "Action      = ${{github.workflow}} #${{github.run_number}};" # example: "PowershellModuleTest #570"
           echo "WorkflowRef = ${{github.workflow_ref}};" # example: "mniederw/MnCommonPsToolLib/.github/workflows/PowershellModuleTest.yml@refs/heads/main"
+          echo "List all environment variables in bash"; printenv;
+          echo "List github context as json: ${{toJson(github)}}";
+          echo "List pnpm version: $((pnpm --version) || true)";
+          echo "List npm version: $((npm --version) || true)";
+          echo "List npm installed modules globally: $((npm list --global) || true)";
+          echo "List npm installed modules locally: $((npm list) || true)";
+          echo "ListDir /usr/lib/node_modules/: $((ls /usr/lib/node_modules/) || true)"; # ex: cordova  corepack  npm  sfdx-cli
+          echo "ListDir /home/runner/.local/bin/: $((ls /home/runner/.local/bin/) || true)";
+          echo "ListDir ./node_modules/: $((ls ./node_modules/) || true)";
+          echo "ListFile ./package.json: $((cat ./package.json) || true)"; # ex: {"dependencies":{"fs":"0.0.1-security", "fs-extra":"^11.1.1", "xml2js":"^0.6.0", "jsonfile":"^6.1.0", "xmlmerge-js":"^0.2.5", "minimist":"^1.2.8", "path":"^0.12.7", "shelljs":"^0.8.5"}}
           # More usuful variables: 
           #   RUNNER_WORKSPACE        = /home/runner/work/MnCommonPsToolLib
           #   GITHUB_WORKSPACE        = /home/runner/work/MnCommonPsToolLib/MnCommonPsToolLib
@@ -117,7 +128,10 @@ jobs:
           #   GITHUB_OUTPUT           = /home/runner/work/_temp/_runner_file_commands/set_output_dddaeb53-3cd8-4be8-b76c-5fa50a64656c
           #   GITHUB_STEP_SUMMARY     = /home/runner/work/_temp/_runner_file_commands/step_summary_dddaeb53-3cd8-4be8-b76c-5fa50a64656c
           #   INVOCATION_ID           = 765a5a77e7694d118c0feadb5fdc152d
-          echo "List all environment variables in bash"; printenv;
+          #   PATH                    = /opt/hostedtoolcache/node/18.16.1/x64/bin:/home/runner/setup-pnpm/node_modules/.bin:/home/runner/.local/bin:/opt/pipx_bin:
+          #                               /home/runner/.cargo/bin:/home/runner/.config/composer/vendor/bin:/usr/local/.ghcup/bin:/home/runner/.dotnet/tools:/snap/bin:
+          #                               /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
+          #   PNPM_HOME               = /home/runner/setup-pnpm/node_modules/.bin
 
       - name: If tests on trunk of a push or workflow_dispatch was successful then create pull request to main
         if: ${{ success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/trunk' && runner.os == 'Linux' }}
@@ -125,15 +139,15 @@ jobs:
           # for parameters see: https://github.com/repo-sync/pull-request
           # works only on linux, see releases for updating version from time to time 
         with:
-          pr_title: "Merge ${{github.ref_name}} to main - Unittests are successful - ${{ github.event.commits[0].message }}"
-          source_branch: ""                          # If blank, default: triggered branch
-          destination_branch: "main"                 #
-          github_token: ${{ secrets.GITHUB_TOKEN }}  # If blank, default: secrets.GITHUB_TOKEN
-          pr_allow_empty: false                      # Creates pull request even if there are no changes
-          pr_label: ""                               # Comma-separated list (no spaces)
-          pr_milestone: ""                           # Milestone name
-          #pr_reviewer: "user1,user2"                # Comma-separated list (no spaces)
-          #pr_assignee: "user1,user2"                # Comma-separated list (no spaces)
+          pr_title:           "Merge ${{github.ref_name}} to main - Unittests are successful - ${{ github.event.commits[0].message }}"
+          source_branch:      ""                           # If blank, default: triggered branch
+          destination_branch: "main"                       #
+          github_token:       ${{ secrets.GITHUB_TOKEN }}  # If blank, default: secrets.GITHUB_TOKEN
+          pr_allow_empty:     false                        # Creates pull request even if there are no changes
+          pr_label:           ""                           # Comma-separated list (no spaces)
+          pr_milestone:       ""                           # Milestone name
+          #pr_reviewer: "user1,user2" # Comma-separated list (no spaces)
+          #pr_assignee: "user1,user2" # Comma-separated list (no spaces)
       - name: Output job state
         if: ${{ always() }}  # if alternatives: success(), failure(), cancelled(), 
         run: echo "Process ${{ job.status }}."; # job.status = [success,failure,cancelled].
@@ -142,19 +156,19 @@ jobs:
 
 # More docu: https://docs.github.com/en/actions/learn-github-actions/understanding-github-actions
 # For future:
-#   strategy:
-#     matrix:
-#       node-version: [14.x]
 #   if: github.ref == 'refs/heads/mybranch'
+#   steps:
 #   - name: Install package manager pnpm
-#     uses: pnpm/action-setup@v1.2.1
-#     with:
-#       version: 4.11.1
-#   - name: Install node.js
-#     uses: actions/setup-node@v3                 # puts node and npm into path
-#     with:
-#       node-version: ${{ matrix.node-version }}
-#       path: node_modules
+#     uses: pnpm/action-setup@v2
+#     with: { version: 8.6.5 }
+#   - name: Install node.js (adds node and npm to path)
+#     if: steps.cache.outputs.cache-hit != 'true'
+#     uses: actions/setup-node@v3
+#     with: { node-version: 18.16.1 }
+#   - name: Install nodejs modules locally and not globally
+#     run: |
+#           pnpm install fs fs-extra xml2js jsonfile xmlmerge-js minimist path shelljs sfdx-cli@7.204.6;
+#           alias sfdx="$PWD/node_modules/sfdx-cli/bin/run"; # required (only global install would put it to path)
 #   - shell: bash
 #     run: |
 #           echo "Inputtags: ${{ github.event.inputs.tag }}"

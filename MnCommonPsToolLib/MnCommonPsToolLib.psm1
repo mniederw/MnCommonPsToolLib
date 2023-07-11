@@ -60,7 +60,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $global:MnCommonPsToolLibVersion = "7.23"; # more see Releasenotes.txt
+[String] $global:MnCommonPsToolLibVersion = "7.24"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -464,7 +464,7 @@ function OutStartTranscriptInTempDir          ( [String] $name = "MnCommonPsTool
                                                  # append everything from console to logfile, return full path name of logfile. Optionally use precision by seconds for file name.
                                                 if( $name -eq "" ){ $name = "MnCommonPsToolLib"; }
                                                 [String] $pattern = "yyyy yyyy-MM yyyy-MM-dd";
-                                                if( $useHHMMSS ){ $pattern += "_HH'h'mm'm'SS's'"; }
+                                                if( $useHHMMSS ){ $pattern += "_HH'h'mm'm'ss's'"; }
                                                 [String] $f = "$env:TEMP/tmp/$name/$((DateTimeNowAsStringIso $pattern).Replace(" ","/")).$name.txt"; # works for windows and linux
                                                 Start-Transcript -Path $f -Append -IncludeInvocationHeader | Out-Null;
                                                 return [String] $f; }
@@ -860,7 +860,7 @@ function PrivAclRegRightsToString              ( [System.Security.AccessControl.
 function DirSep                               (){ return [Char] [IO.Path]::DirectorySeparatorChar; }
 function FsEntryEsc                           ( [String] $fsentry ){ AssertNotEmpty $fsentry "file-system-entry"; # Escaping is not nessessary if a command supports -LiteralPath.
                                                 return [String] [Management.Automation.WildcardPattern]::Escape($fsentry); } # Important for chars as [,], etc.
-function FsEntryGetAbsolutePath               ( [String] $fsEntry ){ # works without IO, so no check to file system; does not change a trailing backslash. Return empty for empty input.
+function FsEntryGetAbsolutePath               ( [String] $fsEntry ){ # works without IO, so no check to file system; does not remove a trailing dir-separator. Return empty for empty input.
                                                 # Note: We cannot use (Resolve-Path -LiteralPath $fsEntry) because it will throw if path not exists,
                                                 # see http://stackoverflow.com/questions/3038337/powershell-resolve-path-that-might-not-exist
                                                 if( $fsEntry -eq "" ){ return [String] ""; }
@@ -2061,6 +2061,7 @@ function GitMerge                             ( [String] $repoDir, [String] $bra
                                                   OutWarning "Merge of branch $branch into `"$repoDir`" failed, fix conflicts manually. ";
                                                 } }
 function GithubAuthStatus                     (){
+                                                ProcessEnvVarSet "GH_NO_UPDATE_NOTIFIER" "1";
                                                 [String] $out = (ProcessStart "gh" @("auth", "status") -careStdErrAsOut:$true -traceCmd:$true);
                                                 # Output:
                                                 #   github.com
@@ -2071,12 +2072,14 @@ function GithubAuthStatus                     (){
 function GithubListPullRequests               ( [String] $repo, [String] $filterToBranch = "", [String] $filterFromBranch = "", [String] $filterState = "open" ){
                                                 # repo has format [HOST/]OWNER/REPO
                                                 [String] $fields = "number,state,createdAt,title,labels,author,assignees,updatedAt,url,body,closedAt,repository,authorAssociation,commentsCount,isLocked,isPullRequest,id";
+                                                ProcessEnvVarSet "GH_NO_UPDATE_NOTIFIER" "1";
                                                 [String] $out = (ProcessStart "gh" @("search", "prs", "--repo", $repo, "--state", $filterState, "--base", $filterToBranch, "--head", $filterFromBranch, "--json", $fields) -traceCmd:$true);
                                                 return ($out | ConvertFrom-Json); }
 function GithubCreatePullRequest              ( [String] $repo, [String] $toBranch, [String] $fromBranch, [String] $title = "", [String] $repoDirForCred = "" ){
                                                 # repoDirForCred : Any folder under any git repository, from which the credentials will be taken, use empty for current dir.
                                                 # default title is "Merge $fromBranch into $toBranch"
                                                 # repo has format [HOST/]OWNER/REPO
+                                                # example: GithubCreatePullRequest "mniederw/ITZielbild" "UAT"         "UAT_Prepare" "" $PSScriptRoot; }
                                                 OutProgress "Create a github-pull-request from $fromBranch to $toBranch in repo: $repo";
                                                 if( $title -eq "" ){ $title = "Merge $fromBranch to $toBranch"; }
                                                 [String[]] $prUrls = @()+(GithubListPullRequests $repo $toBranch $fromBranch |
@@ -2088,6 +2091,7 @@ function GithubCreatePullRequest              ( [String] $repo, [String] $toBran
                                                 Push-Location $repoDirForCred;
                                                 [String] $out = "";
                                                 try{
+                                                  ProcessEnvVarSet "GH_NO_UPDATE_NOTIFIER" "1"; # otherwise we would get: "A new release of gh is available: 2.7.0 → v2.31.0\nhttps://github.com/cli/cli/releases/tag/v2.31.0"
                                                   $out = (ProcessStart "gh" @("pr", "create", "--repo", $repo, "--base", $toBranch, "--head", $fromBranch, "--title", $title, "--body", " ") -careStdErrAsOut:$true -traceCmd:$true);
                                                 }catch{
                                                   if( $_.Exception.Message.Contains("pull request create failed: GraphQL: No commits between ") ){
