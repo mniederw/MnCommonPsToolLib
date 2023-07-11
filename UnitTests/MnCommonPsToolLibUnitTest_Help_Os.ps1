@@ -9,7 +9,7 @@ function Test_Help_Os(){
   if( ! (OsIsWindows) ){ OutProgress "Not running on windows, so bypass test."; return; }
   # TODO:
   #   HelpHelp                             (){ Get-Help     | ForEach-Object{ OutInfo $_; } }
-  #   HelpListOfAllVariables               (){ Get-Variable | Sort-Object Name | ForEach-Object{ OutInfo "$($_.Name.PadRight(32)) $($_.Value)"; } } # Select-Object Name, Value | StreamToListString
+  OutProgress "Call HelpListOfAllVariables which writes to console "; HelpListOfAllVariables;
   #   HelpListOfAllAliases                 (){ Get-Alias    | Select-Object CommandType, Name, Version, Source | StreamToTableString | ForEach-Object{ OutInfo $_; } }
   #   HelpListOfAllCommands                (){ Get-Command  | Select-Object CommandType, Name, Version, Source | StreamToTableString | ForEach-Object{ OutInfo $_; } }
   #   HelpListOfAllModules                 (){ Get-Module -ListAvailable | Sort-Object Name | Select-Object Name, ModuleType, Version, ExportedCommands; }
