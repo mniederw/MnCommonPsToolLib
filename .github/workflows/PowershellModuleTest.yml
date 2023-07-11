@@ -119,7 +119,6 @@ jobs:
           echo "ListDir /home/runner/.local/bin/: $((ls /home/runner/.local/bin/) || true)";
           echo "ListDir ./node_modules/: $((ls ./node_modules/) || true)";
           echo "ListFile ./package.json: $((cat ./package.json) || true)"; # ex: {"dependencies":{"fs":"0.0.1-security", "fs-extra":"^11.1.1", "xml2js":"^0.6.0", "jsonfile":"^6.1.0", "xmlmerge-js":"^0.2.5", "minimist":"^1.2.8", "path":"^0.12.7", "shelljs":"^0.8.5"}}
-          echo "List github context as json: ${{toJson(github)}}"; # 2023-07: fails after some json output with: Error: Process completed with exit code 127.
           # More usuful variables: 
           #   RUNNER_WORKSPACE        = /home/runner/work/MnCommonPsToolLib
           #   GITHUB_WORKSPACE        = /home/runner/work/MnCommonPsToolLib/MnCommonPsToolLib
@@ -132,6 +131,10 @@ jobs:
           #                               /home/runner/.cargo/bin:/home/runner/.config/composer/vendor/bin:/usr/local/.ghcup/bin:/home/runner/.dotnet/tools:/snap/bin:
           #                               /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
           #   PNPM_HOME               = /home/runner/setup-pnpm/node_modules/.bin
+          # Note: we do not run: echo "List github context as json: ${{toJson(github)}}";
+          #   because sometimes fails after some json output with:
+          #   2023-07: /home/runner/work/_temp/858ee69a-4952-4151-832b-4c9945ad8f90.sh: line 115: timestamp:: command not found
+          #            Error: Process completed with exit code 127.
 
       - name: If tests on trunk of a push or workflow_dispatch was successful then create pull request to main
         if: ${{ success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/trunk' && runner.os == 'Linux' }}
