@@ -111,7 +111,6 @@ jobs:
           echo "Action      = ${{github.workflow}} #${{github.run_number}};" # example: "PowershellModuleTest #570"
           echo "WorkflowRef = ${{github.workflow_ref}};" # example: "mniederw/MnCommonPsToolLib/.github/workflows/PowershellModuleTest.yml@refs/heads/main"
           echo "List all environment variables in bash"; printenv;
-          echo "List github context as json: ${{toJson(github)}}";
           echo "List pnpm version: $((pnpm --version) || true)";
           echo "List npm version: $((npm --version) || true)";
           echo "List npm installed modules globally: $((npm list --global) || true)";
@@ -120,6 +119,7 @@ jobs:
           echo "ListDir /home/runner/.local/bin/: $((ls /home/runner/.local/bin/) || true)";
           echo "ListDir ./node_modules/: $((ls ./node_modules/) || true)";
           echo "ListFile ./package.json: $((cat ./package.json) || true)"; # ex: {"dependencies":{"fs":"0.0.1-security", "fs-extra":"^11.1.1", "xml2js":"^0.6.0", "jsonfile":"^6.1.0", "xmlmerge-js":"^0.2.5", "minimist":"^1.2.8", "path":"^0.12.7", "shelljs":"^0.8.5"}}
+          echo "List github context as json: ${{toJson(github)}}"; # 2023-07: fails after some json output with: Error: Process completed with exit code 127.
           # More usuful variables: 
           #   RUNNER_WORKSPACE        = /home/runner/work/MnCommonPsToolLib
           #   GITHUB_WORKSPACE        = /home/runner/work/MnCommonPsToolLib/MnCommonPsToolLib
