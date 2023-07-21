@@ -60,7 +60,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $global:MnCommonPsToolLibVersion = "7.24"; # more see Releasenotes.txt
+[String] $global:MnCommonPsToolLibVersion = "7.25"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -150,7 +150,11 @@ if( $null -eq (Get-Variable -Scope global -ErrorAction SilentlyContinue -Name Co
 
 # Statement extensions
 function ForEachParallel {
-  # Note: In the statement block no functions or variables of the script where it is embedded can be used. Only from loaded modules.
+  # Example: (1..20) | ForEachParallel{ echo $_; };
+  # Note: 
+  # - In PS7 we could use: (1..99) | ForEach-Object -ThrottleLimit 5 -Parallel { echo "line $_"; }
+  #   But we hold this function for compatibility reasons. 
+  # - In the statement block no functions or variables of the script where it is embedded can be used. Only from loaded modules.
   #   Only the single variable $_ can be used.
   #   You can also not base on Auto-Load-Module in your script, so generally use Load-Module for each used module.
   # ex: (0..20) | ForEachParallel { Write-Output "Nr: $_"; Start-Sleep -Seconds 1; };
@@ -160,74 +164,79 @@ function ForEachParallel {
   param( [Parameter(Mandatory=$true,position=0)]              [System.Management.Automation.ScriptBlock] $ScriptBlock,
          [Parameter(Mandatory=$true,ValueFromPipeline=$true)] [PSObject]                                 $InputObject,
          [Parameter(Mandatory=$false)]                        [Int32]                                    $MaxThreads=8 )
-  # Note: for some unknown reason we sometimes get a red line "One or more errors occurred."
-  # and maybe "Collection was modified; enumeration operation may not execute." but it continuous successfully.
-  # We assume it is because it uses internally autoload module and this is not fully multithreading/parallel safe.
-  BEGIN{
-    try{
-      # if( ($scriptblock.ToString() -replace "`$_","" -replace "`$true","" -replace "`$false","") -match "`$" ){
-      #   throw [Exception] "ForEachParallel(`{$scriptblock`}) has a dollar sign in script block and only [`$_,`$true,`$false] are allowed.";
-      # }
-      $iss = [System.Management.Automation.Runspaces.Initialsessionstate]::CreateDefault();
-      # Note: for sharing data we need someting as:
-      #   $sharedArray = [System.Collections.ArrayList]::Synchronized([System.Collections.ArrayList]::new());
-      #   $sharedQueue = [System.Collections.Queue]::Synchronized([System.Collections.Queue]::new());
-      $pool = [Runspacefactory]::CreateRunspacePool(1,$maxthreads,$iss,$host); $pool.open();
-      # alternative: $pool = [Runspacefactory]::CreateRunspacePool($iss); $pool.SetMinRunspaces(1) | Out-Null; $pool.SetMaxRunspaces($maxthreads) | Out-Null;
-      # has no effect: $pool.ApartmentState = "MTA";
-      $threads = @();
-      $scriptBlock = $ExecutionContext.InvokeCommand.NewScriptBlock("param(`$_)$([Environment]::NewLine)"+$scriptblock.ToString());
-    }catch{ $Host.UI.WriteErrorLine("ForEachParallel-BEGIN: $($_)"); }
-  }PROCESS{
-    try{
-      # alternative:
-      #   [System.Management.Automation.PSDataCollection[PSObject]] $pipelineInputs = New-Object System.Management.Automation.PSDataCollection[PSObject];
-      #   [System.Management.Automation.PSDataCollection[PSObject]] $pipelineOutput = New-Object System.Management.Automation.PSDataCollection[PSObject];
-      $powershell = [powershell]::Create().addscript($scriptblock).addargument($InputObject);
-      $powershell.runspacepool = $pool;
-      $threads += @{ instance = $powershell; handle = $powershell.BeginInvoke(); }; # $pipelineInputs,$pipelineOutput
-    }catch{ $Host.UI.WriteErrorLine("ForEachParallel-PROCESS: $($_)"); }
-    [gc]::Collect();
-  }END{
-    try{
-      [Boolean] $notdone = $true; while( $notdone ){ $notdone = $false;
-        [System.Threading.Thread]::Sleep(250); # polling interval in msec
-        for( [Int32] $i = 0; $i -lt $threads.count; $i++ ){
-          if( $null -ne $threads[$i].handle ){
-            if( $threads[$i].handle.iscompleted ){
-              try{
-                # Note: Internally we sometimes get the following progress text for which we don't know why and on which statement this happens:
-                #   "parent = -1 id = 0 act = Module werden für erstmalige Verwendung vorbereitet. stat =   cur =  pct = -1 sec = -1 type = Processing/Completed "
-                #   Because that we write this to verbose and not to progress because for progress a popup window would occurre which does not disappear.
-                $threads[$i].instance.EndInvoke($threads[$i].handle);
-              }catch{
-                [String] $msg = $_; $error.clear();
-                # msg example: Exception calling "EndInvoke" with "1" argument(s): "Der ausgeführte Befehl wurde beendet, da die
-                #              Einstellungsvariable "ErrorActionPreference" oder ein allgemeiner Parameter auf "Stop" festgelegt ist:
-                #              Es ist ein allgemeiner Fehler aufgetreten, für den kein spezifischerer Fehlercode verfügbar ist.."
-                Write-Host -ForegroundColor Gray "ForEachParallel-endinvoke: Ignoring $msg";
-              }
-              [String] $outEr = $threads[$i].instance.Streams.Error      ; if( $outEr -ne "" ){ Write-Error       "Error: $outEr"; }
-              [String] $outWa = $threads[$i].instance.Streams.Warning    ; if( $outWa -ne "" ){ Write-Warning     "Warning: $outWa"; }
-              [String] $outIn = $threads[$i].instance.Streams.Information; if( $outIn -ne "" ){ Write-Information "Info: $outIn"; }
-              [String] $outPr = $threads[$i].instance.Streams.Progress   ; if( $outPr -ne "" ){ Write-Verbose     "Progress: $outPr"; } # we write to verbose not progress
-              [String] $outVe = $threads[$i].instance.Streams.Verbose    ; if( $outVe -ne "" ){ Write-Verbose     "Verbose: $outVe"; }
-              [String] $outDe = $threads[$i].instance.Streams.Debug      ; if( $outDe -ne "" ){ Write-Debug       "Debug: $outDe"; }
-              $threads[$i].instance.dispose();
-              $threads[$i].handle = $null;
-              [gc]::Collect();
-            }else{ $notdone = $true; }
+  if( $PSVersionTable.PSVersion.Major -gt 5 ){
+    echo "Input: $InputObject";
+    $input | ForEach-Object -ThrottleLimit $MaxThreads -Parallel $ScriptBlock;
+  }else{
+    # Note: for some unknown reason we sometimes get a red line "One or more errors occurred."
+    # and maybe "Collection was modified; enumeration operation may not execute." but it continuous successfully.
+    # We assume it is because it uses internally autoload module and this is not fully multithreading/parallel safe.
+    BEGIN{
+      try{
+        # if( ($scriptblock.ToString() -replace "`$_","" -replace "`$true","" -replace "`$false","") -match "`$" ){
+        #   throw [Exception] "ForEachParallel(`{$scriptblock`}) has a dollar sign in script block and only [`$_,`$true,`$false] are allowed.";
+        # }
+        $iss = [System.Management.Automation.Runspaces.Initialsessionstate]::CreateDefault();
+        # Note: for sharing data we need someting as:
+        #   $sharedArray = [System.Collections.ArrayList]::Synchronized([System.Collections.ArrayList]::new());
+        #   $sharedQueue = [System.Collections.Queue]::Synchronized([System.Collections.Queue]::new());
+        $pool = [Runspacefactory]::CreateRunspacePool(1,$maxthreads,$iss,$host); $pool.open();
+        # alternative: $pool = [Runspacefactory]::CreateRunspacePool($iss); $pool.SetMinRunspaces(1) | Out-Null; $pool.SetMaxRunspaces($maxthreads) | Out-Null;
+        # has no effect: $pool.ApartmentState = "MTA";
+        $threads = @();
+        $scriptBlock = $ExecutionContext.InvokeCommand.NewScriptBlock("param(`$_)$([Environment]::NewLine)"+$scriptblock.ToString());
+      }catch{ $Host.UI.WriteErrorLine("ForEachParallel-BEGIN: $($_)"); }
+    }PROCESS{
+      try{
+        # alternative:
+        #   [System.Management.Automation.PSDataCollection[PSObject]] $pipelineInputs = New-Object System.Management.Automation.PSDataCollection[PSObject];
+        #   [System.Management.Automation.PSDataCollection[PSObject]] $pipelineOutput = New-Object System.Management.Automation.PSDataCollection[PSObject];
+        $powershell = [powershell]::Create().addscript($scriptblock).addargument($InputObject);
+        $powershell.runspacepool = $pool;
+        $threads += @{ instance = $powershell; handle = $powershell.BeginInvoke(); }; # $pipelineInputs,$pipelineOutput
+      }catch{ $Host.UI.WriteErrorLine("ForEachParallel-PROCESS: $($_)"); }
+      [gc]::Collect();
+    }END{
+      try{
+        [Boolean] $notdone = $true; while( $notdone ){ $notdone = $false;
+          [System.Threading.Thread]::Sleep(250); # polling interval in msec
+          for( [Int32] $i = 0; $i -lt $threads.count; $i++ ){
+            if( $null -ne $threads[$i].handle ){
+              if( $threads[$i].handle.iscompleted ){
+                try{
+                  # Note: Internally we sometimes get the following progress text for which we don't know why and on which statement this happens:
+                  #   "parent = -1 id = 0 act = Module werden für erstmalige Verwendung vorbereitet. stat =   cur =  pct = -1 sec = -1 type = Processing/Completed "
+                  #   Because that we write this to verbose and not to progress because for progress a popup window would occurre which does not disappear.
+                  $threads[$i].instance.EndInvoke($threads[$i].handle);
+                }catch{
+                  [String] $msg = $_; $error.clear();
+                  # msg example: Exception calling "EndInvoke" with "1" argument(s): "Der ausgeführte Befehl wurde beendet, da die
+                  #              Einstellungsvariable "ErrorActionPreference" oder ein allgemeiner Parameter auf "Stop" festgelegt ist:
+                  #              Es ist ein allgemeiner Fehler aufgetreten, für den kein spezifischerer Fehlercode verfügbar ist.."
+                  Write-Host -ForegroundColor Gray "ForEachParallel-endinvoke: Ignoring $msg";
+                }
+                [String] $outEr = $threads[$i].instance.Streams.Error      ; if( $outEr -ne "" ){ Write-Error       "Error: $outEr"; }
+                [String] $outWa = $threads[$i].instance.Streams.Warning    ; if( $outWa -ne "" ){ Write-Warning     "Warning: $outWa"; }
+                [String] $outIn = $threads[$i].instance.Streams.Information; if( $outIn -ne "" ){ Write-Information "Info: $outIn"; }
+                [String] $outPr = $threads[$i].instance.Streams.Progress   ; if( $outPr -ne "" ){ Write-Verbose     "Progress: $outPr"; } # we write to verbose not progress
+                [String] $outVe = $threads[$i].instance.Streams.Verbose    ; if( $outVe -ne "" ){ Write-Verbose     "Verbose: $outVe"; }
+                [String] $outDe = $threads[$i].instance.Streams.Debug      ; if( $outDe -ne "" ){ Write-Debug       "Debug: $outDe"; }
+                $threads[$i].instance.dispose();
+                $threads[$i].handle = $null;
+                [gc]::Collect();
+              }else{ $notdone = $true; }
+            }
           }
         }
+      }catch{
+        # ex: 2018-07: Exception calling "EndInvoke" with "1" argument(s) "Der ausgeführte Befehl wurde beendet, da die
+        #              Einstellungsvariable "ErrorActionPreference" oder ein allgemeiner Parameter auf "Stop" festgelegt ist:
+        #              Es ist ein allgemeiner Fehler aufgetreten, für den kein spezifischerer Fehlercode verfügbar ist.."
+        $Host.UI.WriteErrorLine("ForEachParallel-END: $($_)");
       }
-    }catch{
-      # ex: 2018-07: Exception calling "EndInvoke" with "1" argument(s) "Der ausgeführte Befehl wurde beendet, da die
-      #              Einstellungsvariable "ErrorActionPreference" oder ein allgemeiner Parameter auf "Stop" festgelegt ist:
-      #              Es ist ein allgemeiner Fehler aufgetreten, für den kein spezifischerer Fehlercode verfügbar ist.."
-      $Host.UI.WriteErrorLine("ForEachParallel-END: $($_)");
+      $error.clear();
+      [gc]::Collect();
     }
-    $error.clear();
-    [gc]::Collect();
   }
 }
 
@@ -561,7 +570,7 @@ function ScriptGetFileOfLibModule             (){ return [String] $PSCommandPath
 function ScriptGetCallerOfLibModule           (){ return [String] $MyInvocation.PSCommandPath; } # Result can be empty or implicit module if called interactive. alternative for dir: $MyInvocation.PSScriptRoot.
 function ScriptGetTopCaller                   (){ # return the command line with correct doublequotes.
                                                 # Result can be empty or implicit module if called interactive.
-                                                # usage ex: "&'C:\Temp\A.ps1'" or '&"C:\Temp\A.ps1"' or on ISE '"C:\Temp\A.ps1"'
+                                                # usage ex: "&'$env:TEMP/tmp/A.ps1'" or '&"$env:TEMP/tmp/A.ps1"' or on ISE '"$env:TEMP/tmp/A.ps1"'
                                                 [String] $f = $global:MyInvocation.MyCommand.Definition.Trim();
                                                 if( $f -eq "" -or $f -eq "ScriptGetTopCaller" ){ return [String] ""; }
                                                 if( $f.StartsWith("&") ){ $f = $f.Substring(1,$f.Length-1).Trim(); }
@@ -569,7 +578,7 @@ function ScriptGetTopCaller                   (){ # return the command line with
                                                 return [String] $f; }
 function ScriptIsProbablyInteractive          (){ [String] $f = $global:MyInvocation.MyCommand.Definition.Trim();
                                                 # Result can be empty or implicit module if called interactive.
-                                                # usage ex: "&'C:\Temp\A.ps1'" or '&"C:\Temp\A.ps1"' or on ISE '"C:\Temp\A.ps1"'
+                                                # usage ex: "&'$env:TEMP/tmp/A.ps1'" or '&"$env:TEMP/tmp/A.ps1"' or on ISE '"$env:TEMP/tmp/A.ps1"'
                                                 return [Boolean] $f -eq "" -or $f -eq "ScriptGetTopCaller" -or -not $f.StartsWith("&"); }
 function StreamAllProperties                  (){ $input | Select-Object *; }
 function StreamAllPropertyTypes               (){ $input | Get-Member -Type Property; }
@@ -1944,7 +1953,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   [Object] $usedTime = [System.Diagnostics.Stopwatch]::StartNew();
                                                   [String[]] $gitArgs = @();
                                                   if( $cmd -eq "Clone" ){
-                                                    # Writes to stderr: Cloning into 'c:\temp\test'...
+                                                    # Writes to stderr: Cloning into '$env:TEMP/tmp/test'...
                                                     $gitArgs = @( "clone", "--quiet" );
                                                     if( $branch -ne "" ){ $gitArgs += @( "--branch", $branch ); }
                                                     $gitArgs += @( "--", $url, $dir);
@@ -1963,8 +1972,8 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                     # alternative option: --hard origin/master
                                                   }else{ throw [Exception] "Unknown git cmd=`"$cmd`""; }
                                                   FileAppendLineWithTs $gitLogFile "GitCmd(`"$tarRootDir`",$urlAndOptionalBranch) git $(StringArrayDblQuoteItems $gitArgs)";
-                                                  # ex: "git" "-C" "C:\Temp\mniederw\myrepo" "--git-dir=.git" "pull" "--quiet" "--no-stat" "--no-rebase" "https://github.com/mniederw/myrepo"
-                                                  # ex: "git" "clone" "--quiet" "--branch" "MyBranch" "--" "https://github.com/mniederw/myrepo" "C:\Temp\mniederw\myrepo#MyBranch"
+                                                  # ex: "git" "-C" "$env:TEMP/tmp/mniederw/myrepo" "--git-dir=.git" "pull" "--quiet" "--no-stat" "--no-rebase" "https://github.com/mniederw/myrepo"
+                                                  # ex: "git" "clone" "--quiet" "--branch" "MyBranch" "--" "https://github.com/mniederw/myrepo" "$env:TEMP/tmp/mniederw/myrepo#MyBranch"
                                                   # TODO low prio: if (cmd is Fetch or Pull) and branch is not empty and current branch does not match specified branch then output progress message about it.
                                                   # TODO middle prio: check env param pull.rebase and think about display and usage
                                                   [String] $out = (ProcessStart "git" $gitArgs -careStdErrAsOut:$true -traceCmd:$true);
@@ -2224,7 +2233,7 @@ function GitCloneOrPullUrls                   ( [String[]] $listOfRepoUrls, [Str
                                                 # CachedAuthorizationFile="$env:APPDATA\Subversion\auth\svn.simple\25ff84926a354d51b4e93754a00064d6"; CachedAuthorizationUser="myuser"; Revision="1234"
 function SvnExe                               (){ # Note: if certificate is not accepted then a pem file (for example lets-encrypt-r3.pem) can be added to file "$env:APPDATA\Subversion\servers"
                                                 return [String] ((RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseSVN" "Directory") + ".\bin\svn.exe"); }
-<# Script local variable: svnLogFile #>       [String] $script:svnLogFile = "${env:TEMP}/MnCommonPsToolLibLog/Svn.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
+<# Script local variable: svnLogFile #>       [String] $script:svnLogFile = "${env:TEMP}/tmp/MnCommonPsToolLibLog/Svn.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
 function SvnEnvInfoGet                        ( [String] $workDir ){
                                                 # Return SvnEnvInfo; no param is null.
                                                 OutProgress "SvnEnvInfo - Get svn environment info of workDir=`"$workDir`"; ";
@@ -2596,7 +2605,7 @@ function TfsExe                               (){ # return tfs executable
                                                 # for future use: tf.exe checkout /lock:checkout /recursive file
                                                 # for future use: tf.exe merge /baseless /recursive /version:C234~C239 branchFrom branchTo
                                                 # for future use: tf.exe workfold /workspace:ws /cloak
-<# Script local variable: tfsLogFile #>       [String] $script:tfsLogFile = "${env:TEMP}/MnCommonPsToolLibLog/Tfs.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
+<# Script local variable: tfsLogFile #>       [String] $script:tfsLogFile = "${env:TEMP}/tmp/MnCommonPsToolLibLog/Tfs.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
 function TfsHelpWorkspaceInfo                 (){
                                                 OutProgress "Help Workspace Info - Command Line Examples";
                                                 OutProgress "- Current Tool Path: `"$(TfsExe)`"";
@@ -2858,7 +2867,7 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                 # This includes tables (including unique indexes), indexes (non-unique), views, stored procedures, functions, roles, schemas, db-triggers and table-Triggers.
                                                 # If a stored procedure, a function or a trigger is encrypted then a single line is put to its sql file indicating encrypted code cannot be dumped.
                                                 # It creates file "DbInfo.dbname.out" with some db infos. In case of an error it creates file "DbInfo.dbname.err".
-                                                # ex: SqlGenerateFullDbSchemaFiles "MyLogicEnvironment" "MySqlInstance" "MyDbName" "$env:TEMP\DumpFullDbSchemas"
+                                                # ex: SqlGenerateFullDbSchemaFiles "MyLogicEnvironment" "MySqlInstance" "MyDbName" "$env:TEMP/tmp/DumpFullDbSchemas"
                                                 [String] $currentUser = "$env:USERDOMAIN\$env:USERNAME";
                                                 [String] $traceInfo = "SqlGenerateFullDbSchemaFiles(logicalEnv=$logicalEnv,dbInstanceServerName=$dbInstanceServerName,dbname=$dbName,targetRootDir=$targetRootDir,currentUser=$currentUser)";
                                                 OutInfo $traceInfo;
@@ -3104,7 +3113,7 @@ function ToolGithubApiDownloadLatestReleaseDir( [String] $repoUrl ){
                                                 NetDownloadFileByCurl "$apiUrl/zipball" $tarZip;
                                                 ToolUnzip $tarZip $tarDir; # Ex: ./mniederw-MnCommonPsToolLib-25dbfb0/*
                                                 FileDelete $tarZip;
-                                                 # list flat dirs, ex: "C:\Temp\MnCoPsToLib_catkmrpnfdp\mniederw-MnCommonPsToolLib-25dbfb0\"
+                                                 # list flat dirs, ex: "$env:TEMP/tmp/MnCoPsToLib_catkmrpnfdp/mniederw-MnCommonPsToolLib-25dbfb0/"
                                                 [String[]] $dirs = (@()+(FsEntryListAsStringArray $tarDir $false $true $false));
                                                 if( $dirs.Count -ne 1 ){ throw [ExcMsg] "Expected one dir in `"$tarDir`" instead of: $dirs"; }
                                                 [String] $dir0 = $dirs[0];

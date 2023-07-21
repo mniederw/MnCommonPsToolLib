@@ -760,7 +760,7 @@ function InfoAboutSystemInfo                  (){ # Works only on Windows
                                                 # Edit:        for imports the xml file can be edited and stripped for your needs.
                                                 # import cmd:  dism.exe /online /Import-DefaultAppAssociations:"mydefaultapps.xml"
                                                 # removing:    dism.exe /Online /Remove-DefaultAppAssociations
-                                                [String] $f = "$env:TEMP$(DirSep)EnvGetInfoAboutSystemInfo_DefaultFileExtensionToAppAssociations.xml";
+                                                [String] $f = (FsEntryGetAbsolutePath "$env:TEMP/tmp/EnvGetInfoAboutSystemInfo_DefaultFileExtensionToAppAssociations.xml");
                                                 & "Dism.exe" "/QUIET" "/Online" "/Export-DefaultAppAssociations:$f"; AssertRcIsOk;
                                                 #
                                                 [String[]] $result = @( "InfoAboutSystemInfo:", "" );
@@ -1126,7 +1126,7 @@ function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $
                                                 # It returns true if the file is now actualized.
                                                 # Note: if not in elevated admin mode and if it is required then it will download file twice,
                                                 #   once to check for differences and once after switching to elevated admin mode.
-                                                # Example: ToolPerformFileUpdateAndIsActualized "C:\Temp\a.psm1" "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/master/MnCommonPsToolLib/MnCommonPsToolLib.psm1" $true $true "Please restart" $false $true;
+                                                # Example: ToolPerformFileUpdateAndIsActualized "$env:TEMP/tmp/a.psm1" "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/master/MnCommonPsToolLib/MnCommonPsToolLib.psm1" $true $true "Please restart" $false $true;
                                                 try{
                                                   OutInfo "Update file `"$targetFile`"";
                                                   OutProgress "FromUrl: $url";
