@@ -117,16 +117,8 @@ if( $null -ne $Host.PrivateData ){ # if running as job then it is null
 
 # Recommended installed modules: Some functions may use the following modules
 #   Install-Module PSScriptAnalyzer; # used by testing files for analysing powershell code
-#   Install-Module SqlServer       ; # used by SqlPerformFile, SqlPerformCmd.
 #   Install-Module ThreadJob       ; # used by GitCloneOrPullUrls
-
-# Import some modules (because it is more performant to do it once than doing this in each function using methods of this module).
-# Note: for example on "Windows Server 2008 R2" we currently are missing these modules but we ignore the errors because it its enough if the functions which uses these modules will fail.
-#   The specified module 'ScheduledTasks'/'SmbShare' was not loaded because no valid module file was found in any module directory.
-if( $null -ne (Import-Module -NoClobber -Name "ScheduledTasks" -ErrorAction Continue *>&1) ){ $error.clear(); Write-Warning "Ignored failing of Import-Module ScheduledTasks because it will fail later if a function is used from it."; }
-if( $null -ne (Import-Module -NoClobber -Name "SmbShare"       -ErrorAction Continue *>&1) ){ $error.clear(); Write-Warning "Ignored failing of Import-Module SmbShare       because it will fail later if a function is used from it."; }
-# Import-Module "SmbWitness"; # for later usage
-# Import-Module "ServerManager"; # Is not always available, requires windows-server-os or at least Win10Prof with installed RSAT. Because seldom used we do not try to load it here.
+#   Install-Module SqlServer       ; # used by SqlPerformFile, SqlPerformCmd.
 # Import-Module "SqlServer"; # not always used so we dont load it here.
 
 # types
@@ -1910,7 +1902,7 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                 [String] $state = "  TargetDir: $(FsEntryReportMeasureInfo "$tarDir") (BeforeStart: $stateBefore)";
                                                 FileAppendLineWithTs $logf $state;
                                                 OutProgress $state; }
-<# Script local variable: gitLogFile #>       [String] $script:gitLogFile = "${env:TEMP}/MnCommonPsToolLibLog/Git.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
+<# Script local variable: gitLogFile #>       [String] $script:gitLogFile = "${env:TEMP}/tmp/MnCommonPsToolLibLog/Git.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
 function GitBuildLocalDirFromUrl              ( [String] $tarRootDir, [String] $urlAndOptionalBranch ){
                                                 # Maps a root dir and a repo url with an optional sharp-char separated branch name
                                                 # to a target repo dir which contains all url fragments below the hostname.
@@ -2821,7 +2813,7 @@ function SqlRunScriptFile                     ( [String] $sqlserver, [String] $s
 function SqlPerformFile                       ( [String] $connectionString, [String] $sqlFile, [String] $logFileToAppend = "", [Int32] $queryTimeoutInSec = 0, [Boolean] $showPrint = $true, [Boolean] $showRows = $true){
                                                 # Print are given out in yellow by internal verbose option; rows are currently given out only in a simple csv style without headers.
                                                 # ConnectString example: "Server=myInstance;Database=TempDB;Integrated Security=True;"  queryTimeoutInSec: 1..65535,0=endless;
-                                                ScriptImportModuleIfNotDone "sqlserver";
+                                                ScriptImportModuleIfNotDone "SqlServer";
                                                 [String] $currentUser = "$env:USERDOMAIN\$env:USERNAME";
                                                 [String] $traceInfo = "SqlPerformCmd(connectionString=`"$connectionString`",sqlFile=`"$sqlFile`",queryTimeoutInSec=$queryTimeoutInSec,showPrint=$showPrint,showRows=$showRows,currentUser=$currentUser)";
                                                 OutProgress $traceInfo;
@@ -2842,7 +2834,7 @@ function SqlPerformFile                       ( [String] $connectionString, [Str
 function SqlPerformCmd                        ( [String] $connectionString, [String] $cmd, [Boolean] $showPrint = $false, [Int32] $queryTimeoutInSec = 0 ){
                                                 # ConnectString example: "Server=myInstance;Database=TempDB;Integrated Security=True;"  queryTimeoutInSec: 1..65535, 0=endless;
                                                 # cmd: semicolon separated commands, do not use GO, escape doublequotation marks, use bracketed identifiers [MyTable] instead of doublequotes.
-                                                ScriptImportModuleIfNotDone "sqlserver";
+                                                ScriptImportModuleIfNotDone "SqlServer";
                                                 OutProgress "SqlPerformCmd connectionString=`"$connectionString`" cmd=`"$cmd`" showPrint=$showPrint queryTimeoutInSec=$queryTimeoutInSec";
                                                 # Note: -EncryptConnection produced: Invoke-Sqlcmd : Es konnte eine Verbindung mit dem Server hergestellt werden, doch während des Anmeldevorgangs trat ein Fehler auf.
                                                 #   (provider: SSL Provider, error: 0 - Die Zertifikatkette wurde von einer nicht vertrauenswürdigen Zertifizierungsstelle ausgestellt.)
