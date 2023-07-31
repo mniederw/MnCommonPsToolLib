@@ -1,5 +1,14 @@
 ﻿# Extension of MnCommonPsToolLib.psm1 - Common powershell tool library - Parts for windows only
 
+# Import some modules (because it is more performant to do it once than doing this in each function using methods of this module).
+# Note: for example on "Windows Server 2008 R2" we currently are missing these modules 
+#   but we ignore the errors because it its enough if the functions which uses these modules will fail.
+#   Example error: The specified module 'ScheduledTasks'/'SmbShare' was not loaded because no valid module file was found in any module directory.
+if( $null -ne (Import-Module -NoClobber -Name "ScheduledTasks" -ErrorAction Continue *>&1) ){ $error.clear(); Write-Warning "Ignored failing of Import-Module ScheduledTasks because it will fail later if a function is used from it."; }
+if( $null -ne (Import-Module -NoClobber -Name "SmbShare"       -ErrorAction Continue *>&1) ){ $error.clear(); Write-Warning "Ignored failing of Import-Module SmbShare       because it will fail later if a function is used from it."; } # ex: Get-SMBShare, Get-SMBOpenFile, New-SMBShare, Get-SMBMapping, ...
+# Import-Module "SmbWitness"; # for later usage
+# Import-Module "ServerManager"; # Is not always available, requires windows-server-os or at least Win10Prof with installed RSAT. Because seldom used we do not try to load it here.
+
 function ProcessGetNrOfCores                  (){ return [Int32] (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors; }
 function ProcessOpenAssocFile                 ( [String] $fileOrUrl ){ & "rundll32" "url.dll,FileProtocolHandler" $fileOrUrl; AssertRcIsOk; }
 function JobStart                             ( [ScriptBlock] $scr, [Object[]] $scrArgs = $null, [String] $name = "Job" ){ # Return job object of type PSRemotingJob, the returned object of the script block can later be requested.
@@ -22,17 +31,25 @@ function OsIsHibernateEnabled                 (){
                                                 AssertRcIsOk; return [Boolean] ((($out.Contains("Ruhezustand") -or $out.Contains("Hibernate"))) -and (FileExists "$env:SystemDrive/hiberfil.sys")); }
 function OsInfoMainboardPhysicalMemorySum     (){ return [Int64] (Get-CimInstance -class Win32_PhysicalMemory | Measure-Object -Property capacity -Sum).Sum; }
 function OsWindowsFeatureGetInstalledNames    (){ # Requires windows-server-os or at least Win10Prof with installed RSAT https://www.microsoft.com/en-au/download/details.aspx?id=45520
-                                                  Import-Module ServerManager; return [String[]] (@()+(Get-WindowsFeature | Where-Object{ $_.InstallState -eq "Installed" } | ForEach-Object{ $_.Name })); } # states: Installed, Available, Removed.
-function OsWindowsFeatureDoInstall            ( [String] $name ){ # ex: Web-Server, Web-Mgmt-Console, Web-Scripting-Tools, Web-Basic-Auth, Web-Windows-Auth, NET-FRAMEWORK-45-Core, NET-FRAMEWORK-45-ASPNET, Web-HTTP-Logging, Web-NET-Ext45, Web-ASP-Net45, Telnet-Server, Telnet-Client.
-                                                Import-Module ServerManager; # Used for Install-WindowsFeature; Requires at least Win10Prof: RSAT https://www.microsoft.com/en-au/download/details.aspx?id=45520
+                                                  ScriptImportModuleIfNotDone "ServerManager";
+                                                  return [String[]] (@()+(Get-WindowsFeature | Where-Object{ $_.InstallState -eq "Installed" } | ForEach-Object{ $_.Name })); } # states: Installed, Available, Removed.
+function OsWindowsFeatureDoInstall            ( [String] $name ){
+                                                # ex: Web-Server, Web-Mgmt-Console, Web-Scripting-Tools, Web-Basic-Auth, Web-Windows-Auth, NET-FRAMEWORK-45-Core, 
+                                                #   NET-FRAMEWORK-45-ASPNET, Web-HTTP-Logging, Web-NET-Ext45, Web-ASP-Net45, Telnet-Server, Telnet-Client.
+                                                ScriptImportModuleIfNotDone "ServerManager";
+                                                  # Used for Install-WindowsFeature; Requires at least Win10Prof: RSAT https://www.microsoft.com/en-au/download/details.aspx?id=45520
                                                 OutProgress "Install-WindowsFeature -name $name -IncludeManagementTools";
                                                 [Object] $res = Install-WindowsFeature -name $name -IncludeManagementTools;
                                                 [String] $out = "Result: IsSuccess=$($res.Success) RequiresRestart=$($res.RestartNeeded) ExitCode=$($res.ExitCode) FeatureResult=$($res.FeatureResult)";
                                                 # ex: "Result: IsSuccess=True RequiresRestart=No ExitCode=NoChangeNeeded FeatureResult="
                                                 OutProgress $out; if( -not $res.Success ){ throw [Exception] "Install $name was not successful, please solve manually. $out"; } }
-function OsWindowsFeatureDoUninstall          ( [String] $name ){ Import-Module ServerManager; OutProgress "Uninstall-WindowsFeature -name $name"; [Object] $res = Uninstall-WindowsFeature -name $name;
+function OsWindowsFeatureDoUninstall          ( [String] $name ){
+                                                ScriptImportModuleIfNotDone "ServerManager";
+                                                OutProgress "Uninstall-WindowsFeature -name $name";
+                                                [Object] $res = Uninstall-WindowsFeature -name $name;
                                                 [String] $out = "Result: IsSuccess=$($res.Success) RequiresRestart=$($res.RestartNeeded) ExitCode=$($res.ExitCode) FeatureResult=$($res.FeatureResult)";
-                                                OutProgress $out; if( -not $res.Success ){ throw [Exception] "Uninstall $name was not successful, please solve manually. $out"; } }
+                                                OutProgress $out; 
+                                                if( -not $res.Success ){ throw [Exception] "Uninstall $name was not successful, please solve manually. $out"; } }
 function OsGetWindowsProductKey               (){
                                                 [String] $map = "BCDFGHJKMPQRTVWXY2346789";
                                                 [Object] $value = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").digitalproductid[0x34..0x42]; [String] $p = "";
@@ -760,7 +777,7 @@ function InfoAboutSystemInfo                  (){ # Works only on Windows
                                                 # Edit:        for imports the xml file can be edited and stripped for your needs.
                                                 # import cmd:  dism.exe /online /Import-DefaultAppAssociations:"mydefaultapps.xml"
                                                 # removing:    dism.exe /Online /Remove-DefaultAppAssociations
-                                                [String] $f = "$env:TEMP$(DirSep)EnvGetInfoAboutSystemInfo_DefaultFileExtensionToAppAssociations.xml";
+                                                [String] $f = (FsEntryGetAbsolutePath "$env:TEMP/tmp/EnvGetInfoAboutSystemInfo_DefaultFileExtensionToAppAssociations.xml");
                                                 & "Dism.exe" "/QUIET" "/Online" "/Export-DefaultAppAssociations:$f"; AssertRcIsOk;
                                                 #
                                                 [String[]] $result = @( "InfoAboutSystemInfo:", "" );
@@ -1126,7 +1143,7 @@ function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $
                                                 # It returns true if the file is now actualized.
                                                 # Note: if not in elevated admin mode and if it is required then it will download file twice,
                                                 #   once to check for differences and once after switching to elevated admin mode.
-                                                # Example: ToolPerformFileUpdateAndIsActualized "C:\Temp\a.psm1" "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/master/MnCommonPsToolLib/MnCommonPsToolLib.psm1" $true $true "Please restart" $false $true;
+                                                # Example: ToolPerformFileUpdateAndIsActualized "$env:TEMP/tmp/a.psm1" "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/master/MnCommonPsToolLib/MnCommonPsToolLib.psm1" $true $true "Please restart" $false $true;
                                                 try{
                                                   OutInfo "Update file `"$targetFile`"";
                                                   OutProgress "FromUrl: $url";
