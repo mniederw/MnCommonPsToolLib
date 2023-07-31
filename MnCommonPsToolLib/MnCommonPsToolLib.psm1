@@ -60,7 +60,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $global:MnCommonPsToolLibVersion = "7.24"; # more see Releasenotes.txt
+[String] $global:MnCommonPsToolLibVersion = "7.25"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -468,7 +468,7 @@ function OutStartTranscriptInTempDir          ( [String] $name = "MnCommonPsTool
                                                 [String] $f = "$env:TEMP/tmp/$name/$((DateTimeNowAsStringIso $pattern).Replace(" ","/")).$name.txt"; # works for windows and linux
                                                 Start-Transcript -Path $f -Append -IncludeInvocationHeader | Out-Null;
                                                 return [String] $f; }
-function OutStopTranscript                    (){ Stop-Transcript; }
+function OutStopTranscript                    (){ Stop-Transcript | Out-Null; } # Writes to output: Transcript stopped, output file is C:\Temp\....txt
 function StdInAssertAllowInteractions         (){ if( $global:ModeDisallowInteractions ){
                                                 throw [Exception] "Cannot read for input because all interactions are disallowed, either caller should make sure variable ModeDisallowInteractions is false or he should not call an input method."; } }
 function StdInReadLine                        ( [String] $line ){ OutStringInColor "Cyan" $line; StdInAssertAllowInteractions; return [String] (Read-Host); }
@@ -3350,3 +3350,5 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #   see https://devblogs.microsoft.com/powershell/introduction-to-cim-cmdlets/
 # - Encoding problem on PS5: There is no encoding as UTF8NoBOM, so for UTF8 it generally writes a BOM, alternative code would be:
 #   [System.IO.File]::WriteAllLines($f,$lines,(New-Object System.Text.UTF8Encoding $false))
+# - More on differences of PS5 and PS7 see: https://learn.microsoft.com/en-us/powershell/scripting/whats-new/differences-from-windows-powershell?view=powershell-7.3
+#
