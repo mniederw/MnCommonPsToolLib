@@ -142,93 +142,95 @@ if( $null -eq (Get-Variable -Scope global -ErrorAction SilentlyContinue -Name Co
 
 # Statement extensions
 function ForEachParallel {
-  # Example: (1..20) | ForEachParallel{ echo $_; };
-  # Note: 
-  # - In PS7 we could use: (1..99) | ForEach-Object -ThrottleLimit 5 -Parallel { echo "line $_"; }
-  #   But we hold this function for compatibility reasons. 
-  # - In the statement block no functions or variables of the script where it is embedded can be used. Only from loaded modules.
-  #   Only the single variable $_ can be used.
-  #   You can also not base on Auto-Load-Module in your script, so generally use Load-Module for each used module.
+  # works compatible for PS5 and PS7.
   # ex: (0..20) | ForEachParallel { Write-Output "Nr: $_"; Start-Sleep -Seconds 1; };
   # ex: (0..5)  | ForEachParallel -MaxThreads 2 { Write-Output "Nr: $_"; Start-Sleep -Seconds 1; };
-  # Based on https://powertoe.wordpress.com/2012/05/03/foreach-parallel/
-  # In future we may use:  (1..20) | ForEach-Object -Parallel Write-Output "Nr: $_"; Start-Sleep -Seconds 1; } -ThrottleLimit 5
   param( [Parameter(Mandatory=$true,position=0)]              [System.Management.Automation.ScriptBlock] $ScriptBlock,
          [Parameter(Mandatory=$true,ValueFromPipeline=$true)] [PSObject]                                 $InputObject,
          [Parameter(Mandatory=$false)]                        [Int32]                                    $MaxThreads=8 )
   if( $PSVersionTable.PSVersion.Major -gt 5 ){
-    echo "Input: $InputObject";
     $input | ForEach-Object -ThrottleLimit $MaxThreads -Parallel $ScriptBlock;
   }else{
-    # Note: for some unknown reason we sometimes get a red line "One or more errors occurred."
-    # and maybe "Collection was modified; enumeration operation may not execute." but it continuous successfully.
-    # We assume it is because it uses internally autoload module and this is not fully multithreading/parallel safe.
-    BEGIN{
-      try{
-        # if( ($scriptblock.ToString() -replace "`$_","" -replace "`$true","" -replace "`$false","") -match "`$" ){
-        #   throw [Exception] "ForEachParallel(`{$scriptblock`}) has a dollar sign in script block and only [`$_,`$true,`$false] are allowed.";
-        # }
-        $iss = [System.Management.Automation.Runspaces.Initialsessionstate]::CreateDefault();
-        # Note: for sharing data we need someting as:
-        #   $sharedArray = [System.Collections.ArrayList]::Synchronized([System.Collections.ArrayList]::new());
-        #   $sharedQueue = [System.Collections.Queue]::Synchronized([System.Collections.Queue]::new());
-        $pool = [Runspacefactory]::CreateRunspacePool(1,$maxthreads,$iss,$host); $pool.open();
-        # alternative: $pool = [Runspacefactory]::CreateRunspacePool($iss); $pool.SetMinRunspaces(1) | Out-Null; $pool.SetMaxRunspaces($maxthreads) | Out-Null;
-        # has no effect: $pool.ApartmentState = "MTA";
-        $threads = @();
-        $scriptBlock = $ExecutionContext.InvokeCommand.NewScriptBlock("param(`$_)$([Environment]::NewLine)"+$scriptblock.ToString());
-      }catch{ $Host.UI.WriteErrorLine("ForEachParallel-BEGIN: $($_)"); }
-    }PROCESS{
-      try{
-        # alternative:
-        #   [System.Management.Automation.PSDataCollection[PSObject]] $pipelineInputs = New-Object System.Management.Automation.PSDataCollection[PSObject];
-        #   [System.Management.Automation.PSDataCollection[PSObject]] $pipelineOutput = New-Object System.Management.Automation.PSDataCollection[PSObject];
-        $powershell = [powershell]::Create().addscript($scriptblock).addargument($InputObject);
-        $powershell.runspacepool = $pool;
-        $threads += @{ instance = $powershell; handle = $powershell.BeginInvoke(); }; # $pipelineInputs,$pipelineOutput
-      }catch{ $Host.UI.WriteErrorLine("ForEachParallel-PROCESS: $($_)"); }
-      [gc]::Collect();
-    }END{
-      try{
-        [Boolean] $notdone = $true; while( $notdone ){ $notdone = $false;
-          [System.Threading.Thread]::Sleep(250); # polling interval in msec
-          for( [Int32] $i = 0; $i -lt $threads.count; $i++ ){
-            if( $null -ne $threads[$i].handle ){
-              if( $threads[$i].handle.iscompleted ){
-                try{
-                  # Note: Internally we sometimes get the following progress text for which we don't know why and on which statement this happens:
-                  #   "parent = -1 id = 0 act = Module werden für erstmalige Verwendung vorbereitet. stat =   cur =  pct = -1 sec = -1 type = Processing/Completed "
-                  #   Because that we write this to verbose and not to progress because for progress a popup window would occurre which does not disappear.
-                  $threads[$i].instance.EndInvoke($threads[$i].handle);
-                }catch{
-                  [String] $msg = $_; $error.clear();
-                  # msg example: Exception calling "EndInvoke" with "1" argument(s): "Der ausgeführte Befehl wurde beendet, da die
-                  #              Einstellungsvariable "ErrorActionPreference" oder ein allgemeiner Parameter auf "Stop" festgelegt ist:
-                  #              Es ist ein allgemeiner Fehler aufgetreten, für den kein spezifischerer Fehlercode verfügbar ist.."
-                  Write-Host -ForegroundColor Gray "ForEachParallel-endinvoke: Ignoring $msg";
-                }
-                [String] $outEr = $threads[$i].instance.Streams.Error      ; if( $outEr -ne "" ){ Write-Error       "Error: $outEr"; }
-                [String] $outWa = $threads[$i].instance.Streams.Warning    ; if( $outWa -ne "" ){ Write-Warning     "Warning: $outWa"; }
-                [String] $outIn = $threads[$i].instance.Streams.Information; if( $outIn -ne "" ){ Write-Information "Info: $outIn"; }
-                [String] $outPr = $threads[$i].instance.Streams.Progress   ; if( $outPr -ne "" ){ Write-Verbose     "Progress: $outPr"; } # we write to verbose not progress
-                [String] $outVe = $threads[$i].instance.Streams.Verbose    ; if( $outVe -ne "" ){ Write-Verbose     "Verbose: $outVe"; }
-                [String] $outDe = $threads[$i].instance.Streams.Debug      ; if( $outDe -ne "" ){ Write-Debug       "Debug: $outDe"; }
-                $threads[$i].instance.dispose();
-                $threads[$i].handle = $null;
-                [gc]::Collect();
-              }else{ $notdone = $true; }
-            }
+    $input | ForEachParallelPS5 -MaxThreads $MaxThreads $ScriptBlock;
+  }
+}
+function ForEachParallelPS5 {
+  # Note aabout statement blocks: no functions or variables of the script where it is embedded can be used. 
+  # Only from loaded modules. Only the single variable $_ can be used.
+  # You can also not base on Auto-Load-Module in your script, so generally use Load-Module for each used module.
+  # Based on https://powertoe.wordpress.com/2012/05/03/foreach-parallel/
+  param( [Parameter(Mandatory=$true,position=0)]              [System.Management.Automation.ScriptBlock] $ScriptBlock,
+         [Parameter(Mandatory=$true,ValueFromPipeline=$true)] [PSObject]                                 $InputObject,
+         [Parameter(Mandatory=$false)]                        [Int32]                                    $MaxThreads=8 )
+  # Note: for some unknown reason we sometimes get a red line "One or more errors occurred."
+  # and maybe "Collection was modified; enumeration operation may not execute." but it continuous successfully.
+  # We assume it is because it uses internally autoload module and this is not fully multithreading/parallel safe.
+  BEGIN{ # runs only once per pipeline
+    try{
+      # if( ($scriptblock.ToString() -replace "`$_","" -replace "`$true","" -replace "`$false","") -match "`$" ){
+      #   throw [Exception] "ForEachParallel(`{$scriptblock`}) has a dollar sign in script block and only [`$_,`$true,`$false] are allowed.";
+      # }
+      $iss = [System.Management.Automation.Runspaces.Initialsessionstate]::CreateDefault();
+      # Note: for sharing data we need someting as:
+      #   $sharedArray = [System.Collections.ArrayList]::Synchronized([System.Collections.ArrayList]::new());
+      #   $sharedQueue = [System.Collections.Queue]::Synchronized([System.Collections.Queue]::new());
+      $pool = [Runspacefactory]::CreateRunspacePool(1,$maxthreads,$iss,$host); $pool.open();
+      # alternative: $pool = [Runspacefactory]::CreateRunspacePool($iss); $pool.SetMinRunspaces(1) | Out-Null; $pool.SetMaxRunspaces($maxthreads) | Out-Null;
+      # has no effect: $pool.ApartmentState = "MTA";
+      $threads = @();
+      $scriptBlock = $ExecutionContext.InvokeCommand.NewScriptBlock("param(`$_)$([Environment]::NewLine)"+$scriptblock.ToString());
+    }catch{ $Host.UI.WriteErrorLine("ForEachParallel-BEGIN: $($_)"); }
+#      }
+  }PROCESS{ # runs once per input object
+    try{
+      # alternative:
+      #   [System.Management.Automation.PSDataCollection[PSObject]] $pipelineInputs = New-Object System.Management.Automation.PSDataCollection[PSObject];
+      #   [System.Management.Automation.PSDataCollection[PSObject]] $pipelineOutput = New-Object System.Management.Automation.PSDataCollection[PSObject];
+      $powershell = [powershell]::Create().addscript($scriptblock).addargument($InputObject);
+      $powershell.runspacepool = $pool;
+      $threads += @{ instance = $powershell; handle = $powershell.BeginInvoke(); }; # $pipelineInputs,$pipelineOutput
+    }catch{ $Host.UI.WriteErrorLine("ForEachParallel-PROCESS: $($_)"); }
+    [gc]::Collect();
+  }END{ # runs only once per pipeline
+    try{
+      [Boolean] $notdone = $true; while( $notdone ){ $notdone = $false;
+        [System.Threading.Thread]::Sleep(250); # polling interval in msec
+        for( [Int32] $i = 0; $i -lt $threads.count; $i++ ){
+          if( $null -ne $threads[$i].handle ){
+            if( $threads[$i].handle.iscompleted ){
+              try{
+                # Note: Internally we sometimes get the following progress text for which we don't know why and on which statement this happens:
+                #   "parent = -1 id = 0 act = Module werden für erstmalige Verwendung vorbereitet. stat =   cur =  pct = -1 sec = -1 type = Processing/Completed "
+                #   Because that we write this to verbose and not to progress because for progress a popup window would occurre which does not disappear.
+                $threads[$i].instance.EndInvoke($threads[$i].handle);
+              }catch{
+                [String] $msg = $_; $error.clear();
+                # msg example: Exception calling "EndInvoke" with "1" argument(s): "Der ausgeführte Befehl wurde beendet, da die
+                #              Einstellungsvariable "ErrorActionPreference" oder ein allgemeiner Parameter auf "Stop" festgelegt ist:
+                #              Es ist ein allgemeiner Fehler aufgetreten, für den kein spezifischerer Fehlercode verfügbar ist.."
+                Write-Host -ForegroundColor Gray "ForEachParallel-endinvoke: Ignoring $msg";
+              }
+              [String] $outEr = $threads[$i].instance.Streams.Error      ; if( $outEr -ne "" ){ Write-Error       "Error: $outEr"; }
+              [String] $outWa = $threads[$i].instance.Streams.Warning    ; if( $outWa -ne "" ){ Write-Warning     "Warning: $outWa"; }
+              [String] $outIn = $threads[$i].instance.Streams.Information; if( $outIn -ne "" ){ Write-Information "Info: $outIn"; }
+              [String] $outPr = $threads[$i].instance.Streams.Progress   ; if( $outPr -ne "" ){ Write-Verbose     "Progress: $outPr"; } # we write to verbose not progress
+              [String] $outVe = $threads[$i].instance.Streams.Verbose    ; if( $outVe -ne "" ){ Write-Verbose     "Verbose: $outVe"; }
+              [String] $outDe = $threads[$i].instance.Streams.Debug      ; if( $outDe -ne "" ){ Write-Debug       "Debug: $outDe"; }
+              $threads[$i].instance.dispose();
+              $threads[$i].handle = $null;
+              [gc]::Collect();
+            }else{ $notdone = $true; }
           }
         }
-      }catch{
-        # ex: 2018-07: Exception calling "EndInvoke" with "1" argument(s) "Der ausgeführte Befehl wurde beendet, da die
-        #              Einstellungsvariable "ErrorActionPreference" oder ein allgemeiner Parameter auf "Stop" festgelegt ist:
-        #              Es ist ein allgemeiner Fehler aufgetreten, für den kein spezifischerer Fehlercode verfügbar ist.."
-        $Host.UI.WriteErrorLine("ForEachParallel-END: $($_)");
       }
-      $error.clear();
-      [gc]::Collect();
+    }catch{
+      # ex: 2018-07: Exception calling "EndInvoke" with "1" argument(s) "Der ausgeführte Befehl wurde beendet, da die
+      #              Einstellungsvariable "ErrorActionPreference" oder ein allgemeiner Parameter auf "Stop" festgelegt ist:
+      #              Es ist ein allgemeiner Fehler aufgetreten, für den kein spezifischerer Fehlercode verfügbar ist.."
+      $Host.UI.WriteErrorLine("ForEachParallel-END: $($_)");
     }
+    $error.clear();
+    [gc]::Collect();
   }
 }
 
