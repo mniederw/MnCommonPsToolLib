@@ -45,7 +45,7 @@
 # Example usages of this module for a .ps1 script:
 #      # Simple example for using MnCommonPsToolLib
 #      Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1";
-#      Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
+#      Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; } $ErrorActionPreference = "Stop";
 #      OutInfo "Hello world";
 #      OutProgress "Working";
 #      StdInReadLine "Press enter to exit.";
@@ -90,7 +90,7 @@ if( -not [String[]](Get-Variable ArgsForRestartInElevatedAdminMode -Scope Global
 if( -not [String]  (Get-Variable ModeOutputWithTsPrefix            -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeOutputWithTsPrefix            -value $false; }
                                                                     # if true then it will add before each OutInfo, OutWarning, OutError, OutProgress a timestamp prefix.
 
-# Set some powershell predefined global variables:
+# Set some powershell predefined global variables, also in scope of caller of this module:
 $global:ErrorActionPreference         = "Stop"                    ; # abort if a called exe will write to stderr, default is 'Continue'. Can be overridden in each command by [-ErrorAction actionPreference]
 $global:ReportErrorShowExceptionClass = $true                     ; # on trap more detail exception info
 $global:ReportErrorShowInnerException = $true                     ; # on trap more detail exception info
@@ -155,7 +155,7 @@ function ForEachParallel {
   }
 }
 function ForEachParallelPS5 {
-  # Note aabout statement blocks: no functions or variables of the script where it is embedded can be used. 
+  # Note aabout statement blocks: no functions or variables of the script where it is embedded can be used.
   # Only from loaded modules. Only the single variable $_ can be used.
   # You can also not base on Auto-Load-Module in your script, so generally use Load-Module for each used module.
   # Based on https://powertoe.wordpress.com/2012/05/03/foreach-parallel/
@@ -180,7 +180,6 @@ function ForEachParallelPS5 {
       $threads = @();
       $scriptBlock = $ExecutionContext.InvokeCommand.NewScriptBlock("param(`$_)$([Environment]::NewLine)"+$scriptblock.ToString());
     }catch{ $Host.UI.WriteErrorLine("ForEachParallel-BEGIN: $($_)"); }
-#      }
   }PROCESS{ # runs once per input object
     try{
       # alternative:
@@ -205,10 +204,13 @@ function ForEachParallelPS5 {
                 $threads[$i].instance.EndInvoke($threads[$i].handle);
               }catch{
                 [String] $msg = $_; $error.clear();
-                # msg example: Exception calling "EndInvoke" with "1" argument(s): "Der ausgeführte Befehl wurde beendet, da die
-                #              Einstellungsvariable "ErrorActionPreference" oder ein allgemeiner Parameter auf "Stop" festgelegt ist:
-                #              Es ist ein allgemeiner Fehler aufgetreten, für den kein spezifischerer Fehlercode verfügbar ist.."
-                Write-Host -ForegroundColor Gray "ForEachParallel-endinvoke: Ignoring $msg";
+                # 2023-07 msg example: Exception calling "EndInvoke" with "1" argument(s):
+                #   "Der Befehl "MountPointCreate" wurde im Modul "MnCommonPsToolLib" gefunden, das Modul konnte aber nicht geladen werden.
+                #   Wenn Sie weitere Informationen wünschen, führen Sie "Import-Module MnCommonPsToolLib" aus."
+                # 2023-07 msg example: Exception calling "EndInvoke" with "1" argument(s):
+                #   "Der ausgeführte Befehl wurde beendet, da die Einstellungsvariable "ErrorActionPreference" oder ein allgemeiner Parameter
+                #   auf "Stop" festgelegt ist: Es ist ein allgemeiner Fehler aufgetreten, für den kein spezifischerer Fehlercode verfügbar ist.."
+                Write-Verbose "ForEachParallel-endinvoke: Ignoring $msg";
               }
               [String] $outEr = $threads[$i].instance.Streams.Error      ; if( $outEr -ne "" ){ Write-Error       "Error: $outEr"; }
               [String] $outWa = $threads[$i].instance.Streams.Warning    ; if( $outWa -ne "" ){ Write-Warning     "Warning: $outWa"; }
@@ -527,7 +529,7 @@ function AssertIsFalse                        ( [Boolean] $cond, [String] $failR
                                                 if( $cond ){ throw [Exception] "Assertion-Is-False failed because $failReason"; } }
 function AssertNotEmpty                       ( [String] $s, [String] $varName ){
                                                 Assert ($s -ne "") "not allowed empty string for $varName."; }
-function AssertRcIsOk                         ( [String[]] $linesToOutProgress = $null, [Boolean] $useLinesAsExcMessage = $false, 
+function AssertRcIsOk                         ( [String[]] $linesToOutProgress = $null, [Boolean] $useLinesAsExcMessage = $false,
                                                 [String] $logFileToOutProgressIfFailed = "", [String] $encodingIfNoBom = "Default" ){
                                                 # Can also be called with a single string; only nonempty progress lines are given out.
                                                 [Int32] $rc = ScriptGetAndClearLastRc;
@@ -668,8 +670,8 @@ function ProcessListInstalledAppx             (){ if( ! (OsIsWindows) ){ return 
                                                   if( ! (ProcessIsLesserEqualPs5) ){
                                                     # 2023-03: Problems using Get-AppxPackage in PS7, see end of: https://github.com/PowerShell/PowerShell/issues/13138
                                                     Import-Module -Name Appx -UseWindowsPowerShell 3> $null;
-                                                      # We suppress the output: WARNING: Module Appx is loaded in Windows PowerShell using WinPSCompatSession remoting session; 
-                                                      #   please note that all input and output of commands from this module will be deserialized objects. 
+                                                      # We suppress the output: WARNING: Module Appx is loaded in Windows PowerShell using WinPSCompatSession remoting session;
+                                                      #   please note that all input and output of commands from this module will be deserialized objects.
                                                       #   If you want to load this module into PowerShell please use 'Import-Module -SkipEditionCheck' syntax.
                                                   }
                                                   return [String[]] (@()+(Get-AppxPackage | Where-Object{$null -ne $_} |
@@ -783,7 +785,7 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 [String] $out = $bufStdOut.ToString();
                                                 [String] $err = $bufStdErr.ToString().Trim(); if( $err -ne "" ){ $err = [Environment]::NewLine + $err; }
                                                 [Boolean] $doThrow = $exitCode -ne 0 -or ($err -ne "" -and -not $careStdErrAsOut);
-                                                if( $global:ErrorActionPreference -ne "Continue" -and $doThrow ){
+                                                if( $ErrorActionPreference -ne "Continue" -and $doThrow ){
                                                   if( -not $traceCmd ){ OutProgress $traceInfo; } # in case of an error output command line, if not yet done
                                                   StringSplitIntoLines $out | Where-Object{$null -ne $_} |
                                                     Where-Object{ StringIsFilled $_ } |
@@ -830,7 +832,7 @@ function HelpGetType                          ( [Object] $obj ){ return [String]
 function OsPsVersion                          (){ return [String] (""+$Host.Version.Major+"."+$Host.Version.Minor); } # alternative: $PSVersionTable.PSVersion.Major
 function OsIsWindows                          (){ return [Boolean] ([System.Environment]::OSVersion.Platform -eq "Win32NT"); }
                                                 # Example: Win10Pro: Version="10.0.19044.0"
-                                                # Alternative: "$($env:WINDIR)" -ne ""; In PS6 and up you can use: $IsMacOS, $IsLinux, $IsWindows. 
+                                                # Alternative: "$($env:WINDIR)" -ne ""; In PS6 and up you can use: $IsMacOS, $IsLinux, $IsWindows.
                                                 # for future: function OsIsLinux(){ return [Boolean] ([System.Environment]::OSVersion.Platform -eq "Unix"); } # example: Ubuntu22: Version="5.15.0.41"
 function OsPsModulePathList                   (){ return [String[]] ([Environment]::GetEnvironmentVariable("PSModulePath", "Machine").
                                                   Split(";",[System.StringSplitOptions]::RemoveEmptyEntries)); }
@@ -1246,10 +1248,10 @@ function FileReadContentAsString              ( [String] $file, [String] $encodi
                                                 return [String] (FileReadContentAsLines $file $encodingIfNoBom | Out-String -Width ([Int32]::MaxValue)); }
 function FileReadContentAsLines               ( [String] $file, [String] $encodingIfNoBom = "Default" ){
                                                 # Encoding Default is ANSI on windows and UTF8 on other platforms.
-                                                OutVerbose "FileRead $file"; 
+                                                OutVerbose "FileRead $file";
                                                 return [String[]] (@()+(Get-Content -Encoding $encodingIfNoBom -LiteralPath $file)); }
 function FileReadJsonAsObject                 ( [String] $jsonFile ){
-                                                Get-Content -Raw -Path $jsonFile | ConvertFrom-Json; }
+                                                try{ Get-Content -Raw -Path $jsonFile | ConvertFrom-Json; }catch{ throw [Exception] "FileReadJsonAsObject(`"$jsonFile`") failed because $_"; } }
 function FileWriteFromString                  ( [String] $file, [String] $content, [Boolean] $overwrite = $true, [String] $encoding = "UTF8BOM" ){
                                                 # Will create path of file. overwrite does ignore readonly attribute.
                                                 OutProgress "WriteFile $file"; FsEntryCreateParentDir $file;
@@ -1580,16 +1582,16 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                   $msg = "  NetDownloadFile(url=$url ,us=$us,tar=$tarFile) failed because $msg";
                                                   if( -not $errorAsWarning ){ throw [ExcMsg] $msg; } OutWarning "Warning: $msg";
                                                 } }
-function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false, 
+function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false,
                                                 [Boolean] $onlyIfNewer = $false, [Boolean] $errorAsWarning = $false ){
                                                 # Download a single file by overwrite it (as NetDownloadFile), requires curl executable in path.
                                                 # Redirections are followed, timestamps are also fetched, logging info is stored in a global logfile,
                                                 # for user agent info a mozilla firefox is set,
                                                 # if file curl-ca-bundle.crt exists next to curl executable then this is taken.
-                                                # Supported protocols: DICT, FILE, FTP, FTPS, Gopher, HTTP, HTTPS, IMAP, IMAPS, LDAP, LDAPS, 
+                                                # Supported protocols: DICT, FILE, FTP, FTPS, Gopher, HTTP, HTTPS, IMAP, IMAPS, LDAP, LDAPS,
                                                 #                      POP3, POP3S, RTMP, RTSP, SCP, SFTP, SMB, SMTP, SMTPS, Telnet and TFTP.
-                                                # Supported features:  SSL certificates, HTTP POST, HTTP PUT, FTP uploading, HTTP form based upload, 
-                                                #                      proxies, HTTP/2, cookies, user+password authentication (Basic, Plain, Digest, 
+                                                # Supported features:  SSL certificates, HTTP POST, HTTP PUT, FTP uploading, HTTP form based upload,
+                                                #                      proxies, HTTP/2, cookies, user+password authentication (Basic, Plain, Digest,
                                                 #                      CRAM-MD5, NTLM, Negotiate and Kerberos), file transfer resume, proxy tunneling and more.
                                                 # ex: curl --show-error --output $tarFile --silent --create-dirs --connect-timeout 70 --retry 2 --retry-delay 5 --remote-time --stderr - --user "$($us):$pw" $url;
                                                 AssertNotEmpty $url "NetDownloadFileByCurl.url";
@@ -1761,7 +1763,7 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                 [String] $curlCaCert = Join-Path (FsEntryGetParentDir $curlExe) "curl-ca-bundle.crt";
                                                 # 2021-10: Because windows has its own curl executable in windows-system32 folder and it does not care the search rule
                                                 #   for the curl-ca-bundle.crt file as it is descripted in https://curl.se/docs/sslcerts.html
-                                                #   we needed a solution for this. So, when the current curl executable is that from system32 folder 
+                                                #   we needed a solution for this. So, when the current curl executable is that from system32 folder
                                                 #   then the first found curl-ca-bundle.crt file in path var is used for cacert option.
                                                 if( (FsEntryIsEqual $curlExe "$env:SystemRoot/System32/curl.exe") ){
                                                   [String] $s = StringMakeNonNull (Get-Command -CommandType Application -Name curl-ca-bundle.crt -ErrorAction SilentlyContinue |
@@ -1797,13 +1799,13 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                   [String] $msg = "  ($curlExe $optForTrace) failed because $($_.Exception.Message)";
                                                   if( -not $errorAsWarning ){ throw [ExcMsg] $msg; } OutWarning "Warning: $msg";
                                                 } }
-function NetDownloadToString                  ( [String] $url, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false, 
+function NetDownloadToString                  ( [String] $url, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false,
                                                   [Boolean] $onlyIfNewer = $false, [String] $encodingIfNoBom = "UTF8" ){
                                                 [String] $tmp = (FileGetTempFile);
                                                 NetDownloadFile $url $tmp $us $pw $ignoreSslCheck $onlyIfNewer;
                                                 [String] $result = (FileReadContentAsString $tmp $encodingIfNoBom);
                                                 FileDelTempFile $tmp; return [String] $result; }
-function NetDownloadToStringByCurl            ( [String] $url, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false, 
+function NetDownloadToStringByCurl            ( [String] $url, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false,
                                                   [Boolean] $onlyIfNewer = $false, [String] $encodingIfNoBom = "UTF8" ){
                                                 [String] $tmp = (FileGetTempFile);
                                                 NetDownloadFileByCurl $url $tmp $us $pw $ignoreSslCheck $onlyIfNewer;
@@ -1815,7 +1817,7 @@ function NetDownloadIsSuccessful              ( [String] $url ){ # test wether a
                                                   [String] $dummyStr = NetDownloadToString $url "" "" $ignoreSslCheck; $res = $true;
                                                 }catch{ OutVerbose "Ignoring problems on NetDownloadToString $url failed because $($_.Exception.Message)"; }
                                                 GlobalSetModeHideOutProgress $false; return [Boolean] $res; }
-function NetDownloadSite                      ( [String] $url, [String] $tarDir, [Int32] $level = 999, 
+function NetDownloadSite                      ( [String] $url, [String] $tarDir, [Int32] $level = 999,
                                                   [Int32] $maxBytes = 0, [String] $us = "", [String] $pw = "",
                                                   [Boolean] $ignoreSslCheck = $false,
                                                   [Int32] $limitRateBytesPerSec = ([Int32]::MaxValue),
@@ -3297,7 +3299,7 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #         & "./myscript.ps1" ...arguments... ; & $mycmd ...args... ; & { mycmd1; mycmd2 } AssertRcIsOk;
 #     - Precedence of commands: Alias > Function > Filter > Cmdlet > Application > ExternalScript > Script.
 #     - Override precedence of commands by using get-command, ex: Get-Command -commandType Application Ping
-#     - Very important for empty arguments or arguments with blanks: 
+#     - Very important for empty arguments or arguments with blanks:
 #       PS5: If an empty argument should be specified then two quotes as '' or "" or $null or $myEmptyVar
 #         do not work (will make the argument not present),
 #         it requires '""' or "`"`"" or `"`" or use a blank as " ". This is really a big fail, it is very bad and dangerous!
@@ -3305,7 +3307,7 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #         The best workaround is to use ALWAYS escaped double-quotes for EACH argument: & "myexe.exe" `"$arg1`" `"`" `"$arg3`";
 #         But even then it is NOT ALLOWED that content contains a double-quote.
 #         There is also no proper solution if quotes instead of double-quotes are used.
-#         Maybe because these problems there is the recommendation of checker-tools 
+#         Maybe because these problems there is the recommendation of checker-tools
 #         to use options instead of positional arguments to specify parameters.
 #         Best recommended solution: Use from our library: ProcessStart $exe $opt -traceCmd:$true;
 #       PS7: It works as it should, without additional double-double-quotes.

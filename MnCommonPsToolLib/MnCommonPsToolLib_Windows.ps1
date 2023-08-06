@@ -1,11 +1,15 @@
 ﻿# Extension of MnCommonPsToolLib.psm1 - Common powershell tool library - Parts for windows only
 
 # Import some modules (because it is more performant to do it once than doing this in each function using methods of this module).
-# Note: for example on "Windows Server 2008 R2" we currently are missing these modules 
+# Note: for example on "Windows Server 2008 R2" we currently are missing these modules
 #   but we ignore the errors because it its enough if the functions which uses these modules will fail.
 #   Example error: The specified module 'ScheduledTasks'/'SmbShare' was not loaded because no valid module file was found in any module directory.
-if( $null -ne (Import-Module -NoClobber -Name "ScheduledTasks" -ErrorAction Continue *>&1) ){ $error.clear(); Write-Warning "Ignored failing of Import-Module ScheduledTasks because it will fail later if a function is used from it."; }
+if( $null -ne (Import-Module -NoClobber -Name "ScheduledTasks" -ErrorAction Continue *>&1) ){ $error.clear(); Write-Warning "Ignored failing of Import-Module ScheduledTasks because it will fail later if a function is used from it."; } #
 if( $null -ne (Import-Module -NoClobber -Name "SmbShare"       -ErrorAction Continue *>&1) ){ $error.clear(); Write-Warning "Ignored failing of Import-Module SmbShare       because it will fail later if a function is used from it."; } # ex: Get-SMBShare, Get-SMBOpenFile, New-SMBShare, Get-SMBMapping, ...
+if( $null -ne (Import-Module -NoClobber -Name "CimCmdlets"     -ErrorAction Continue *>&1) ){ $error.clear(); Write-Warning "Ignored failing of Import-Module CimCmdlets     because it will fail later if a function is used from it."; } # ex: Get-CimInstance.
+
+
+
 # Import-Module "SmbWitness"; # for later usage
 # Import-Module "ServerManager"; # Is not always available, requires windows-server-os or at least Win10Prof with installed RSAT. Because seldom used we do not try to load it here.
 
@@ -21,6 +25,7 @@ function JobWaitForEnd                        ( [Int32] $id ){ JobWaitForNotRunn
 function OsIsWinVistaOrHigher                 (){ return [Boolean] ([Environment]::OSVersion.Version -ge (new-object "Version" 6,0)); }
 function OsIsWin7OrHigher                     (){ return [Boolean] ([Environment]::OSVersion.Version -ge (new-object "Version" 6,1)); }
 function OsIs64BitOs                          (){ return [Boolean] (Get-CimInstance -Class Win32_OperatingSystem -ErrorAction SilentlyContinue).OSArchitecture -eq "64-Bit"; }
+function OsIsWinScreenLocked                  (){ return [Boolean] ((Get-Process | Where-Object{ $_.ProcessName -eq "LogonUI"}).Count -gt 0); }
 function OsIsHibernateEnabled                 (){
                                                 if( (FileNotExists "$env:SystemDrive/hiberfil.sys") ){ return [Boolean] $false; }
                                                 if( OsIsWin7OrHigher ){ return [Boolean] (RegistryGetValueAsString "HKLM:\SYSTEM\CurrentControlSet\Control\Power" "HibernateEnabled") -eq "1"; }
@@ -34,7 +39,7 @@ function OsWindowsFeatureGetInstalledNames    (){ # Requires windows-server-os o
                                                   ScriptImportModuleIfNotDone "ServerManager";
                                                   return [String[]] (@()+(Get-WindowsFeature | Where-Object{ $_.InstallState -eq "Installed" } | ForEach-Object{ $_.Name })); } # states: Installed, Available, Removed.
 function OsWindowsFeatureDoInstall            ( [String] $name ){
-                                                # ex: Web-Server, Web-Mgmt-Console, Web-Scripting-Tools, Web-Basic-Auth, Web-Windows-Auth, NET-FRAMEWORK-45-Core, 
+                                                # ex: Web-Server, Web-Mgmt-Console, Web-Scripting-Tools, Web-Basic-Auth, Web-Windows-Auth, NET-FRAMEWORK-45-Core,
                                                 #   NET-FRAMEWORK-45-ASPNET, Web-HTTP-Logging, Web-NET-Ext45, Web-ASP-Net45, Telnet-Server, Telnet-Client.
                                                 ScriptImportModuleIfNotDone "ServerManager";
                                                   # Used for Install-WindowsFeature; Requires at least Win10Prof: RSAT https://www.microsoft.com/en-au/download/details.aspx?id=45520
@@ -48,7 +53,7 @@ function OsWindowsFeatureDoUninstall          ( [String] $name ){
                                                 OutProgress "Uninstall-WindowsFeature -name $name";
                                                 [Object] $res = Uninstall-WindowsFeature -name $name;
                                                 [String] $out = "Result: IsSuccess=$($res.Success) RequiresRestart=$($res.RestartNeeded) ExitCode=$($res.ExitCode) FeatureResult=$($res.FeatureResult)";
-                                                OutProgress $out; 
+                                                OutProgress $out;
                                                 if( -not $res.Success ){ throw [Exception] "Uninstall $name was not successful, please solve manually. $out"; } }
 function OsGetWindowsProductKey               (){
                                                 [String] $map = "BCDFGHJKMPQRTVWXY2346789";
@@ -63,6 +68,10 @@ function OsGetWindowsProductKey               (){
                                                   if( ($i % 5) -eq 0 -and $i -ne 0 ){ $p = "-" + $p; }
                                                 }
                                                 return [String] $p; }
+function OsWinPowerOff                        ( [Int32] $waitSec = 60, [Boolean] $forceIfScreenLocked = $false ){
+                                                OutWarning "Warning: In $waitSec seconds calling Power-Off (forceIfScreenLocked=$forceIfScreenLocked) (use ctrl-c to abort)!";
+                                                ProcessSleepSec "$waitSec";
+                                                if( $forceIfScreenLocked -and (OsIsWinScreenLocked) ){ Stop-Computer -Force; }else{ Stop-Computer; } }
 function PrivGetUserFromName                  ( [String] $username ){ # optionally as domain\username
                                                 return [System.Security.Principal.NTAccount] $username; }
 function PrivGetUserCurrent                   (){ return [System.Security.Principal.IdentityReference] ([System.Security.Principal.WindowsIdentity]::GetCurrent().User); } # alternative: PrivGetUserFromName "$env:userdomain\$env:username"
@@ -328,6 +337,7 @@ function RegistrySetValue                     ( [String] $key, [String] $name, [
                                                 }catch{ # ex: SecurityException: Requested registry access is not allowed.
                                                   throw [Exception] "$(ScriptGetCurrentFunc)($key,$name) failed because $($_.Exception.Message) (often it requires elevated mode)"; } }
 function RegistryImportFile                   ( [String] $regFile ){
+                                                $regFile = (FsEntryGetAbsolutePath $regFile);
                                                 OutProgress "RegistryImportFile `"$regFile`""; FileAssertExists $regFile;
                                                 try{ <# unbelievable, it writes success to stderr #>
                                                   & "$env:SystemRoot/System32/reg.exe" "IMPORT" $regFile *>&1 | Out-Null; AssertRcIsOk;
@@ -443,7 +453,7 @@ function RegistryKeySetAclRule                ( [String] $key, [System.Security.
 function ServiceListRunnings                  (){
                                                 return [String[]] (@()+(Get-Service -ErrorAction SilentlyContinue * |
                                                   # 2023-03: for: get-service McpManagementService on we got the following error without any specific error:
-                                                  #   "Get-Service: Service 'McpManagementService (McpManagementService)' cannot be queried due to the following error:" 
+                                                  #   "Get-Service: Service 'McpManagementService (McpManagementService)' cannot be queried due to the following error:"
                                                   # In services.msc the description is "<Fehler beim Lesen der Beschreibung. Fehlercode: 15100 >".
                                                   # Since around 10 years thats the first error on this command, according googling it happens on Win10 and Win11,
                                                   # please Microsoft fix this asap.
@@ -649,17 +659,16 @@ function MountPointRemove                     ( [String] $drive, [String] $mount
                                                   if( -not $suppressProgress ){ OutProgress "MountPointRemovePsDrive $drive"; }
                                                   Remove-PSDrive -Name ($drive -replace ":","") -Force; # Force means no confirmation
                                                 } }
-function MountPointCreate                     ( [String] $drive, [String] $mountPoint, [System.Management.Automation.PSCredential] $cred = $null, [Boolean] $errorAsWarning = $false, [Boolean] $noPreLogMsg = $false ){
+function MountPointCreate                     ( [String] $drive, [String] $mountPoint, [System.Management.Automation.PSCredential] $cred = $null, [Boolean] $errorAsWarning = $false ){
+                                                # Note: last argument [Boolean] $noPreLogMsg = $false is OBSOLETE and was removed, do not use it anymore
                                                 # ex: MountPointCreate "S:" "\\localhost\Transfer" (CredentialCreate "user1" "mypw")
-                                                # $noPreLogMsg is usually true if mount points are called parallel when order of output strings is not sequentially
                                                 if( -not $drive.EndsWith(":") ){ throw [Exception] "Expected drive=`"$drive`" with trailing colon"; }
                                                 [String] $us = CredentialGetUsername $cred $true;
                                                 [String] $pw = CredentialGetPassword $cred;
                                                 [String] $traceInfo = "MountPointCreate drive=$drive mountPoint=$($mountPoint.PadRight(22)) us=$($us.PadRight(12)) pw=*** state=";
-                                                if( -not $noPreLogMsg ){ OutProgressText $traceInfo; }
                                                 [Object] $smbMap = MountPointGetByDrive $drive;
                                                 if( $null -ne $smbMap -and (FsEntryIsEqual $smbMap.RemotePath $mountPoint) -and $smbMap.Status -eq "OK" ){
-                                                  OutStringInColor $(switch($noPreLogMsg){($true){"Gray"}default{"Green"}}) "OkNoChange.$([Environment]::NewLine)";
+                                                  OutProgress "$($traceInfo)OkNoChange.";
                                                   return;
                                                 }
                                                 MountPointRemove $drive $mountPoint $true; # Required because New-SmbMapping has no force param.
@@ -669,7 +678,7 @@ function MountPointCreate                     ( [String] $drive, [String] $mount
                                                   }else{
                                                     $dummyObj = New-SmbMapping -LocalPath $drive -RemotePath $mountPoint -Persistent $true -UserName $us -Password $pw;
                                                   }
-                                                  if( $noPreLogMsg ){ OutProgress "$($traceInfo)Ok."; }else{ OutSuccess "Ok."; }
+                                                  OutProgress "$($traceInfo)Ok.";
                                                 }catch{
                                                   # ex: System.Exception: New-SmbMapping(Z,\\spider\Transfer,spider\u0) failed because Mehrfache Verbindungen zu einem Server
                                                   #     oder einer freigegebenen Ressource von demselben Benutzer unter Verwendung mehrerer Benutzernamen sind nicht zulässig.
@@ -681,15 +690,17 @@ function MountPointCreate                     ( [String] $drive, [String] $mount
                                                   [String] $msg = "New-SmbMapping($drive,$mountPoint,$us) failed because $exMsg";
                                                   if( -not $errorAsWarning ){ throw [Exception] $msg; }
                                                   # also see http://www.winboard.org/win7-allgemeines/137514-windows-fehler-code-liste.html http://www.megos.ch/files/content/diverses/doserrors.txt
-                                                  if    ( $exMsg -eq "Der Netzwerkpfad wurde nicht gefunden."      ){ $msg = "HostNotFound";  } # 53 BAD_NETPATH
-                                                  elseif( $exMsg -eq "Der Netzwerkname wurde nicht gefunden."      ){ $msg = "NameNotFound";  } # 67 BAD_NET_NAME
-                                                  elseif( $exMsg -eq "Zugriff verweigert"                          ){ $msg = "AccessDenied";  } # 5 ACCESS_DENIED:
-                                                  elseif( $exMsg -eq "Das angegebene Netzwerkkennwort ist falsch." ){ $msg = "WrongPassword"; } # 86 INVALID_PASSWORD
-                                                  elseif( $exMsg -eq "Mehrfache Verbindungen zu einem Server oder einer freigegebenen Ressource von demselben Benutzer unter Verwendung mehrerer Benutzernamen sind nicht zulässig. Trennen Sie alle früheren Verbindungen zu dem Server bzw. der freigegebenen Ressource, und versuchen Sie es erneut." )
-                                                                                                                    { $msg = "MultiConnectionsByMultiUserNamesNotAllowed"; } # 1219 SESSION_CREDENTIAL_CONFLICT
+                                                  if    ( $exMsg -eq "Der Netzwerkpfad wurde nicht gefunden."                      ){ $msg = "HostNotFound.";  } # 53 BAD_NETPATH
+                                                  elseif( $exMsg -eq "Der Netzwerkname wurde nicht gefunden."                      ){ $msg = "NameNotFound.";  } # 67 BAD_NET_NAME
+                                                  elseif( $exMsg -eq "Zugriff verweigert"                                          ){ $msg = "AccessDenied.";  } # 5 ACCESS_DENIED:
+                                                  elseif( $exMsg -eq "Das angegebene Netzwerkkennwort ist falsch."                 ){ $msg = "WrongPassword."; } # 86 INVALID_PASSWORD
+                                                  elseif( $exMsg -eq "Mehrfache Verbindungen zu einem Server oder einer "+
+                                                                     "freigegebenen Ressource von demselben Benutzer unter "+
+                                                                     "Verwendung mehrerer Benutzernamen sind nicht zulässig. "+
+                                                                     "Trennen Sie alle früheren Verbindungen zu dem Server bzw. "+
+                                                                     "der freigegebenen Ressource, und versuchen Sie es erneut."   ){ $msg = "MultiConnectionsByMultiUserNamesNotAllowed."; } # 1219 SESSION_CREDENTIAL_CONFLICT
                                                   else {}
-                                                  if( $noPreLogMsg ){ OutProgress "$($traceInfo)$($msg)"; }else{ OutWarning "Warning: $msg" 0; }
-                                                  # alternative: (New-Object -ComObject WScript.Network).MapNetworkDrive("B:", "\\FPS01\users")
+                                                  OutProgress "$($traceInfo)$msg";
                                                 } }
 function JuniperNcEstablishVpnConn            ( [String] $secureCredentialFile, [String] $url, [String] $realm ){
                                                 [String] $serviceName = "DsNcService";
@@ -1226,17 +1237,17 @@ function ToolInstallNuPckMgrAndCommonPsGalMo(){
                                                   Select-Object Name, Version, DynamicOptions |
                                                   StreamToTableString | StreamToStringIndented;
                                                 OutProgress "Update NuGet"; # works asynchron
-                                                # On PS7 for "Install-PackageProvider NuGet" we got: 
+                                                # On PS7 for "Install-PackageProvider NuGet" we got:
                                                 #   Install-PackageProvider: No match was found for the specified search criteria for the provider 'NuGet'. The package provider requires 'PackageManagement' and 'Provider' tags. Please check if the specified package has the tags.
                                                 # So we ignore errors.
-                                                Install-PackageProvider -Name NuGet -ErrorAction SilentlyContinue | 
+                                                Install-PackageProvider -Name NuGet -ErrorAction SilentlyContinue |
                                                   Select-Object Name, Status, Version, Source |
                                                   StreamToTableString | StreamToStringIndented;
                                                 OutProgress "List of modules:";
                                                 Get-Module | Sort Name | Select-Object Name,ModuleType,Version,Path |
                                                   StreamToTableString | StreamToStringIndented;
                                                 OutProgress "List of installed modules having an installdate:";
-                                                Get-InstalledModule | Where-Object{$null -ne $_ -and $null -ne $_.InstalledDate } | 
+                                                Get-InstalledModule | Where-Object{$null -ne $_ -and $null -ne $_.InstalledDate } |
                                                   Select-Object Name | Get-InstalledModule -AllVersions |
                                                   Select-Object Name, Version, InstalledDate, UpdatedDate, Dependencies, Repository, PackageManagementProvider, InstalledLocation |
                                                   StreamToTableString | StreamToStringIndented;
@@ -1264,15 +1275,15 @@ function ToolInstallNuPckMgrAndCommonPsGalMo(){
                                                 try{
                                                   (update-help -ErrorAction continue *>&1) | ForEach-Object{ OutProgress "  $_"; };
                                                 }catch{
-                                                  # example 2022-02: update-help : Failed to update Help for the module(s) 'ConfigDefender, PSReadline' with UI culture(s) {en-US} : 
-                                                  #   Unable to retrieve the HelpInfo XML file for UI culture en-US. 
+                                                  # example 2022-02: update-help : Failed to update Help for the module(s) 'ConfigDefender, PSReadline' with UI culture(s) {en-US} :
+                                                  #   Unable to retrieve the HelpInfo XML file for UI culture en-US.
                                                   #   Make sure the HelpInfoUri property in the module manifest is valid or check your network connection and then try the command again.
                                                   OutWarning "Warning: Update-help failed because $($_.Exception.Message), ignored.";
                                                 }
                                                 OutProgress "List of installed modules having an installdate:";
-                                                Get-InstalledModule | Where-Object{$null -ne $_ -and $null -ne $_.InstalledDate } | 
+                                                Get-InstalledModule | Where-Object{$null -ne $_ -and $null -ne $_.InstalledDate } |
                                                   Select-Object Name | Get-InstalledModule -AllVersions |
-                                                  Select-Object Name, Version, InstalledDate, UpdatedDate, Dependencies, Repository, PackageManagementProvider, InstalledLocation | 
+                                                  Select-Object Name, Version, InstalledDate, UpdatedDate, Dependencies, Repository, PackageManagementProvider, InstalledLocation |
                                                   StreamToTableString | StreamToStringIndented;
                                                 # Hints:
                                                 # - Install-Module -Force -Name myModule; # 2021-12: Paralled installed V1.0.0.1 and V2.2.5
@@ -1280,8 +1291,8 @@ function ToolInstallNuPckMgrAndCommonPsGalMo(){
                                                 # - https://github.com/PowerShell/PSReadLine
                                                 # - Install-Module -Force -Name PsReadline; # 2021-12: Paralled installed V1.0.0.1 and V2.2.5
                                                 #   Install-Module -Force -SkipPublisherCheck -Name Pester;
-                                                #   Note: Ein zuvor installiertes, von Microsoft signiertes Modul Pester V3.4.0 verursacht Konflikte 
-                                                #     mit dem neuen Modul Pester V5.3.1 vom Herausgeber CN=DigiCert Assured ID Root CA, OU=www.digicert.com, O=DigiCert Inc, C=US. 
+                                                #   Note: Ein zuvor installiertes, von Microsoft signiertes Modul Pester V3.4.0 verursacht Konflikte
+                                                #     mit dem neuen Modul Pester V5.3.1 vom Herausgeber CN=DigiCert Assured ID Root CA, OU=www.digicert.com, O=DigiCert Inc, C=US.
                                                 #     Durch die Installation des neuen Moduls kann das System instabil werden. Falls Sie trotzdem eine Installation oder ein Update durchführen möchten, verwenden Sie den -SkipPublisherCheck-Parameter.
                                                 #     And Update-Module : Das Modul 'Pester' wurde nicht mithilfe von 'Install-Module' installiert und kann folglich nicht aktualisiert werden.
                                                 # - Example: Uninstall-Module -MaximumVersion "0.9.99" -Name SqlServer;

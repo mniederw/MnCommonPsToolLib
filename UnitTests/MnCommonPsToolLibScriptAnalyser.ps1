@@ -4,7 +4,7 @@
 
 param( [Boolean] $includeKnown = $false )
 
-trap [Exception] { $Host.UI.WriteErrorLine($_); Read-Host; break; } $Global:ErrorActionPreference = "Stop";
+Set-StrictMode -Version Latest; trap [Exception] { $Host.UI.WriteErrorLine($_); Read-Host; break; } $ErrorActionPreference = "Stop";
 
 [String] $dir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath("$PSScriptRoot/..");
 [String[]] $excl = @(
