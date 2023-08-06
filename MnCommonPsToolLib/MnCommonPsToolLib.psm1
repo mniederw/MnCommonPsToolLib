@@ -142,22 +142,26 @@ if( $null -eq (Get-Variable -Scope global -ErrorAction SilentlyContinue -Name Co
 
 # Statement extensions
 function ForEachParallel {
-  # works compatible for PS5 and PS7.
+  # Note about statement blocks: No functions or variables of the script where it is embedded can be used.
+  #   Only from loaded modules. Only the single variable $_ can be used.
+  #   You can also not base on Auto-Load-Module in your script, so generally use Load-Module for each used module.
+  # Works compatible for PS5 and PS7.
   # ex: (0..20) | ForEachParallel { Write-Output "Nr: $_"; Start-Sleep -Seconds 1; };
   # ex: (0..5)  | ForEachParallel -MaxThreads 2 { Write-Output "Nr: $_"; Start-Sleep -Seconds 1; };
   param( [Parameter(Mandatory=$true,position=0)]              [System.Management.Automation.ScriptBlock] $ScriptBlock,
          [Parameter(Mandatory=$true,ValueFromPipeline=$true)] [PSObject]                                 $InputObject,
+            # PSScriptAnalyzer: On PS7 we get PSUseProcessBlockForPipelineCommand Command accepts pipeline input but has not defined a process block.
          [Parameter(Mandatory=$false)]                        [Int32]                                    $MaxThreads=8 )
   if( $PSVersionTable.PSVersion.Major -gt 5 ){
+    # Avoid PSScriptAnalyzer: On PS7 we get PSReviewUnusedParameter The parameter 'InputObject' has been declared but not used.
+      $InputObject.GetType() | Out-Null;
     $input | ForEach-Object -ThrottleLimit $MaxThreads -Parallel $ScriptBlock;
   }else{
     $input | ForEachParallelPS5 -MaxThreads $MaxThreads $ScriptBlock;
   }
 }
+
 function ForEachParallelPS5 {
-  # Note aabout statement blocks: no functions or variables of the script where it is embedded can be used.
-  # Only from loaded modules. Only the single variable $_ can be used.
-  # You can also not base on Auto-Load-Module in your script, so generally use Load-Module for each used module.
   # Based on https://powertoe.wordpress.com/2012/05/03/foreach-parallel/
   param( [Parameter(Mandatory=$true,position=0)]              [System.Management.Automation.ScriptBlock] $ScriptBlock,
          [Parameter(Mandatory=$true,ValueFromPipeline=$true)] [PSObject]                                 $InputObject,

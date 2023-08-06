@@ -37,7 +37,8 @@ function ExampleUseFsEntries(){
 function ExampleUseParallelStatementsHavingOneSecondWaiting {
   OutInfo "$($MyInvocation.MyCommand)";
   [DateTime] $startedAt = Get-Date;
-  (0..4) | ForEachParallel { OutProgress "Running script nr: $_ and wait one second."; Start-Sleep -Seconds 1; }
+  # Note about statement blocks: No functions or variables of the script where it is embedded can be used.
+  (0..4) | ForEachParallel { Write-Host "Running script nr: $_ and wait one second."; Start-Sleep -Seconds 1; }
   OutProgress "Total used time: $((New-Timespan -Start $startedAt -End (Get-Date)).ToString('d\ hh\:mm\:ss\.fff'))";
   OutSuccess "Ok, done.";
 }
@@ -45,7 +46,9 @@ function ExampleUseParallelStatementsHavingOneSecondWaiting {
 function ExampleUseParallelStatementsHavingRandomWaitBetween1and2Seconds {
   OutInfo "$($MyInvocation.MyCommand)";
   [DateTime] $startedAt = Get-Date;
-  (0..4) | ForEachParallel -MaxThreads 2 { $t = 1.0 + ((Get-Random -Minimum 1 -Maximum 9) / 10); OutProgress "Running script nr: $_ and wait $t seconds."; Start-Sleep -Seconds $t; };
+  # Note about statement blocks: No functions or variables of the script where it is embedded can be used.
+  (0..4) | ForEachParallel -MaxThreads 2 { $t = 1.0 + ((Get-Random -Minimum 1 -Maximum 9) / 10);
+    Write-Host "Running script nr: $_ and wait $t seconds."; Start-Sleep -Seconds $t; };
   OutProgress "Total used time: $((New-Timespan -Start $startedAt -End (Get-Date)).ToString('d\ hh\:mm\:ss\.fff'))";
   OutSuccess "Ok, done.";
 }
