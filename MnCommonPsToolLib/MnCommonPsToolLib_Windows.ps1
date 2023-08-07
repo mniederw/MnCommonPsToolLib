@@ -1244,7 +1244,7 @@ function ToolInstallNuPckMgrAndCommonPsGalMo(){
                                                   Select-Object Name, Status, Version, Source |
                                                   StreamToTableString | StreamToStringIndented;
                                                 OutProgress "List of modules:";
-                                                Get-Module | Sort Name | Select-Object Name,ModuleType,Version,Path |
+                                                Get-Module | Sort-Object Name | Select-Object Name,ModuleType,Version,Path |
                                                   StreamToTableString | StreamToStringIndented;
                                                 OutProgress "List of installed modules having an installdate:";
                                                 Get-InstalledModule | Where-Object{$null -ne $_ -and $null -ne $_.InstalledDate } |

@@ -17,7 +17,7 @@ function Test_Help_Os(){
   #   HelpGetType                          ( [Object] $obj ){ return [String] $obj.GetType(); }
   #   OsPsVersion                          (){ return [String] (""+$Host.Version.Major+"."+$Host.Version.Minor); } # alternative: $PSVersionTable.PSVersion.Major
   #   OsIsWinVistaOrHigher                 (){ return [Boolean] ([Environment]::OSVersion.Version -ge (new-object "Version" 6,0)); }
-  #   OsIsWin7OrHigher                     (){ return [Boolean] ([Environment]::OSVersion.Version -ge (new-object "Version" 6,1)); }
+  Assert (OsIsWin7OrHigher);
   Assert (OsIs64BitOs);
   #   OsIsHibernateEnabled                 (){
   Assert ((OsInfoMainboardPhysicalMemorySum) -gt 1000000000);

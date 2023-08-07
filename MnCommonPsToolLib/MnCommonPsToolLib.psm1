@@ -679,7 +679,7 @@ function ProcessListInstalledAppx             (){ if( ! (OsIsWindows) ){ return 
                                                       #   If you want to load this module into PowerShell please use 'Import-Module -SkipEditionCheck' syntax.
                                                   }
                                                   return [String[]] (@()+(Get-AppxPackage | Where-Object{$null -ne $_} |
-                                                    ForEach-Object{ "$($_.PackageFullName)" } | Sort)); }
+                                                    ForEach-Object{ "$($_.PackageFullName)" } | Sort-Object)); }
 function ProcessGetCommandInEnvPathOrAltPaths ( [String] $commandNameOptionalWithExtension, [String[]] $alternativePaths = @(), [String] $downloadHintMsg = ""){
                                                 [System.Management.Automation.CommandInfo] $cmd = Get-Command -CommandType Application -Name $commandNameOptionalWithExtension -ErrorAction SilentlyContinue | Select-Object -First 1;
                                                 if( $null -ne $cmd ){ return [String] $cmd.Path; }
