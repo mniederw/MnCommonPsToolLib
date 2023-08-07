@@ -31,7 +31,7 @@ Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Test_IO_Consol
 Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Tool.ps1";
 Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTestElevated.ps1";
 Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibScriptAnalyser.ps1";
-Write-Output ("-"*86); 
+Write-Output ("-"*86);
 
 OutSuccess "Ok, done.";
 StdInAskForEnter;

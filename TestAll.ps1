@@ -1,5 +1,9 @@
 ﻿#!/usr/bin/env pwsh
 
+Set-StrictMode -Version Latest;
+trap [Exception] { $Host.UI.WriteErrorLine("Trap: $_"); Read-Host; break; }
+$ErrorActionPreference = "Stop";
+
 Write-Output "Test all - run all examples, the script analyser and the unit tests with pwsh (powershell)";
 
 Write-Output "Show Environment: ";
@@ -48,10 +52,6 @@ $($env:PSModulePath).Split(";:") | Where-Object{ $null -ne $_ } | ForEach-Object
   #                 ":/usr/local/share/powershell/Modules"
   #                 ":/opt/microsoft/powershell/7/Modules"
 
-Write-Output "Set mode to stop on errors.";
-$Global:ErrorActionPreference = "Stop";
-trap [Exception] { $Host.UI.WriteErrorLine("Trap: $_"); Read-Host; break; }
-
 # disabled because it would not find for example Write-Output anymore:
 #   Write-Output "Set disable autoloading modules."; $PSModuleAutoLoadingPreference = "none";
 
@@ -83,7 +83,7 @@ Write-Output ("-"*86); & "Examples/ExampleUseOfMnCommonPsToolLib02_StdBegAndEndI
 Write-Output ("-"*86); & "Examples/ExampleUseOfMnCommonPsToolLib03_NoWaitAtEnd.ps1";
 Write-Output ("-"*86); & "Examples/ExampleUseOfMnCommonPsToolLib04_SomeReadOnlyProcessings.ps1";
 Write-Output ("-"*86); & "UnitTests/AllUnitTests.ps1";
-Write-Output ("-"*86); 
+Write-Output ("-"*86);
 
 Write-Output "Ok, UnitTest was successful!";
 

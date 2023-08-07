@@ -13,7 +13,7 @@ function Test_Info(){
   [String] $a = (InfoAboutComputerOverview);
   OutProgress $a;
     # InfoAboutComputerOverview:
-    # 
+    #
     # ComputerName    : mycomputer
     # UserName        : u1
     # Datetime        : 2022-12-31 13:14
@@ -26,7 +26,7 @@ function Test_Info(){
   [String] $a = (InfoAboutExistingShares);
   OutProgress $a;
     # Info about existing shares:
-    # 
+    #
     #   IPC$         = ''    Remote-IPC
     #   print$       = 'C:\WINDOWS\system32\spool\drivers' Druckertreiber
     #   Transfer     = 'D:\Transfer' Transfer dir for any user
@@ -36,7 +36,7 @@ function Test_Info(){
   # TODO: InfoAboutSystemInfo                  this requires elevated mode
   #
   OutInfo "InfoAboutRunningProcessesAndServices";
-  # TODO: InfoAboutRunningProcessesAndServices 
+  # TODO: InfoAboutRunningProcessesAndServices
     # Info about processes:
     #
     # RunningProcesses:
@@ -45,11 +45,11 @@ function Test_Info(){
     #   ...
   #
   OutInfo "InfoHdSpeed";
-  # TODO: InfoHdSpeed                     requires elevated mode      
+  # TODO: InfoHdSpeed                     requires elevated mode
     # Windows-Systembewertungstool ... Read                   449.80 MB/s ... Write                  454.22 MB/s ...
   #
   OutInfo "InfoAboutNetConfig";
-  # TODO: InfoAboutNetConfig                   
+  # TODO: InfoAboutNetConfig
   #
   OutInfo "InfoGetInstalledDotNetVersion";
   InfoGetInstalledDotNetVersion; # to console not output: "4.7.2 or later (533325)"
