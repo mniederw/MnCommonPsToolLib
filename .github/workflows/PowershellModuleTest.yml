@@ -21,7 +21,7 @@ on:
   schedule:
     # schedules are taking always the default branch of the repo (master/main).
     # cron: minute(0..59) hour(0..23) dayOfMonth(1..31) month(1..12 or JAN..DEC) dayOfWeek(0..6 or SUN-SAT);
-    #   '* * * * *' seams to be 15min; multivalues comma separated (2,4); ranges with a dash (2-5); 
+    #   '* * * * *' seams to be 15min; multivalues comma separated (2,4); ranges with a dash (2-5);
     #   increment with slash after min10 each 5 min (10/5); shortes are 5 minutes; in UTC;
     #   https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#schedule
     #   (00:01GMT+0 means at: 01:01GMT+1 wintertime, 02:01GMT+2 daylight-saving-time)
@@ -69,7 +69,7 @@ jobs:
           }
           echo "github.event.schedule=${{github.event.schedule}} ";
 
-      - name: Test all 
+      - name: Test all
         shell: pwsh
           # Default runners have installed: PS7.2.5 and Pester.
           # More about PS: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-powershell#powershell-module-locations
@@ -119,7 +119,7 @@ jobs:
           echo "ListDir /home/runner/.local/bin/: $((ls /home/runner/.local/bin/) || true)";
           echo "ListDir ./node_modules/: $((ls ./node_modules/) || true)";
           echo "ListFile ./package.json: $((cat ./package.json) || true)"; # ex: {"dependencies":{"fs":"0.0.1-security", "fs-extra":"^11.1.1", "xml2js":"^0.6.0", "jsonfile":"^6.1.0", "xmlmerge-js":"^0.2.5", "minimist":"^1.2.8", "path":"^0.12.7", "shelljs":"^0.8.5"}}
-          # More usuful variables: 
+          # More usuful variables:
           #   RUNNER_WORKSPACE        = /home/runner/work/MnCommonPsToolLib
           #   GITHUB_WORKSPACE        = /home/runner/work/MnCommonPsToolLib/MnCommonPsToolLib
           #   RUNNER_TEMP             = /home/runner/work/_temp
@@ -131,16 +131,17 @@ jobs:
           #                               /home/runner/.cargo/bin:/home/runner/.config/composer/vendor/bin:/usr/local/.ghcup/bin:/home/runner/.dotnet/tools:/snap/bin:
           #                               /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
           #   PNPM_HOME               = /home/runner/setup-pnpm/node_modules/.bin
-          # Note: we do not run: echo "List github context as json: ${{toJson(github)}}";
+          # Note: we do not run: echo "List github context as json:  ...toJson(github)...";
           #   because sometimes fails after some json output with:
           #   2023-07: /home/runner/work/_temp/858ee69a-4952-4151-832b-4c9945ad8f90.sh: line 115: timestamp:: command not found
           #            Error: Process completed with exit code 127.
+          #     Note: The error also occurrs in comment, if the three dots would have replaced by github dollar and braces!
 
       - name: If tests on trunk of a push or workflow_dispatch was successful then create pull request to main
         if: ${{ success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/trunk' && runner.os == 'Linux' }}
         uses: repo-sync/pull-request@v2.12.1
           # for parameters see: https://github.com/repo-sync/pull-request
-          # works only on linux, see releases for updating version from time to time 
+          # works only on linux, see releases for updating version from time to time
         with:
           pr_title:           "Merge ${{github.ref_name}} to main - Unittests are successful - ${{ github.event.commits[0].message }}"
           source_branch:      ""                           # If blank, default: triggered branch
@@ -152,7 +153,7 @@ jobs:
           #pr_reviewer: "user1,user2" # Comma-separated list (no spaces)
           #pr_assignee: "user1,user2" # Comma-separated list (no spaces)
       - name: Output job state
-        if: ${{ always() }}  # if alternatives: success(), failure(), cancelled(), 
+        if: ${{ always() }}  # if alternatives: success(), failure(), cancelled(),
         run: echo "Process ${{ job.status }}."; # job.status = [success,failure,cancelled].
 
 
@@ -178,13 +179,13 @@ jobs:
 #           echo "BranchRef: ${{github.ref}}"; # ex: "refs/heads/main"
 #           BranchName=$(echo "${{github.ref}}" | cut --delimiter=/ --fields=3- -); # ex: "main"
 #           BranchEnv="";
-#           if   [[ "$BranchName" == "main"  ]]; then BranchEnv="MAIN"; 
-#           elif [[ "$BranchName" == "trunk" ]]; then BranchEnv="ENV1"; 
+#           if   [[ "$BranchName" == "main"  ]]; then BranchEnv="MAIN";
+#           elif [[ "$BranchName" == "trunk" ]]; then BranchEnv="ENV1";
 #                                                else BranchEnv="UNKN-$BranchName"; fi;
 #           echo "Run BranchEnv=$BranchEnv BranchName=$BranchName BranchRef=${{github.ref}}";
 #           #
 #           m="^main$"   ; if [[ "$BranchName" =~ $m ]]; then BranchEnv="ENV2" ; fi;
-#           m="^main.*$" ; 
+#           m="^main.*$" ;
 #           if [[ "$BranchName" =~ $m ]]; then BranchEnv="ENV2" ; fi;
 #           echo "Run SfEnv=$SfEnv BranchName=$BranchName BranchRef=${{github.ref}}";
 #           #
