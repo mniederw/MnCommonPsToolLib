@@ -2037,7 +2037,7 @@ function GitShowRepo                          ( [String] $repoDir ){
 function GitShowBranch                        ( [String] $repoDir ){
                                                 # return current branch (example: "master").
                                                 [String] $out = (ProcessStart "git" @("-C", (FsEntryRemoveTrailingDirSep $repoDir), "--git-dir=.git", "branch") -traceCmd:$false);
-                                                [String] $firstLine = StringSplitIntoLines $out | Select-Object -First 1;
+                                                [String] $firstLine = StringSplitIntoLines $out | Where-Object { $_.StartsWith("* ") } | Select-Object -First 1;
                                                 # in future when newer version of git is common then we can use new option for get current-branch.
                                                 Assert ($firstLine.StartsWith("* ")) "expected result of git branch command begins with `"* `" but got `"$firstLine`"";
                                                 return [String] (StringRemoveLeft $firstLine "* ").Trim(); }
