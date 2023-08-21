@@ -5,7 +5,7 @@ Major version will reflect breaking changes, minor identifies extensions and thi
 Breaking changes are usually removed deprecated functions or changed behaviours.
 Current version can be requested by: $MnCommonPsToolLibVersion
 
-2023-08-08  V7.26  Improve GitGetBranch.
+2023-08-08  V7.26  Improve GitGetBranch. Fix OsIsWinScreenLocked.
 2023-07-07  V7.25  Improve ForEachParallel. Extend Install.ps1 for linux. Improve Import-Module handling. Fix OutStopTranscript.
 2023-07-11  V7.24  Fix OutStartTranscriptInTempDir, remove gh update notification, improve gh action.
 2023-06-09  V7.23  Add RegistryKeyGetOwnerAsString, Improve RegistryKeySetOwner.

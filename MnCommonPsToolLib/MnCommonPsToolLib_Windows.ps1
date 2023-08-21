@@ -25,7 +25,7 @@ function JobWaitForEnd                        ( [Int32] $id ){ JobWaitForNotRunn
 function OsIsWinVistaOrHigher                 (){ return [Boolean] ([Environment]::OSVersion.Version -ge (new-object "Version" 6,0)); }
 function OsIsWin7OrHigher                     (){ return [Boolean] ([Environment]::OSVersion.Version -ge (new-object "Version" 6,1)); }
 function OsIs64BitOs                          (){ return [Boolean] (Get-CimInstance -Class Win32_OperatingSystem -ErrorAction SilentlyContinue).OSArchitecture -eq "64-Bit"; }
-function OsIsWinScreenLocked                  (){ return [Boolean] ((Get-Process | Where-Object{ $_.ProcessName -eq "LogonUI"}).Count -gt 0); }
+function OsIsWinScreenLocked                  (){ return [Boolean] ((@()+(Get-Process | Where-Object{ $_.ProcessName -eq "LogonUI"})).Count -gt 0); }
 function OsIsHibernateEnabled                 (){
                                                 if( (FileNotExists "$env:SystemDrive/hiberfil.sys") ){ return [Boolean] $false; }
                                                 if( OsIsWin7OrHigher ){ return [Boolean] (RegistryGetValueAsString "HKLM:\SYSTEM\CurrentControlSet\Control\Power" "HibernateEnabled") -eq "1"; }
@@ -828,7 +828,7 @@ function InfoAboutNetConfig                   (){
                                                 ,"NetGetNbtStat:"      ,(NetGetNbtStat)  , ""
                                                 ,"NetGetAdapterSpeed:" ,(NetAdapterListAll | StreamToTableString | StreamToStringIndented)  ,"" ); }
 function InfoGetInstalledDotNetVersion        ( [Boolean] $alsoOutInstalledClrAndRunningProc = $false ){
-                                                # Requires clrver.exe in path, for example "C:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.x Tools\x64\clrver.exe"
+                                                # Requires clrver.exe in path, for example "C:\Program Files (x86)\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.8.1 Tools\x64\clrver.exe"
                                                 if( $alsoOutInstalledClrAndRunningProc ){
                                                   [String[]] $a = @();
                                                   $a += "List Installed DotNet CLRs (clrver.exe):";
