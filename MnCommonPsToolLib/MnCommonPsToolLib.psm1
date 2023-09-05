@@ -60,7 +60,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $global:MnCommonPsToolLibVersion = "7.25"; # more see Releasenotes.txt
+[String] $global:MnCommonPsToolLibVersion = "7.26"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -393,6 +393,13 @@ function DateTimeFromStringIso                ( [String] $s ){ # "yyyy-MM-dd HH:
                                                 try{ return [DateTime] [datetime]::ParseExact($s,$fmt,$null);
                                                 }catch{ <# ex: Ausnahme beim Aufrufen von "ParseExact" mit 3 Argument(en): Die Zeichenfolge wurde nicht als gültiges DateTime erkannt. #>
                                                   throw [Exception] "DateTimeFromStringIso(`"$s`") is not a valid datetime in format `"$fmt`""; } }
+function DateTimeFromStringOrDateTimeValue    ( [Object] $v ){ # Used for example after ConvertFrom-Json for unifying a value to type DateTime because PS7 sets for example type=DateTime and PS5 the type=String.
+                                                # example: "2023-06-30T23:59:59.123+0000"
+                                                return [DateTime] $(switch($v.GetType().FullName){
+                                                  "System.DateTime" { $v; }
+                                                  "System.String"   { [DateTime]::ParseExact($v,"yyyy-MM-dd'T'HH:mm:ss.fffzzz",[System.Globalization.CultureInfo]::InvariantCulture); }
+                                                  default           { throw [Exception] "Expected type String or DateTime instead of $($v.GetType().FullName) for value: $v"; }
+                                                }); }
 function ByteArraysAreEqual                   ( [Byte[]] $a1, [Byte[]] $a2 ){ if( $a1.LongLength -ne $a2.LongLength ){ return [Boolean] $false; }
                                                 for( [Int64] $i = 0; $i -lt $a1.LongLength; $i++ ){ if( $a1[$i] -ne $a2[$i] ){ return [Boolean] $false; } } return [Boolean] $true; }
 function ArrayIsNullOrEmpty                   ( [Object[]] $a ){ return [Boolean] ($null -eq $a -or $a.Count -eq 0); }
@@ -2037,7 +2044,7 @@ function GitShowRepo                          ( [String] $repoDir ){
 function GitShowBranch                        ( [String] $repoDir ){
                                                 # return current branch (example: "master").
                                                 [String] $out = (ProcessStart "git" @("-C", (FsEntryRemoveTrailingDirSep $repoDir), "--git-dir=.git", "branch") -traceCmd:$false);
-                                                [String] $firstLine = StringSplitIntoLines $out | Select-Object -First 1;
+                                                [String] $firstLine = StringSplitIntoLines $out | Where-Object { $_.StartsWith("* ") } | Select-Object -First 1;
                                                 # in future when newer version of git is common then we can use new option for get current-branch.
                                                 Assert ($firstLine.StartsWith("* ")) "expected result of git branch command begins with `"* `" but got `"$firstLine`"";
                                                 return [String] (StringRemoveLeft $firstLine "* ").Trim(); }

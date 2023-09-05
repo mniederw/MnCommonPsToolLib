@@ -29,6 +29,8 @@ function Test_Int_DateTime_ByteArray(){
   Assert         ((DateTimeFromStringIso "2011-12-31 23:59:59.99" ) -eq (Get-Date -Date "2011-12-31 23:59:59.99" ));
   Assert         ((DateTimeFromStringIso "2011-12-31 23:59:59.999") -eq (Get-Date -Date "2011-12-31 23:59:59.999"));
   Assert         ((DateTimeFromStringIso "2011-12-31T23:59:59.999") -eq (Get-Date -Date "2011-12-31 23:59:59.999"));
+  Assert         ((DateTimeFromStringOrDateTimeValue                 "2011-12-31T23:59:59.123+0000" ) -eq (Get-Date -Date "2011-12-31 23:59:59.123+0000"));
+  Assert         ((DateTimeFromStringOrDateTimeValue (Get-Date -Date "2011-12-31 23:59:59.123+0000")) -eq (Get-Date -Date "2011-12-31 23:59:59.123+0000"));
   Assert         ((ByteArraysAreEqual @()               @()              ) -eq $true );
   Assert         ((ByteArraysAreEqual @(0x00,0x01,0xFF) @(0x00,0x01,0xFF)) -eq $true );
   Assert         ((ByteArraysAreEqual @(0x00,0x01,0xFF) @(0x00,0x02,0xFF)) -eq $false);
