@@ -60,7 +60,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $global:MnCommonPsToolLibVersion = "7.26"; # more see Releasenotes.txt
+[String] $global:MnCommonPsToolLibVersion = "7.27"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -137,7 +137,7 @@ if( $null -eq (Get-Variable -Scope global -ErrorAction SilentlyContinue -Name Co
   New-Variable -option Constant -scope global -name UserMenuStartupDir           -value ([String]"$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup");
   New-Variable -option Constant -scope global -name AllUsersMenuDir              -value ([String]"$env:ALLUSERSPROFILE\Microsoft\Windows\Start Menu");
   New-Variable -option Constant -scope global -name InfoLineColor                -Value $(switch($Host.Name -eq "Windows PowerShell ISE Host"){($true){"Gray"}default{"White"}}); # ise is white so we need a contrast color
-  New-Variable -option Constant -scope global -name ComputerName                 -value ([String]"$env:computername".ToLower());
+  New-Variable -option Constant -scope global -name ComputerName                 -value ([String]"$env:computername".ToLower()); # set $ComputerName with unified lowercase $env:ComputerName
 }
 
 # Statement extensions
@@ -305,7 +305,7 @@ function StringFromErrorRecord                ( [System.Management.Automation.Er
                                                 [String] $nl = [Environment]::NewLine;
                                                  $msg += "$nl  ScriptStackTrace: $nl    $($er.ScriptStackTrace -replace `"$nl`",`"$nl    `")"; # ex: at <ScriptBlock>, C:\myfile.psm1: line 800 at MyFunc
                                                  $msg += "$nl  InvocationInfo:$nl    $($er.InvocationInfo.PositionMessage -replace `"$nl`",`"$nl    `")"; # At D:\myfile.psm1:800 char:83 \n   + ...   +   ~~~
-                                                 $msg += "$nl  Ts=$(DateTimeNowAsStringIso) User=$($env:username) mach=$($env:COMPUTERNAME) ";
+                                                 $msg += "$nl  Ts=$(DateTimeNowAsStringIso) User=$($env:username) mach=$($ComputerName) ";
                                                  # $msg += "$nl  InvocationInfoLine: $($er.InvocationInfo.Line -replace `"$nl`",`" `" -replace `"\s+`",`" `" )";
                                                  # $msg += "$nl  InvocationInfoMyCommand: $($er.InvocationInfo.MyCommand)"; # ex: ForEach-Object
                                                  # $msg += "$nl  InvocationInfoInvocationName: $($er.InvocationInfo.InvocationName)"; # ex: ForEach-Object
@@ -1208,6 +1208,12 @@ function FsEntryFindInParents                 ( [String] $fromFsEntry, [String] 
                                                   $d = $p;
                                                 } return [String] ""; # not found
                                                 }
+function FsEntryGetSize                       ( [String] $fsEntry ){ # Must exists, works recursive.
+                                                if( FsEntryNotExists $fsEntry ){ throw [Exception] "File system entry not exists: `"$fsEntry`""; }
+                                                [Microsoft.PowerShell.Commands.GenericMeasureInfo] $size = Get-ChildItem -Force -ErrorAction SilentlyContinue -Recurse -LiteralPath $fsEntry |
+                                                  Where-Object{$null -ne $_} | Measure-Object -Property length -sum;
+                                                if( $null -eq $size ){ return [Int64] 0; }
+                                                return [Int64] $size.sum; }
 function DriveFreeSpace                       ( [String] $drive ){
                                                 return [Int64] (Get-PSDrive $drive | Select-Object -ExpandProperty Free); }
 function DirExists                            ( [String] $dir ){
@@ -2626,7 +2632,7 @@ function TfsShowAllWorkspaces                 ( [String] $url, [Boolean] $showPa
                                                 # ex: url=https://devops.mydomain.ch/MyTfsRoot
                                                 OutProgress "Show all tfs workspaces (showPaths=$showPaths,currentMachineOnly=$currentMachineOnly)";
                                                 [String] $fmt = "Brief"; if( $showPaths ){ $fmt = "Detailed"; }
-                                                [String] $mach = "*"; if( $currentMachineOnly ){ $mach = $env:COMPUTERNAME; }
+                                                [String] $mach = "*"; if( $currentMachineOnly ){ $mach = $ComputerName; }
                                                 OutProgress                                    "& `"$(TfsExe)`" vc workspaces /noprompt /format:$fmt /owner:* /computer:$mach /collection:$url";
                                                 [String[]] $out = @()+(StringArrayInsertIndent (&    (TfsExe)   vc workspaces /noprompt /format:$fmt /owner:* /computer:$mach /collection:$url) 2); ScriptResetRc;
                                                 $out | ForEach-Object{ $_ -replace "--------------------------------------------------", "-" } |
@@ -2681,12 +2687,12 @@ function TfsShowLocalCachedWorkspaces         (){ # works without access an url
                                                 #   Arbeitsbereich Besitzer          Computer Kommentar
                                                 #   -------------- ----------------- -------- -----------
                                                 #   MYCOMPUTER     John Doe          MYCOMPUTER
-                                                # Example3 with option /computer:$env:COMPUTERNAME :
+                                                # Example3 with option /computer:$ComputerName :
                                                 #   Der Quellcodeverwaltungsserver kann nicht bestimmt werden.
                                                 }
 function TfsHasLocalMachWorkspace             ( [String] $url ){ # we support only workspace name identic to computername
-                                                [string] $wsName = $env:COMPUTERNAME;
-                                                [string] $mach = $env:COMPUTERNAME;
+                                                [string] $wsName = $ComputerName;
+                                                [string] $mach = $ComputerName;
                                                 OutProgress "Check if local tfs workspaces with name identic to computername exists";
                                                 OutProgress           "  & `"$(TfsExe)`" vc workspaces /noprompt /format:Brief /owner:* /computer:$mach /collection:$url";
                                                 [String[]] $out = @()+(&    (TfsExe)   vc workspaces /noprompt /format:Brief /owner:* /computer:$mach /collection:$url *>&1 |
@@ -2695,7 +2701,7 @@ function TfsHasLocalMachWorkspace             ( [String] $url ){ # we support on
                                                 return [Boolean] ($out.Length -gt 0); }
 function TfsInitLocalWorkspaceIfNotDone       ( [String] $url, [String] $rootDir ){
                                                 # also creates the directory "./$tf/" (or "./$tf1/", etc. ).
-                                                [string] $wsName = $env:COMPUTERNAME;
+                                                [string] $wsName = $ComputerName;
                                                 OutProgress "Init local tfs workspaces with name identic to computername if not yet done of $url to `"$rootDir`"";
                                                 if( (TfsHasLocalMachWorkspace $url) ){ OutProgress "Init-Workspace not nessessary because has already workspace identic to computername."; return; }
                                                 [String] $cd = (Get-Location); Set-Location $rootDir; try{
@@ -2706,7 +2712,7 @@ function TfsInitLocalWorkspaceIfNotDone       ( [String] $url, [String] $rootDir
 function TfsDeleteLocalMachWorkspace          ( [String] $url ){ # we support only workspace name identic to computername
                                                 OutInfo "Delete local tfs workspace with name of current computer";
                                                 if( -not (TfsHasLocalMachWorkspace $url) ){ OutProgress "Delete-Workspace not nessessary because has no workspace of name identic to computername."; return; }
-                                                [string] $wsName = $env:COMPUTERNAME;
+                                                [string] $wsName = $ComputerName;
                                                 # also deletes the directory "./$tf/".
                                                 OutProgress         "& `"$(TfsExe)`" vc workspace /noprompt /delete $wsName /collection:$url";
                                                 [String] $out = @()+(&    (TfsExe)   vc workspace /noprompt /delete $wsName /collection:$url); AssertRcIsOk $out;
