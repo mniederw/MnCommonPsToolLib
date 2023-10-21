@@ -660,7 +660,6 @@ function MountPointRemove                     ( [String] $drive, [String] $mount
                                                   Remove-PSDrive -Name ($drive -replace ":","") -Force; # Force means no confirmation
                                                 } }
 function MountPointCreate                     ( [String] $drive, [String] $mountPoint, [System.Management.Automation.PSCredential] $cred = $null, [Boolean] $errorAsWarning = $false ){
-                                                # Note: last argument [Boolean] $noPreLogMsg = $false is OBSOLETE and was removed, do not use it anymore
                                                 # ex: MountPointCreate "S:" "\\localhost\Transfer" (CredentialCreate "user1" "mypw")
                                                 if( -not $drive.EndsWith(":") ){ throw [Exception] "Expected drive=`"$drive`" with trailing colon"; }
                                                 [String] $us = CredentialGetUsername $cred $true;
@@ -671,8 +670,8 @@ function MountPointCreate                     ( [String] $drive, [String] $mount
                                                   OutProgress "$($traceInfo)OkNoChange.";
                                                   return;
                                                 }
-                                                MountPointRemove $drive $mountPoint $true; # Required because New-SmbMapping has no force param.
                                                 try{
+                                                  MountPointRemove $drive $mountPoint $true; # Required because New-SmbMapping has no force param.
                                                   if( $pw -eq ""){
                                                     $dummyObj = New-SmbMapping -LocalPath $drive -RemotePath $mountPoint -Persistent $true -UserName $us;
                                                   }else{
@@ -932,6 +931,7 @@ function ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [Strin
                                                 # ex: ToolCreateLnkIfNotExists $false "" "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\LinkToNotepad.lnk" "C:\Windows\notepad.exe";
                                                 # ex: ToolCreateLnkIfNotExists $false "" "$env:APPDATA\Microsoft\Internet Explorer\Quick Launch\LinkToNotepad.lnk" "C:\Windows\notepad.exe";
                                                 # If $forceRecreate is false and target lnkfile already exists then it does nothing.
+                                                # $workDir can be empty string.
                                                 # Icon: If next to the srcFile an ico file with the same filename exists then this will be taken.
                                                 [String] $descr = $srcFile;
                                                 if( $ignoreIfSrcFileNotExists -and (FileNotExists $srcFile) ){
@@ -1267,7 +1267,12 @@ function ToolInstallNuPckMgrAndCommonPsGalMo(){
                                                 # On PS7 we would get: Update-Module: Module 'PowerShellGet' was not installed by using Install-Module, so it cannot be updated.
                                                 if( (ProcessIsLesserEqualPs5) ){
                                                   OutProgress "Update  modules: PowerShellGet, SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate";
-                                                  Update-Module -AcceptLicense -Scope AllUsers -Name PowerShellGet, SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate;
+                                                  try{
+                                                    Update-Module -AcceptLicense -Scope AllUsers -Name PowerShellGet, SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate;
+                                                  }catch{
+                                                    # 2023-10: option AcceptLicense not exists ...
+                                                    OutWarning "Warning: Update-Module failed because $($_.Exception.Message), ignored.";
+                                                  }
                                                 }
                                                 # Set-Culture -CultureInfo de-CH; # change default culture for current user
                                                 OutProgress "Current Culture: $((Get-Culture).Name) = $((Get-Culture).DisplayName) "; # show current culture, ex: "de-CH"
