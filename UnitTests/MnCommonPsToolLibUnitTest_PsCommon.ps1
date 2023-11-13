@@ -29,7 +29,7 @@ function Test_PsCommon(){
   Assert ((2 + 3) -eq 5);
   Assert ([Math]::Min(-5,-9) -eq -9);
   Assert ("xyz".SubString(1,0) -eq "");
-  Assert (("abc" -split ",").Count -eq 1 -and "abc,".Split(",").Count -eq 2 -and ",abc".Split(",").Count -eq 2);
+  Assert (("abc" -split ",",0).Count -eq 1 -and "abc,".Split(",").Count -eq 2 -and ",abc".Split(",").Count -eq 2);
   # No IO is done for the followings:
   if( ! (OsIsWindows) ){ # not windows
     Assert ([System.IO.Path]::GetDirectoryName("\\anyhostname\AnyFolder\") -eq "");
