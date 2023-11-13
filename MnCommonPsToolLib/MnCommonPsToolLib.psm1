@@ -60,7 +60,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $global:MnCommonPsToolLibVersion = "7.27"; # more see Releasenotes.txt
+[String] $global:MnCommonPsToolLibVersion = "7.28"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -810,9 +810,9 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 return [String] $out; }
 function ProcessEnvVarGet                     ( [String] $name, [System.EnvironmentVariableTarget] $scope = [System.EnvironmentVariableTarget]::Process ){
                                                 return [String] [Environment]::GetEnvironmentVariable($name,$scope); }
-function ProcessEnvVarSet                     ( [String] $name, [String] $val, [System.EnvironmentVariableTarget] $scope = [System.EnvironmentVariableTarget]::Process ){
+function ProcessEnvVarSet                     ( [String] $name, [String] $val, [System.EnvironmentVariableTarget] $scope = [System.EnvironmentVariableTarget]::Process, [Boolean] $traceCmd = $true ){
                                                  # Scope: MACHINE, USER, PROCESS.
-                                                 OutProgress "SetEnvironmentVariable scope=$scope $name=`"$val`"";
+                                                 if( $traceCmd ){ OutProgress "SetEnvironmentVariable scope=$scope $name=`"$val`""; }
                                                  [Environment]::SetEnvironmentVariable($name,$val,$scope); }
 function ProcessRemoveAllAlias                ( [String[]] $excludeAliasNames = @(), [Boolean] $doTrace = $false ){
                                                 # remove all existing aliases on any levels (local, script, private, and global).
@@ -2082,8 +2082,10 @@ function GitMerge                             ( [String] $repoDir, [String] $bra
                                                   if( -not $errorAsWarning ){ throw [Exception] "Merge failed, fix conflicts manually: $_.Exception.Message"; }
                                                   OutWarning "Merge of branch $branch into `"$repoDir`" failed, fix conflicts manually. ";
                                                 } }
+function GithubPrepareCommand                 (){ # otherwise we would get: "A new release of gh is available: 2.7.0 → v2.31.0\nhttps://github.com/cli/cli/releases/tag/v2.31.0"
+                                                 ProcessEnvVarSet "GH_NO_UPDATE_NOTIFIER" "1" -traceCmd:$false; }
 function GithubAuthStatus                     (){
-                                                ProcessEnvVarSet "GH_NO_UPDATE_NOTIFIER" "1";
+                                                GithubPrepareCommand;
                                                 [String] $out = (ProcessStart "gh" @("auth", "status") -careStdErrAsOut:$true -traceCmd:$true);
                                                 # Output:
                                                 #   github.com
@@ -2094,43 +2096,65 @@ function GithubAuthStatus                     (){
 function GithubListPullRequests               ( [String] $repo, [String] $filterToBranch = "", [String] $filterFromBranch = "", [String] $filterState = "open" ){
                                                 # repo has format [HOST/]OWNER/REPO
                                                 [String] $fields = "number,state,createdAt,title,labels,author,assignees,updatedAt,url,body,closedAt,repository,authorAssociation,commentsCount,isLocked,isPullRequest,id";
-                                                ProcessEnvVarSet "GH_NO_UPDATE_NOTIFIER" "1";
+                                                GithubPrepareCommand;
                                                 [String] $out = (ProcessStart "gh" @("search", "prs", "--repo", $repo, "--state", $filterState, "--base", $filterToBranch, "--head", $filterFromBranch, "--json", $fields) -traceCmd:$true);
                                                 return ($out | ConvertFrom-Json); }
 function GithubCreatePullRequest              ( [String] $repo, [String] $toBranch, [String] $fromBranch, [String] $title = "", [String] $repoDirForCred = "" ){
+                                                # repo           : has format [HOST/]OWNER/REPO .
+                                                # title          : default title is "Merge $fromBranch into $toBranch".
                                                 # repoDirForCred : Any folder under any git repository, from which the credentials will be taken, use empty for current dir.
-                                                # default title is "Merge $fromBranch into $toBranch"
-                                                # repo has format [HOST/]OWNER/REPO
-                                                # example: GithubCreatePullRequest "mniederw/ITZielbild" "UAT"         "UAT_Prepare" "" $PSScriptRoot; }
-                                                OutProgress "Create a github-pull-request from $fromBranch to $toBranch in repo: $repo";
+                                                # example: GithubCreatePullRequest "mniederw/MnCommonPsToolLib" "trunk" "main" "" $PSScriptRoot;
+                                                OutProgress "Create a github-pull-request from branch $fromBranch to $toBranch in repo: $repo";
                                                 if( $title -eq "" ){ $title = "Merge $fromBranch to $toBranch"; }
                                                 [String[]] $prUrls = @()+(GithubListPullRequests $repo $toBranch $fromBranch |
                                                   Where-Object{$null -ne $_} | ForEach-Object{ $_.url });
                                                 if( $prUrls.Count -gt 0 ){
+                                                  # if we would perform the gh command we would get: rc=1  https://github.com/myowner/myrepo/pull/1234 a pull request for branch "mybranch" into branch "main" already exists:
                                                   OutProgress "A pull request for branch $fromBranch into $toBranch already exists: $($prUrls[0])";
                                                   return;
                                                 }
                                                 Push-Location $repoDirForCred;
+                                                GithubPrepareCommand;
                                                 [String] $out = "";
                                                 try{
-                                                  ProcessEnvVarSet "GH_NO_UPDATE_NOTIFIER" "1"; # otherwise we would get: "A new release of gh is available: 2.7.0 → v2.31.0\nhttps://github.com/cli/cli/releases/tag/v2.31.0"
                                                   $out = (ProcessStart "gh" @("pr", "create", "--repo", $repo, "--base", $toBranch, "--head", $fromBranch, "--title", $title, "--body", " ") -careStdErrAsOut:$true -traceCmd:$true);
                                                 }catch{
+                                                  # example: rc=1  pull request create failed: GraphQL: No commits between main and trunk (createPullRequest)
                                                   if( $_.Exception.Message.Contains("pull request create failed: GraphQL: No commits between ") ){
                                                     $error.clear();
-                                                    OutInfo "No pull request nessessary because no commit between $toBranch and $fromBranch .";
+                                                    $out = "No pull request nessessary because no commit between branches `"$toBranch`" and `"$fromBranch`" .";
                                                   }else{ throw; }
                                                 }
                                                 Pop-Location;
-                                                # Output:
+                                                # Possible outputs, one of:
                                                 #   Warning: 2 uncommitted changes
                                                 #   Creating pull request for myfrombranch into main in myowner/myrepo
                                                 #   a pull request for branch "myfrombranch" into branch "main" already exists:
                                                 #   https://github.com/myowner/myrepo/pull/1234
-                                                # Possible errors:
-                                                #   rc=1  https://github.com/myowner/myrepo/pull/1234 a pull request for branch "mybranch" into branch "main" already exists:
-                                                #   rc=1  pull request create failed: GraphQL: No commits between QA and Develop (createPullRequest)
                                                 OutProgress $out; }
+function ToolGetBranchCommit                 ( [String] $repo, [String] $branch, [String] $repoDirForCred = "", [Boolean] $traceCmd = $false ){
+                                                # repo           : has format [HOST/]OWNER/REPO
+                                                # branch         : if branch is not uniquely defined it will throw.
+                                                # repoDirForCred : Any folder under any git repository, from which the credentials will be taken, use empty for current dir.
+                                                # traceCmd       : Output progress messages instead only the result.
+                                                # example: ToolListBranchCommit "mniederw/MnCommonPsToolLib" "trunk" $PSScriptRoot;
+                                                if( $traceCmd ){ OutProgress "List github-branch-commit from branch $branch in repo: $repo"; }
+                                                Push-Location $repoDirForCred;
+                                                GithubPrepareCommand;
+                                                [String] $out = "";
+                                                try{
+                                                  # example: gh api repos/local-ch/ITZielbild/git/refs/heads/Develop --jq '.object.sha'
+                                                  $out = (ProcessStart "gh" @("api", "repos/$repo/git/refs/heads/$branch", "--jq", ".object.sha" ) -careStdErrAsOut:$false -traceCmd:$traceCmd).Trim();
+                                                }catch{
+                                                  # ex: "rc=1  gh: Not Found (HTTP 404)"
+                                                  # ex: "rc=1  expected an object but got: array ([{"node_id":"MDM6UmVmMTQ0 ...])""
+                                                  if( $_.Exception.Message.Contains("gh: Not Found (HTTP 404)") || $_.Exception.Message.Contains("expected an object but got: array ") ){
+                                                    $error.clear();
+                                                    throw [ExcMsg] "ToolListBranchCommit: In github repo $repo no branch exists with name `"$branch`".";
+                                                  }else{ throw; }
+                                                }
+                                                Pop-Location;
+                                                if( $traceCmd ){ OutProgress $out; }else{ return [String] $out; } }
 function GitTortoiseCommit                    ( [String] $workDir, [String] $commitMessage = "" ){
                                                 [String] $tortoiseExe = (RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseGit" "ProcPath"); # ex: "C:\Program Files\TortoiseGit\bin\TortoiseGitProc.exe"
                                                 Start-Process -NoNewWindow -Wait -FilePath "$tortoiseExe" -ArgumentList @("/command:commit","/path:`"$workDir`"", "/logmsg:$commitMessage"); AssertRcIsOk; }
