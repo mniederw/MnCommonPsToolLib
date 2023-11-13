@@ -263,8 +263,11 @@ function StringPadRight                       ( [String] $s, [Int32] $len, [Bool
                                                 [String] $r = $s; if( $doQuote ){ $r = '"'+$r+'"'; } return [String] $r.PadRight($len,$c); }
 function StringSplitIntoLines                 ( [String] $s ){ return [String[]] (($s -replace "`r`n", "`n") -split "`n"); } # for empty string it returns an array with one item.
 function StringReplaceNewlines                ( [String] $s, [String] $repl = " " ){ return [String] ($s -replace "`r`n", "`n" -replace "`r", "" -replace "`n", $repl); }
-function StringSplitToArray                   ( [String] $sep, [String] $s, [Boolean] $removeEmptyEntries = $true ){
-                                                return [String[]] $s.Split($sep,$(switch($removeEmptyEntries){($true){[System.StringSplitOptions]::RemoveEmptyEntries}default{[System.StringSplitOptions]::None}})); }
+function StringSplitToArray                   ( [String] $word, [String] $s, [Boolean] $removeEmptyEntries = $true ){ # works case sensitive
+                                                # this not works correctly on PS5: return [String[]] $s.Split($word,$(switch($removeEmptyEntries){($true){[System.StringSplitOptions]::RemoveEmptyEntries}default{[System.StringSplitOptions]::None}})); }
+                                                [String[]] $res = ($s -csplit $word,0,"SimpleMatch");
+                                                $res = ($res | Where-Object{ (-not $removeEmptyEntries) -or $_ -ne "" });
+                                                return [String[]] (@()+$res); }
 function StringReplaceEmptyByTwoQuotes        ( [String] $str ){ return [String] $(switch((StringIsNullOrEmpty $str)){($true){"`"`""}default{$str}}); }
 function StringRemoveLeft                     ( [String] $str, [String] $strLeft , [Boolean] $ignoreCase = $true ){ [String] $s = StringLeft  $str $strLeft.Length ;
                                                 return [String] $(switch(($ignoreCase -and $s -eq $strLeft ) -or $s -ceq $strLeft ){ ($true){$str.Substring($strLeft.Length,$str.Length-$strLeft.Length)} default{$str} }); }
@@ -517,7 +520,7 @@ function StdPipelineErrorWriteMsg             ( [String] $msg ){ Write-Error $ms
 function StdOutBegMsgCareInteractiveMode      ( [String] $mode = "" ){ # Available mode: ""="DoRequestAtBegin", "NoRequestAtBegin", "NoWaitAtEnd", "MinimizeConsole".
                                                 # Usually this is the first statement in a script after an info line. So you can give your scripts a standard styling.
                                                 if( $mode -eq "" ){ $mode = "DoRequestAtBegin"; }
-                                                ScriptResetRc; [String[]] $modes = @()+($mode -split "," |
+                                                ScriptResetRc; [String[]] $modes = @()+($mode -split ",",0 |
                                                   Where-Object{$null -ne $_} | ForEach-Object{ $_.Trim() });
                                                 [String[]] $availableModes = @( "DoRequestAtBegin", "NoRequestAtBegin", "NoWaitAtEnd", "MinimizeConsole" );
                                                 [Boolean] $modesAreValid = ((@()+($modes | Where-Object{$null -ne $_} | Where-Object{ $availableModes -notcontains $_})).Count -eq 0 );
@@ -1295,7 +1298,7 @@ function FileAppendLines                      ( [String] $file, [String[]] $line
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
                                                 FsEntryCreateParentDir $file;
                                                 $lines | Out-File -Encoding $encoding -Append -LiteralPath $file; }
-function FileGetTempFile                      (){ return [String] [System.IO.Path]::GetTempFileName(); }
+function FileGetTempFile                      (){ return [String] [System.IO.Path]::GetTempFileName(); } # Example on linux: "/tmp/tmpFN3Gnz.tmp"; on windows: C:\Windows\Temp\tmpE3B6.tmp
 function FileDelTempFile                      ( [String] $file ){ if( (FileExists $file) ){
                                                 OutDebug "FileDelete -Force `"$file`"";
                                                 Remove-Item -Force -LiteralPath $file; } } # As FileDelete but no progress msg.
@@ -1923,7 +1926,7 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                 [String] $state = "  TargetDir: $(FsEntryReportMeasureInfo "$tarDir") (BeforeStart: $stateBefore)";
                                                 FileAppendLineWithTs $logf $state;
                                                 OutProgress $state; }
-<# Script local variable: gitLogFile #>       [String] $script:gitLogFile = "${env:TEMP}/tmp/MnCommonPsToolLibLog/Git.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
+<# Script local variable: gitLogFile #>       [String] $script:gitLogFile = "${env:TEMP}/tmp/MnCommonPsToolLibLog/$(DateTimeNowAsStringIsoYear)/$(DateTimeNowAsStringIsoMonth)/Git.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
 function GitBuildLocalDirFromUrl              ( [String] $tarRootDir, [String] $urlAndOptionalBranch ){
                                                 # Maps a root dir and a repo url with an optional sharp-char separated branch name
                                                 # to a target repo dir which contains all url fragments below the hostname.
@@ -1951,7 +1954,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                 # ex: GitCmd Clone "C:\WorkGit" "https://github.com/mniederw/MnCommonPsToolLib#MyBranch"
                                                 if( @("Clone","Fetch","Pull","CloneOrPull","Reset") -notcontains $cmd ){
                                                   throw [Exception] "Expected one of (Clone,Fetch,Pull,CloneOrPull,Reset) instead of: $cmd"; }
-                                                if( ($urlAndOptionalBranch -split "/")[-1] -notmatch "^[A-Za-z0-9]+[A-Za-z0-9._-]*(#[A-Za-z0-9]+[A-Za-z0-9._-]*)?$" ){
+                                                if( ($urlAndOptionalBranch -split "/",0)[-1] -notmatch "^[A-Za-z0-9]+[A-Za-z0-9._-]*(#[A-Za-z0-9]+[A-Za-z0-9._-]*)?$" ){
                                                   throw [Exception] "Expected only ident-chars as (letter,numbers,.,_,-) for last part of `"$urlAndOptionalBranch`"."; }
                                                 [String[]] $urlOpt = @()+(StringSplitToArray "#" $urlAndOptionalBranch);
                                                 [String] $url = $urlOpt[0]; # repo url without branch.
@@ -2148,7 +2151,7 @@ function ToolGetBranchCommit                 ( [String] $repo, [String] $branch,
                                                 }catch{
                                                   # ex: "rc=1  gh: Not Found (HTTP 404)"
                                                   # ex: "rc=1  expected an object but got: array ([{"node_id":"MDM6UmVmMTQ0 ...])""
-                                                  if( $_.Exception.Message.Contains("gh: Not Found (HTTP 404)") || $_.Exception.Message.Contains("expected an object but got: array ") ){
+                                                  if( $_.Exception.Message.Contains("gh: Not Found (HTTP 404)") -or $_.Exception.Message.Contains("expected an object but got: array ") ){
                                                     $error.clear();
                                                     throw [ExcMsg] "ToolListBranchCommit: In github repo $repo no branch exists with name `"$branch`".";
                                                   }else{ throw; }
@@ -2270,7 +2273,7 @@ function GitCloneOrPullUrls                   ( [String[]] $listOfRepoUrls, [Str
                                                 # CachedAuthorizationFile="$env:APPDATA\Subversion\auth\svn.simple\25ff84926a354d51b4e93754a00064d6"; CachedAuthorizationUser="myuser"; Revision="1234"
 function SvnExe                               (){ # Note: if certificate is not accepted then a pem file (for example lets-encrypt-r3.pem) can be added to file "$env:APPDATA\Subversion\servers"
                                                 return [String] ((RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseSVN" "Directory") + ".\bin\svn.exe"); }
-<# Script local variable: svnLogFile #>       [String] $script:svnLogFile = "${env:TEMP}/tmp/MnCommonPsToolLibLog/Svn.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
+<# Script local variable: svnLogFile #>       [String] $script:svnLogFile = "${env:TEMP}/tmp/MnCommonPsToolLibLog/$(DateTimeNowAsStringIsoYear)/$(DateTimeNowAsStringIsoMonth)/Svn.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
 function SvnEnvInfoGet                        ( [String] $workDir ){
                                                 # Return SvnEnvInfo; no param is null.
                                                 OutProgress "SvnEnvInfo - Get svn environment info of workDir=`"$workDir`"; ";
@@ -2322,7 +2325,7 @@ function SvnEnvInfoGet                        ( [String] $workDir ){
                                                 if( (StringIsNullOrEmpty $result.Url     ) ){ throw [Exception] "missing URL tag in svn info"; }
                                                 if( (StringIsNullOrEmpty $result.Path    ) ){ throw [Exception] "missing Path tag in svn info"; }
                                                 if( (StringIsNullOrEmpty $result.Revision) ){ throw [Exception] "missing Revision tag in svn info"; }
-                                                $result.RealmPattern = ($result.Url -Split "/svn/")[0] + $(switch(($result.Url -split "/")[0]){ "https:"{":443"} "http:"{":80"} default{""} });
+                                                $result.RealmPattern = ($result.Url -Split "/svn/",2)[0] + $(switch(($result.Url -split "/",2)[0]){ "https:"{":443"} "http:"{":80"} default{""} });
                                                 $result.CachedAuthorizationFile = "";
                                                 $result.CachedAuthorizationUser = "";
                                                 # Svn can cache more than one server connection option, so we need to find the correct one by matching the realmPattern in realmstring which identifies a server connection.
@@ -2642,7 +2645,7 @@ function TfsExe                               (){ # return tfs executable
                                                 # for future use: tf.exe checkout /lock:checkout /recursive file
                                                 # for future use: tf.exe merge /baseless /recursive /version:C234~C239 branchFrom branchTo
                                                 # for future use: tf.exe workfold /workspace:ws /cloak
-<# Script local variable: tfsLogFile #>       [String] $script:tfsLogFile = "${env:TEMP}/tmp/MnCommonPsToolLibLog/Tfs.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
+<# Script local variable: tfsLogFile #>       [String] $script:tfsLogFile = "${env:TEMP}/tmp/MnCommonPsToolLibLog/$(DateTimeNowAsStringIsoYear)/$(DateTimeNowAsStringIsoMonth)/Tfs.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
 function TfsHelpWorkspaceInfo                 (){
                                                 OutProgress "Help Workspace Info - Command Line Examples";
                                                 OutProgress "- Current Tool Path: `"$(TfsExe)`"";
@@ -3397,4 +3400,15 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 # - Encoding problem on PS5: There is no encoding as UTF8NoBOM, so for UTF8 it generally writes a BOM, alternative code would be:
 #   [System.IO.File]::WriteAllLines($f,$lines,(New-Object System.Text.UTF8Encoding $false))
 # - More on differences of PS5 and PS7 see: https://learn.microsoft.com/en-us/powershell/scripting/whats-new/differences-from-windows-powershell?view=powershell-7.3
+#
+
+
+
+# - In PS5 it cannot detect that string is different than char[]
+#   There is: https://learn.microsoft.com/en-us/dotnet/api/system.string.split?view=net-7.0
+#   - String.Split(Char[] sep)
+#   - String.Split(String word)
+#   [String] $s = "abcd"; [String] $sep = "bx";
+#   if( (ProcessIsLesserEqualPs5) ){ Assert ($s.Split($sep)[0] -eq "a"); }else{ Assert ($s.Split($sep)[0] -eq "abcd"); }
+#   - Conclusion: Known BUG: In PS5 this is not working s.Split([String]...)  (it interprets it as s.Split([Char[]]...)
 #

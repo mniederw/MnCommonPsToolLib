@@ -1060,7 +1060,7 @@ function ToolSetAssocFileExtToCmd             ( [String[]] $fileExtensions, [Str
                                                 # ex: ToolSetAssocFileExtToCmd ".log"           "%SystemRoot%\System32\notepad.exe" "txtfile";
                                                 # ex: ToolSetAssocFileExtToCmd ".out"           "`"C:\Any.exe`" `"%1`" -xy";
                                                 # ex: ToolSetAssocFileExtToCmd ".out" "";
-                                                [String] $prg = $cmd; if( $cmd.StartsWith("`"") ){ $prg = ($prg -split "`"")[1]; }
+                                                [String] $prg = $cmd; if( $cmd.StartsWith("`"") ){ $prg = ($prg -split "`"",0)[1]; }
                                                 [String] $exec = $cmd; if( -not $cmd.StartsWith("`"") ){ $exec = "`"$cmd`" `"%1`""; }
                                                 [String] $traceInfo = "ToolSetAssocFileExtToCmd($fileExtensions,`"$cmd`",$ftype,$assertPrgExists)";
                                                 if( $assertPrgExists -and $cmd -ne "" -and (FileNotExists $prg) ){
