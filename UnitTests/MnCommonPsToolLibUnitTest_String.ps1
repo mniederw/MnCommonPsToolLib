@@ -34,7 +34,7 @@ function Test_String(){
   # Note: when StringSplitToArray returns only 1 item, then use convert to array before accessing an element otherwise you access the unwanted indexed char of the string.
   Assert         ((StringSplitToArray                ","  "abc,def,,ghi" $true)[2]  -eq "ghi"       );
   Assert         ((StringSplitToArray                "c"  "abcde")[0]               -eq "ab"        );
-  Assert         (([String[]](StringSplitToArray     "cx" "abcde"))[0]              -eq "abcde"     ); 
+  Assert         (([String[]](StringSplitToArray     "cx" "abcde"))[0]              -eq "abcde"     );
   Assert         (([String[]](StringSplitToArray     "C"  "abcde"))[0]              -eq "abcde"     );
   Assert         ((StringSplitToArray                "c"  "abccd"       ).Count     -eq 2           );
   Assert         ((StringSplitToArray                "c"  "abccd" $false).Count     -eq 3           );

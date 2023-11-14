@@ -5,6 +5,7 @@ Major version will reflect breaking changes, minor identifies extensions and thi
 Breaking changes are usually removed deprecated functions or changed behaviours.
 Current version can be requested by: $MnCommonPsToolLibVersion
 
+2023-11-13  V7.30  Improve DateTimeFromStringIso, Fix portability issues in DateTimeFromStringOrDateTimeValue, ToolGithubApiDownloadLatestReleaseDir. Add Unittests.
 2023-11-12  V7.29  Fix StringSplitToArray and extend its unittest.
 2023-11-01  V7.28  Add ToolListBranchCommit. Extend ProcessEnvVarSet by traceCmd.
 2023-10-21  V7.27  Add FsEntryGetSize, unify using computername var.

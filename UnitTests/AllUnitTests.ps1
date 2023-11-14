@@ -17,6 +17,7 @@ Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Info.ps1";
 Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Int_DateTime_ByteArray.ps1";
 Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Juniper.ps1";
 Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Net.ps1";
+Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTest_KnownBugs.ps1";
 Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Priv.ps1";
 Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Process_Job.ps1";
 Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTest_PsCommon.ps1";

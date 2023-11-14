@@ -60,7 +60,7 @@
 
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $global:MnCommonPsToolLibVersion = "7.28"; # more see Releasenotes.txt
+[String] $global:MnCommonPsToolLibVersion = "7.30"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -384,23 +384,25 @@ function DateTimeNowAsStringIsoDate           (){ return [String] (Get-Date -for
 function DateTimeNowAsStringIsoMonth          (){ return [String] (Get-Date -format "yyyy-MM"); }
 function DateTimeNowAsStringIsoYear           (){ return [String] (Get-Date -format "yyyy"); }
 function DateTimeNowAsStringIsoInMinutes      (){ return [String] (Get-Date -format "yyyy-MM-dd HH:mm"); }
-function DateTimeFromStringIso                ( [String] $s ){ # "yyyy-MM-dd HH:mm:ss.fff" or "yyyy-MM-ddTHH:mm:ss.fff".
+function DateTimeFromStringIso                ( [String] $s ){ # "yyyy-MM-dd HH:mm:ss.fff" or "yyyy-MM-ddTHH:mm:ss.fff" or "yyyy-MM-ddTHH:mm:ss.fffzzz".
                                                 [String] $fmt = "yyyy-MM-dd HH:mm:ss.fff";
-                                                if( $s.Length -le 10 ){ $fmt = "yyyy-MM-dd"; }
+                                                if    ( $s.Length -le 10 ){ $fmt = "yyyy-MM-dd"; }
                                                 elseif( $s.Length -le 16 ){ $fmt = "yyyy-MM-dd HH:mm"; }
                                                 elseif( $s.Length -le 19 ){ $fmt = "yyyy-MM-dd HH:mm:ss"; }
                                                 elseif( $s.Length -le 20 ){ $fmt = "yyyy-MM-dd HH:mm:ss."; }
                                                 elseif( $s.Length -le 21 ){ $fmt = "yyyy-MM-dd HH:mm:ss.f"; }
                                                 elseif( $s.Length -le 22 ){ $fmt = "yyyy-MM-dd HH:mm:ss.ff"; }
+                                                elseif( $s.Length -le 23 ){ $fmt = "yyyy-MM-dd HH:mm:ss.fff"; }
+                                                elseif( $s.Length -le 28 ){ $fmt = "yyyy-MM-dd HH:mm:ss.fffzzz"; }
                                                 if( $s.Length -gt 10 -and $s[10] -ceq 'T' ){ $fmt = $fmt.remove(10,1).insert(10,'T'); }
-                                                try{ return [DateTime] [datetime]::ParseExact($s,$fmt,$null);
+                                                try{ return [DateTime] [DateTime]::ParseExact($s,$fmt,[System.Globalization.CultureInfo]::InvariantCulture);
                                                 }catch{ <# ex: Ausnahme beim Aufrufen von "ParseExact" mit 3 Argument(en): Die Zeichenfolge wurde nicht als gültiges DateTime erkannt. #>
                                                   throw [Exception] "DateTimeFromStringIso(`"$s`") is not a valid datetime in format `"$fmt`""; } }
 function DateTimeFromStringOrDateTimeValue    ( [Object] $v ){ # Used for example after ConvertFrom-Json for unifying a value to type DateTime because PS7 sets for example type=DateTime and PS5 the type=String.
-                                                # example: "2023-06-30T23:59:59.123+0000"
+                                                # example input: "2023-06-30T23:59:59.123+0000"
                                                 return [DateTime] $(switch($v.GetType().FullName){
                                                   "System.DateTime" { $v; }
-                                                  "System.String"   { [DateTime]::ParseExact($v,"yyyy-MM-dd'T'HH:mm:ss.fffzzz",[System.Globalization.CultureInfo]::InvariantCulture); }
+                                                  "System.String"   { (DateTimeFromStringIso $v); }
                                                   default           { throw [Exception] "Expected type String or DateTime instead of $($v.GetType().FullName) for value: $v"; }
                                                 }); }
 function ByteArraysAreEqual                   ( [Byte[]] $a1, [Byte[]] $a2 ){ if( $a1.LongLength -ne $a2.LongLength ){ return [Boolean] $false; }
@@ -3116,7 +3118,8 @@ function ToolGithubApiListOrgRepos            ( [String] $org, [System.Managemen
                                                   [String] $url = "https://api.github.com/orgs/$org/repos?per_page=100&page=$i";
                                                   [Object] $json = NetDownloadToString $url $us $pw | ConvertFrom-Json;
                                                   [Array] $a = @()+($json | Select-Object @{N='Url';E={$_.html_url}}, archived, private, fork, forks, language,
-                                                    @{N='CreatedAt';E={$_.created_at.SubString(0,10)}}, @{N='UpdatedAt';E={$_.updated_at.SubString(0,10)}},
+                                                    @{N='CreatedAt';E={(DateTimeFromStringOrDateTimeValue $_.created_at).ToString("yyyy-MM-dd")}},
+                                                    @{N='UpdatedAt';E={(DateTimeFromStringOrDateTimeValue $_.updated_at).ToString("yyyy-MM-dd")}},
                                                     @{N='PermAdm';E={$_.permissions.admin}}, @{N='PermPush';E={$_.permissions.push}}, @{N='PermPull';E={$_.permissions.pull}},
                                                     default_branch, @{N='LicName';E={$_.license.name}},
                                                     @{N='Description';E={$_.description.SubString(0,200)}});
@@ -3138,8 +3141,8 @@ function ToolGithubApiDownloadLatestReleaseDir( [String] $repoUrl ){
                                                 # ex: $apiUrl = "https://api.github.com/repos/mniederw/MnCommonPsToolLib"
                                                 [String] $url = "$apiUrl/releases/latest";
                                                 OutProgress "Download: $url";
-                                                [Object] $apiObj = (& "curl" -s $url) | ConvertFrom-Json; AssertRcIsOk;
-                                                [String] $relName = "$($apiObj.name) [$($apiObj.target_commitish),$($apiObj.created_at.Substring(0,10)),$($apiObj.tag_name)]";
+                                                [Object] $apiObj = NetDownloadToString $url | ConvertFrom-Json;
+                                                [String] $relName = "$($apiObj.name) [$($apiObj.target_commitish),$((DateTimeFromStringOrDateTimeValue $apiObj.created_at).ToString("yyyy-MM-dd")),$($apiObj.tag_name)]";
                                                 OutProgress "Selected: `"$relName`"";
                                                 # ex: $apiObj.zipball_url = "https://api.github.com/repos/mniederw/MnCommonPsToolLib/zipball/V4.9"
                                                 # ex: $relName = "OpenSource-GPL3 MnCommonPsToolLib V4.9 en 2020-02-13 [master,2020-02-13,V4.9]"
@@ -3217,7 +3220,7 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #                   Can be null if not windows command was called. Should not manually set, but if yes then as: $global:LASTEXITCODE = $null;
 # - Available colors for console -foregroundcolor and -backgroundcolor:
 #   Black DarkBlue DarkGreen DarkCyan DarkRed DarkMagenta DarkYellow Gray DarkGray Blue Green Cyan Red Magenta Yellow White
-# - Do not use write-host, use write-output. See http://www.jsnover.com/blog/2013/12/07/write-host-considered-harmful/
+# - Do not use Write-Host, use Write-Output. See http://www.jsnover.com/blog/2013/12/07/write-host-considered-harmful/
 #   But then you have to switch  $host.ui.RawUI.ForegroundColor for colors
 # - Manifest .psd1 file can be created with: New-ModuleManifest MnCommonPsToolLib.psd1 -ModuleVersion "1.0" -Author "Marc Niederwieser"
 # - Known Bugs or Problems:
@@ -3228,7 +3231,7 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #     But if type String is within a struct then it can be null.
 #       Add-Type -TypeDefinition "public struct MyStruct {public string MyVar;}"; Assert( $null -eq (New-Object MyStruct).MyVar );
 #     And the string variable is null IF IT IS RUNNING IN A SCRIPT in ps5or7, if running interactive then it is not null:
-#       [String] $a = @() | Where-Object{ $false }; echo "IsStringNull: $($null -eq $a)";
+#       [String] $a = @() | Where-Object{ $false }; Write-Output "IsStringNull: $($null -eq $a)";
 #   - GetFullPath() works not with the current dir but with the working dir where powershell was started (ex. when running as administrator).
 #     http://stackoverflow.com/questions/4071775/why-is-powershell-resolving-paths-from-home-instead-of-the-current-directory/4072205
 #     powershell.exe         ;
@@ -3290,8 +3293,10 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #       Try using the New-Variable or Set-Variable cmdlet (without any aliases),
 #       or dot-source the command that you are using to set the variable.
 #     Recommendation: Rename one of the variables.
-#   - DotNet functions as Split() can return empty arrays:
-#       [String[]] $a = "".Split(";",[System.StringSplitOptions]::RemoveEmptyEntries); if( $a.Count -eq 0 ){ write-Output "ok reached"; }
+#   - Good behaviour: DotNet functions as Split() can return empty arrays instead of return $null:
+#       [String[]] $a = "".Split(";",[System.StringSplitOptions]::RemoveEmptyEntries); if( $a.Count -eq 0 ){ write-Output "Ok, array-is-empty"; }
+#     But the PS5 version has a bug:
+#       [String] $s = "abc".Split("cx"); if( $s -eq "abc" ){ Write-Output "Ok, correct."; }else{ Write-Output "Result='$s' is wrong. We know it happens in PS5, Current-PS-Version: $($PSVersionTable.PSVersion.Major)"; }
 #   - Exceptions are always catched within Pipeline Expression statement and instead of expecting the throw it returns $null:
 #     [Object[]] $a = @( "a", "b" ) | Select-Object -Property @{Name="Field1";Expression={$_}} |
 #       Select-Object -Property Field1,
@@ -3400,15 +3405,4 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 # - Encoding problem on PS5: There is no encoding as UTF8NoBOM, so for UTF8 it generally writes a BOM, alternative code would be:
 #   [System.IO.File]::WriteAllLines($f,$lines,(New-Object System.Text.UTF8Encoding $false))
 # - More on differences of PS5 and PS7 see: https://learn.microsoft.com/en-us/powershell/scripting/whats-new/differences-from-windows-powershell?view=powershell-7.3
-#
-
-
-
-# - In PS5 it cannot detect that string is different than char[]
-#   There is: https://learn.microsoft.com/en-us/dotnet/api/system.string.split?view=net-7.0
-#   - String.Split(Char[] sep)
-#   - String.Split(String word)
-#   [String] $s = "abcd"; [String] $sep = "bx";
-#   if( (ProcessIsLesserEqualPs5) ){ Assert ($s.Split($sep)[0] -eq "a"); }else{ Assert ($s.Split($sep)[0] -eq "abcd"); }
-#   - Conclusion: Known BUG: In PS5 this is not working s.Split([String]...)  (it interprets it as s.Split([Char[]]...)
 #
