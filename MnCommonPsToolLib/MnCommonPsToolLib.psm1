@@ -664,11 +664,18 @@ function ProcessRestartInElevatedAdminMode    (){ if( (ProcessIsRunningInElevate
                                                   $cmd = $(switch((ProcessIsLesserEqualPs5)){ $true{"& `"$cmd`""} default{"-Command `"$cmd`""}});
                                                   $cmd = $(switch(ScriptIsProbablyInteractive){ ($true){"-NoExit -NoLogo "} default{""} }) + $cmd;
                                                   OutProgress "Not running in elevated administrator mode so elevate current script and exit:";
-                                                  OutProgress "  Start-Process -Verb RunAs -FilePath $(ProcessPsExecutable) -ArgumentList $cmd";
-                                                  Start-Process -Verb "RunAs" -FilePath (ProcessPsExecutable) -ArgumentList $cmd;
-                                                  # ex: InvalidOperationException: This command cannot be run due to the error: Der Vorgang wurde durch den Benutzer abgebrochen.
-                                                  OutProgress "Exiting in 10 seconds";
-                                                  ProcessSleepSec 10;
+                                                  if( (OsIsWindows) ){
+                                                    OutProgress "  Start-Process -Verb RunAs -FilePath $(ProcessPsExecutable) -ArgumentList $cmd";
+                                                    Start-Process -Verb "RunAs" -FilePath (ProcessPsExecutable) -ArgumentList $cmd;
+                                                    # ex: InvalidOperationException: This command cannot be run due to the error: Der Vorgang wurde durch den Benutzer abgebrochen.
+                                                    OutProgress "Exiting in 10 seconds";
+                                                    ProcessSleepSec 10;
+                                                  }else{
+                                                    # 2023-12: Start-Process: The parameter '-Verb' is not supported for the cmdlet 'Start-Process' on this edition of PowerShell.
+                                                    $cmd = "$(ProcessPsExecutable) $cmd"; # maybe we have to use: -CommandWithArgs cmdString
+                                                    OutProgress "  sudo $(StringCommandLineToArray $cmd)";
+                                                    & sudo (StringCommandLineToArray $cmd);
+                                                  }
                                                   [Environment]::Exit("0"); # Note: 'Exit 0;' would only leave the last '. mycommand' statement.
                                                   throw [Exception] "Exit done, but it did not work, so it throws now an exception.";
                                                 } }
