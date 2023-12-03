@@ -1179,7 +1179,7 @@ function FsEntryTrySetOwnerAndAclsIfNotSet    ( [String] $fsEntry, [System.Secur
                                                       ForEach-Object{ FsEntryTrySetOwnerAndAclsIfNotSet $_ $account $true };
                                                   }
                                                 }catch{
-                                                  OutWarning "FsEntryTrySetOwnerAndAclsIfNotSet `"$fsEntry`" $account $recursive : Failed because $($_.Exception.Message)";
+                                                  OutWarning "Warning: FsEntryTrySetOwnerAndAclsIfNotSet `"$fsEntry`" $account $recursive : Failed because $($_.Exception.Message)";
                                                 } }
 function FsEntryTryForceRenaming              ( [String] $fsEntry, [String] $extension ){
                                                 if( (FsEntryExists $fsEntry) ){
@@ -2101,7 +2101,7 @@ function GitMerge                             ( [String] $repoDir, [String] $bra
                                                   OutProgress $out;
                                                 }catch{
                                                   if( -not $errorAsWarning ){ throw [Exception] "Merge failed, fix conflicts manually: $_.Exception.Message"; }
-                                                  OutWarning "Merge of branch $branch into `"$repoDir`" failed, fix conflicts manually. ";
+                                                  OutWarning "Warning: Merge of branch $branch into `"$repoDir`" failed, fix conflicts manually. ";
                                                 } }
 function GithubPrepareCommand                 (){ # otherwise we would get: "A new release of gh is available: 2.7.0 → v2.31.0\nhttps://github.com/cli/cli/releases/tag/v2.31.0"
                                                  ProcessEnvVarSet "GH_NO_UPDATE_NOTIFIER" "1" -traceCmd:$false; }
@@ -2266,7 +2266,7 @@ function GitCloneOrPullUrls                   ( [String[]] $listOfRepoUrls, [Str
                                                   try{
                                                     GitCmd "CloneOrPull" $tarRootDirOfAllRepos $url $errorAsWarning;
                                                   }catch{
-                                                    [String] $msg = $_.Exception.Message; OutError $msg; $errorLines += $msg;
+                                                    [String] $msg = "Error: $($_.Exception.Message)"; OutError $msg; $errorLines += $msg;
                                                   }
                                                 }
                                                 if( $listOfRepoUrls.Count -eq 1 ){ GetOne $listOfRepoUrls[0]; }
@@ -2276,7 +2276,7 @@ function GitCloneOrPullUrls                   ( [String[]] $listOfRepoUrls, [Str
                                                     try{
                                                       GitCmd "CloneOrPull" $using:tarRootDirOfAllRepos $using:_ $using:errorAsWarning;
                                                     }catch{
-                                                      [String] $msg = $_.Exception.Message; OutError $msg;
+                                                      [String] $msg = "Error: $($_.Exception.Message)"; OutError $msg;
                                                       FileAppendLine $using:tmp $msg;
                                                     }
                                                   } } | Wait-Job | Remove-Job;

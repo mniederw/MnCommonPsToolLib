@@ -1,7 +1,7 @@
 ﻿#!/usr/bin/env pwsh
 # Do not change the following line, it is a powershell statement and not a comment!
 #Requires -Version 3.0
-param( [String] $sel )
+param( [String] $sel ) # if $sel = "Install" then reinstall in standard mode and exit.
 Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 $PSModuleAutoLoadingPreference = "none"; # disable autoloading modules
 trap [Exception] { $Host.UI.WriteErrorLine($_); $HOST.UI.RawUI.ReadKey()|Out-Null; break; } $ErrorActionPreference = "Stop";
@@ -26,19 +26,19 @@ function FsEntryMakeTrailingDirSep            ( [String] $fsEntry ){
 function FsEntryGetAbsolutePath               ( [String] $fsEntry ){ return [String] ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($fsEntry)); }
 function OsPsModulePathList                   (){ return [String[]] ([Environment]::GetEnvironmentVariable("PSModulePath", "Machine").
                                                   Split(";",[System.StringSplitOptions]::RemoveEmptyEntries)); }
-function OsPsModulePathContains               ( [String] $dir ){ # ex: "D:\WorkGit\myaccount\MyPsLibRepoName"
+function OsPsModulePathContains               ( [String] $dir ){ # ex: "D:\WorkGit\myuser\MyPsLibRepoName"
                                                 [String[]] $a = (OsPsModulePathList | ForEach-Object{ FsEntryRemoveTrailingDirSep $_ });
                                                 return [Boolean] ($a -contains (FsEntryRemoveTrailingDirSep $dir)); }
-function OsPsModulePathAdd                    ( [String] $dir ){ if( OsPsModulePathContains $dir ){ return; }
+function OsPsModulePathAdd                    ( [String] $dir ){ if( (OsPsModulePathContains $dir) ){ return; }
                                                 OsPsModulePathSet ((OsPsModulePathList)+@( (FsEntryRemoveTrailingDirSep $dir) )); }
 function OsPsModulePathDel                    ( [String] $dir ){ OsPsModulePathSet (OsPsModulePathList |
                                                 Where-Object{ (FsEntryRemoveTrailingDirSep $_) -ne (FsEntryRemoveTrailingDirSep $dir) }); }
 function OsPsModulePathSet                    ( [String[]] $pathList ){ [Environment]::SetEnvironmentVariable("PSModulePath", ($pathList -join ";")+";", "Machine"); }
 function DirExists                            ( [String] $dir ){ try{ return [Boolean] (Test-Path -PathType Container -LiteralPath $dir ); }
                                                 catch{ throw [Exception] "DirExists($dir) failed because $($_.Exception.Message)"; } }
-function DirListDirs                          ( [String] $d ){ return [String[]] (@()+(Get-ChildItem -Force -Directory -Path $d | ForEach-Object{ $_.FullName })); }
-function DirHasFiles                          ( [String] $d, [String] $filePattern ){
-                                                return [Boolean] ($null -ne (Get-ChildItem -Force -Recurse -File -ErrorAction SilentlyContinue -Path "$d\$filePattern")); }
+function DirListDirs                          ( [String] $dir ){ return [String[]] (@()+(Get-ChildItem -Force -Directory -Path $dir | ForEach-Object{ $_.FullName })); }
+function DirHasFiles                          ( [String] $dir, [String] $filePattern ){
+                                                return [Boolean] ($null -ne (Get-ChildItem -Force -Recurse -File -ErrorAction SilentlyContinue -Path "$dir\$filePattern")); }
 function ScriptGetTopCaller                   (){ [String] $f = $global:MyInvocation.MyCommand.Definition.Trim();
                                                 if( $f -eq "" -or $f -eq "ScriptGetTopCaller" ){ return ""; }
                                                 if( $f.StartsWith("&") ){ $f = $f.Substring(1,$f.Length-1).Trim(); }
@@ -53,13 +53,13 @@ function ProcessRestartInElevatedAdminMode    (){ if( -not (ProcessIsRunningInEl
                                                 OutProgress "Not running in elevated administrator mode so elevate current script and exit: `n  $cmd";
                                                 Start-Process -Verb "RunAs" -FilePath (ProcessPsExecutable) -ArgumentList "& `"$cmd`" ";
                                                 [Environment]::Exit("0"); throw [Exception] "Exit done, but it did not work, so it throws now an exception."; } }
-function ShellSessionIs64not32Bit             (){ if( "$env:ProgramFiles" -eq "$env:ProgramW6432"        ){ return [Boolean] $true ; }
+function ShellSessionIs64not32Bit             (){ if( "$env:ProgramFiles" -eq "$env:ProgramW6432" ){ return [Boolean] $true ; }
                                                 elseif( "$env:ProgramFiles" -eq "${env:ProgramFiles(x86)}" ){ return [Boolean] $false; }
                                                 else{ throw [Exception] "Expected ProgramFiles=`"$env:ProgramFiles`" to be equals to ProgramW6432=`"$env:ProgramW6432`" or ProgramFilesx86=`"${env:ProgramFiles(x86)}`" "; } }
-function UninstallDir                         ( [String] $d ){ OutProgress "RemoveDir '$d'. ";
-                                                if( DirExists $d ){ ProcessRestartInElevatedAdminMode; Remove-Item -Force -Recurse -LiteralPath $d; } }
-function UninstallSrcPath                     ( [String] $d ){ OutProgress "UninstallSrcPath '$d'. ";
-                                                if( (OsPsModulePathContains $d) ){ ProcessRestartInElevatedAdminMode; OsPsModulePathDel $d; } }
+function UninstallDir                         ( [String] $dir ){ OutProgress "RemoveDir '$dir'. ";
+                                                if( (DirExists $dir) ){ ProcessRestartInElevatedAdminMode; Remove-Item -Force -Recurse -LiteralPath $dir; } }
+function UninstallSrcPath                     ( [String] $dir ){ OutProgress "UninstallSrcPath '$dir'. ";
+                                                if( (OsPsModulePathContains $dir) ){ ProcessRestartInElevatedAdminMode; OsPsModulePathDel $dir; } }
 function InstallDir                           ( [String] $srcDir, [String] $tarParDir ){ OutProgress "Copy '$srcDir' `n  to '$tarParDir'. ";
                                                 ProcessRestartInElevatedAdminMode; Copy-Item -Force -Recurse -LiteralPath $srcDir -Destination $tarParDir; }
 function InstallSrcPathToPsModulePathIfNotInst( [String] $srcDir ){ OutProgress "Change environment system variable PSModulePath by appending '$srcDir'. ";
@@ -79,24 +79,46 @@ function AddToPsModulePath                    ( [String] $dir ){
 function OsIsWindows                          (){ return [Boolean] ([System.Environment]::OSVersion.Platform -eq "Win32NT"); }
 
 # see https://docs.microsoft.com/en-us/powershell/scripting/developer/module/installing-a-powershell-module
-[String] $tarRootDir32bit = "${env:ProgramFiles(x86)}\WindowsPowerShell\Modules";
-[String] $tarRootDir64bit = "$env:ProgramW6432\WindowsPowerShell\Modules";
-[String] $srcRootDir      = $PSScriptRoot; if( $srcRootDir -eq "" ){ $srcRootDir = FsEntryGetAbsolutePath "."; } # ex: "D:\WorkGit\myaccount\MyNameOfPsToolLib_master"
+[String] $linuxTargetDir    = "$HOME/.local/share/powershell/Modules";
+[String] $tarRootDir32bit   = "${env:ProgramFiles(x86)}\WindowsPowerShell\Modules";
+[String] $tarRootDir64bit   = "$env:ProgramW6432\WindowsPowerShell\Modules";
+[String] $srcRootDir        = $PSScriptRoot; if( $srcRootDir -eq "" ){ $srcRootDir = FsEntryGetAbsolutePath "."; } # ex: "D:\WorkGit\myuser\MyNameOfPsToolLib_master"
 [String[]] $dirsWithPsm1Files = @()+(DirListDirs $srcRootDir | Where-Object{ DirHasFiles $_ "*.psm1" });
 if( $dirsWithPsm1Files.Count -ne 1 ){ throw [Exception] "Tool is designed for working below '$srcRootDir' with exactly one directory which contains psm1 files but found $($dirsWithPsm1Files.Count) dirs ($dirsWithPsm1Files)"; }
-[String] $moduleSrcDir      = $dirsWithPsm1Files[0]; # ex: "D:\WorkGit\myaccount\MyNameOfPsToolLib_master\MyNameOfPsToolLib"
+[String] $moduleSrcDir      = $dirsWithPsm1Files[0]; # ex: "D:\WorkGit\myuser\MyNameOfPsToolLib_master\MyNameOfPsToolLib" or "/home/myuser/WorkExt/mniederw/MnCommonPsToolLib#trunk/MnCommonPsToolLib"
 [String] $moduleName        = [System.IO.Path]::GetFileName($moduleSrcDir); # ex: "MyNameOfPsToolLib"
 [String] $moduleTarDir32bit = "$tarRootDir32bit\$moduleName";
 [String] $moduleTarDir64bit = "$tarRootDir64bit\$moduleName";
+[String] $moduleTarDirLinux = "$linuxTargetDir/$moduleName";
 
 function CurrentInstallationModes( [String] $color = "White" ){
-  if( DirExists $moduleTarDir64bit       ){ OutStringInColor $color "Installed-in-Std-Mode-for-64bit " $true; }else{ OutStringInColor "Gray" "Not-Installed-in-Std-Mode-for-64bit " $true; }
-  if( DirExists $moduleTarDir32bit       ){ OutStringInColor $color "Installed-in-Std-Mode-for-32bit " $true; }else{ OutStringInColor "Gray" "Not-Installed-in-Std-Mode-for-32bit " $true; }
-  if( OsPsModulePathContains $srcRootDir ){ OutStringInColor $color "Installed-for-Developers "        $true; }else{ OutStringInColor "Gray" "Not-Installed-for-Developers "        $true; }
+  if( (OsIsWindows) ){
+    if( (DirExists $moduleTarDir64bit)       ){ OutStringInColor $color "Installed-in-Std-Mode-for-64bit " $true; }else{ OutStringInColor "Gray" "Not-Installed-in-Std-Mode-for-64bit " $true; }
+    if( (DirExists $moduleTarDir32bit)       ){ OutStringInColor $color "Installed-in-Std-Mode-for-32bit " $true; }else{ OutStringInColor "Gray" "Not-Installed-in-Std-Mode-for-32bit " $true; }
+    if( (OsPsModulePathContains $srcRootDir) ){ OutStringInColor $color "Installed-for-Developers "        $true; }else{ OutStringInColor "Gray" "Not-Installed-for-Developers "        $true; }
+  }else{
+    if( (DirExists $moduleTarDirLinux)       ){ OutStringInColor $color "Installed-in-Std-Mode-for-Linux " $true; }else{ OutStringInColor "Gray" "Not-Installed-in-Std-Mode-for-Linux " $true; }
+  }
   OutInfo "";
 }
 
+function InstallStandardMode(){
+  OutProgress "Install or reinstall in standard mode. ";
+  if( (OsIsWindows) ){
+    UninstallDir $moduleTarDir32bit;
+    UninstallDir $moduleTarDir64bit;
+    UninstallSrcPath $srcRootDir;
+    InstallDir $moduleSrcDir $tarRootDir32bit;
+    InstallDir $moduleSrcDir $tarRootDir64bit;
+  }else{
+    OutProgress "Delete-and-Copy `"$moduleSrcDir`" to `"$moduleTarDirLinux`" ";
+    if( (DirExists $moduleTarDirLinux) ){ Remove-Item -Force -Recurse -LiteralPath $moduleTarDirLinux; }
+    Copy-Item -Force -Recurse -LiteralPath $moduleSrcDir -Destination $linuxTargetDir;  
+  }
+  OutProgressText "Current installation modes: "; CurrentInstallationModes "Green";
+}
 
+if( $sel -eq "Install" ){ InstallStandardMode; [Environment]::Exit("0"); }
 
 # for future use: [Boolean] $isDev = DirExists "$srcRootDir\.git";
 OutInfo         "Install Menu for Powershell Module - $moduleName";
@@ -164,12 +186,7 @@ if( (OsIsWindows) ){
                       UninstallDir $moduleTarDir64bit;
                       UninstallSrcPath $srcRootDir;
                       OutProgressText "Current installation modes: "; CurrentInstallationModes "Green"; }
-  if( $sel -eq "I" ){ UninstallDir $moduleTarDir32bit;
-                      UninstallDir $moduleTarDir64bit;
-                      UninstallSrcPath $srcRootDir;
-                      InstallDir $moduleSrcDir $tarRootDir32bit;
-                      InstallDir $moduleSrcDir $tarRootDir64bit;
-                      OutProgressText "Current installation modes: "; CurrentInstallationModes "Green"; }
+  if( $sel -eq "I" ){ InstallStandardMode; }
   if( $sel -eq "A" ){ UninstallDir $moduleTarDir32bit;
                       UninstallDir $moduleTarDir64bit;
                       InstallSrcPathToPsModulePathIfNotInst $srcRootDir;
@@ -180,8 +197,7 @@ if( (OsIsWindows) ){
 }else{ # non-windows
   OutProgress     "  Running on Non-Windows OS (Linux, MacOS) ";
   OutProgress     "  so currently this installation installs it locally not globally. ";
-  [String] $targetDir = "$HOME/.local/share/powershell/Modules";
-  OutProgress     "  TargetDir: `"$targetDir`" ";
+  OutProgress     "  LinuxTargetDir: `"$linuxTargetDir`" ";
   OutInfo         "  ";
   OutInfo         "  I = Install or reinstall in standard mode. ";
   OutInfo         "  Q = Quit. `n";
@@ -190,11 +206,7 @@ if( (OsIsWindows) ){
     OutQuestion "Enter selection case insensitive and press enter: ";
     $sel = (Read-Host);
   }
-  if( $sel -eq "I" ){ [String] $d = "$targetDir/$moduleName";
-                      OutProgress "Delete-and-Copy `"$moduleSrcDir`" to `"$d`" ";
-                      if( DirExists $d ){ Remove-Item -Force -Recurse -LiteralPath $d; }
-                      Copy-Item -Force -Recurse -LiteralPath $moduleSrcDir -Destination $targetDir;
-                    }
+  if( $sel -eq "I" ){ InstallStandardMode; }
   if( $sel -eq "Q" ){ OutProgress "Quit."; }
 }
 OutQuestion "Finished. Press enter to exit. "; Read-Host;
