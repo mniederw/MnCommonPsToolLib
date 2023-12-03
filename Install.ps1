@@ -36,9 +36,9 @@ function OsPsModulePathDel                    ( [String] $dir ){ OsPsModulePathS
 function OsPsModulePathSet                    ( [String[]] $pathList ){ [Environment]::SetEnvironmentVariable("PSModulePath", ($pathList -join ";")+";", "Machine"); }
 function DirExists                            ( [String] $dir ){ try{ return [Boolean] (Test-Path -PathType Container -LiteralPath $dir ); }
                                                 catch{ throw [Exception] "DirExists($dir) failed because $($_.Exception.Message)"; } }
-function DirListDirs                          ( [String] $d ){ return [String[]] (@()+(Get-ChildItem -Force -Directory -Path $d | ForEach-Object{ $_.FullName })); }
-function DirHasFiles                          ( [String] $d, [String] $filePattern ){
-                                                return [Boolean] ($null -ne (Get-ChildItem -Force -Recurse -File -ErrorAction SilentlyContinue -Path "$d\$filePattern")); }
+function DirListDirs                          ( [String] $dir ){ return [String[]] (@()+(Get-ChildItem -Force -Directory -Path $dir | ForEach-Object{ $_.FullName })); }
+function DirHasFiles                          ( [String] $dir, [String] $filePattern ){
+                                                return [Boolean] ($null -ne (Get-ChildItem -Force -Recurse -File -ErrorAction SilentlyContinue -Path "$dir\$filePattern")); }
 function ScriptGetTopCaller                   (){ [String] $f = $global:MyInvocation.MyCommand.Definition.Trim();
                                                 if( $f -eq "" -or $f -eq "ScriptGetTopCaller" ){ return ""; }
                                                 if( $f.StartsWith("&") ){ $f = $f.Substring(1,$f.Length-1).Trim(); }
@@ -56,10 +56,10 @@ function ProcessRestartInElevatedAdminMode    (){ if( -not (ProcessIsRunningInEl
 function ShellSessionIs64not32Bit             (){ if( "$env:ProgramFiles" -eq "$env:ProgramW6432"        ){ return [Boolean] $true ; }
                                                 elseif( "$env:ProgramFiles" -eq "${env:ProgramFiles(x86)}" ){ return [Boolean] $false; }
                                                 else{ throw [Exception] "Expected ProgramFiles=`"$env:ProgramFiles`" to be equals to ProgramW6432=`"$env:ProgramW6432`" or ProgramFilesx86=`"${env:ProgramFiles(x86)}`" "; } }
-function UninstallDir                         ( [String] $d ){ OutProgress "RemoveDir '$d'. ";
-                                                if( DirExists $d ){ ProcessRestartInElevatedAdminMode; Remove-Item -Force -Recurse -LiteralPath $d; } }
-function UninstallSrcPath                     ( [String] $d ){ OutProgress "UninstallSrcPath '$d'. ";
-                                                if( (OsPsModulePathContains $d) ){ ProcessRestartInElevatedAdminMode; OsPsModulePathDel $d; } }
+function UninstallDir                         ( [String] $dir ){ OutProgress "RemoveDir '$dir'. ";
+                                                if( DirExists $dir ){ ProcessRestartInElevatedAdminMode; Remove-Item -Force -Recurse -LiteralPath $dir; } }
+function UninstallSrcPath                     ( [String] $dir ){ OutProgress "UninstallSrcPath '$dir'. ";
+                                                if( (OsPsModulePathContains $dir) ){ ProcessRestartInElevatedAdminMode; OsPsModulePathDel $dir; } }
 function InstallDir                           ( [String] $srcDir, [String] $tarParDir ){ OutProgress "Copy '$srcDir' `n  to '$tarParDir'. ";
                                                 ProcessRestartInElevatedAdminMode; Copy-Item -Force -Recurse -LiteralPath $srcDir -Destination $tarParDir; }
 function InstallSrcPathToPsModulePathIfNotInst( [String] $srcDir ){ OutProgress "Change environment system variable PSModulePath by appending '$srcDir'. ";
@@ -103,6 +103,7 @@ function CurrentInstallationModes( [String] $color = "White" ){
 }
 
 function InstallStandardMode(){
+  OutProgress "Install or reinstall in standard mode. ";
   if( (OsIsWindows) ){
     UninstallDir $moduleTarDir32bit;
     UninstallDir $moduleTarDir64bit;
@@ -111,7 +112,7 @@ function InstallStandardMode(){
     InstallDir $moduleSrcDir $tarRootDir64bit;
   }else{
     OutProgress "Delete-and-Copy `"$moduleSrcDir`" to `"$moduleTarDirLinux`" ";
-    if( DirExists $d ){ Remove-Item -Force -Recurse -LiteralPath $moduleTarDirLinux; }
+    if( DirExists $moduleTarDirLinux ){ Remove-Item -Force -Recurse -LiteralPath $moduleTarDirLinux; }
     Copy-Item -Force -Recurse -LiteralPath $moduleSrcDir -Destination $targetDir;  
   }
   OutProgressText "Current installation modes: "; CurrentInstallationModes "Green";
