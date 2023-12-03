@@ -415,7 +415,7 @@ Function ConsoleSetPos                        ( [Int32] $x, [Int32] $y ){ # if c
                                                 if( $hd -ne 0 ){ # is 0 for ubuntu-consoles
                                                   [Object] $t = [Window]::GetWindowRect($hd,[ref]$r);
                                                   [Int32] $w = $r.Right - $r.Left; [Int32] $h = $r.Bottom - $r.Top;
-                                                  If( $t ){ [Boolean] $dummy = [Window]::MoveWindow($hd, $x, $y, $w, $h, $true);
+                                                  If( $t ){ [Boolean] $dummy = [Window]::MoveWindow($hd, $x, $y, $w, $h, $true); }
                                                 } }
 function ConsoleSetGuiProperties              (){ # set standard sizes which makes sense, display-hight 46 lines for HD with 125% zoom. It is performed only once per shell.
                                                 # On Ubuntu setting buffersize is not supported, so a warning is given out to verbose output.
@@ -440,7 +440,7 @@ function ConsoleSetGuiProperties              (){ # set standard sizes which mak
                                                 try{
                                                   $w.buffersize = $buf;
                                                 }catch{
-                                                  if( $_.Exception.Message.Contains("Operation is not supported on this platform."){
+                                                  if( $_.Exception.Message.Contains("Operation is not supported on this platform.") ){
                                                     # On Ubuntu we get: ex: "Exception setting "buffersize": "Operation is not supported on this platform.""
                                                     OutVerbose "Warning: Ignore setting buffersize failed because $($_.Exception.Message)";
                                                   }else{
@@ -464,7 +464,7 @@ function ConsoleSetGuiProperties              (){ # set standard sizes which mak
                                                   try{
                                                     $w.windowsize = $m;
                                                   }catch{
-                                                    if( $_.Exception.Message.Contains("Operation is not supported on this platform."){
+                                                    if( $_.Exception.Message.Contains("Operation is not supported on this platform.") ){
                                                       # On Ubuntu we get: ex: "Exception setting "windowsize": "Operation is not supported on this platform.""
                                                       OutVerbose "Warning: Ignore setting windowsize failed because $($_.Exception.Message)";
                                                     }else{ throw; }
