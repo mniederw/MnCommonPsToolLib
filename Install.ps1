@@ -14,8 +14,8 @@ Import-Module Microsoft.PowerShell.Security  ; # load: Get-Executionpolicy
 function OutStringInColor                     ( [String] $color, [String] $line, [Boolean] $noNewLine = $true ){ Write-Host -ForegroundColor $color -NoNewline:$noNewLine $line; }
 function OutInfo                              ( [String] $line ){ OutStringInColor "White"  $line $false; }
 function OutWarning                           ( [String] $line ){ OutStringInColor "Yellow" $line $false; }
-function OutProgress                          ( [String] $line ){ OutStringInColor "Gray"   $line $false; }
-function OutProgressText                      ( [String] $line ){ OutStringInColor "Gray"   $line $true ; }
+function OutProgress                          ( [String] $line ){ OutStringInColor "Gray"   "  $line" $false; }
+function OutProgressText                      ( [String] $line ){ OutStringInColor "Gray"   "  $line" $true ; }
 function OutQuestion                          ( [String] $line ){ OutStringInColor "Cyan"   $line $true ; }
 function DirSep                               (){ return [Char] [IO.Path]::DirectorySeparatorChar; }
 function FsEntryHasTrailingDirSep             ( [String] $fsEntry ){ return [Boolean] ($fsEntry.EndsWith("\") -or $fsEntry.EndsWith("/")); }
@@ -125,41 +125,41 @@ OutInfo         "Install Menu for Powershell Module - $moduleName";
 OutInfo         "-------------------------------------$("-"*($moduleName.Length))`n";
 
 if( (OsIsWindows) ){
-  OutProgress     "  For installation or uninstallation the elevated administrator mode is ";
-  OutProgress     "  required and this tool automatically prompts for it when nessessary. ";
-  OutProgress     "  Powershell requires for any installation of a module that its file must be ";
-  OutProgress     "  located in a folder with the same name as the module name, ";
-  OutProgress     "  otherwise it could not be found by its name or by auto loading modules. ";
-  OutProgress     "  An installation in standard mode does first an uninstallation and then for ";
-  OutProgress     "  installation it copies the ps module folder to the common ps module folder ";
-  OutProgress     "  for all users for 32 and 64 bit. ";
-  OutProgress     "  An alternative installation for developers does also first an uninstallation ";
-  OutProgress     "  and then it adds the path of the module folder as entry to the ps module ";
-  OutProgress     "  path environment variable PSModulePath. ";
-  OutProgress     "  An uninstallation does both, it removes the copied folder ";
-  OutProgress     "  from the common ps module folder for all users for 32 and 64 bit ";
-  OutProgress     "  and it removes the path entry from the ps module path environment variable. ";
-  OutProgress     "  As long as ps7 not contains all of ps5 modules we strongly recommend that ";
-  OutProgress     "  PsModulePath also contains Ps5WinModDir and Ps5ModuleDir. ";
-  OutProgress     "  Imporant note: After any installation the current running programs which are ";
-  OutProgress     "  using the old PsModulePath or which did load previously the old module, they ";
-  OutProgress     "  need to be restarted before they can use new installed module. This usually ";
-  OutProgress     "  applies for a file manager or powershell sessions, but not for win-explorer. ";
-  OutProgress     "  By using this software you agree with the terms of GPL3. ";
-  OutProgress     "  ";
-  OutProgress     "  Current environment:";
-  OutProgress     "    Ps5WinModDir                       = `"$ps5WinModuleDir`". ";
-  OutProgress     "    Ps5ModuleDir                       = `"$ps5ModuleDir`". ";
-  OutProgress     "    PsModuleFolder(allUsers,64bit)     = `"$tarRootDir64bit`". ";
-  OutProgress     "    PsModuleFolder(allUsers,32bit)     = `"$tarRootDir32bit`". ";
-  OutProgress     "    SrcRootDir                         = `"$srcRootDir`". ";
-  OutProgress     "    IsInElevatedAdminMode              = $(ProcessIsRunningInElevatedAdminMode).";
-  OutProgress     "    Executionpolicy-LocalMachine       = $(Get-Executionpolicy).";
-  OutProgress     "    ShellSessionIs64not32Bit           = $(ShellSessionIs64not32Bit). ";
-  OutProgress     "    PsModulePath contains Ps5WinModDir = $(OsPsModulePathContains $ps5WinModuleDir). ";
-  OutProgress     "    PsModulePath contains Ps5ModuleDir = $(OsPsModulePathContains $ps5ModuleDir). ";
-  OutProgress     "    PsModulePath contains SrcRootDir   = $(OsPsModulePathContains $srcRootDir). ";
-  OutProgressText "    Current installation modes         = "; CurrentInstallationModes;
+  OutProgress     "For installation or uninstallation the elevated administrator mode is ";
+  OutProgress     "required and this tool automatically prompts for it when nessessary. ";
+  OutProgress     "Powershell requires for any installation of a module that its file must be ";
+  OutProgress     "located in a folder with the same name as the module name, ";
+  OutProgress     "otherwise it could not be found by its name or by auto loading modules. ";
+  OutProgress     "An installation in standard mode does first an uninstallation and then for ";
+  OutProgress     "installation it copies the ps module folder to the common ps module folder ";
+  OutProgress     "for all users for 32 and 64 bit. ";
+  OutProgress     "An alternative installation for developers does also first an uninstallation ";
+  OutProgress     "and then it adds the path of the module folder as entry to the ps module ";
+  OutProgress     "path environment variable PSModulePath. ";
+  OutProgress     "An uninstallation does both, it removes the copied folder ";
+  OutProgress     "from the common ps module folder for all users for 32 and 64 bit ";
+  OutProgress     "and it removes the path entry from the ps module path environment variable. ";
+  OutProgress     "As long as ps7 not contains all of ps5 modules we strongly recommend that ";
+  OutProgress     "PsModulePath also contains Ps5WinModDir and Ps5ModuleDir. ";
+  OutProgress     "Imporant note: After any installation the current running programs which are ";
+  OutProgress     "using the old PsModulePath or which did load previously the old module, they ";
+  OutProgress     "need to be restarted before they can use new installed module. This usually ";
+  OutProgress     "applies for a file manager or powershell sessions, but not for win-explorer. ";
+  OutProgress     "By using this software you agree with the terms of GPL3. ";
+  OutProgress     "";
+  OutProgress     "Current environment:";
+  OutProgress     "  Ps5WinModDir                       = `"$ps5WinModuleDir`". ";
+  OutProgress     "  Ps5ModuleDir                       = `"$ps5ModuleDir`". ";
+  OutProgress     "  PsModuleFolder(allUsers,64bit)     = `"$tarRootDir64bit`". ";
+  OutProgress     "  PsModuleFolder(allUsers,32bit)     = `"$tarRootDir32bit`". ";
+  OutProgress     "  SrcRootDir                         = `"$srcRootDir`". ";
+  OutProgress     "  IsInElevatedAdminMode              = $(ProcessIsRunningInElevatedAdminMode).";
+  OutProgress     "  Executionpolicy-LocalMachine       = $(Get-Executionpolicy).";
+  OutProgress     "  ShellSessionIs64not32Bit           = $(ShellSessionIs64not32Bit). ";
+  OutProgress     "  PsModulePath contains Ps5WinModDir = $(OsPsModulePathContains $ps5WinModuleDir). ";
+  OutProgress     "  PsModulePath contains Ps5ModuleDir = $(OsPsModulePathContains $ps5ModuleDir). ";
+  OutProgress     "  PsModulePath contains SrcRootDir   = $(OsPsModulePathContains $srcRootDir). ";
+  OutProgressText "  Current installation modes         = "; CurrentInstallationModes;
   if( ! (ShellSessionIs64not32Bit) ){
     OutWarning "    Warning: Your current sessing is 32bit, it is recommended to generally use 64bit! ";
   }
@@ -195,10 +195,10 @@ if( (OsIsWindows) ){
   if( $sel -eq "W" ){ AddToPsModulePath $ps5WinModuleDir; AddToPsModulePath $ps5ModuleDir; }
   if( $sel -eq "Q" ){ OutProgress "Quit."; }
 }else{ # non-windows
-  OutProgress     "  Running on Non-Windows OS (Linux, MacOS) ";
-  OutProgress     "  so currently this installation installs it locally not globally. ";
-  OutProgress     "  LinuxTargetDir: `"$linuxTargetDir`" ";
-  OutInfo         "  ";
+  OutProgress     "Running on Non-Windows OS (Linux, MacOS) ";
+  OutProgress     "so currently this installation installs it locally not globally. ";
+  OutProgress     "LinuxTargetDir: `"$linuxTargetDir`" ";
+  OutInfo         "";
   OutInfo         "  I = Install or reinstall in standard mode. ";
   OutInfo         "  Q = Quit. `n";
   if( $sel -ne "" ){ OutProgress "Selection: $sel "; }
