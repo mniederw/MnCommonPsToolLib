@@ -29,7 +29,7 @@ function OsPsModulePathList                   (){ return [String[]] ([Environmen
 function OsPsModulePathContains               ( [String] $dir ){ # ex: "D:\WorkGit\myuser\MyPsLibRepoName"
                                                 [String[]] $a = (OsPsModulePathList | ForEach-Object{ FsEntryRemoveTrailingDirSep $_ });
                                                 return [Boolean] ($a -contains (FsEntryRemoveTrailingDirSep $dir)); }
-function OsPsModulePathAdd                    ( [String] $dir ){ if( OsPsModulePathContains $dir ){ return; }
+function OsPsModulePathAdd                    ( [String] $dir ){ if( (OsPsModulePathContains $dir) ){ return; }
                                                 OsPsModulePathSet ((OsPsModulePathList)+@( (FsEntryRemoveTrailingDirSep $dir) )); }
 function OsPsModulePathDel                    ( [String] $dir ){ OsPsModulePathSet (OsPsModulePathList |
                                                 Where-Object{ (FsEntryRemoveTrailingDirSep $_) -ne (FsEntryRemoveTrailingDirSep $dir) }); }
@@ -53,11 +53,11 @@ function ProcessRestartInElevatedAdminMode    (){ if( -not (ProcessIsRunningInEl
                                                 OutProgress "Not running in elevated administrator mode so elevate current script and exit: `n  $cmd";
                                                 Start-Process -Verb "RunAs" -FilePath (ProcessPsExecutable) -ArgumentList "& `"$cmd`" ";
                                                 [Environment]::Exit("0"); throw [Exception] "Exit done, but it did not work, so it throws now an exception."; } }
-function ShellSessionIs64not32Bit             (){ if( "$env:ProgramFiles" -eq "$env:ProgramW6432"        ){ return [Boolean] $true ; }
+function ShellSessionIs64not32Bit             (){ if( "$env:ProgramFiles" -eq "$env:ProgramW6432" ){ return [Boolean] $true ; }
                                                 elseif( "$env:ProgramFiles" -eq "${env:ProgramFiles(x86)}" ){ return [Boolean] $false; }
                                                 else{ throw [Exception] "Expected ProgramFiles=`"$env:ProgramFiles`" to be equals to ProgramW6432=`"$env:ProgramW6432`" or ProgramFilesx86=`"${env:ProgramFiles(x86)}`" "; } }
 function UninstallDir                         ( [String] $dir ){ OutProgress "RemoveDir '$dir'. ";
-                                                if( DirExists $dir ){ ProcessRestartInElevatedAdminMode; Remove-Item -Force -Recurse -LiteralPath $dir; } }
+                                                if( (DirExists $dir) ){ ProcessRestartInElevatedAdminMode; Remove-Item -Force -Recurse -LiteralPath $dir; } }
 function UninstallSrcPath                     ( [String] $dir ){ OutProgress "UninstallSrcPath '$dir'. ";
                                                 if( (OsPsModulePathContains $dir) ){ ProcessRestartInElevatedAdminMode; OsPsModulePathDel $dir; } }
 function InstallDir                           ( [String] $srcDir, [String] $tarParDir ){ OutProgress "Copy '$srcDir' `n  to '$tarParDir'. ";
@@ -93,11 +93,11 @@ if( $dirsWithPsm1Files.Count -ne 1 ){ throw [Exception] "Tool is designed for wo
 
 function CurrentInstallationModes( [String] $color = "White" ){
   if( (OsIsWindows) ){
-    if( DirExists $moduleTarDir64bit       ){ OutStringInColor $color "Installed-in-Std-Mode-for-64bit " $true; }else{ OutStringInColor "Gray" "Not-Installed-in-Std-Mode-for-64bit " $true; }
-    if( DirExists $moduleTarDir32bit       ){ OutStringInColor $color "Installed-in-Std-Mode-for-32bit " $true; }else{ OutStringInColor "Gray" "Not-Installed-in-Std-Mode-for-32bit " $true; }
-    if( OsPsModulePathContains $srcRootDir ){ OutStringInColor $color "Installed-for-Developers "        $true; }else{ OutStringInColor "Gray" "Not-Installed-for-Developers "        $true; }
+    if( (DirExists $moduleTarDir64bit)       ){ OutStringInColor $color "Installed-in-Std-Mode-for-64bit " $true; }else{ OutStringInColor "Gray" "Not-Installed-in-Std-Mode-for-64bit " $true; }
+    if( (DirExists $moduleTarDir32bit)       ){ OutStringInColor $color "Installed-in-Std-Mode-for-32bit " $true; }else{ OutStringInColor "Gray" "Not-Installed-in-Std-Mode-for-32bit " $true; }
+    if( (OsPsModulePathContains $srcRootDir) ){ OutStringInColor $color "Installed-for-Developers "        $true; }else{ OutStringInColor "Gray" "Not-Installed-for-Developers "        $true; }
   }else{
-    if( DirExists $moduleTarDirLinux       ){ OutStringInColor $color "Installed-in-Std-Mode-for-Linux " $true; }else{ OutStringInColor "Gray" "Not-Installed-in-Std-Mode-for-Linux " $true; }
+    if( (DirExists $moduleTarDirLinux)       ){ OutStringInColor $color "Installed-in-Std-Mode-for-Linux " $true; }else{ OutStringInColor "Gray" "Not-Installed-in-Std-Mode-for-Linux " $true; }
   }
   OutInfo "";
 }
@@ -112,8 +112,8 @@ function InstallStandardMode(){
     InstallDir $moduleSrcDir $tarRootDir64bit;
   }else{
     OutProgress "Delete-and-Copy `"$moduleSrcDir`" to `"$moduleTarDirLinux`" ";
-    if( DirExists $moduleTarDirLinux ){ Remove-Item -Force -Recurse -LiteralPath $moduleTarDirLinux; }
-    Copy-Item -Force -Recurse -LiteralPath $moduleSrcDir -Destination $targetDir;  
+    if( (DirExists $moduleTarDirLinux) ){ Remove-Item -Force -Recurse -LiteralPath $moduleTarDirLinux; }
+    Copy-Item -Force -Recurse -LiteralPath $moduleSrcDir -Destination $linuxTargetDir;  
   }
   OutProgressText "Current installation modes: "; CurrentInstallationModes "Green";
 }
