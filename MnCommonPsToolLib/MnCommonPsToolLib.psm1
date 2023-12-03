@@ -2,7 +2,14 @@
 # --------------------------------------------------------------------------------------------------------------
 # Published at: https://github.com/mniederw/MnCommonPsToolLib
 # Licensed under GPL3. This is freeware.
-#
+# 2013-2023 produced by Marc Niederwieser, Switzerland.
+
+# Do not change the following line, it is a powershell statement and not a comment! Note: if it would be run interactively then it would throw: RuntimeException: Error on creating the pipeline.
+#Requires -Version 3.0
+# Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
+#   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
+[String] $global:MnCommonPsToolLibVersion = "7.31"; # more see Releasenotes.txt
+
 # This library encapsulates many common commands for the purpose of supporting compatibility between
 # multi platforms, simplifying commands, fixing usual problems, supporting tracing information,
 # making behaviour compatible for usage with powershell.exe and powershell_ise.exe and acts as documentation.
@@ -50,17 +57,8 @@
 #      OutProgress "Working";
 #      StdInReadLine "Press enter to exit.";
 # More examples see: https://github.com/mniederw/MnCommonPsToolLib/tree/main/Examples
-#
-# 2013-2023 produced by Marc Niederwieser, Switzerland.
 
 
-
-# Do not change the following line, it is a powershell statement and not a comment! Note: if it would be run interactively then it would throw: RuntimeException: Error on creating the pipeline.
-#Requires -Version 3.0
-
-# Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
-#   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $global:MnCommonPsToolLibVersion = "7.30"; # more see Releasenotes.txt
 
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
@@ -408,16 +406,19 @@ function DateTimeFromStringOrDateTimeValue    ( [Object] $v ){ # Used for exampl
 function ByteArraysAreEqual                   ( [Byte[]] $a1, [Byte[]] $a2 ){ if( $a1.LongLength -ne $a2.LongLength ){ return [Boolean] $false; }
                                                 for( [Int64] $i = 0; $i -lt $a1.LongLength; $i++ ){ if( $a1[$i] -ne $a2[$i] ){ return [Boolean] $false; } } return [Boolean] $true; }
 function ArrayIsNullOrEmpty                   ( [Object[]] $a ){ return [Boolean] ($null -eq $a -or $a.Count -eq 0); }
-function ConsoleHide                          (){ [Object] $p = [Console.Window]::GetConsoleWindow(); [Object] $dummy = [Console.Window]::ShowWindow($p,0); } #0 hide (also by PowerShell.exe -WindowStyle Hidden)
-function ConsoleShow                          (){ [Object] $p = [Console.Window]::GetConsoleWindow(); [Object] $dummy = [Console.Window]::ShowWindow($p,5); } #5 nohide
-function ConsoleRestore                       (){ [Object] $p = [Console.Window]::GetConsoleWindow(); [Object] $dummy = [Console.Window]::ShowWindow($p,1); } #1 show
-function ConsoleMinimize                      (){ [Object] $p = [Console.Window]::GetConsoleWindow(); [Object] $dummy = [Console.Window]::ShowWindow($p,6); } #6 minimize
-Function ConsoleSetPos                        ( [Int32] $x, [Int32] $y ){
+function ConsoleHide                          (){ if( (Get-Process -ID $PID).MainWindowHandle -ne 0 ){ [Object] $p = [Console.Window]::GetConsoleWindow(); [Object] $dummy = [Console.Window]::ShowWindow($p,0); } } # 0=hide (also by PowerShell.exe -WindowStyle Hidden)
+function ConsoleShow                          (){ if( (Get-Process -ID $PID).MainWindowHandle -ne 0 ){ [Object] $p = [Console.Window]::GetConsoleWindow(); [Object] $dummy = [Console.Window]::ShowWindow($p,5); } } # 5=nohide
+function ConsoleRestore                       (){ if( (Get-Process -ID $PID).MainWindowHandle -ne 0 ){ [Object] $p = [Console.Window]::GetConsoleWindow(); [Object] $dummy = [Console.Window]::ShowWindow($p,1); } } # 1=show
+function ConsoleMinimize                      (){ if( (Get-Process -ID $PID).MainWindowHandle -ne 0 ){ [Object] $p = [Console.Window]::GetConsoleWindow(); [Object] $dummy = [Console.Window]::ShowWindow($p,6); } } # 6=minimize
+Function ConsoleSetPos                        ( [Int32] $x, [Int32] $y ){ # if console is in a window then move to specified location
                                                 [RECT] $r = New-Object RECT; [Object] $hd = (Get-Process -ID $PID).MainWindowHandle;
-                                                [Object] $t = [Window]::GetWindowRect($hd,[ref]$r);
-                                                [Int32] $w = $r.Right - $r.Left; [Int32] $h = $r.Bottom - $r.Top;
-                                                If( $t ){ [Boolean] $dummy = [Window]::MoveWindow($hd, $x, $y, $w, $h, $true); } }
+                                                if( $hd -ne 0 ){ # is 0 for ubuntu-consoles
+                                                  [Object] $t = [Window]::GetWindowRect($hd,[ref]$r);
+                                                  [Int32] $w = $r.Right - $r.Left; [Int32] $h = $r.Bottom - $r.Top;
+                                                  If( $t ){ [Boolean] $dummy = [Window]::MoveWindow($hd, $x, $y, $w, $h, $true);
+                                                } }
 function ConsoleSetGuiProperties              (){ # set standard sizes which makes sense, display-hight 46 lines for HD with 125% zoom. It is performed only once per shell.
+                                                # On Ubuntu setting buffersize is not supported, so a warning is given out to verbose output.
                                                 if( -not [Boolean] (Get-Variable consoleSetGuiProperties_DoneOnce -Scope script -ErrorAction SilentlyContinue) ){
                                                   $error.clear(); New-Variable -Scope script -name consoleSetGuiProperties_DoneOnce -value $false;
                                                 }
@@ -438,12 +439,20 @@ function ConsoleSetGuiProperties              (){ # set standard sizes which mak
                                                 }
                                                 try{
                                                   $w.buffersize = $buf;
-                                                }catch{ # seldom we got: PSArgumentOutOfRangeException: Cannot set the buffer size because the size specified is too large or too small.
-                                                  OutWarning "Warning: Ignore setting buffersize failed because $($_.Exception.Message)";
+                                                }catch{
+                                                  if( $_.Exception.Message.Contains("Operation is not supported on this platform."){
+                                                    # On Ubuntu we get: ex: "Exception setting "buffersize": "Operation is not supported on this platform.""
+                                                    OutVerbose "Warning: Ignore setting buffersize failed because $($_.Exception.Message)";
+                                                  }else{
+                                                    # seldom we got: PSArgumentOutOfRangeException: Cannot set the buffer size because the size specified is too large or too small.
+                                                    OutWarning "Warning: Ignore setting buffersize failed because $($_.Exception.Message)";
+                                                  }
                                                 }
                                                 $w = $Host.ui.RawUI; # refresh values, maybe meanwhile windows was resized
                                                 if( $null -ne $w.WindowSize ){ # is null in case of powershell-ISE
-                                                  [Object] $m = $w.windowsize; $m.Height = 48; $m.Width = 150;
+                                                  [Object] $m = $w.windowsize;
+                                                  $m.Height = 48;
+                                                  $m.Width = 150;
                                                   # avoid: PSArgumentOutOfRangeException: Window cannot be wider than 147. Parameter name: value.Width Actual value was 150.
                                                   #        PSArgumentOutOfRangeException: Window cannot be taller than 47. Parameter name: value.Height Actual value was 48.
                                                   $m.Width  = [math]::min($m.Width ,$Host.ui.RawUI.BufferSize.Width);
@@ -452,7 +461,14 @@ function ConsoleSetGuiProperties              (){ # set standard sizes which mak
                                                   $m.Height = [math]::min($m.Height,$host.ui.RawUI.BufferSize.Height);
                                                   $m.Height = [math]::min($m.Height,$w.MaxWindowSize.Height);
                                                   $m.Height = [math]::min($m.Height,$w.MaxPhysicalWindowSize.Height);
-                                                  $w.windowsize = $m;
+                                                  try{
+                                                    $w.windowsize = $m;
+                                                  }catch{
+                                                    if( $_.Exception.Message.Contains("Operation is not supported on this platform."){
+                                                      # On Ubuntu we get: ex: "Exception setting "windowsize": "Operation is not supported on this platform.""
+                                                      OutVerbose "Warning: Ignore setting windowsize failed because $($_.Exception.Message)";
+                                                    }else{ throw; }
+                                                  }
                                                   ConsoleSetPos 40 40; # little indended from top and left
                                                 }
                                                 $script:consoleSetGuiProperties_DoneOnce = $true; }
