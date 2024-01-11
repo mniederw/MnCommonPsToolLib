@@ -8,7 +8,7 @@
 #Requires -Version 3.0
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $global:MnCommonPsToolLibVersion = "7.31"; # more see Releasenotes.txt
+[String] $global:MnCommonPsToolLibVersion = "7.32"; # more see Releasenotes.txt
 
 # This library encapsulates many common commands for the purpose of supporting compatibility between
 # multi platforms, simplifying commands, fixing usual problems, supporting tracing information,
@@ -406,7 +406,7 @@ function DateTimeFromStringOrDateTimeValue    ( [Object] $v ){ # Used for exampl
 function ByteArraysAreEqual                   ( [Byte[]] $a1, [Byte[]] $a2 ){ if( $a1.LongLength -ne $a2.LongLength ){ return [Boolean] $false; }
                                                 for( [Int64] $i = 0; $i -lt $a1.LongLength; $i++ ){ if( $a1[$i] -ne $a2[$i] ){ return [Boolean] $false; } } return [Boolean] $true; }
 function ArrayIsNullOrEmpty                   ( [Object[]] $a ){ return [Boolean] ($null -eq $a -or $a.Count -eq 0); }
-function ConsoleHide                          (){ if( (Get-Process -ID $PID).MainWindowHandle -ne 0 ){ [Object] $p = [Console.Window]::GetConsoleWindow(); [Object] $dummy = [Console.Window]::ShowWindow($p,0); } } # 0=hide (also by PowerShell.exe -WindowStyle Hidden)
+function ConsoleHide                          (){ if( (Get-Process -ID $PID).MainWindowHandle -ne 0 ){ [Object] $p = [Console.Window]::GetConsoleWindow(); [Object] $dummy = [Console.Window]::ShowWindow($p,0); } } # 0=hide; Alternative: pwsh -WindowStyle Hidden {;}
 function ConsoleShow                          (){ if( (Get-Process -ID $PID).MainWindowHandle -ne 0 ){ [Object] $p = [Console.Window]::GetConsoleWindow(); [Object] $dummy = [Console.Window]::ShowWindow($p,5); } } # 5=nohide
 function ConsoleRestore                       (){ if( (Get-Process -ID $PID).MainWindowHandle -ne 0 ){ [Object] $p = [Console.Window]::GetConsoleWindow(); [Object] $dummy = [Console.Window]::ShowWindow($p,1); } } # 1=show
 function ConsoleMinimize                      (){ if( (Get-Process -ID $PID).MainWindowHandle -ne 0 ){ [Object] $p = [Console.Window]::GetConsoleWindow(); [Object] $dummy = [Console.Window]::ShowWindow($p,6); } } # 6=minimize
@@ -845,8 +845,9 @@ function ProcessEnvVarSet                     ( [String] $name, [String] $val, [
 function ProcessRemoveAllAlias                ( [String[]] $excludeAliasNames = @(), [Boolean] $doTrace = $false ){
                                                 # remove all existing aliases on any levels (local, script, private, and global).
                                                 # We recommend to exclude the followings: @("cd","cat","clear","echo","dir","cp","mv","popd","pushd","rm","rmdir").
-                                                # In powershell v5 (also v7) there are a predefined list of about 180 aliases in each session which cannot be avoided.
+                                                # In powershell v5 (also v7) on windows there are a predefined list of about 180 aliases in each session which cannot be avoided.
                                                 # This is very bad because there are also aliases defined as curl->Invoke-WebRequest or wget->Invoke-WebRequest which are incompatible to their known tools.
+                                                # On linux there are 108 aliases and fortunately the curl and wget are not part of it.
                                                 # Also the Invoke-ScriptAnalyzer results with a warning as example:
                                                 #   PSAvoidUsingCmdletAliases 'cd' is an alias of 'Set-Location'. Alias can introduce possible problems and make scripts hard to maintain.
                                                 #   Please consider changing alias to its full content.
@@ -1868,36 +1869,43 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                   [Int32] $limitRateBytesPerSec = ([Int32]::MaxValue),
                                                   [Boolean] $alsoRetrieveToParentOfUrl = $false ){
                                                 # Mirror site to dir; wget: HTTP, HTTPS, FTP. Logfile is written into target dir. Password is not logged.
-                                                [String] $logf = "$tarDir$(DirSep).Download.$(DateTimeNowAsStringIsoMonth).log";
+                                                # If wget2 (multithreaded) is in path then use wget2, otherwise wget.
+                                                [String] $logf  = "$tarDir$(DirSep).Download.$(DateTimeNowAsStringIsoMonth).detail.log";
+                                                [String] $links = "$tarDir$(DirSep).Download.$(DateTimeNowAsStringIsoMonth).links.log";
+                                                [String] $logf2 = "$tarDir$(DirSep).Download.$(DateTimeNowAsStringIsoMonth).log";
+                                                [String] $caCert = ""; # default seams to be on windows: C:/ProgramData/ssl/ca-bundle.pem"; Maybe for future: "wget2-ca-bundle.crt";
                                                 OutProgress "NetDownloadSite $url ";
                                                 OutProgress "  (only newer files) to `"$tarDir`"";
                                                 OutProgress "  Logfile: `"$logf`"";
                                                 [String[]] $opt = @(
-                                                   "--directory-prefix=$tarDir"
-                                                  ,$(switch($alsoRetrieveToParentOfUrl){ ($true){""} default{"--no-parent"}})
-                                                  ,"--no-verbose"
-                                                  ,"--recursive"
-                                                  ,"--level=$level" # alternatives: --level=inf
-                                                  ,"--no-remove-listing" # leave .listing files for ftp
-                                                  ,"--page-requisites" # download all files as images to display .html
-                                                  ,"--adjust-extension" # make sure .html or .css for such types of files
-                                                  ,"--backup-converted" # When converting a file, back up the original version with a .orig suffix. optimizes incremental runs.
-                                                  ,"--tries=2"
-                                                  ,"--waitretry=5"
-                                                  ,"--referer=$url"
-                                                  ,"--execute=robots=off"
+                                                   "--directory-prefix=."         # Note: On wget1 we could specify $tarDir but on wget2 we would have to replace all '\' to '/' and the "D:\" is replaced to "D%3A". So we need to set current dir.
+                                                  ,$(switch($alsoRetrieveToParentOfUrl){ ($true){""} default{"--parent=off"}})  # Ascend above parent directory. (default: on)
+                                                 #,"--verbose=off"                # default is on
+                                                 #,"--debug=on"                   # default is off
+                                                 #,"--quiet=off"                  # default is off
+                                                  ,"--recursive"                  # Recursive download. (default: off)
+                                                  ,"--level=$level"               # alternatives: --level=inf
+                                                 #,"--no-remove-listing"          # leave .listing files for ftp (we not use this anymore because option not exists in wget2)
+                                                  ,"--page-requisites"            # download all files as images to display .html
+                                                  ,"--adjust-extension"           # make sure .html or .css for such types of files
+                                                  ,"--backup-converted"           # When converting a file, back up the original version with a .orig suffix. optimizes incremental runs.
+                                                  ,"--tries=2"                    # default is 20
+                                                  ,"--waitretry=5"                # Wait up to number of seconds after error per thread. (default: 10)
+                                                 #,"--execute=robots=off"         # We used this for wget1
+                                                 #,"--robots=off"                 # Respect robots.txt standard for recursive downloads. (default: on)
                                                   ,"--user-agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:68.0) Gecko/20100101 Firefox/68.0'" # take latest ESR
-                                                  ,"--quota=$maxBytes"
-                                                  ,"--limit-rate=$limitRateBytesPerSec"
-                                                 #,"--wait=0.02"
-                                                 #,"--timestamping"
-                                                  ,$(switch($ignoreSslCheck){ ($true){"--no-check-certificate"} default{""}})
+                                                  ,"--quota=$maxBytes"            # Download quota, 0 = no quota. (default: 0)
+                                                  ,"--limit-rate=$limitRateBytesPerSec" # Limit rate of download per second, 0 = no limit. (default: 0)
+                                                  ,"--wait=1"                     # Wait number of seconds between downloads per thread. (default: 0)
+                                                 #,"--waitretry=10"               # Wait up to number of seconds after error per thread. (default: 10)
+                                                  ,"--random-wait=1"              # Wait 0.5 up to 1.5*<--wait> seconds between downloads per thread. (default: off)
+                                                 #,"--timestamping"               # Just retrieve younger files than the local ones. (default: off)
+                                                  ,$(switch($ignoreSslCheck){ ($true){"--check-certificate=off"} default{""}})  # .
                                                     # Otherwise: ERROR: cannot verify ...'s certificate, issued by 'CN=...,C=US': Unable to locally verify the issuer's authority. To connect to ... insecurely, use `--no-check-certificate'.
-                                                 #,"--convert-links"            # Convert non-relative links locally    deactivated because:  Both --no-clobber and --convert-links were specified, only --convert-links will be used.
-                                                 #,"--force-html"               # When input is read from a file, force it to be treated as an HTML file. This enables you to retrieve relative links from existing HTML files on your local disk, by adding <base href="url"> to HTML, or using the --base command-line option.
-                                                 #,"--input-file=$fileslist"    #
-                                                 #,"--ca-certificate file.crt"  # (more see http://users.ugent.be/~bpuype/wget/#download)
-                                                  ,"--no-clobber"               # skip downloads to existing files, either noclobber or timestamping ,"--timestamping"
+                                                 #,"--convert-links"              # Convert non-relative links locally    deactivated because:  Both --no-clobber and --convert-links were specified, only --convert-links will be used.
+                                                 #,"--force-html"                 # When input is read from a file, force it to be treated as an HTML file. This enables you to retrieve relative links from existing HTML files on your local disk, by adding <base href="url"> to HTML, or using the --base command-line option.
+                                                 #,"--input-file=$fileslist"      # File where URLs are read from, - for STDIN.
+                                                  ,"--clobber=off"                # Enable file clobbering. (default: on) skip downloads to existing files, either noclobber or timestamping
                                                       # If a file is downloaded more than once in the same directory, Wgets behavior depends on a few options, including --no-clobber.
                                                       # In certain cases, the local file will be clobb  ered, or overwritten, upon repeated download.
                                                       # In other cases it will be preserved.
@@ -1916,26 +1924,46 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                       # --no-clobber may not be specified at the same time as --timestamping.
                                                       # Note that when --no-clobber is specified, files with the suffixes .html or .htm will be loaded from the local disk
                                                       # and parsed as if they had been retrieved from the Web.
-                                                  ,"--no-hsts"
-                                                  ,"--no-host-directories"  # no dir $tardir\domainname
-                                                  ,"--local-encoding=UTF-8" # required if link urls contains utf8 which must be mapped to filesystem names (note: others as ISO-8859-1, windows-1251 do not work).
-                                                  ,"--user=$us" # we take this as last option because following pw
-                                                  # more about logon forms: http://wget.addictivecode.org/FrequentlyAskedQuestions
-                                                  # backup without file conversions: wget -mirror --page-requisites --directory-prefix=c:\wget_files\example2 ftp://username:password@ftp.yourdomain.com
-                                                  # download:                        Wget                           --directory-prefix=c:\wget_files\example3 http://ftp.gnu.org/gnu/wget/wget-1.9.tar.gz
-                                                  # download resume:                 Wget --continue                --directory-prefix=c:\wget_files\example3 http://ftp.gnu.org/gnu/wget/wget-1.9.tar.gz
-                                                  # is default: --force-directories
+                                                 #,"--hsts=on"                     # Use HTTP Strict Transport Security (HSTS). (default: on)
+                                                  ,"--host-directories=off"        # Create host directories when retrieving recursively. (default: on). Off: no dir $tardir\domainname
+                                                  ,"--local-encoding=UTF-8"        # required if link urls contains utf8 which must be mapped to filesystem names (note: others as ISO-8859-1, windows-1251 does not work).
+                                                  ,"--user=$us"                    # we take this as last option because following pw
+                                                  ,"--append-output=$logf"         # .
+                                                  ,"--ca-certificate=$caCert"      # WGET2 option: File with the bundle of CAs to verify the peers. Must be in PEM format. Otherwise CAs are searched at system-specified locations,
+                                                                                   #   chosen at OpenSSL installation time. Default seams to be 'C:\ProgramData/ssl/ca-bundle.pem'.
+                                                                                   #   2023-12/MN: If not specified it outputs an error msg that 'C:\ProgramData/ssl/ca-bundle.pem' was not found, but nevertheless it has 160 CAs.
+                                                                                   #     It also outputs an error msg if an empty string is specified.
+                                                 #,"--ca-directory=directory"      # WGET2 option: Containing CA certs in PEM format. Each file contains one CA cert, file name is based on a hash value derived from the cert.
+                                                                                   #   Otherwise CA certs searched at system-specified locations, chosen at OpenSSL installation time.
+                                                 #,"--restrict-file-names=windows" # WGET2 option: One of: unix, windows, nocontrol, ascii, lowercase, uppercase, none; Does Percent-Escaping illegal characters (on windows: "\\<>:\"|?*").
+                                                 #,"--use-server-timestamps=off"   # Set local file's timestamp to server's timestamp. (default: on) 2023-12/MN: seams not to work.
+                                                 #,"--force-directories"           # Create hierarchy of directories when not retrieving recursively. (default: off)
+                                                 #,"--protocol-directories"        # Force creating protocol directories. (default: off)
+                                                  ,"--connect-timeout=60"          # Connect timeout in seconds. Default is none so it depends on system libraries.
+                                                  ,"--dns-timeout=60"              # DNS lookup timeout in seconds. Default is none so it depends on system libraries.
+                                                 #,"--read-timeout"                # Read and write timeout in seconds. default is 900 sec.
+                                                 #,"--timeout"                     # General network timeout in seconds. Same as all together: connect-timeout, dns-timeout, read-timeout
+                                                  ,"--referer=$url"                # Include Referer: url in HTTP request. (default: off)
                                                 );
+                                                # more about logon forms: http://wget.addictivecode.org/FrequentlyAskedQuestions
+                                                # backup without file conversions: wget -mirror --page-requisites --directory-prefix=c:\wget_files\example2 ftp://username:password@ftp.yourdomain.com
+                                                # download:                        wget                           --directory-prefix=c:\wget_files\example3 http://ftp.gnu.org/gnu/wget/wget-1.9.tar.gz
+                                                # download resume:                 wget --continue                --directory-prefix=c:\wget_files\example3 http://ftp.gnu.org/gnu/wget/wget-1.9.tar.gz
                                                 # maybe we should also: $url/sitemap.xml
                                                 DirCreate $tarDir;
+                                                Push-Location $tarDir;
                                                 [String] $stateBefore = FsEntryReportMeasureInfo $tarDir;
                                                 # alternative would be for wget: Invoke-WebRequest
-                                                [String] $wgetExe = ProcessGetCommandInEnvPathOrAltPaths "wget"; # ex: D:\Work\PortableProg\Tool\...
-                                                FileAppendLineWithTs $logf "& `"$wgetExe`" `"$url`" $opt --password=*** ";
-                                                OutProgress              "  & `"$wgetExe`" `"$url`"";
-                                                & $wgetExe $url $opt "--password=$pw" "--append-output=$logf";
+                                                [String] $wgetExe  = ProcessGetCommandInEnvPathOrAltPaths "wget" ; # ex: D:\Work\PortableProg\Tool\...
+                                                [String] $wgetExe2 = ProcessGetCommandInEnvPathOrAltPaths "wget2"; # ex: D:\Work\PortableProg\Tool\...
+                                                if( $wgetExe2 -ne "" ){ $wgetExe = $wgetExe2; }
+                                                FileAppendLineWithTs $logf "Push-Location `"$tarDir`"; & `"$wgetExe`" `"$url`" $opt --password=*** ; Pop-Location; ";
+                                                #FileAppendLineWithTs $logf "  Note: Ignore the error messages: Failed to parse URI ''; No CAs were found in ''; Cannot resolve URI 'mailto:...'; Nothing to do - goodbye; ";
+                                                OutProgress              "  Push-Location `"$tarDir`"; & `"$wgetExe`" `"$url`" ...opt... ";
+                                                $opt += "--password=$pw";
+                                                [String] $errMsg = & $wgetExe $opt $url *>&1;
                                                 [Int32] $rc = ScriptGetAndClearLastRc; if( $rc -ne 0 ){
-                                                  [String] $err = switch($rc){
+                                                  [String] $err = switch($rc){ # on multiple errors the prio: 2,..,8,1.
                                                     0 {"OK"}
                                                     1 {"Generic"}
                                                     2 {"CommandLineOption"}
@@ -1946,11 +1974,32 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                     7 {"Protocol"}
                                                     8 {"ServerIssuedSomeResponse(ex:404NotFound)"}
                                                     default {"Unknown(rc=$rc)"} };
-                                                  OutWarning "  Warning: Ignored one or more occurrences of error category: $err. More see logfile=`"$logf`".";
+                                                  if( $errMsg -ne "" ){ FileAppendLineWithTs $logf "  ErrorCategory: $err  ErrorMessage: $errMsg"; }
+                                                  OutWarning "  Warning: Ignored one or more occurrences of error category: $err $errMsg. More see logfile=`"$logf`".";
                                                 }
+                                                Pop-Location;
                                                 [String] $state = "  TargetDir: $(FsEntryReportMeasureInfo "$tarDir") (BeforeStart: $stateBefore)";
                                                 FileAppendLineWithTs $logf $state;
-                                                OutProgress $state; }
+                                                OutProgress $state; FileAppendLineWithTs $logf "-".PadRight(99,'-');
+                                                [String[]] $lnkLines = @()+(FileReadContentAsLines $logf | Where-Object{ $_ -match "^Adding\ URL\:\ .*" } |
+                                                  ForEach-Object{ (StringRemoveLeft $_ "Adding URL: " $false) } | Sort-Object | Select-Object -Unique );
+                                                FileWriteFromLines $links $lnkLines $true;
+                                                [String[]] $logLines = @()+(FileReadContentAsLines $logf |
+                                                  Where-Object{ $_ -ne "Failed to parse URI ''" } |
+                                                  Where-Object{ $_ -ne "No CAs were found in ''" } |
+                                                  Where-Object{ $_ -ne "Nothing to do - goodbye" } |
+                                                  Where-Object{ $_ -notmatch "^Cannot\ resolve\ URI\ \'mailto\:.*" } |
+                                                  Where-Object{ $_ -notmatch "^URL\ \'.*\'\ not\ followed\ \(no\ host-spanning\ requested\)" } |
+                                                  Where-Object{ $_ -notmatch "^Saving\ \'.*" } |
+                                                  Where-Object{ $_ -notmatch "^URI\ content\ encoding\ \=\ \'.*\'.*" } |
+                                                  Where-Object{ $_ -notmatch "^UR[IL]\ \'.*\'\ not\ followed\ \(action\/formaction\ attribute\)" } |
+                                                  Where-Object{ $_ -notmatch "^Adding\ URL\:\ .*" } |
+                                                  Where-Object{ $_ -notmatch "^File\ \'.*\'\ already\ there\;\ not\ retrieving\." } |
+                                                  Where-Object{ $_ -notmatch "^URL\ \'\'\ not\ requested\ \(file\ already\ exists\)" } |
+                                                  Where-Object{ $_ -notmatch "^Cannot\ resolve\ URI\ \'.*\'" } |
+                                                  Where-Object{ $_ -notmatch "^\[[0-9]+\]\ Downloading\ \'.*" } );
+                                                FileWriteFromLines $logf2 $logLines $true;
+                                                }
 <# Script local variable: gitLogFile #>       [String] $script:gitLogFile = "${env:TEMP}/tmp/MnCommonPsToolLibLog/$(DateTimeNowAsStringIsoYear)/$(DateTimeNowAsStringIsoMonth)/Git.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
 function GitBuildLocalDirFromUrl              ( [String] $tarRootDir, [String] $urlAndOptionalBranch ){
                                                 # Maps a root dir and a repo url with an optional sharp-char separated branch name
@@ -2026,7 +2075,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                     ForEach-Object{ $_.Trim() } |
                                                     Where-Object{ -not ($_.StartsWith("Checking out files: ") -and ($_.EndsWith(")") -or $_.EndsWith(", done."))) } |
                                                     ForEach-Object{ OutProgress $_; }
-                                                  OutSuccess "  Ok, usedTimeInSec=$([Int64]($usedTime.Elapsed.TotalSeconds+0.999)) for url: $url";
+                                                  OutSuccess "  Ok, usedTimeInSec=$([Int64]($usedTime.Elapsed.TotalSeconds+0.999)) for url: $url branch: $branch ";
                                                 }catch{
                                                   # ex:              fatal: HttpRequestException encountered.
                                                   # ex:              Fehler beim Senden der Anforderung.
@@ -2562,10 +2611,11 @@ function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url
                                                       $m.Contains(" E155037:") -or # ex: "svn: E155037: Previous operation has not finished; run 'cleanup' if it was interrupted"
                                                       $m.Contains(" E155004:") -or # ex: "svn: E155004: Run 'svn cleanup' to remove locks (type 'svn help cleanup' for details)"
                                                       $m.Contains(" E175002:") -or # ex: "svn: E175002: REPORT request on '/svn/Work/!svn/me' failed"
-                                                      $m.Contains(" E200014:") -or # ex: "svn: E200014: Checksum mismatch for '...file...'"
                                                       $m.Contains(" E200030:") -or # ex: "svn: E200030: sqlite[S10]: disk I/O error, executing statement 'VACUUM '"
                                                       $m.Contains(" E730054:") -or # ex: "svn: E730054: Error running context: Eine vorhandene Verbindung wurde vom Remotehost geschlossen."
-                                                      $m.Contains(" E170013:")   ; # ex: "svn: E170013: Unable to connect to a repository at URL 'https://mycomp/svn/Work/mydir'"
+                                                      $m.Contains(" E170013:") -or # ex: "svn: E170013: Unable to connect to a repository at URL 'https://mycomp/svn/Work/mydir'"
+                                                      $m.Contains(" E200014:")   ; # ex: "svn: E200014: Checksum mismatch for '...file...'"
+                                                                                   #       (2023-12: we had a case with a unicode name of length 237chars which did not repair; in case we get another case then do not retry anymore)
                                                     if( -not $isKnownProblemToSolveWithRetry -or $nrOfTries -ge $maxNrOfTries ){ throw [ExcMsg] $msg; }
                                                     [String] $msg2 = "Is try nr $nrOfTries of $maxNrOfTries, will do cleanup, wait 30 sec and if not reached max then retry.";
                                                     OutWarning "Warning: $msg $msg2";

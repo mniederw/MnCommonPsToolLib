@@ -5,6 +5,7 @@ Major version will reflect breaking changes, minor identifies extensions and thi
 Breaking changes are usually removed deprecated functions or changed behaviours.
 Current version can be requested by: $MnCommonPsToolLibVersion
 
+2023-12-28  V7.32  Improve NetDownloadFile by using wget2.
 2023-12-03  V7.31  Make ConsoleSetGuiProperties portable for linux. Improve install for linux.
 2023-11-13  V7.30  Improve DateTimeFromStringIso, Fix portability issues in DateTimeFromStringOrDateTimeValue, ToolGithubApiDownloadLatestReleaseDir. Add Unittests.
 2023-11-12  V7.29  Fix StringSplitToArray and extend its unittest.
