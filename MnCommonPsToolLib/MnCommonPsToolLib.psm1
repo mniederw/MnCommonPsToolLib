@@ -8,7 +8,7 @@
 #Requires -Version 3.0
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $global:MnCommonPsToolLibVersion = "7.32"; # more see Releasenotes.txt
+[String] $global:MnCommonPsToolLibVersion = "7.33"; # more see Releasenotes.txt
 
 # This library encapsulates many common commands for the purpose of supporting compatibility between
 # multi platforms, simplifying commands, fixing usual problems, supporting tracing information,
@@ -1362,7 +1362,7 @@ function FileContentsAreEqual                 ( [String] $f1, [String] $f2, [Boo
                                                 [Byte[]] $a2 = New-Object byte[] $BlockSizeInBytes;
                                                 if( $false ){ # Much more performant (20 sec for 5 GB file).
                                                   if( $fi1.Length -ne $fi2.Length ){ return [Boolean] $false; }
-                                                  & "fc.exe" "/b" ($fi1.FullName) ($fi2.FullName) > $null;
+                                                  & "fc.exe" "/b" ($fi1.FullName) ($fi2.FullName) > $null; # TODO make this portable
                                                   if( $? ){ return [Boolean] $true; }
                                                   ScriptResetRc;
                                                   return [Boolean] $false;
@@ -2011,18 +2011,19 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                 # For commands:
                                                 #   "Clone"       : Creates a full local copy of specified repo. Target dir must not exist.
                                                 #                   Branch can be optionally specified, in that case it also will switch to this branch.
-                                                #                   Default branch name is where the standard remote HEAD is pointing to, usually "master".
-                                                #   "Fetch"       : Get all changes from specified repo to local repo but without touching current working files.
-                                                #                   Target dir must exist. Branch in repo url can be optionally specified but no switching will be done.
-                                                #   "Pull"        : First a Fetch and then it also merges current branch into current working files.
-                                                #                   Target dir must exist. Branch in repo url can be optionally specified but no switching will be done.
+                                                #                   Default branch name is where the standard remote HEAD is pointing to, usually "main" or "master".
+                                                #   "Fetch"       : Get all changes from specified repo to local repo but without touching current working files. Target dir must exist.
+                                                #                   Branch in repo url can be optionally specified and then it is asserted that it matches. No switching branch will be done.
+                                                #   "Pull"        : First a Fetch and then it also merges current branch into current working files. Target dir must exist.
+                                                #                   Branch in repo url can be optionally specified and then it is asserted that it matches. No switching branch will be done.
                                                 #   "CloneOrPull" : if target not exists then Clone otherwise Pull.
                                                 #   "CloneOrFetch": if target not exists then Clone otherwise Fetch.
                                                 #   "Reset"       : Reset-hard, loose all local changes. Same as delete folder and clone, but faster.
-                                                #                   Target dir must exist. If branch is specified then it will switch to it, otherwise will switch to main (or master).
+                                                #                   Target dir must exist. If branch is specified then it will switch to it, otherwise will switch to main or master.
                                                 # Target-Dir: see GitBuildLocalDirFromUrl.
                                                 # The urlAndOptionalBranch defines a repo url optionally with a sharp-char separated branch name (allowed chars: A-Z,a-z,0-9,.,_,-).
-                                                # We assert the no AutoCrLf is used.
+                                                # If the branch name is specified with that form then it is also checked wether
+                                                # We assert that no AutoCrLf git attribute option is used.
                                                 # Pull-No-Rebase: We generally use no-rebase for pull because commit history should not be modified.
                                                 # ex: GitCmd Clone "C:\WorkGit" "https://github.com/mniederw/MnCommonPsToolLib"
                                                 # ex: GitCmd Clone "C:\WorkGit" "https://github.com/mniederw/MnCommonPsToolLib#MyBranch"
@@ -2030,15 +2031,19 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   throw [Exception] "Expected one of (Clone,Fetch,Pull,CloneOrPull,Reset) instead of: $cmd"; }
                                                 if( ($urlAndOptionalBranch -split "/",0)[-1] -notmatch "^[A-Za-z0-9]+[A-Za-z0-9._-]*(#[A-Za-z0-9]+[A-Za-z0-9._-]*)?$" ){
                                                   throw [Exception] "Expected only ident-chars as (letter,numbers,.,_,-) for last part of `"$urlAndOptionalBranch`"."; }
-                                                [String[]] $urlOpt = @()+(StringSplitToArray "#" $urlAndOptionalBranch);
-                                                [String] $url = $urlOpt[0]; # repo url without branch.
-                                                [String] $branch = "";
-                                                if( $urlOpt.Count -gt 1 ){ $branch = $urlOpt[1]; AssertNotEmpty $branch "branch in urlAndBranch=`"$urlAndOptionalBranch`". "; }
-                                                if( $urlOpt.Count -gt 2 ){ throw [Exception] "Unknown third param in urlAndBranch=`"$urlAndOptionalBranch`". "; }
-                                                [String] $dir = FsEntryRemoveTrailingDirSep (GitBuildLocalDirFromUrl $tarRootDir $urlAndOptionalBranch);
+                                                [String[]] $urlOpt = @()+(StringSplitToArray "#" $urlAndOptionalBranch); # ex: @( "https://github.com/mniederw/MnCommonPsToolLib", "MyBranch" )
+                                                if( $urlOpt.Count -gt 2 ){ throw [Exception] "Unknown third param in sharp-char separated urlAndBranch=`"$urlAndOptionalBranch`". "; }
+                                                if( $urlOpt.Count -gt 1 ){ AssertNotEmpty $urlOpt[1] "branch is empty in sharp-char separated urlAndBranch=`"$urlAndOptionalBranch`". "; }
+                                                [String] $url = $urlOpt[0]; # repo url without branch. Ex: "https://github.com/mniederw/MnCommonPsToolLib"
+                                                [String] $branch = switch($urlOpt.Count -gt 1){($true){$urlOpt[1]} default{""}}; # ex: "" or "MyBranch"
+                                                [String] $dir = (FsEntryRemoveTrailingDirSep (GitBuildLocalDirFromUrl $tarRootDir $urlAndOptionalBranch));
                                                 GitAssertAutoCrLfIsDisabled;
                                                 if( $cmd -eq "CloneOrPull"  ){ if( (DirNotExists $dir) ){ $cmd = "Clone"; }else{ $cmd = "Pull" ; }}
                                                 if( $cmd -eq "CloneOrFetch" ){ if( (DirNotExists $dir) ){ $cmd = "Clone"; }else{ $cmd = "Fetch"; }}
+                                                if( $branch -ne "" -and ($cmd -eq "Fetch" -or $cmd -eq "Pull") ){
+                                                  [String] $currentBranch = (GitShowBranch $dir);
+                                                  if( $currentBranch -ne $branch ){ throw [Exception] "$cmd $urlAndOptionalBranch to target `"$dir`" containing branch $currentBranch is denied because expected branch $branch. Before retry perform: GitSwitch `"$dir`" $branch;"; }
+                                                }
                                                 try{
                                                   [Object] $usedTime = [System.Diagnostics.Stopwatch]::StartNew();
                                                   [String[]] $gitArgs = @();
@@ -2064,7 +2069,6 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   FileAppendLineWithTs $gitLogFile "GitCmd(`"$tarRootDir`",$urlAndOptionalBranch) git $(StringArrayDblQuoteItems $gitArgs)";
                                                   # ex: "git" "-C" "$env:TEMP/tmp/mniederw/myrepo" "--git-dir=.git" "pull" "--quiet" "--no-stat" "--no-rebase" "https://github.com/mniederw/myrepo"
                                                   # ex: "git" "clone" "--quiet" "--branch" "MyBranch" "--" "https://github.com/mniederw/myrepo" "$env:TEMP/tmp/mniederw/myrepo#MyBranch"
-                                                  # TODO low prio: if (cmd is Fetch or Pull) and branch is not empty and current branch does not match specified branch then output progress message about it.
                                                   # TODO middle prio: check env param pull.rebase and think about display and usage
                                                   [String] $out = (ProcessStart "git" $gitArgs -careStdErrAsOut:$true -traceCmd:$true);
                                                   # Skip known unused strings which are written to stderr as:
@@ -2873,7 +2877,7 @@ function TfsAssertNoLocksInDir                ( [String] $wsdir, [String] $tfsPa
 function TfsMergeDir                          ( [String] $wsdir, [String] $tfsPath, [String] $tfsTargetBranch ){
                                                 [String] $cd = (Get-Location); Set-Location $wsdir; try{
                                                   OutProgress "CD `"$wsdir`"; & `"$(TfsExe)`" vc merge /noprompt /recursive /format:brief /version:T `"$tfsPath`" `"$tfsTargetBranch`" ";
-                                                  [String[]] $dummyOut = @()+(     &    (TfsExe)   vc merge /noprompt /recursive /format:brief /version:T   $tfsPath     $tfsTargetBranch); # later we would like to suppress stderr
+                                                  [String[]] $dummyOut = @()+(&    (TfsExe)   vc merge /noprompt /recursive /format:brief /version:T   $tfsPath     $tfsTargetBranch); # later we would like to suppress stderr
                                                   ScriptResetRc;
                                                   # ex:
                                                   #    Konflikt ("mergen, bearbeiten"): $/Src/MyBranch1/MyFile.txt;C123~C129 -> $/Src/MyBranch2/MyFile.txt;C121
@@ -2900,7 +2904,7 @@ function TfsCheckinDirWhenNoConflict          ( [String] $wsdir, [String] $tfsPa
                                                   # Note: sometimes it seem to write this to stderror:
                                                   #  "Es sind keine ausstehenden Änderungen vorhanden, die mit den angegebenen Elementen übereinstimmen.\nEs wurden keine Dateien eingecheckt."
                                                   OutProgress "CD `"$wsdir`"; & `"$(TfsExe)`" vc checkin /noprompt /recursive /noautoresolve /comment:`"$comment`" `"$tfsPath`" ";
-                                                  [String[]] $dummyOut = @()+(     &    (TfsExe)   vc checkin /noprompt /recursive /noautoresolve /comment:"$comment"     $tfsPath);
+                                                  [String[]] $dummyOut = @()+(&    (TfsExe)   vc checkin /noprompt /recursive /noautoresolve /comment:"$comment"     $tfsPath);
                                                   ScriptResetRc;
                                                   return [Boolean] $true;
                                                 }catch{
@@ -3433,6 +3437,8 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #         to use options instead of positional arguments to specify parameters.
 #         Best recommended solution: Use from our library: ProcessStart $exe $opt -traceCmd:$true;
 #       PS7: It works as it should, without additional double-double-quotes.
+#     - Resulttype is often [Object[]] (ex: (& dir).GetType()) but can also be [String] (ex: (ex: (& echo hi).GetType()).
+#       so be careful on applying string functions to it, for example do not use:  (& anycmd).Trim()  but use ([String](& anycmd)).Trim()
 #   - Evaluate (string expansion) and run a command given in a string, does not create a new script scope
 #     and so works in local scope. Care for code injection.
 #       Invoke-Expression [-command] string [CommonParameters]
