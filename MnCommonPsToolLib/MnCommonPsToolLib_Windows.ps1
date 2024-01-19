@@ -577,7 +577,7 @@ function NetPingHostIsConnectable             ( [String] $hostName, [Boolean] $d
                                                 if( (Test-Connection -ComputerName $hostName -BufferSize 16 -Count 1 -ErrorAction SilentlyContinue -quiet) ){ return [Boolean] $true; } # later in ps V6 use -TimeoutSeconds 3 default is 5 sec
                                                 if( -not $doRetryWithFlushDns ){ return [Boolean] $false; }
                                                 OutVerbose "Host $hostName not reachable, so flush dns, nslookup and retry";
-                                                & "ipconfig.exe" "/flushdns" | out-null; AssertRcIsOk; # note option /registerdns would require more privs
+                                                & "ipconfig.exe" "/flushdns" | Out-Null; AssertRcIsOk; # note option /registerdns would require more privs
                                                 try{ [System.Net.Dns]::GetHostByName($hostName); }catch{ OutVerbose "Ignoring GetHostByName($hostName) failed because $($_.Exception.Message)"; }
                                                 # nslookup $hostName -ErrorAction SilentlyContinue | out-null;
                                                 return [Boolean] (Test-Connection -ComputerName $hostName -BufferSize 16 -Count 1 -ErrorAction SilentlyContinue -quiet); }
@@ -1021,13 +1021,17 @@ function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [St
                                                     OutWarning "Warning: Create menulink by reading file `"$f`", taking first line as cmdLine ($cmdLine) $addTraceInfo failed because $msg";
                                                   } } }
 function ToolSignDotNetAssembly               ( [String] $keySnk, [String] $srcDllOrExe, [String] $tarDllOrExe, [Boolean] $overwrite = $false ){
-                                                # Note: Generate a key: sn.exe -k mykey.snk
+                                                # Sign (apply strong name) a given source executable with a given key and write it to a target file.
+                                                # If the sourcefile has an correspondig xml file with the same name then this is also copied to target.
+                                                # If the input file was already signed then it creates a target file with the same name and the extension ".originalWasAlsoSigned.txt".
+                                                # Note: Generate your own key with: sn.exe -k mykey.snk
                                                 OutInfo "Sign dot-net assembly: keySnk=`"$keySnk`" srcDllOrExe=`"$srcDllOrExe`" tarDllOrExe=`"$tarDllOrExe`" overwrite=$overwrite ";
+                                                [Boolean] $execHasStrongName = ([String](& sn -vf $srcDllOrExe | Select-Object -Skip 4 )) -like "Assembly '*' is valid";
                                                 [Boolean] $isDllNotExe = $srcDllOrExe.ToLower().EndsWith(".dll");
                                                 if( -not $isDllNotExe -and -not $srcDllOrExe.ToLower().EndsWith(".exe") ){
                                                   throw [Exception] "Expected ends with .dll or .exe, srcDllOrExe=`"$srcDllOrExe`""; }
                                                 if( -not $overwrite -and (FileExists $tarDllOrExe) ){
-                                                  OutProgress "Ok, target already exists: $tarDllOrExe"; return; }
+                                                  OutProgress "Ok, nothing done because target already exists: $tarDllOrExe"; return; }
                                                 FsEntryCreateParentDir  $tarDllOrExe;
                                                 [String] $n = FsEntryGetFileName $tarDllOrExe;
                                                 [String] $d = DirCreateTemp "SignAssembly_";
@@ -1036,12 +1040,11 @@ function ToolSignDotNetAssembly               ( [String] $keySnk, [String] $srcD
                                                 OutProgress "ilasm.exe -QUIET -DLL -PDB `"-KEY=$keySnk`" `"$d$(DirSep)$n.il`" `"-RESOURCE=$d$(DirSep)$n.res`" `"-OUTPUT=$tarDllOrExe`"";
                                                 & "ilasm.exe" -QUIET -DLL -PDB "-KEY=$keySnk" "$d$(DirSep)$n.il" "-RESOURCE=$d$(DirSep)$n.res" "-OUTPUT=$tarDllOrExe"; AssertRcIsOk;
                                                 DirDelete $d;
-                                                # Disabled because if we would take the pdb of unsigned assembly then ilmerge failes because pdb is outdated.
-                                                #   [String] $srcPdb = (StringRemoveRightNr $srcDllOrExe 4) + ".pdb";
-                                                #   [String] $tarPdb = (StringRemoveRightNr $tarDllOrExe 4) + ".pdb";
-                                                #   if( FileExists $srcPdb ){ FileCopy $srcPdb $tarPdb $true; }
+                                                # Note: We do not take the pdb of original unsigned assembly because ilmerge would fail because pdb is outdated. But we created a new pdb if it is available.
                                                 [String] $srcXml = (StringRemoveRightNr $srcDllOrExe 4) + ".xml";
                                                 [String] $tarXml = (StringRemoveRightNr $tarDllOrExe 4) + ".xml";
+                                                [String] $tarOri = (StringRemoveRightNr $tarDllOrExe 4) + ".originalWasAlsoSigned.txt";
+                                                if( $execHasStrongName ){ FileWriteFromString $tarOri "Original executable has also a strong name: $srcDllOrExe" $true; }
                                                 if( FileExists $srcXml ){ FileCopy $srcXml $tarXml $true; } }
 function ToolSetAssocFileExtToCmd             ( [String[]] $fileExtensions, [String] $cmd, [String] $ftype = "", [Boolean] $assertPrgExists = $false ){ # Works only on Windows
                                                 # Sets the association of a file extension to a command by overwriting it.
