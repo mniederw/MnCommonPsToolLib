@@ -1,47 +1,43 @@
-﻿MnCommonPsToolLib - Common Powershell Tool Library for PS5 and PS7 and multiplatforms (Windows, Linux and OSX)
---------------------------------------------------------------------------------------------------------------
+﻿MnCommonPsToolLib - Common Powershell Tool Library for PS5 and PS7 and works on multiplatforms (Windows, Linux and OSX)
+=======================================================================================================================
+
 Published at: https://github.com/mniederw/MnCommonPsToolLib
 Licensed under GPL3. This is freeware.
+2013-2024 produced by Marc Niederwieser, Switzerland.
 
-This library encapsulates many common commands for the purpose of supporting compatibility between
-multi platforms, simplifying commands, fixing usual problems, supporting tracing information,
-making behaviour compatible for usage with powershell.exe and powershell_ise.exe and acts as documentation.
-It is splitted in a mulitplatform compatible part and a part which runs only on Windows.
-Some functions depends on that its subtools as git, svn, etc. are available via path variable.
+Description
+-----------
 
-Recommendations and notes about common approaches of this library:
-- Unit-Tests: Many functions are included and they are run either
-  automatically by github workflow (on win, linux and osx) or by manual starts.
-- Indenting format of library functions: The statements are indented in the way that they are easy readable as documentation.
-- Typesafe: Functions and its arguments and return values are always specified with its type
-  to assert type reliablility as far as possible.
-- Avoid null values: Whenever possible null values are generally avoided. For example arrays gets empty instead of null.
-- Win-1252/UTF8: Text file contents are written per default as UTF8-BOM for improving compatibility between multi platforms.
-  They are read in Win-1252(=ANSI) if they have no BOM (byte order mark) or otherwise according to BOM.
-- Create files: On writing or appending files they automatically create its path parts.
-- Notes about tracing information lines:
-  - Progress : Any change of the system will be notified with color Gray. Is enabled as default.
-  - Verbose  : Some io functions will be enriched with Write-Verbose infos. which are written in DarkGray
-    and can be enabled by VerbosePreference.
-  - Debug    : Some minor additional information are enriched with Write-Debug, which can be enabled by DebugPreference.
-- Comparison with null: All such comparing statements have the null constant on the left side ($null -eq $a)
-  because for arrays this is mandatory (throws: @() -eq $null)
-- Null Arrays: All powershell function returning an array should always return an empty array instead of null
-  for avoiding counting null as one element when added to an empty array.
-- More: Powershell useful knowledge and additional documentation see bottom of MnCommonPsToolLib.psm1
+This command line library encapsulates many common powershell functions for the purpose of:
+  - support multi platform compatibility (Windows, Linux and OSX)
+  - simplify command
+  - fix usual problems
+  - support trace information for source management systems (git,svn,tfs)
+  - make behaviour compatible for usage with pwsh, powershell.exe and powershell_ise.exe
+  - acts as documentation
+It is splitted in two parts:
+  - a mulitplatform compatible part
+  - a Windows-only part
+Specified Functions will work only if their tools as git, svn, etc. are installed and are available via path variable.
 
-Example usages of this module for a .ps1 script:
+Installation:
+-------------
+
+- Install powershell 7 and on Windows call InstallEnablePowerShellToUnrestrictedRequiresAdminRights.bat
+- Clone or Download zip file and extract it
+- Run:   pwsh Install.ps1   and select menu item I=Install
+- On Windows it installs it system-wide for all users and on linux/osx installs it for local user.
+- Afterwards call pwsh and use any funtion of the library for example: OutInfo "Hello world";
+
+Example usages of this module in a .ps1 script:
+-----------------------------------------------
      # Simple example for using MnCommonPsToolLib
      Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1";
      Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
      OutInfo "Hello world";
      OutProgress "Working";
      StdInReadLine "Press enter to exit.";
-More examples see: https://github.com/mniederw/MnCommonPsToolLib/tree/main/Examples
-
-2013-2023 produced by Marc Niederwieser, Switzerland.
-
-
+     # More examples see: https://github.com/mniederw/MnCommonPsToolLib/tree/main/Examples
 
 Files of this repository:
 -------------------------
@@ -74,5 +70,27 @@ Files of this repository:
 - .github          : Github workflow configuration which runs on push
                      all examples and unit tests by pwsh (powershell 7.2).
 
-
 All files except BAT files are stored in UTF8-BOM.
+
+
+Some notes and common approaches of this library:
+-------------------------------------------------
+- Unit-Tests: Many functions are covered by unit tests and they are running automatically
+  by github workflows internally on platforms windows, linux and osx.
+  They can also be run by manual starts.
+- Indenting format of library functions: The statements are indented in the way that they are easily readable as documentation.
+- Typesafe: Functions and its arguments and return values are always specified with its type
+  to assert type reliablility as far as possible.
+- Avoid null values: Whenever possible null values are generally avoided. For example arrays are set always empty instead of null.
+- Win-1252/UTF8: Text file contents are written per default as UTF8-BOM for improving compatibility between multi platforms.
+  They are read in Win-1252(=ANSI) if they have no BOM (byte order mark) or otherwise according to BOM.
+- Create files: On creating files its path parts are always automatically created.
+- Notes about tracing:
+  - Progress : Any change of the system will be notified with color Gray. Is enabled as default.
+  - Verbose  : Some io functions will be enriched with Write-Verbose infos, which are written in DarkGray
+    and can be enabled by VerbosePreference.
+  - Debug    : Some minor additional information are enriched with Write-Debug, which can be enabled by DebugPreference.
+- Comparison with null: All such comparing statements have the null constant on the left side ($null -eq $a)
+  because for arrays this is mandatory (this throws: @() -eq $null).
+- Null Arrays: All powershell functions returning an array will always return an empty array instead of null.
+- More: Powershell useful knowledge and additional documentation are added to the bottom of MnCommonPsToolLib.psm1
