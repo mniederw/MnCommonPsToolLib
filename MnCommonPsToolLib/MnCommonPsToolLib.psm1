@@ -1075,14 +1075,15 @@ function FsEntryCreateHardLink                ( [String] $newHardLink, [String] 
                                                 # for files or dirs, origin must exists, it requires elevated rights.
                                                 New-Item -ItemType HardLink -Name (FsEntryEsc $newHardLink) -Value (FsEntryEsc $fsEntryOrigin); }
 function FsEntryCreateDirSymLink              ( [String] $symLinkDir, [String] $symLinkOriginDir ){
-                                                # Creates junctions which are symlinks to dirs with some slightly other behaviour around privileges and local/remote usage.
-                                                if( !(DirExists $symLinkOriginDir)  ){
+                                                # Create symlinks to dirs. On windows creates junctions which are symlinks to dirs with some slightly other behaviour around privileges and local/remote usage.
+                                                if( !(DirExists $symLinkOriginDir) ){
                                                   throw [Exception] "Cannot create dir sym link because original directory not exists: `"$symLinkOriginDir`""; }
                                                 FsEntryAssertNotExists $symLinkDir "Cannot create dir sym link";
                                                 [String] $cd = Get-Location;
                                                 Set-Location (FsEntryGetParentDir $symLinkDir);
                                                 [String] $symLinkName = FsEntryGetFileName $symLinkDir;
-                                                & "cmd.exe" "/c" ('mklink /J "'+$symLinkName+'" "'+$symLinkOriginDir+'"'); AssertRcIsOk;
+                                                if( (OsIsWindows) ){ & "cmd.exe" "/c" ('mklink /J "'+$symLinkName+'" "'+$symLinkOriginDir+'"'); AssertRcIsOk; }
+                                                else{ & "ln" "--symbolic" $symLinkOriginDir $symLinkName; AssertRcIsOk; }
                                                 Set-Location $cd; }
 function FsEntryIsSymLink                     ( [String] $fsEntry ){ # tested only for dirs; return false if fs-entry not exists.
                                                 if( FsEntryNotExists $fsEntry ){ return $false; }
@@ -1368,12 +1369,14 @@ function FileContentsAreEqual                 ( [String] $f1, [String] $f2, [Boo
                                                 [Int32] $nrOfBlocks = [Math]::Ceiling($fi1.Length/$BlockSizeInBytes);
                                                 [Byte[]] $a1 = New-Object byte[] $BlockSizeInBytes;
                                                 [Byte[]] $a2 = New-Object byte[] $BlockSizeInBytes;
-                                                if( $false ){ # Much more performant (20 sec for 5 GB file).
-                                                  if( $fi1.Length -ne $fi2.Length ){ return [Boolean] $false; }
-                                                  & "fc.exe" "/b" ($fi1.FullName) ($fi2.FullName) > $null; # TODO make this portable
-                                                  if( $? ){ return [Boolean] $true; }
+                                                if( $fi1.Length -ne $fi2.Length ){ return [Boolean] $false; }
+                                                # Alternative: use: sha256sum file1 file2;
+                                                if( $true ){ # Much more performant (20 sec for 5 GB file).
+                                                  if( (OsIsWindows) ){ & "fc.exe" "/b" ($fi1.FullName) ($fi2.FullName) > $null; }
+                                                  else{                & "cmp" "-s"    ($fi1.FullName) ($fi2.FullName) | Out-Null; }
+                                                  [Boolean] $result = $?;
                                                   ScriptResetRc;
-                                                  return [Boolean] $false;
+                                                  return [Boolean] $result;
                                                 }else{ # Slower but more portable (longer than 5 min).
                                                   try{
                                                     $fs1 = $fi1.OpenRead();
@@ -1539,6 +1542,15 @@ function NetAdapterGetConnectionStatusName    ( [Int32] $netConnectionStatusNr )
                                                   11{"Invalid address"}
                                                   12{"Credentials required"}
                                                   default{"unknownNr=$netConnectionStatusNr"} }); }
+function NetPingHostIsConnectable             ( [String] $hostName, [Boolean] $doRetryWithFlushDns = $false ){
+                                                if( (Test-Connection -ComputerName $hostName -BufferSize 16 -Count 1 -ErrorAction SilentlyContinue -quiet) ){ return [Boolean] $true; } # later in ps V6 use -TimeoutSeconds 3 default is 5 sec
+                                                if( -not $doRetryWithFlushDns ){ return [Boolean] $false; }
+                                                OutVerbose "Host $hostName not reachable, so flush dns, nslookup and retry";
+                                                if( OsIsWindows ){ & "ipconfig.exe" "/flushdns"  | Out-Null; AssertRcIsOk; }
+                                                else{              & "resolvectl" "flush-caches" | Out-Null; AssertRcIsOk; }
+                                                try{ [System.Net.Dns]::GetHostByName($hostName); }catch{ OutVerbose "Ignoring GetHostByName($hostName) failed because $($_.Exception.Message)"; }
+                                                # nslookup $hostName -ErrorAction SilentlyContinue | out-null;
+                                                return [Boolean] (Test-Connection -ComputerName $hostName -BufferSize 16 -Count 1 -ErrorAction SilentlyContinue -quiet); }
 <# Type: ServerCertificateValidationCallback #> Add-Type -TypeDefinition "using System;using System.Net;using System.Net.Security;using System.Security.Cryptography.X509Certificates; public class ServerCertificateValidationCallback { public static void Ignore() { ServicePointManager.ServerCertificateValidationCallback += delegate( Object obj, X509Certificate certificate, X509Chain chain, SslPolicyErrors errors ){ return true; }; } } ";
 function NetWebRequestLastModifiedFailSafe    ( [String] $url ){ # Requests metadata from a downloadable file. Return DateTime.MaxValue in case of any problem
                                                 [net.WebResponse] $resp = $null;
@@ -2960,25 +2972,28 @@ function TfsCheckinDirWhenNoConflict          ( [String] $wsdir, [String] $tfsPa
 function TfsUndoAllLocksInDir                 ( [String] $dir ){ # Undo all locks below dir to cleanup a previous failed operation as from merging.
                                                 OutProgress           "& `"$(TfsExe)`" vc undo /noprompt /recursive `"$dir`"";
                                                 [String[]] $out = @()+(&    (TfsExe)   vc undo /noprompt /recursive   $dir); AssertRcIsOk $out; }
-function SqlGetCmdExe                         (){ # old style. It is recommended to use: SqlPerformFile
-                                                [String] $k1 = "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\130\Tools\ClientSetup"; # sql server 2016
-                                                [String] $k2 = "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\120\Tools\ClientSetup"; # sql server 2014
-                                                [String] $k3 = "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\110\Tools\ClientSetup"; # sql server 2012
-                                                [String] $k4 = "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\100\Tools\ClientSetup"; # sql server 2008
-                                                [String] $k = "";
-                                                if    ( (RegistryExistsValue $k1 "Path") -and (FileExists ((RegistryGetValueAsString $k1 "Path")+"sqlcmd.EXE")) ){ $k = $k1; }
-                                                elseif( (RegistryExistsValue $k2 "Path") -and (FileExists ((RegistryGetValueAsString $k2 "Path")+"sqlcmd.EXE")) ){ $k = $k2; }
-                                                elseif( (RegistryExistsValue $k3 "Path") -and (FileExists ((RegistryGetValueAsString $k3 "Path")+"sqlcmd.EXE")) ){ $k = $k3; }
-                                                elseif( (RegistryExistsValue $k4 "Path") -and (FileExists ((RegistryGetValueAsString $k4 "Path")+"sqlcmd.EXE")) ){ $k = $k4; }
-                                                else { throw [ExcMsg] "Wether Sql Server 2016, 2014, 2012 nor 2008 is installed, so cannot find sqlcmd.exe"; }
-                                                [String] $sqlcmd = (RegistryGetValueAsString $k "Path") + "sqlcmd.EXE"; # "C:\Program Files\Microsoft SQL Server\130\Tools\Binn\sqlcmd.EXE"
-                                                return [String] $sqlcmd; }
+function SqlGetCmdExe                         (){
+                                                [String] $result = (ProcessFindExecutableInPath "sqlcmd.EXE");
+                                                if( $result -eq "" ){
+                                                  # old style. It is recommended to use: SqlPerformFile
+                                                  $result = @(
+                                                       "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\150\Tools\ClientSetup" # sql server 2022 and 2019
+                                                      ,"HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\140\Tools\ClientSetup" # sql server 2017
+                                                      ,"HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\130\Tools\ClientSetup" # sql server 2016
+                                                      ,"HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\120\Tools\ClientSetup" # sql server 2014
+                                                      ,"HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\110\Tools\ClientSetup" # sql server 2012
+                                                      ,"HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\100\Tools\ClientSetup" # sql server 2008
+                                                    ) | Where-Object{ (RegistryExistsValue $_ "Path") } |
+                                                    ForEach-Object{ ((RegistryGetValueAsString $_ "Path")+"sqlcmd.EXE") } |
+                                                    Where-Object{ (FileExists $_) } | Select-Object -First 1; # ex: "C:\Program Files\Microsoft SQL Server\130\Tools\Binn\sqlcmd.EXE"
+                                                }
+                                                if( $result -eq "" ){ throw [ExcMsg] "Cannot find sqlcmd.exe wether in path nor is any Sql Server 2022, 2019, 2016, 2014, 2012 or 2008 installed. "; }
+                                                return [String] $result; }
 function SqlRunScriptFile                     ( [String] $sqlserver, [String] $sqlfile, [String] $outFile, [Boolean] $continueOnErr ){ # old style. It is recommended to use: SqlPerformFile
                                                 FileAssertExists $sqlfile;
                                                 OutProgress "SqlRunScriptFile sqlserver=$sqlserver sqlfile=`"$sqlfile`" out=`"$outfile`" contOnErr=$continueOnErr";
-                                                [String] $sqlcmd = SqlGetCmdExe;
                                                 FsEntryCreateParentDir $outfile;
-                                                & $sqlcmd "-b" "-S" $sqlserver "-i" $sqlfile "-o" $outfile;
+                                                & (SqlGetCmdExe) "-b" "-S" $sqlserver "-i" $sqlfile "-o" $outfile;
                                                 if( -not $? ){ if( ! $continueOnErr ){ AssertRcIsOk; }
                                                 else{ OutWarning "Warning: Ignore SqlRunScriptFile `"$sqlfile`" on `"$sqlserver`" failed with rc=$(ScriptGetAndClearLastRc), more see outfile, will continue"; } }
                                                 FileAssertExists $outfile; }

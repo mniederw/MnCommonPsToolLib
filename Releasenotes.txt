@@ -5,7 +5,7 @@ Major version will reflect breaking changes, minor identifies extensions and thi
 Breaking changes are usually removed deprecated functions or changed behaviours.
 Current version can be requested by: $MnCommonPsToolLibVersion
 
-2024-01-21  V7.34  Improve GitCloneOrPullUrls, fix git-restore, modify GitCloneOrPull, extend Doc.
+2024-01-21  V7.34  Improve GitCloneOrPullUrls, fix git-restore, modify GitCloneOrPull, extend Doc, make NetPingHostIsConnectable portable, modify FileContentsAreEqual, modify SqlGetCmdExe.
 2024-01-19  V7.33  Extend ToolSignDotNetAssembly, extend GitCmd, extend Doc.
 2023-12-28  V7.32  Improve NetDownloadFile by using wget2.
 2023-12-03  V7.31  Make ConsoleSetGuiProperties portable for linux. Improve install for linux.
