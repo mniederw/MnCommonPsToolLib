@@ -109,7 +109,7 @@ function PrivFsRuleCreateByString             ( [System.Security.Principal.Ident
                                                 else{ throw [Exception] "Invalid permission-right string, missing '+' or '-' at beginning of: `"$s`""; }
                                                 $s = $s.Substring(1);
                                                 [Boolean] $useInherit = $false;
-                                                if( (StringRight $s 1) -eq "/" ){ $useInherit = $true; $s = $s.Substring(0,$s.Length-1); }
+                                                if( (StringRight $s 1) -eq "/" ){ $useInherit = $true; $s = (StringLeft $s ($s.Length-1)); }
                                                 [String[]] $r = @()+(StringSplitToArray "," $s $true);
                                                 [System.Security.AccessControl.FileSystemRights] $rights = (PrivAclFsRightsFromString $r);
                                                 [System.Security.AccessControl.InheritanceFlags] $inh = switch($useInherit){ ($false){[System.Security.AccessControl.InheritanceFlags]::None} ($true){[System.Security.AccessControl.InheritanceFlags]"ContainerInherit,ObjectInherit"} };
@@ -322,7 +322,16 @@ function RegistryDelValue                     ( [String] $key, [String] $name = 
                                                 RegistryRequiresElevatedAdminMode;
                                                 Remove-ItemProperty -Path $key -Name $name; }
 function RegistrySetValue                     ( [String] $key, [String] $name, [String] $type, [Object] $val, [Boolean] $overwriteEvenIfStringValueIsEqual = $false ){
-                                                # Creates key-value if it not exists; value is changed only if it is not equal than previous value; available types: Binary, DWord, ExpandString, MultiString, None, QWord, String, Unknown.
+                                                # Creates key-value if it not exists; value is changed only if it is not equal than previous value;
+                                                # available types (https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.management/set-itemproperty and
+                                                #                  https://learn.microsoft.com/de-de/windows/win32/sysinfo/registry-value-types):
+                                                #   String         REG_SZ         String, null-terminated.
+                                                #   ExpandString   REG_EXPAND_SZ  String can contain variables as %PATH%, null-terminated. internally expanded at runtime by [Environment]::ExpandEnvironmentVariables().
+                                                #   Binary         REG_BINARY     Binary.
+                                                #   DWord          REG_DWORD      32-Bit integer.
+                                                #   MultiString    REG_MULTI_SZ   Sequence of null-terminated strings, ended with null-term.
+                                                #   QWord          REG_QWORD      64-Bit integer.
+                                                #   Unknown        .              Other non supported types as REG_RESOURCE_LIST, REG_DWORD_LITTLE_ENDIAN, REG_DWORD_BIG_ENDIAN, REG_LINK, REG_NONE, REG_QWORD_LITTLE_ENDIAN
                                                 $key = RegistryMapToShortKey $key;
                                                 RegistryAssertIsKey $key;
                                                 if( $name -eq "" ){ $name = "(default)"; }
@@ -573,14 +582,6 @@ function NetAdapterListAll                    (){
                                                 return [Object[]] (@()+(Get-CimInstance -Class win32_networkadapter |
                                                   Where-Object{$null -ne $_} |
                                                   Select-Object Name,NetConnectionID,MACAddress,Speed,@{Name="Status";Expression={(NetAdapterGetConnectionStatusName $_.NetConnectionStatus)}})); }
-function NetPingHostIsConnectable             ( [String] $hostName, [Boolean] $doRetryWithFlushDns = $false ){
-                                                if( (Test-Connection -ComputerName $hostName -BufferSize 16 -Count 1 -ErrorAction SilentlyContinue -quiet) ){ return [Boolean] $true; } # later in ps V6 use -TimeoutSeconds 3 default is 5 sec
-                                                if( -not $doRetryWithFlushDns ){ return [Boolean] $false; }
-                                                OutVerbose "Host $hostName not reachable, so flush dns, nslookup and retry";
-                                                & "ipconfig.exe" "/flushdns" | Out-Null; AssertRcIsOk; # note option /registerdns would require more privs
-                                                try{ [System.Net.Dns]::GetHostByName($hostName); }catch{ OutVerbose "Ignoring GetHostByName($hostName) failed because $($_.Exception.Message)"; }
-                                                # nslookup $hostName -ErrorAction SilentlyContinue | out-null;
-                                                return [Boolean] (Test-Connection -ComputerName $hostName -BufferSize 16 -Count 1 -ErrorAction SilentlyContinue -quiet); }
 function NetGetIpConfig                       (){ [String[]] $out = @()+(& "IPCONFIG.EXE" "/ALL"          ); AssertRcIsOk $out; return [String[]] $out; }
 function NetGetNetView                        (){ [String[]] $out = @()+(& "NET.EXE" "VIEW" $ComputerName ); AssertRcIsOk $out; return [String[]] $out; }
 function NetGetNetStat                        (){ [String[]] $out = @()+(& "NETSTAT.EXE" "/A"             ); AssertRcIsOk $out; return [String[]] $out; }

@@ -8,7 +8,7 @@
 #Requires -Version 3.0
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $global:MnCommonPsToolLibVersion = "7.33"; # more see Releasenotes.txt
+[String] $global:MnCommonPsToolLibVersion = "7.34"; # more see Releasenotes.txt
 
 # This library encapsulates many common commands for the purpose of supporting compatibility between
 # multi platforms, simplifying commands, fixing usual problems, supporting tracing information,
@@ -73,45 +73,48 @@ trap [Exception] { $Host.UI.WriteErrorLine($_); break; }
 
 # Define global variables if they are not yet defined; caller of this script can anytime set or change these variables to control the specified behaviour.
 
-if( -not [Boolean] (Get-Variable ModeHideOutProgress               -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeHideOutProgress               -value $false; }
-                                                                    # If true then OutProgress does nothing.
-if( -not [Boolean] (Get-Variable ModeDisallowInteractions          -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeDisallowInteractions          -value $false; }
-                                                                    # If true then any call to a known read-from-input function will throw. For example
-                                                                    # it will not restart script for entering elevated admin mode which must be acknowledged by the user
-                                                                    # and after any unhandled exception it does not wait for a key (uses a delay of 1 sec instead).
-                                                                    # So it can be more assured that a script works unattended.
-                                                                    # The effect is comparable to that if the stdin pipe would be closed.
-if( -not [String]  (Get-Variable ModeNoWaitForEnterAtEnd           -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeNoWaitForEnterAtEnd           -value $false; }
-                                                                    # if true then it will not wait for enter in StdOutBegMsgCareInteractiveMode.
-if( -not [String[]](Get-Variable ArgsForRestartInElevatedAdminMode -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ArgsForRestartInElevatedAdminMode -value @()   ; }
-                                                                    # if restarted for entering elevated admin mode then it additionally adds these parameters.
-if( -not [String]  (Get-Variable ModeOutputWithTsPrefix            -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeOutputWithTsPrefix            -value $false; }
-                                                                    # if true then it will add before each OutInfo, OutWarning, OutError, OutProgress a timestamp prefix.
+function GlobalVariablesInit(){
+  if( -not [Boolean] (Get-Variable ModeHideOutProgress               -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeHideOutProgress               -value $false; }
+                                                                      # If true then OutProgress does nothing.
+  if( -not [Boolean] (Get-Variable ModeDisallowInteractions          -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeDisallowInteractions          -value $false; }
+                                                                      # If true then any call to a known read-from-input function will throw. For example
+                                                                      # it will not restart script for entering elevated admin mode which must be acknowledged by the user
+                                                                      # and after any unhandled exception it does not wait for a key (uses a delay of 1 sec instead).
+                                                                      # So it can be more assured that a script works unattended.
+                                                                      # The effect is comparable to that if the stdin pipe would be closed.
+  if( -not [String]  (Get-Variable ModeNoWaitForEnterAtEnd           -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeNoWaitForEnterAtEnd           -value $false; }
+                                                                      # if true then it will not wait for enter in StdOutBegMsgCareInteractiveMode.
+  if( -not [String[]](Get-Variable ArgsForRestartInElevatedAdminMode -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ArgsForRestartInElevatedAdminMode -value @()   ; }
+                                                                      # if restarted for entering elevated admin mode then it additionally adds these parameters.
+  if( -not [String]  (Get-Variable ModeOutputWithTsPrefix            -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeOutputWithTsPrefix            -value $false; }
+                                                                      # if true then it will add before each OutInfo, OutWarning, OutError, OutProgress a timestamp prefix.
 
-# Set some powershell predefined global variables, also in scope of caller of this module:
-$global:ErrorActionPreference         = "Stop"                    ; # abort if a called exe will write to stderr, default is 'Continue'. Can be overridden in each command by [-ErrorAction actionPreference]
-$global:ReportErrorShowExceptionClass = $true                     ; # on trap more detail exception info
-$global:ReportErrorShowInnerException = $true                     ; # on trap more detail exception info
-$global:ReportErrorShowStackTrace     = $true                     ; # on trap more detail exception info
-$global:FormatEnumerationLimit        = 999                       ; # used for Format-Table, but seams not to work, default is 4
-$global:OutputEncoding                = [Console]::OutputEncoding ; # for pipe to native applications use the same as current console, on ps5 the default is 'System.Text.ASCIIEncoding' on ps7 it is utf-8
-if( $null -ne $Host.PrivateData ){ # if running as job then it is null
-  $Host.PrivateData.VerboseForegroundColor = 'DarkGray'; # for verbose messages the default is yellow which is bad because it is flashy and equal to warnings
-  $Host.PrivateData.DebugForegroundColor   = 'DarkRed' ; # for debug   messages the default is yellow which is bad because it is flashy and equal to warnings
+  # Set some powershell predefined global variables, also in scope of caller of this module:
+  $global:ErrorActionPreference         = "Stop"                    ; # abort if a called exe will write to stderr, default is 'Continue'. Can be overridden in each command by [-ErrorAction actionPreference]
+  $global:ReportErrorShowExceptionClass = $true                     ; # on trap more detail exception info
+  $global:ReportErrorShowInnerException = $true                     ; # on trap more detail exception info
+  $global:ReportErrorShowStackTrace     = $true                     ; # on trap more detail exception info
+  $global:FormatEnumerationLimit        = 999                       ; # used for Format-Table, but seams not to work, default is 4
+  $global:OutputEncoding                = [Console]::OutputEncoding ; # for pipe to native applications use the same as current console, on ps5 the default is 'System.Text.ASCIIEncoding' on ps7 it is utf-8
+  if( $null -ne $Host.PrivateData ){ # if running as job then it is null
+    $Host.PrivateData.VerboseForegroundColor = 'DarkGray'; # for verbose messages the default is yellow which is bad because it is flashy and equal to warnings
+    $Host.PrivateData.DebugForegroundColor   = 'DarkRed' ; # for debug   messages the default is yellow which is bad because it is flashy and equal to warnings
+  }
+
+  # Leave the following global variables on their default values, is here written just for documentation:
+  #   $global:InformationPreference   SilentlyContinue   # Available: Stop, Inquire, Continue, SilentlyContinue.
+  #   $global:VerbosePreference       SilentlyContinue   # Available: Stop, Inquire, Continue(=show verbose and continue), SilentlyContinue(=default=no verbose).
+  #   $global:DebugPreference         SilentlyContinue   # Available: Stop, Inquire, Continue, SilentlyContinue.
+  #   $global:ProgressPreference      Continue           # Available: Stop, Inquire, Continue, SilentlyContinue.
+  #   $global:WarningPreference       Continue           # Available: Stop, Inquire, Continue, SilentlyContinue. Can be overridden in each command by [-WarningAction actionPreference]
+  #   $global:ConfirmPreference       High               # Available: None, Low, Medium, High.
+  #   $global:WhatIfPreference        False              # Available: False, True.
+
+  # We like english error messages
+  [System.Threading.Thread]::CurrentThread.CurrentUICulture = [System.Globalization.CultureInfo]::GetCultureInfo('en-US');
+    # alternatives: [System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::GetCultureInfo('en-US'); Set-Culture en-US;
 }
-
-# Leave the following global variables on their default values, is here written just for documentation:
-#   $global:InformationPreference   SilentlyContinue   # Available: Stop, Inquire, Continue, SilentlyContinue.
-#   $global:VerbosePreference       SilentlyContinue   # Available: Stop, Inquire, Continue(=show verbose and continue), SilentlyContinue(=default=no verbose).
-#   $global:DebugPreference         SilentlyContinue   # Available: Stop, Inquire, Continue, SilentlyContinue.
-#   $global:ProgressPreference      Continue           # Available: Stop, Inquire, Continue, SilentlyContinue.
-#   $global:WarningPreference       Continue           # Available: Stop, Inquire, Continue, SilentlyContinue. Can be overridden in each command by [-WarningAction actionPreference]
-#   $global:ConfirmPreference       High               # Available: None, Low, Medium, High.
-#   $global:WhatIfPreference        False              # Available: False, True.
-
-# We like english error messages
-[System.Threading.Thread]::CurrentThread.CurrentUICulture = [System.Globalization.CultureInfo]::GetCultureInfo('en-US');
-  # alternatives: [System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::GetCultureInfo('en-US'); Set-Culture en-US;
+GlobalVariablesInit;
 
 # Recommended installed modules: Some functions may use the following modules
 #   Install-Module PSScriptAnalyzer; # used by testing files for analysing powershell code
@@ -140,12 +143,15 @@ if( $null -eq (Get-Variable -Scope global -ErrorAction SilentlyContinue -Name Co
 
 # Statement extensions
 function ForEachParallel {
-  # Note about statement blocks: No functions or variables of the script where it is embedded can be used.
-  #   Only from loaded modules. Only the single variable $_ can be used.
-  #   You can also not base on Auto-Load-Module in your script, so generally use Load-Module for each used module.
   # Works compatible for PS5 and PS7.
-  # ex: (0..20) | ForEachParallel { Write-Output "Nr: $_"; Start-Sleep -Seconds 1; };
-  # ex: (0..5)  | ForEachParallel -MaxThreads 2 { Write-Output "Nr: $_"; Start-Sleep -Seconds 1; };
+  # Note about statement blocks:
+  #   You can call functions only from the loaded modules but all global variables are then undefined!
+  #   You cannot use any functions or variables from the current script where it is embedded!
+  #   Only the single variable $_ can be used, so you need to create a [System.Tuple] for passing multiple values as a single object.
+  #   You can also not base on Auto-Load-Module in your script, so generally use Load-Module for each used module.
+  # ex: (0..9) | ForEachParallel { Write-Output "Nr: $_"; Start-Sleep -Seconds 1; };
+  # ex: (0..9) | ForEachParallel -MaxThreads 2 { Write-Output "Nr: $_"; Start-Sleep -Seconds 1; };
+  # ex: $x = "abc"; (0..9) | ForEach-Object{ [System.Tuple]::Create($_,$x) } | ForEachParallel{ "$($_.Item1) $($_.Item2)" };
   param( [Parameter(Mandatory=$true,position=0)]              [System.Management.Automation.ScriptBlock] $ScriptBlock,
          [Parameter(Mandatory=$true,ValueFromPipeline=$true)] [PSObject]                                 $InputObject,
             # PSScriptAnalyzer: On PS7 we get PSUseProcessBlockForPipelineCommand Command accepts pipeline input but has not defined a process block.
@@ -157,6 +163,7 @@ function ForEachParallel {
   }else{
     $input | ForEachParallelPS5 -MaxThreads $MaxThreads $ScriptBlock;
   }
+  # For future use: 0..9 | ForEach-Object -Parallel { Write-Output $_ } -AsJob;
 }
 
 function ForEachParallelPS5 {
@@ -240,12 +247,12 @@ function ForEachParallelPS5 {
 
 # ----- exported tools and types -----
 
-function GlobalSetModeVerboseEnable           ( [Boolean] $val = $true ){ $global:VerbosePreference = $(switch($val){($true){"Continue"}default{"SilentlyContinue"}}); }
-function GlobalSetModeHideOutProgress         ( [Boolean] $val = $true ){ $global:ModeHideOutProgress      = $val; }
-function GlobalSetModeDisallowInteractions    ( [Boolean] $val = $true ){ $global:ModeDisallowInteractions = $val; }
-function GlobalSetModeNoWaitForEnterAtEnd     ( [Boolean] $val = $true ){ $global:ModeNoWaitForEnterAtEnd  = $val; }
+function GlobalSetModeVerboseEnable           ( [Boolean] $val = $true ){ $global:VerbosePreference             = $(switch($val){($true){"Continue"}default{"SilentlyContinue"}}); }
+function GlobalSetModeHideOutProgress         ( [Boolean] $val = $true ){ $global:ModeHideOutProgress           = $val; }
+function GlobalSetModeDisallowInteractions    ( [Boolean] $val = $true ){ $global:ModeDisallowInteractions      = $val; }
+function GlobalSetModeNoWaitForEnterAtEnd     ( [Boolean] $val = $true ){ $global:ModeNoWaitForEnterAtEnd       = $val; }
 function GlobalSetModeEnableAutoLoadingPref   ( [Boolean] $val = $true ){ $global:PSModuleAutoLoadingPreference = $(switch($val){($true){$null}default{"none"}}); } # enable or disable autoloading modules, available internal values: All (=default), ModuleQualified, None.
-function GlobalSetModeOutputWithTsPrefix      ( [Boolean] $val = $true ){ $global:ModeOutputWithTsPrefix   = $val; }
+function GlobalSetModeOutputWithTsPrefix      ( [Boolean] $val = $true ){ $global:ModeOutputWithTsPrefix        = $val; }
 
 function StringIsNullOrEmpty                  ( [String] $s ){ return [Boolean] [String]::IsNullOrEmpty($s); }
 function StringIsNotEmpty                     ( [String] $s ){ return [Boolean] (-not [String]::IsNullOrEmpty($s)); }
@@ -267,9 +274,9 @@ function StringSplitToArray                   ( [String] $word, [String] $s, [Bo
                                                 $res = ($res | Where-Object{ (-not $removeEmptyEntries) -or $_ -ne "" });
                                                 return [String[]] (@()+$res); }
 function StringReplaceEmptyByTwoQuotes        ( [String] $str ){ return [String] $(switch((StringIsNullOrEmpty $str)){($true){"`"`""}default{$str}}); }
-function StringRemoveLeft                     ( [String] $str, [String] $strLeft , [Boolean] $ignoreCase = $true ){ [String] $s = StringLeft  $str $strLeft.Length ;
+function StringRemoveLeft                     ( [String] $str, [String] $strLeft , [Boolean] $ignoreCase = $true ){ [String] $s = (StringLeft $str $strLeft.Length);
                                                 return [String] $(switch(($ignoreCase -and $s -eq $strLeft ) -or $s -ceq $strLeft ){ ($true){$str.Substring($strLeft.Length,$str.Length-$strLeft.Length)} default{$str} }); }
-function StringRemoveRight                    ( [String] $str, [String] $strRight, [Boolean] $ignoreCase = $true ){ [String] $s = StringRight $str $strRight.Length;
+function StringRemoveRight                    ( [String] $str, [String] $strRight, [Boolean] $ignoreCase = $true ){ [String] $s = (StringRight $str $strRight.Length);
                                                 return [String] $(switch(($ignoreCase -and $s -eq $strRight) -or $s -ceq $strRight){ ($true){StringRemoveRightNr $str $strRight.Length} default{$str} }); }
 function StringRemoveOptEnclosingDblQuotes    ( [String] $s ){ if( $s.Length -ge 2 -and $s.StartsWith("`"") -and $s.EndsWith("`"") ){
                                                 return [String] $s.Substring(1,$s.Length-2); } return [String] $s; }
@@ -400,7 +407,7 @@ function DateTimeFromStringOrDateTimeValue    ( [Object] $v ){ # Used for exampl
                                                 # example input: "2023-06-30T23:59:59.123+0000"
                                                 return [DateTime] $(switch($v.GetType().FullName){
                                                   "System.DateTime" { $v; }
-                                                  "System.String"   { (DateTimeFromStringIso $v); }
+                                                  "System.String"   { DateTimeFromStringIso $v; }
                                                   default           { throw [Exception] "Expected type String or DateTime instead of $($v.GetType().FullName) for value: $v"; }
                                                 }); }
 function ByteArraysAreEqual                   ( [Byte[]] $a1, [Byte[]] $a2 ){ if( $a1.LongLength -ne $a2.LongLength ){ return [Boolean] $false; }
@@ -809,10 +816,11 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 # Uses async read of stdout and stderr to avoid deadlocks.
                                                 [System.Text.StringBuilder] $bufStdOut = New-Object System.Text.StringBuilder;
                                                 [System.Text.StringBuilder] $bufStdErr = New-Object System.Text.StringBuilder;
-                                                $actionReadStdOut = { if( StringIsFilled $Event.SourceEventArgs.Data ){ [void]$Event.MessageData.AppendLine($Event.SourceEventArgs.Data); } };
-                                                $actionReadStdErr = { if( StringIsFilled $Event.SourceEventArgs.Data ){ [void]$Event.MessageData.AppendLine($Event.SourceEventArgs.Data); } };
-                                                [Object] $eventStdOut = Register-ObjectEvent -InputObject $pr -EventName OutputDataReceived -Action $actionReadStdOut -MessageData $bufStdOut;
-                                                [Object] $eventStdErr = Register-ObjectEvent -InputObject $pr -EventName ErrorDataReceived  -Action $actionReadStdErr -MessageData $bufStdErr;
+                                                $actionReadStdOut = { if( (StringIsFilled $Event.SourceEventArgs.Data) ){ [void]$Event.MessageData.AppendLine($Event.SourceEventArgs.Data); } };
+                                                $actionReadStdErr = { if( (StringIsFilled $Event.SourceEventArgs.Data) ){ [void]$Event.MessageData.AppendLine($Event.SourceEventArgs.Data); } };
+                                                #[String] $thid = "$([System.Threading.Thread]::CurrentThread.ManagedThreadId)";
+                                                [Object] $eventStdOut = Register-ObjectEvent -InputObject $pr -EventName "OutputDataReceived" -Action $actionReadStdOut -MessageData $bufStdOut;
+                                                [Object] $eventStdErr = Register-ObjectEvent -InputObject $pr -EventName "ErrorDataReceived"  -Action $actionReadStdErr -MessageData $bufStdErr;
                                                 [void]$pr.Start();
                                                 $pr.BeginOutputReadLine();
                                                 $pr.BeginErrorReadLine();
@@ -1067,14 +1075,15 @@ function FsEntryCreateHardLink                ( [String] $newHardLink, [String] 
                                                 # for files or dirs, origin must exists, it requires elevated rights.
                                                 New-Item -ItemType HardLink -Name (FsEntryEsc $newHardLink) -Value (FsEntryEsc $fsEntryOrigin); }
 function FsEntryCreateDirSymLink              ( [String] $symLinkDir, [String] $symLinkOriginDir ){
-                                                # Creates junctions which are symlinks to dirs with some slightly other behaviour around privileges and local/remote usage.
-                                                if( !(DirExists $symLinkOriginDir)  ){
+                                                # Create symlinks to dirs. On windows creates junctions which are symlinks to dirs with some slightly other behaviour around privileges and local/remote usage.
+                                                if( !(DirExists $symLinkOriginDir) ){
                                                   throw [Exception] "Cannot create dir sym link because original directory not exists: `"$symLinkOriginDir`""; }
                                                 FsEntryAssertNotExists $symLinkDir "Cannot create dir sym link";
                                                 [String] $cd = Get-Location;
                                                 Set-Location (FsEntryGetParentDir $symLinkDir);
                                                 [String] $symLinkName = FsEntryGetFileName $symLinkDir;
-                                                & "cmd.exe" "/c" ('mklink /J "'+$symLinkName+'" "'+$symLinkOriginDir+'"'); AssertRcIsOk;
+                                                if( (OsIsWindows) ){ & "cmd.exe" "/c" ('mklink /J "'+$symLinkName+'" "'+$symLinkOriginDir+'"'); AssertRcIsOk; }
+                                                else{ & "ln" "--symbolic" $symLinkOriginDir $symLinkName; AssertRcIsOk; }
                                                 Set-Location $cd; }
 function FsEntryIsSymLink                     ( [String] $fsEntry ){ # tested only for dirs; return false if fs-entry not exists.
                                                 if( FsEntryNotExists $fsEntry ){ return $false; }
@@ -1360,12 +1369,14 @@ function FileContentsAreEqual                 ( [String] $f1, [String] $f2, [Boo
                                                 [Int32] $nrOfBlocks = [Math]::Ceiling($fi1.Length/$BlockSizeInBytes);
                                                 [Byte[]] $a1 = New-Object byte[] $BlockSizeInBytes;
                                                 [Byte[]] $a2 = New-Object byte[] $BlockSizeInBytes;
-                                                if( $false ){ # Much more performant (20 sec for 5 GB file).
-                                                  if( $fi1.Length -ne $fi2.Length ){ return [Boolean] $false; }
-                                                  & "fc.exe" "/b" ($fi1.FullName) ($fi2.FullName) > $null; # TODO make this portable
-                                                  if( $? ){ return [Boolean] $true; }
+                                                if( $fi1.Length -ne $fi2.Length ){ return [Boolean] $false; }
+                                                # Alternative: use: sha256sum file1 file2;
+                                                if( $true ){ # Much more performant (20 sec for 5 GB file).
+                                                  if( (OsIsWindows) ){ & "fc.exe" "/b" ($fi1.FullName) ($fi2.FullName) > $null; }
+                                                  else{                & "cmp" "-s"    ($fi1.FullName) ($fi2.FullName) | Out-Null; }
+                                                  [Boolean] $result = $?;
                                                   ScriptResetRc;
-                                                  return [Boolean] $false;
+                                                  return [Boolean] $result;
                                                 }else{ # Slower but more portable (longer than 5 min).
                                                   try{
                                                     $fs1 = $fi1.OpenRead();
@@ -1531,6 +1542,15 @@ function NetAdapterGetConnectionStatusName    ( [Int32] $netConnectionStatusNr )
                                                   11{"Invalid address"}
                                                   12{"Credentials required"}
                                                   default{"unknownNr=$netConnectionStatusNr"} }); }
+function NetPingHostIsConnectable             ( [String] $hostName, [Boolean] $doRetryWithFlushDns = $false ){
+                                                if( (Test-Connection -ComputerName $hostName -BufferSize 16 -Count 1 -ErrorAction SilentlyContinue -quiet) ){ return [Boolean] $true; } # later in ps V6 use -TimeoutSeconds 3 default is 5 sec
+                                                if( -not $doRetryWithFlushDns ){ return [Boolean] $false; }
+                                                OutVerbose "Host $hostName not reachable, so flush dns, nslookup and retry";
+                                                if( OsIsWindows ){ & "ipconfig.exe" "/flushdns"  | Out-Null; AssertRcIsOk; }
+                                                else{              & "resolvectl" "flush-caches" | Out-Null; AssertRcIsOk; }
+                                                try{ [System.Net.Dns]::GetHostByName($hostName); }catch{ OutVerbose "Ignoring GetHostByName($hostName) failed because $($_.Exception.Message)"; }
+                                                # nslookup $hostName -ErrorAction SilentlyContinue | out-null;
+                                                return [Boolean] (Test-Connection -ComputerName $hostName -BufferSize 16 -Count 1 -ErrorAction SilentlyContinue -quiet); }
 <# Type: ServerCertificateValidationCallback #> Add-Type -TypeDefinition "using System;using System.Net;using System.Net.Security;using System.Security.Cryptography.X509Certificates; public class ServerCertificateValidationCallback { public static void Ignore() { ServicePointManager.ServerCertificateValidationCallback += delegate( Object obj, X509Certificate certificate, X509Chain chain, SslPolicyErrors errors ){ return true; }; } } ";
 function NetWebRequestLastModifiedFailSafe    ( [String] $url ){ # Requests metadata from a downloadable file. Return DateTime.MaxValue in case of any problem
                                                 [net.WebResponse] $resp = $null;
@@ -1982,7 +2002,7 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                 FileAppendLineWithTs $logf $state;
                                                 OutProgress $state; FileAppendLineWithTs $logf "-".PadRight(99,'-');
                                                 [String[]] $lnkLines = @()+(FileReadContentAsLines $logf | Where-Object{ $_ -match "^Adding\ URL\:\ .*" } |
-                                                  ForEach-Object{ (StringRemoveLeft $_ "Adding URL: " $false) } | Sort-Object | Select-Object -Unique );
+                                                  ForEach-Object{ StringRemoveLeft $_ "Adding URL: " $false; } | Sort-Object | Select-Object -Unique );
                                                 FileWriteFromLines $links $lnkLines $true;
                                                 [String[]] $logLines = @()+(FileReadContentAsLines $logf |
                                                   Where-Object{ $_ -ne "Failed to parse URI ''" } |
@@ -2018,8 +2038,8 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                 #                   Branch in repo url can be optionally specified and then it is asserted that it matches. No switching branch will be done.
                                                 #   "CloneOrPull" : if target not exists then Clone otherwise Pull.
                                                 #   "CloneOrFetch": if target not exists then Clone otherwise Fetch.
-                                                #   "Reset"       : Reset-hard, loose all local changes. Same as delete folder and clone, but faster.
-                                                #                   Target dir must exist. If branch is specified then it will switch to it, otherwise will switch to main or master.
+                                                #   "Revert"      : First a fetch, then a reset-hard to loose all local changes except new files and then do a clean to remove untracked files.
+                                                #                   Same as delete folder and clone, but faster.
                                                 # Target-Dir: see GitBuildLocalDirFromUrl.
                                                 # The urlAndOptionalBranch defines a repo url optionally with a sharp-char separated branch name (allowed chars: A-Z,a-z,0-9,.,_,-).
                                                 # If the branch name is specified with that form then it is also checked wether
@@ -2027,9 +2047,9 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                 # Pull-No-Rebase: We generally use no-rebase for pull because commit history should not be modified.
                                                 # ex: GitCmd Clone "C:\WorkGit" "https://github.com/mniederw/MnCommonPsToolLib"
                                                 # ex: GitCmd Clone "C:\WorkGit" "https://github.com/mniederw/MnCommonPsToolLib#MyBranch"
-                                                if( @("Clone","Fetch","Pull","CloneOrPull","Reset") -notcontains $cmd ){
-                                                  throw [Exception] "Expected one of (Clone,Fetch,Pull,CloneOrPull,Reset) instead of: $cmd"; }
-                                                if( ($urlAndOptionalBranch -split "/",0)[-1] -notmatch "^[A-Za-z0-9]+[A-Za-z0-9._-]*(#[A-Za-z0-9]+[A-Za-z0-9._-]*)?$" ){
+                                                if( @("Clone","Fetch","Pull","CloneOrPull","Revert") -notcontains $cmd ){
+                                                  throw [Exception] "Expected one of (Clone,Fetch,Pull,CloneOrPull,Revert) instead of: $cmd"; }
+                                                if( ($urlAndOptionalBranch -split "/",0)[-1] -notmatch "^[A-Za-z0-9]+[A-Za-z0-9._-]*(#[A-Za-z0-9]+[A-Za-z0-9._-]*)?`$" ){
                                                   throw [Exception] "Expected only ident-chars as (letter,numbers,.,_,-) for last part of `"$urlAndOptionalBranch`"."; }
                                                 [String[]] $urlOpt = @()+(StringSplitToArray "#" $urlAndOptionalBranch); # ex: @( "https://github.com/mniederw/MnCommonPsToolLib", "MyBranch" )
                                                 if( $urlOpt.Count -gt 2 ){ throw [Exception] "Unknown third param in sharp-char separated urlAndBranch=`"$urlAndOptionalBranch`". "; }
@@ -2060,11 +2080,10 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                     # Defaults: "origin";
                                                     $gitArgs = @( "-C", $dir, "--git-dir=.git", "pull", "--quiet", "--no-stat", "--no-rebase", $url);
                                                     if( $branch -ne "" ){ $gitArgs += @( $branch ); }
-                                                  }elseif( $cmd -eq "Reset" ){
+                                                  }elseif( $cmd -eq "Revert" ){
                                                     GitCmd "Fetch" $tarRootDir $urlAndOptionalBranch $errorAsWarning;
-                                                    $gitArgs = @( "-C", $dir, "--git-dir=.git", "reset", "--hard", <# "--quiet", #> $url);
+                                                    $gitArgs = @( "-C", $dir, "--git-dir=.git", "reset", "--hard"); # alternative option: --hard origin/master
                                                     # if( $branch -ne "" ){ $gitArgs += @( $branch ); }
-                                                    # alternative option: --hard origin/master
                                                   }else{ throw [Exception] "Unknown git cmd=`"$cmd`""; }
                                                   FileAppendLineWithTs $gitLogFile "GitCmd(`"$tarRootDir`",$urlAndOptionalBranch) git $(StringArrayDblQuoteItems $gitArgs)";
                                                   # ex: "git" "-C" "$env:TEMP/tmp/mniederw/myrepo" "--git-dir=.git" "pull" "--quiet" "--no-stat" "--no-rebase" "https://github.com/mniederw/myrepo"
@@ -2075,11 +2094,23 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   # - "Checking out files:  47% (219/463)" or "Checking out files: 100% (463/463), done."
                                                   # - warning: You appear to have cloned an empty repository.
                                                   # - The string "Already up to date." is presumebly suppressed by quiet option.
-                                                  StringSplitIntoLines $out | Where-Object{$null -ne $_} | Where-Object{ StringIsFilled $_ } |
+                                                  if( $cmd -eq "Revert" ){
+                                                    if( $out.StartsWith("HEAD is now at ") ){
+                                                      OutProgress "  $($out.Trim())"; # HEAD is now at 18956cc0 ...commit-comment...
+                                                      $out = "";
+                                                    }
+                                                    $gitArgs = @( "-C", $dir, "--git-dir=.git", "clean", "-d", "--force");
+                                                    $out += (ProcessStart "git" $gitArgs -careStdErrAsOut:$true -traceCmd:$true); $out = $out.Trim();
+                                                    if( $out -eq "" ){ $out = "No untracked files to clean"; }
+                                                    OutProgress "  $out"; # Removing MyRepo/MyFile.txt
+                                                    $out = "";
+                                                  }
+                                                  StringSplitIntoLines $out | Where-Object{ StringIsFilled $_ } |
                                                     ForEach-Object{ $_.Trim() } |
                                                     Where-Object{ -not ($_.StartsWith("Checking out files: ") -and ($_.EndsWith(")") -or $_.EndsWith(", done."))) } |
-                                                    ForEach-Object{ OutProgress $_; }
-                                                  OutSuccess "  Ok, usedTimeInSec=$([Int64]($usedTime.Elapsed.TotalSeconds+0.999)) for url: $url branch: $branch ";
+                                                    ForEach-Object{ OutWarning "Warning: For (git $gitArgs) got unexpected output: $_"; };
+                                                  if( $branch -eq "" ){ $branch = "$(GitShowBranch $dir) (default=$(GitShowBranch $dir $true))"; }
+                                                  OutSuccess "  Ok, usedTimeInSec=$([Int64]($usedTime.Elapsed.TotalSeconds+0.999)) for url: $($url.PadRight(60)) branch: $branch ";
                                                 }catch{
                                                   # ex:              fatal: HttpRequestException encountered.
                                                   # ex:              Fehler beim Senden der Anforderung.
@@ -2102,11 +2133,10 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   if( $cmd -eq "Pull" -and ( $msg.Contains("error: Your local changes to the following files would be overwritten by merge:") -or
                                                                              $msg.Contains("error: Pulling is not possible because you have unmerged files.") -or
                                                                              $msg.Contains("fatal: Exiting because of an unresolved conflict.") ) ){
-                                                    OutProgress "Note: If you would like to ignore and reset all local changes then call:  git -C `"$dir`" --git-dir=.git reset --hard"; # alternative option: --hard origin/master
+                                                    OutProgress "Note: If you would like to ignore and revert all local changes then call:  GitCmd Revert `"$tarRootDir`" $urlAndOptionalBranch ";
                                                   }
                                                   if( $cmd -eq "Pull" -and $msg.Contains("fatal: refusing to merge unrelated histories") ){
-                                                    OutProgress "Note: If you would like to ignore and reset all local changes then call:  git -C `"$dir`" --git-dir=.git reset --hard";
-                                                    OutProgress "      Afterwards you can retry pull with the option --allow-unrelated-histories  but if it still results in (error: The following untracked ...) then remove dir and clone it."
+                                                    OutProgress "Note: If you would like to ignore and revert all local changes then call:  GitCmd Revert `"$tarRootDir`" $urlAndOptionalBranch; # maybe also try with pull --allow-unrelated-histories ";
                                                   }
                                                   if( $cmd -eq "Pull" -and $msg.Contains("fatal: Couldn't find remote ref HEAD") ){
                                                     OutSuccess "  Ok, repository has no content."; return;
@@ -2128,13 +2158,16 @@ function GitShowRepo                          ( [String] $repoDir ){
                                                 [String] $githubUrl = "https://github.com/";
                                                 Assert ($url.StartsWith($githubUrl)) "Expected $url starts with $githubUrl";
                                                 return [String] (StringRemoveLeft $url $githubUrl); }
-function GitShowBranch                        ( [String] $repoDir ){
-                                                # return current branch (example: "master").
+function GitShowBranch                        ( [String] $repoDir, [Boolean] $getDefault = $false ){
+                                                # return current branch (example: "master"). Returns empty if branch is detached.
+                                                if( $getDefault ){
+                                                  return "main-or-master";
+                                                }
                                                 [String] $out = (ProcessStart "git" @("-C", (FsEntryRemoveTrailingDirSep $repoDir), "--git-dir=.git", "branch") -traceCmd:$false);
-                                                [String] $firstLine = StringSplitIntoLines $out | Where-Object { $_.StartsWith("* ") } | Select-Object -First 1;
-                                                # in future when newer version of git is common then we can use new option for get current-branch.
-                                                Assert ($firstLine.StartsWith("* ")) "expected result of git branch command begins with `"* `" but got `"$firstLine`"";
-                                                return [String] (StringRemoveLeft $firstLine "* ").Trim(); }
+                                                [String] $line = "$(StringSplitIntoLines $out | Where-Object { $_.StartsWith("* ") } | Select-Object -First 1)";
+                                                # in future when newer version of git is common then we can use new option for get current-branch (2024-01: tested but not always works).
+                                                Assert ($line.StartsWith("* ") -and $line.Length -ge 3) "GitShowBranch(`"$repoDir`") expected result of git branch begins with `"* `" but got `"$line`" and expected minimum length of 3.";
+                                                return [String] (StringRemoveLeft $line "* ").Trim(); }
 function GitShowChanges                       ( [String] $repoDir ){
                                                 # return changed, deleted and new files or dirs. Per entry one line prefixed with a change code.
                                                 [String] $out = (ProcessStart "git" @("-C", (FsEntryRemoveTrailingDirSep $repoDir), "--git-dir=.git", "status", "--short") -traceCmd:$false);
@@ -2346,6 +2379,30 @@ function GitCloneOrPullUrls                   ( [String[]] $listOfRepoUrls, [Str
                                                 # alternative not yet works because vars: $listOfRepoUrls | Where-Object{$null -ne $_} | ForEachParallel -MaxThreads 10 { GitCmd "CloneOrPull" $tarRootDirOfAllRepos $_ $errorAsWarning; } }
                                                 # old else{ $listOfRepoUrls | Where-Object{$null -ne $_} | ForEach-Object { GetOne $_; } }
                                                 if( $errorLines.Count ){ throw [ExcMsg] (StringArrayConcat $errorLines); } }
+                                                <# for future use:
+                                                # Works later multithreaded and errors are written out, collected and throwed at the end.
+                                                # If you want single threaded then call it with only one item in the list.
+                                                OutProgress "GitCloneOrPullUrls NrOfUrls=$($listOfRepoUrls.Count) CallLog=`"$gitLogFile`" ";
+                                                [String[]] $errorLines = @();
+                                                if( $listOfRepoUrls.Count -eq 0 ){ OutProgress "Ok, GitCloneOrPullUrls was called with no urls so nothing to do."; return; }
+                                                [Object] $threadSafeDict = [System.Collections.Concurrent.ConcurrentDictionary[string,string]]::new();
+                                                $listOfRepoUrls | ForEach-Object { [System.Tuple]::Create($tarRootDirOfAllRepos,$_,$errorAsWarning,$threadSafeDict) } |
+                                                ForEach-Object{ #TODO later: ForEachParallel { GlobalVariablesInit;
+                                                  [String] $tarRootDirOfAllRepos = $_.Item1;
+                                                  [String] $url                  = $_.Item2;
+                                                  [String] $errorAsWarning       = $_.Item3;
+                                                  [Object] $threadSafeDict       = $_.Item4;
+                                                  try{
+                                                    GitCmd "CloneOrPull" $_.Item1 $_.Item2 $_.Item3;
+                                                  }catch{
+                                                    [String] $msg = "Error (GitCmd CloneOrPull $tarRootDirOfAllRepos $url $errorAsWarning): $(StringFromException $_.Exception)";
+                                                    OutError $msg;
+                                                    Assert $threadSafeDict.TryAdd($url,$msg);
+                                                  }
+                                                };
+                                                $errorLines += $threadSafeDict.Values;
+                                                if( $errorLines.Count ){ throw [ExcMsg] (StringArrayConcat $errorLines); } }
+                                                #>
 <# Type: SvnEnvInfo #>                        Add-Type -TypeDefinition "public struct SvnEnvInfo {public string Url; public string Path; public string RealmPattern; public string CachedAuthorizationFile; public string CachedAuthorizationUser; public string Revision; }";
                                                 # ex: Url="https://myhost/svn/Work"; Path="D:\Work"; RealmPattern="https://myhost:443";
                                                 # CachedAuthorizationFile="$env:APPDATA\Subversion\auth\svn.simple\25ff84926a354d51b4e93754a00064d6"; CachedAuthorizationUser="myuser"; Revision="1234"
@@ -2915,25 +2972,28 @@ function TfsCheckinDirWhenNoConflict          ( [String] $wsdir, [String] $tfsPa
 function TfsUndoAllLocksInDir                 ( [String] $dir ){ # Undo all locks below dir to cleanup a previous failed operation as from merging.
                                                 OutProgress           "& `"$(TfsExe)`" vc undo /noprompt /recursive `"$dir`"";
                                                 [String[]] $out = @()+(&    (TfsExe)   vc undo /noprompt /recursive   $dir); AssertRcIsOk $out; }
-function SqlGetCmdExe                         (){ # old style. It is recommended to use: SqlPerformFile
-                                                [String] $k1 = "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\130\Tools\ClientSetup"; # sql server 2016
-                                                [String] $k2 = "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\120\Tools\ClientSetup"; # sql server 2014
-                                                [String] $k3 = "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\110\Tools\ClientSetup"; # sql server 2012
-                                                [String] $k4 = "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\100\Tools\ClientSetup"; # sql server 2008
-                                                [String] $k = "";
-                                                if    ( (RegistryExistsValue $k1 "Path") -and (FileExists ((RegistryGetValueAsString $k1 "Path")+"sqlcmd.EXE")) ){ $k = $k1; }
-                                                elseif( (RegistryExistsValue $k2 "Path") -and (FileExists ((RegistryGetValueAsString $k2 "Path")+"sqlcmd.EXE")) ){ $k = $k2; }
-                                                elseif( (RegistryExistsValue $k3 "Path") -and (FileExists ((RegistryGetValueAsString $k3 "Path")+"sqlcmd.EXE")) ){ $k = $k3; }
-                                                elseif( (RegistryExistsValue $k4 "Path") -and (FileExists ((RegistryGetValueAsString $k4 "Path")+"sqlcmd.EXE")) ){ $k = $k4; }
-                                                else { throw [ExcMsg] "Wether Sql Server 2016, 2014, 2012 nor 2008 is installed, so cannot find sqlcmd.exe"; }
-                                                [String] $sqlcmd = (RegistryGetValueAsString $k "Path") + "sqlcmd.EXE"; # "C:\Program Files\Microsoft SQL Server\130\Tools\Binn\sqlcmd.EXE"
-                                                return [String] $sqlcmd; }
+function SqlGetCmdExe                         (){
+                                                [String] $result = (ProcessFindExecutableInPath "sqlcmd.EXE");
+                                                if( $result -eq "" ){
+                                                  # old style. It is recommended to use: SqlPerformFile
+                                                  $result = @(
+                                                       "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\150\Tools\ClientSetup" # sql server 2022 and 2019
+                                                      ,"HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\140\Tools\ClientSetup" # sql server 2017
+                                                      ,"HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\130\Tools\ClientSetup" # sql server 2016
+                                                      ,"HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\120\Tools\ClientSetup" # sql server 2014
+                                                      ,"HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\110\Tools\ClientSetup" # sql server 2012
+                                                      ,"HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\100\Tools\ClientSetup" # sql server 2008
+                                                    ) | Where-Object{ (RegistryExistsValue $_ "Path") } |
+                                                    ForEach-Object{ ((RegistryGetValueAsString $_ "Path")+"sqlcmd.EXE") } |
+                                                    Where-Object{ (FileExists $_) } | Select-Object -First 1; # ex: "C:\Program Files\Microsoft SQL Server\130\Tools\Binn\sqlcmd.EXE"
+                                                }
+                                                if( $result -eq "" ){ throw [ExcMsg] "Cannot find sqlcmd.exe wether in path nor is any Sql Server 2022, 2019, 2016, 2014, 2012 or 2008 installed. "; }
+                                                return [String] $result; }
 function SqlRunScriptFile                     ( [String] $sqlserver, [String] $sqlfile, [String] $outFile, [Boolean] $continueOnErr ){ # old style. It is recommended to use: SqlPerformFile
                                                 FileAssertExists $sqlfile;
                                                 OutProgress "SqlRunScriptFile sqlserver=$sqlserver sqlfile=`"$sqlfile`" out=`"$outfile`" contOnErr=$continueOnErr";
-                                                [String] $sqlcmd = SqlGetCmdExe;
                                                 FsEntryCreateParentDir $outfile;
-                                                & $sqlcmd "-b" "-S" $sqlserver "-i" $sqlfile "-o" $outfile;
+                                                & (SqlGetCmdExe) "-b" "-S" $sqlserver "-i" $sqlfile "-o" $outfile;
                                                 if( -not $? ){ if( ! $continueOnErr ){ AssertRcIsOk; }
                                                 else{ OutWarning "Warning: Ignore SqlRunScriptFile `"$sqlfile`" on `"$sqlserver`" failed with rc=$(ScriptGetAndClearLastRc), more see outfile, will continue"; } }
                                                 FileAssertExists $outfile; }
@@ -3199,7 +3259,7 @@ function ToolGithubApiListOrgRepos            ( [String] $org, [System.Managemen
                                                     @{N='UpdatedAt';E={(DateTimeFromStringOrDateTimeValue $_.updated_at).ToString("yyyy-MM-dd")}},
                                                     @{N='PermAdm';E={$_.permissions.admin}}, @{N='PermPush';E={$_.permissions.push}}, @{N='PermPull';E={$_.permissions.pull}},
                                                     default_branch, @{N='LicName';E={$_.license.name}},
-                                                    @{N='Description';E={$_.description.SubString(0,200)}});
+                                                    @{N='Description';E={(StringLeft $_.description 200)}});
                                                   if( $a.Count -eq 0 ){ break; }
                                                   $result += $a;
                                                 } return [Array] $result | Sort-Object archived, Url; }
