@@ -8,7 +8,7 @@
 #Requires -Version 3.0
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $global:MnCommonPsToolLibVersion = "7.34"; # more see Releasenotes.txt
+[String] $global:MnCommonPsToolLibVersion = "7.35"; # more see Releasenotes.txt
 
 # This library encapsulates many common commands for the purpose of supporting compatibility between
 # multi platforms, simplifying commands, fixing usual problems, supporting tracing information,
@@ -2246,6 +2246,17 @@ function GithubCreatePullRequest              ( [String] $repo, [String] $toBran
                                                 #   a pull request for branch "myfrombranch" into branch "main" already exists:
                                                 #   https://github.com/myowner/myrepo/pull/1234
                                                 OutProgress $out; }
+function GithubMergeOpenPr                    ( [String] $prUrl, [String] $repoDirForCred = "" ){
+                                                # prUrl          : Url to pr which has no pending merge conflict.
+                                                # repoDirForCred : Any folder under any git repository, from which the credentials will be taken, use empty for current dir.
+                                                # example: GithubMergeOpenPr "https://github.com/mniederw/MnCommonPsToolLib/pull/123" $PSScriptRoot;
+                                                OutProgress "GithubMergeOpenPr $prUrl (repoDirForCred=$repoDirForCred)";
+                                                Push-Location $repoDirForCred;
+                                                  GithubPrepareCommand;
+                                                  [String] $out = "";
+                                                  $out = (ProcessStart "gh" @("pr", "merge", "--repo", $repo, "--merge", $prUrl) -traceCmd:$true);
+                                                Pop-Location;
+                                                OutProgress $out; }
 function ToolGetBranchCommit                 ( [String] $repo, [String] $branch, [String] $repoDirForCred = "", [Boolean] $traceCmd = $false ){
                                                 # repo           : has format [HOST/]OWNER/REPO
                                                 # branch         : if branch is not uniquely defined it will throw.
@@ -3300,6 +3311,16 @@ function ToolGithubApiDownloadLatestReleaseDir( [String] $repoUrl ){
                                                 FsEntryMoveByPatternToDir "$dir0$(DirSep)*" $tarDir;
                                                 DirDelete $dir0;
                                                 return [String] $tarDir; }
+function ToolEvalVsCodeExec                   (){ [String] $result = (ProcessFindExecutableInPath "code");
+                                                  if( $result -eq "" -and (OsIsWindows) ){
+                                                    if( (FileExists "$env:LOCALAPPDATA\Programs\Microsoft VS Code\bin\Code.cmd") ){ # user
+                                                      $result =     "$env:LOCALAPPDATA\Programs\Microsoft VS Code\bin\Code.cmd";
+                                                    }elseif( (FileExists "$env:ProgramFiles\Microsoft VS Code\Code.exe") ){ # system
+                                                      $result =          "$env:ProgramFiles\Microsoft VS Code\Code.exe";
+                                                    }
+                                                  }
+                                                  if( $result -eq "" ){ throw [ExcMsg] "VS Code executable was not found wether in path nor on windows at common locations for user or system programs."; }
+                                                  return [String] $result; }
 
 
 function GetSetGlobalVar( [String] $var, [String] $val){ OutProgress "GetSetGlobalVar is OBSOLETE, replace it now by GitSetGlobalVar.";  GitSetGlobalVar $var $val; }
