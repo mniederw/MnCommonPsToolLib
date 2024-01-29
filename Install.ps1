@@ -26,7 +26,7 @@ function FsEntryMakeTrailingDirSep            ( [String] $fsEntry ){
 function FsEntryGetAbsolutePath               ( [String] $fsEntry ){ return [String] ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($fsEntry)); }
 function OsPsModulePathList                   (){ return [String[]] ([Environment]::GetEnvironmentVariable("PSModulePath", "Machine").
                                                   Split(";",[System.StringSplitOptions]::RemoveEmptyEntries)); }
-function OsPsModulePathContains               ( [String] $dir ){ # ex: "D:\WorkGit\myuser\MyPsLibRepoName"
+function OsPsModulePathContains               ( [String] $dir ){ # Example: "D:\WorkGit\myuser\MyPsLibRepoName"
                                                 [String[]] $a = (OsPsModulePathList | ForEach-Object{ FsEntryRemoveTrailingDirSep $_ });
                                                 return [Boolean] ($a -contains (FsEntryRemoveTrailingDirSep $dir)); }
 function OsPsModulePathAdd                    ( [String] $dir ){ if( (OsPsModulePathContains $dir) ){ return; }
@@ -82,11 +82,11 @@ function OsIsWindows                          (){ return [Boolean] ([System.Envi
 [String] $linuxTargetDir    = "$HOME/.local/share/powershell/Modules";
 [String] $tarRootDir32bit   = "${env:ProgramFiles(x86)}\WindowsPowerShell\Modules";
 [String] $tarRootDir64bit   = "$env:ProgramW6432\WindowsPowerShell\Modules";
-[String] $srcRootDir        = $PSScriptRoot; if( $srcRootDir -eq "" ){ $srcRootDir = FsEntryGetAbsolutePath "."; } # ex: "D:\WorkGit\myuser\MyNameOfPsToolLib_master"
+[String] $srcRootDir        = $PSScriptRoot; if( $srcRootDir -eq "" ){ $srcRootDir = FsEntryGetAbsolutePath "."; } # Example: "D:\WorkGit\myuser\MyNameOfPsToolLib_master"
 [String[]] $dirsWithPsm1Files = @()+(DirListDirs $srcRootDir | Where-Object{ DirHasFiles $_ "*.psm1" });
 if( $dirsWithPsm1Files.Count -ne 1 ){ throw [Exception] "Tool is designed for working below '$srcRootDir' with exactly one directory which contains psm1 files but found $($dirsWithPsm1Files.Count) dirs ($dirsWithPsm1Files)"; }
-[String] $moduleSrcDir      = $dirsWithPsm1Files[0]; # ex: "D:\WorkGit\myuser\MyNameOfPsToolLib_master\MyNameOfPsToolLib" or "/home/myuser/WorkExt/mniederw/MnCommonPsToolLib#trunk/MnCommonPsToolLib"
-[String] $moduleName        = [System.IO.Path]::GetFileName($moduleSrcDir); # ex: "MyNameOfPsToolLib"
+[String] $moduleSrcDir      = $dirsWithPsm1Files[0]; # Example: "D:\WorkGit\myuser\MyNameOfPsToolLib_master\MyNameOfPsToolLib" or "/home/myuser/WorkExt/mniederw/MnCommonPsToolLib#trunk/MnCommonPsToolLib"
+[String] $moduleName        = [System.IO.Path]::GetFileName($moduleSrcDir); # Example: "MyNameOfPsToolLib"
 [String] $moduleTarDir32bit = "$tarRootDir32bit\$moduleName";
 [String] $moduleTarDir64bit = "$tarRootDir64bit\$moduleName";
 [String] $moduleTarDirLinux = "$linuxTargetDir/$moduleName";
@@ -113,7 +113,7 @@ function InstallStandardMode(){
   }else{
     OutProgress "Delete-and-Copy `"$moduleSrcDir`" to `"$moduleTarDirLinux`" ";
     if( (DirExists $moduleTarDirLinux) ){ Remove-Item -Force -Recurse -LiteralPath $moduleTarDirLinux; }
-    Copy-Item -Force -Recurse -LiteralPath $moduleSrcDir -Destination $linuxTargetDir;  
+    Copy-Item -Force -Recurse -LiteralPath $moduleSrcDir -Destination $linuxTargetDir;
   }
   OutProgressText "Current installation modes: "; CurrentInstallationModes "Green";
 }

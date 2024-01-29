@@ -8,7 +8,7 @@
 #Requires -Version 3.0
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $global:MnCommonPsToolLibVersion = "7.35"; # more see Releasenotes.txt
+[String] $global:MnCommonPsToolLibVersion = "7.36"; # more see Releasenotes.txt
 
 # This library encapsulates many common commands for the purpose of supporting compatibility between
 # multi platforms, simplifying commands, fixing usual problems, supporting tracing information,
@@ -126,7 +126,7 @@ GlobalVariablesInit;
 Add-Type -Name Window -Namespace Console -MemberDefinition '[DllImport("Kernel32.dll")] public static extern IntPtr GetConsoleWindow(); [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, Int32 nCmdShow);';
 Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class Window { [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect); [DllImport("User32.dll")] public extern static bool MoveWindow(IntPtr handle, int x, int y, int width, int height, bool redraw); } public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }';
 Add-Type -WarningAction SilentlyContinue -TypeDefinition "using System; public class ExcMsg : Exception { public ExcMsg(String s):base(s){} } ";
-  # Used for error messages which have a text which will be exact enough so no stackdump is nessessary. Is handled in our StdErrHandleExc.
+  # Used for error messages which have a text which will be exact enough so no additionally information as stackdump or data are nessessary. Is handled in our StdErrHandleExc.
   # Note: we need to suppress the warning: The generated type defines no public methods or properties
 
 # Set some self defined constant global variables
@@ -149,9 +149,9 @@ function ForEachParallel {
   #   You cannot use any functions or variables from the current script where it is embedded!
   #   Only the single variable $_ can be used, so you need to create a [System.Tuple] for passing multiple values as a single object.
   #   You can also not base on Auto-Load-Module in your script, so generally use Load-Module for each used module.
-  # ex: (0..9) | ForEachParallel { Write-Output "Nr: $_"; Start-Sleep -Seconds 1; };
-  # ex: (0..9) | ForEachParallel -MaxThreads 2 { Write-Output "Nr: $_"; Start-Sleep -Seconds 1; };
-  # ex: $x = "abc"; (0..9) | ForEach-Object{ [System.Tuple]::Create($_,$x) } | ForEachParallel{ "$($_.Item1) $($_.Item2)" };
+  # Example: (0..9) | ForEachParallel { Write-Output "Nr: $_"; Start-Sleep -Seconds 1; };
+  # Example: (0..9) | ForEachParallel -MaxThreads 2 { Write-Output "Nr: $_"; Start-Sleep -Seconds 1; };
+  # Example: $x = "abc"; (0..9) | ForEach-Object{ [System.Tuple]::Create($_,$x) } | ForEachParallel{ "$($_.Item1) $($_.Item2)" };
   param( [Parameter(Mandatory=$true,position=0)]              [System.Management.Automation.ScriptBlock] $ScriptBlock,
          [Parameter(Mandatory=$true,ValueFromPipeline=$true)] [PSObject]                                 $InputObject,
             # PSScriptAnalyzer: On PS7 we get PSUseProcessBlockForPipelineCommand Command accepts pipeline input but has not defined a process block.
@@ -188,7 +188,7 @@ function ForEachParallelPS5 {
       # has no effect: $pool.ApartmentState = "MTA";
       $threads = @();
       $scriptBlock = $ExecutionContext.InvokeCommand.NewScriptBlock("param(`$_)$([Environment]::NewLine)"+$scriptblock.ToString());
-    }catch{ $Host.UI.WriteErrorLine("ForEachParallel-BEGIN: $($_)"); }
+    }catch{ $Host.UI.WriteErrorLine("ForEachParallel-BEGIN: $($_.Exception.Message)"); }
   }PROCESS{ # runs once per input object
     try{
       # alternative:
@@ -197,7 +197,7 @@ function ForEachParallelPS5 {
       $powershell = [powershell]::Create().addscript($scriptblock).addargument($InputObject);
       $powershell.runspacepool = $pool;
       $threads += @{ instance = $powershell; handle = $powershell.BeginInvoke(); }; # $pipelineInputs,$pipelineOutput
-    }catch{ $Host.UI.WriteErrorLine("ForEachParallel-PROCESS: $($_)"); }
+    }catch{ $Host.UI.WriteErrorLine("ForEachParallel-PROCESS: $($_.Exception.Message)"); }
     [gc]::Collect();
   }END{ # runs only once per pipeline
     try{
@@ -212,7 +212,7 @@ function ForEachParallelPS5 {
                 #   Because that we write this to verbose and not to progress because for progress a popup window would occurre which does not disappear.
                 $threads[$i].instance.EndInvoke($threads[$i].handle);
               }catch{
-                [String] $msg = $_; $error.clear();
+                [String] $msg = $_.Exception.Message; $error.clear();
                 # 2023-07 msg example: Exception calling "EndInvoke" with "1" argument(s):
                 #   "Der Befehl "MountPointCreate" wurde im Modul "MnCommonPsToolLib" gefunden, das Modul konnte aber nicht geladen werden.
                 #   Wenn Sie weitere Informationen wünschen, führen Sie "Import-Module MnCommonPsToolLib" aus."
@@ -235,10 +235,10 @@ function ForEachParallelPS5 {
         }
       }
     }catch{
-      # ex: 2018-07: Exception calling "EndInvoke" with "1" argument(s) "Der ausgeführte Befehl wurde beendet, da die
-      #              Einstellungsvariable "ErrorActionPreference" oder ein allgemeiner Parameter auf "Stop" festgelegt ist:
-      #              Es ist ein allgemeiner Fehler aufgetreten, für den kein spezifischerer Fehlercode verfügbar ist.."
-      $Host.UI.WriteErrorLine("ForEachParallel-END: $($_)");
+      # Example: 2018-07: Exception calling "EndInvoke" with "1" argument(s) "Der ausgeführte Befehl wurde beendet, da die
+      #                   Einstellungsvariable "ErrorActionPreference" oder ein allgemeiner Parameter auf "Stop" festgelegt ist:
+      #                   Es ist ein allgemeiner Fehler aufgetreten, für den kein spezifischerer Fehlercode verfügbar ist.."
+      $Host.UI.WriteErrorLine("ForEachParallel-END: $($_.Exception.Message)");
     }
     $error.clear();
     [gc]::Collect();
@@ -298,29 +298,30 @@ function StringArrayIsEqual                   ( [String[]] $a, [String[]] $b, [B
                                                 } return [Boolean] $true; }
 function StringArrayDblQuoteItems             ( [String[]] $a ){ # surround each item by double quotes
                                                 return [String[]] (@()+($a | Where-Object{$null -ne $_} | ForEach-Object { "`"$_`"" })); }
-function StringFromException                  ( [Exception] $ex ){
-                                                # Return full info of string which can contain newlines. Use this if $_.Exception.Message is not enough.
-                                                # example: "ArgumentOutOfRangeException: Specified argument was out of the range of valid values. Parameter name: times  at ..."
-                                                # note: .Data is never null.
+function StringFromException                  ( [Exception] $exc ){
+                                                # Return full info of exception inclusive data and stacktrace, it can contain newlines.
+                                                # Use this if $_ which is equal to $_.Exception.Message is not enough.
+                                                # Usage: in catch block call it with $_.Exception
+                                                # Example: "ArgumentOutOfRangeException: Specified argument was out of the range of valid values. Parameter name: times  at ..."
                                                 [String] $nl = [Environment]::NewLine;
-                                                [String] $typeName = switch($ex.GetType().Name -eq "ExcMsg" ){($true){"Error"}default{$ex.GetType().Name;}};
-                                                [String] $excMsg   = StringReplaceNewlines $ex.Message;
-                                                [String] $excData  = ""; foreach($key in $ex.Data.Keys){ $excData += "$nl  $key=`"$($ex.Data[$key])`"."; }
-                                                [String] $stackTr  = switch($null -eq $ex.StackTrace){($true){""}default{"$nl  StackTrace:$nl $($ex.StackTrace -replace `"$nl`",`"$nl `")"}};
+                                                [String] $typeName = switch($exc.GetType().Name -eq "ExcMsg" ){($true){"Error"}default{$exc.GetType().Name;}};
+                                                [String] $excMsg   = StringReplaceNewlines $exc.Message;
+                                                [String] $excData  = ""; foreach($key in $exc.Data.Keys){ $excData += "$nl  $key=`"$($exc.Data[$key])`"."; } # note: .Data is never null.
+                                                [String] $stackTr  = switch($null -eq $exc.StackTrace){($true){""}default{"$nl  StackTrace:$nl $($exc.StackTrace -replace `"$nl`",`"$nl `")"}};
                                                 return [String] "$($typeName): $excMsg$excData$stackTr"; }
-function StringFromErrorRecord                ( [System.Management.Automation.ErrorRecord] $er ){
-                                                 [String] $msg = (StringFromException $er.Exception);
+function StringFromErrorRecord                ( [System.Management.Automation.ErrorRecord] $er ){ # In powershell in a catch block always this type is used for $_ .
+                                                [String] $msg = (StringFromException $er.Exception);
                                                 [String] $nl = [Environment]::NewLine;
-                                                 $msg += "$nl  ScriptStackTrace: $nl    $($er.ScriptStackTrace -replace `"$nl`",`"$nl    `")"; # ex: at <ScriptBlock>, C:\myfile.psm1: line 800 at MyFunc
+                                                 $msg += "$nl  ScriptStackTrace: $nl    $($er.ScriptStackTrace -replace `"$nl`",`"$nl    `")"; # Example: at <ScriptBlock>, C:\myfile.psm1: line 800 at MyFunc
                                                  $msg += "$nl  InvocationInfo:$nl    $($er.InvocationInfo.PositionMessage -replace `"$nl`",`"$nl    `")"; # At D:\myfile.psm1:800 char:83 \n   + ...   +   ~~~
                                                  $msg += "$nl  Ts=$(DateTimeNowAsStringIso) User=$($env:username) mach=$($ComputerName) ";
                                                  # $msg += "$nl  InvocationInfoLine: $($er.InvocationInfo.Line -replace `"$nl`",`" `" -replace `"\s+`",`" `" )";
-                                                 # $msg += "$nl  InvocationInfoMyCommand: $($er.InvocationInfo.MyCommand)"; # ex: ForEach-Object
-                                                 # $msg += "$nl  InvocationInfoInvocationName: $($er.InvocationInfo.InvocationName)"; # ex: ForEach-Object
-                                                 # $msg += "$nl  InvocationInfoPSScriptRoot: $($er.InvocationInfo.PSScriptRoot)"; # ex: D:\MyModuleDir
-                                                 # $msg += "$nl  InvocationInfoPSCommandPath: $($er.InvocationInfo.PSCommandPath)"; # ex: D:\MyToolModule.psm1
-                                                 # $msg += "$nl  FullyQualifiedErrorId: $($er.FullyQualifiedErrorId)"; # ex: "System.ArgumentOutOfRangeException,Microsoft.PowerShell.Commands.ForEachObjectCommand"
-                                                 # $msg += "$nl  ErrorRecord: $($er.ToString() -replace `"$nl`",`" `")"; # ex: "Specified argument was out of the range of valid values. Parametername: times"
+                                                 # $msg += "$nl  InvocationInfoMyCommand: $($er.InvocationInfo.MyCommand)"; # Example: ForEach-Object
+                                                 # $msg += "$nl  InvocationInfoInvocationName: $($er.InvocationInfo.InvocationName)"; # Example: ForEach-Object
+                                                 # $msg += "$nl  InvocationInfoPSScriptRoot: $($er.InvocationInfo.PSScriptRoot)"; # Example: D:\MyModuleDir
+                                                 # $msg += "$nl  InvocationInfoPSCommandPath: $($er.InvocationInfo.PSCommandPath)"; # Example: D:\MyToolModule.psm1
+                                                 # $msg += "$nl  FullyQualifiedErrorId: $($er.FullyQualifiedErrorId)"; # Example: "System.ArgumentOutOfRangeException,Microsoft.PowerShell.Commands.ForEachObjectCommand"
+                                                 # $msg += "$nl  ErrorRecord: $($er.ToString() -replace `"$nl`",`" `")"; # Example: "Specified argument was out of the range of valid values. Parametername: times"
                                                  # $msg += "$nl  CategoryInfo: $(switch($null -ne $er.CategoryInfo){($true){$er.CategoryInfo.ToString()}default{''}})"; # https://msdn.microsoft.com/en-us/library/system.management.automation.errorcategory(v=vs.85).aspx
                                                  # $msg += "$nl  PipelineIterationInfo: $($er.PipelineIterationInfo|Where-Object{$null -ne $_}|ForEach-Object{'$_, '})";
                                                  # $msg += "$nl  TargetObject: $($er.TargetObject)"; # can be null
@@ -329,7 +330,7 @@ function StringFromErrorRecord                ( [System.Management.Automation.Er
                                                  return [String] $msg; }
 function StringCommandLineToArray             ( [String] $commandLine ){
                                                 # Care spaces or tabs separated args and doublequoted args which can contain double doublequotes for escaping single doublequotes.
-                                                # ex: "my cmd.exe" arg1 "ar g2" "arg""3""" "arg4"""""  ex: StringCommandLineToArray "`"my cmd.exe`" arg1 `"ar g2`" `"arg`"`"3`"`"`" `"arg4`"`"`"`"`""
+                                                # Example: "my cmd.exe" arg1 "ar g2" "arg""3""" "arg4"""""  Example: StringCommandLineToArray "`"my cmd.exe`" arg1 `"ar g2`" `"arg`"`"3`"`"`" `"arg4`"`"`"`"`""
                                                 [String] $line = $commandLine.Trim();
                                                 [String[]] $result = @();
                                                 [Int32] $i = 0;
@@ -362,7 +363,7 @@ function StringNormalizeAsVersion             ( [String] $versionString ){
                                                 # For comparison the first 4 dot separated parts are cared and the rest after a blank is ignored.
                                                 # Each component which begins with a digit is filled with leading zeros to a length of 5
                                                 # A leading "V" or "v" is optional and will be removed.
-                                                # Ex: "12.3.40" => "00012.00003.00040"; "12.20" => "00012.00002"; "12.3.beta.40.5 descrtext" => "00012.00003.beta.00040";
+                                                # Example: "12.3.40" => "00012.00003.00040"; "12.20" => "00012.00002"; "12.3.beta.40.5 descrtext" => "00012.00003.beta.00040";
                                                 #     "V12.3" => "00012.00003"; "v12.3" => "00012.00003"; "" => ""; "a" => "a"; " b" => "";
                                                 return [String] ( ( (StringSplitToArray "." (@()+(StringSplitToArray " " (StringRemoveLeft $versionString "V") $false))[0]) |
                                                   Select-Object -First 4 |
@@ -401,7 +402,7 @@ function DateTimeFromStringIso                ( [String] $s ){ # "yyyy-MM-dd HH:
                                                 elseif( $s.Length -le 28 ){ $fmt = "yyyy-MM-dd HH:mm:ss.fffzzz"; }
                                                 if( $s.Length -gt 10 -and $s[10] -ceq 'T' ){ $fmt = $fmt.remove(10,1).insert(10,'T'); }
                                                 try{ return [DateTime] [DateTime]::ParseExact($s,$fmt,[System.Globalization.CultureInfo]::InvariantCulture);
-                                                }catch{ <# ex: Ausnahme beim Aufrufen von "ParseExact" mit 3 Argument(en): Die Zeichenfolge wurde nicht als gültiges DateTime erkannt. #>
+                                                }catch{ # exc: Ausnahme beim Aufrufen von "ParseExact" mit 3 Argument(en): Die Zeichenfolge wurde nicht als gültiges DateTime erkannt.
                                                   throw [Exception] "DateTimeFromStringIso(`"$s`") is not a valid datetime in format `"$fmt`""; } }
 function DateTimeFromStringOrDateTimeValue    ( [Object] $v ){ # Used for example after ConvertFrom-Json for unifying a value to type DateTime because PS7 sets for example type=DateTime and PS5 the type=String.
                                                 # example input: "2023-06-30T23:59:59.123+0000"
@@ -448,7 +449,7 @@ function ConsoleSetGuiProperties              (){ # set standard sizes which mak
                                                   $w.buffersize = $buf;
                                                 }catch{
                                                   if( $_.Exception.Message.Contains("Operation is not supported on this platform.") ){
-                                                    # On Ubuntu we get: ex: "Exception setting "buffersize": "Operation is not supported on this platform.""
+                                                    # On Ubuntu we get: exc: "Exception setting "buffersize": "Operation is not supported on this platform.""
                                                     OutVerbose "Warning: Ignore setting buffersize failed because $($_.Exception.Message)";
                                                   }else{
                                                     # seldom we got: PSArgumentOutOfRangeException: Cannot set the buffer size because the size specified is too large or too small.
@@ -472,7 +473,7 @@ function ConsoleSetGuiProperties              (){ # set standard sizes which mak
                                                     $w.windowsize = $m;
                                                   }catch{
                                                     if( $_.Exception.Message.Contains("Operation is not supported on this platform.") ){
-                                                      # On Ubuntu we get: ex: "Exception setting "windowsize": "Operation is not supported on this platform.""
+                                                      # On Ubuntu we get: exc: "Exception setting "windowsize": "Operation is not supported on this platform.""
                                                       OutVerbose "Warning: Ignore setting windowsize failed because $($_.Exception.Message)";
                                                     }else{ throw; }
                                                   }
@@ -535,7 +536,7 @@ function StdErrHandleExc                      ( [System.Management.Automation.Er
                                                   OutError "Press enter to exit";
                                                   try{
                                                     Read-Host; return;
-                                                  }catch{ # ex: PSInvalidOperationException:  Read-Host : Windows PowerShell is in NonInteractive mode. Read and Prompt functionality is not available.
+                                                  }catch{ # exc: PSInvalidOperationException:  Read-Host : Windows PowerShell is in NonInteractive mode. Read and Prompt functionality is not available.
                                                     OutError "Note: Cannot Read-Host because $($_.Exception.Message)";
                                                   }
                                                 }
@@ -593,19 +594,23 @@ function ScriptImportModuleIfNotDone          ( [String] $moduleName ){ if( -not
 function ScriptGetCurrentFunc                 (){ return [String] ((Get-Variable MyInvocation -Scope 1).Value.MyCommand.Name); }
 function ScriptGetCurrentFuncName             (){ return [String] ((Get-PSCallStack)[2].Position); }
 function ScriptGetAndClearLastRc              (){ [Int32] $rc = 0;
-                                                if( ((test-path "variable:LASTEXITCODE") -and $null -ne $LASTEXITCODE <# if no windows command was done then $LASTEXITCODE is null #> -and $LASTEXITCODE -ne 0) -or -not $? ){ $rc = $LASTEXITCODE; ScriptResetRc; }
-                                                return [Int32] $rc; }
-function ScriptResetRc                        (){ $error.clear(); $global:LASTEXITCODE = 0; $error.clear(); AssertRcIsOk; } # reset $LASTEXITCODE (ERRORLEVEL to 0); non-portable alternative: & "cmd.exe" "/C" "EXIT 0"
+                                                  # if no windows command was done then $LASTEXITCODE is null
+                                                  if( ((test-path "variable:LASTEXITCODE") -and $null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) -or -not $? ){
+                                                    $rc = $LASTEXITCODE; ScriptResetRc; }
+                                                  return [Int32] $rc; }
+function ScriptResetRc                        (){ # reset $LASTEXITCODE (ERRORLEVEL to 0); non-portable alternative: & "cmd.exe" "/C" "EXIT 0"
+                                                  $error.clear(); $global:LASTEXITCODE = 0; $error.clear(); AssertRcIsOk; }
 function ScriptNrOfScopes                     (){ [Int32] $i = 1; while($true){
                                                 try{ Get-Variable null -Scope $i -ValueOnly -ErrorAction SilentlyContinue | Out-Null; $i++;
-                                                }catch{ <# ex: System.Management.Automation.PSArgumentOutOfRangeException #> return [Int32] ($i-1); } } }
-function ScriptGetProcessCommandLine          (){ return [String] ([Environment]::commandline); } # ex: "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" "& \"C:\myscript.ps1\"";  or  "C:\Program Files\PowerShell\7\pwsh.dll" -nologo
+                                                }catch{ # exc: System.Management.Automation.PSArgumentOutOfRangeException
+                                                  return [Int32] ($i-1); } } }
+function ScriptGetProcessCommandLine          (){ return [String] ([Environment]::commandline); } # Example: "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" "& \"C:\myscript.ps1\"";  or  "C:\Program Files\PowerShell\7\pwsh.dll" -nologo
 function ScriptGetDirOfLibModule              (){ return [String] $PSScriptRoot ; } # Get dir       of this script file of this function or empty if not from a script; alternative: (Split-Path -Parent -Path ($script:MyInvocation.MyCommand.Path))
 function ScriptGetFileOfLibModule             (){ return [String] $PSCommandPath; } # Get full path of this script file of this function or empty if not from a script. alternative1: try{ return [String] (Get-Variable MyInvocation -Scope 1 -ValueOnly).MyCommand.Path; }catch{ return [String] ""; }  alternative2: $script:MyInvocation.MyCommand.Path
 function ScriptGetCallerOfLibModule           (){ return [String] $MyInvocation.PSCommandPath; } # Result can be empty or implicit module if called interactive. alternative for dir: $MyInvocation.PSScriptRoot.
 function ScriptGetTopCaller                   (){ # return the command line with correct doublequotes.
                                                 # Result can be empty or implicit module if called interactive.
-                                                # usage ex: "&'$env:TEMP/tmp/A.ps1'" or '&"$env:TEMP/tmp/A.ps1"' or on ISE '"$env:TEMP/tmp/A.ps1"'
+                                                # usage Example: "&'$env:TEMP/tmp/A.ps1'" or '&"$env:TEMP/tmp/A.ps1"' or on ISE '"$env:TEMP/tmp/A.ps1"'
                                                 [String] $f = $global:MyInvocation.MyCommand.Definition.Trim();
                                                 if( $f -eq "" -or $f -eq "ScriptGetTopCaller" ){ return [String] ""; }
                                                 if( $f.StartsWith("&") ){ $f = $f.Substring(1,$f.Length-1).Trim(); }
@@ -613,7 +618,7 @@ function ScriptGetTopCaller                   (){ # return the command line with
                                                 return [String] $f; }
 function ScriptIsProbablyInteractive          (){ [String] $f = $global:MyInvocation.MyCommand.Definition.Trim();
                                                 # Result can be empty or implicit module if called interactive.
-                                                # usage ex: "&'$env:TEMP/tmp/A.ps1'" or '&"$env:TEMP/tmp/A.ps1"' or on ISE '"$env:TEMP/tmp/A.ps1"'
+                                                # usage Example: "&'$env:TEMP/tmp/A.ps1'" or '&"$env:TEMP/tmp/A.ps1"' or on ISE '"$env:TEMP/tmp/A.ps1"'
                                                 return [Boolean] $f -eq "" -or $f -eq "ScriptGetTopCaller" -or -not $f.StartsWith("&"); }
 function StreamAllProperties                  (){ $input | Select-Object *; }
 function StreamAllPropertyTypes               (){ $input | Get-Member -Type Property; }
@@ -623,7 +628,7 @@ function StreamToString                       (){ $input | Out-String -Width 999
 function StreamToStringDelEmptyLeadAndTrLines (){ $input | Out-String -Width 999999999 | ForEach-Object{ $_ -replace "[ \f\t\v]]+\r\n","\r\n" -replace "^(\r\n)+","" -replace "(\r\n)+$","" }; }
 function StreamToGridView                     (){ $input | Out-GridView -Title "TableData"; }
 function StreamToCsvStrings                   (){ $input | ConvertTo-Csv -NoTypeInformation; }
-                                                # Note: For a simple string array as ex: @("one","two")|StreamToCsvStrings  it results with 3 lines "Length","3","3".
+                                                # Note: For a simple string array as example  @("one","two")|StreamToCsvStrings  it results with 3 lines "Length","3","3".
 function StreamToJsonString                   (){ $input | ConvertTo-Json -Depth 100; }
 function StreamToJsonCompressedString         (){ $input | ConvertTo-Json -Depth 100 -Compress; }
 function StreamToXmlString                    (){ $input | ConvertTo-Xml -Depth 999999999 -As String -NoTypeInformation; }
@@ -644,7 +649,7 @@ function StreamToDataRowsString               ( [String[]] $propertyNames = @() 
                                                 if( $propertyNames.Count -eq 0 ){ $propertyNames = @("*"); }
                                                 $input | Format-Table -Wrap -Force -autosize -HideTableHeaders $propertyNames | StreamToStringDelEmptyLeadAndTrLines; }
 function StreamToTableString                  ( [String[]] $propertyNames = @() ){
-                                                # Note: For a simple string array as ex: @("one","two")|StreamToTableString  it results with 4 lines "Length","------","     3","     3".
+                                                # Note: For a simple string array as example  @("one","two")|StreamToTableString  it results with 4 lines "Length","------","     3","     3".
                                                 if( $propertyNames.Count -eq 0 ){ $propertyNames = @("*"); }
                                                 $input | Format-Table -Wrap -Force -autosize $propertyNames | StreamToStringDelEmptyLeadAndTrLines; }
 function StreamToFile                         ( [String] $file, [Boolean] $overwrite = $true, [String] $encoding = "UTF8BOM" ){
@@ -659,7 +664,7 @@ function ProcessIsRunningInElevatedAdminMode  (){ if( (OsIsWindows) ){ return [B
                                                   return [Boolean] ("$env:SUDO_USER" -ne ""); }
 function ProcessAssertInElevatedAdminMode     (){ Assert (ProcessIsRunningInElevatedAdminMode) "requires to be in elevated admin mode"; }
 function ProcessRestartInElevatedAdminMode    (){ if( (ProcessIsRunningInElevatedAdminMode) ){ return; }
-                                                # ex: "C:\myscr.ps1" or if interactive then statement name ex: "ProcessRestartInElevatedAdminMode"
+                                                # Example: "C:\myscr.ps1" or if interactive then statement name example "ProcessRestartInElevatedAdminMode"
                                                 [String] $cmd = @( (ScriptGetTopCaller) ) + $global:ArgsForRestartInElevatedAdminMode;
                                                 if( $global:ModeDisallowInteractions ){
                                                   [String] $msg = "Script `"$cmd`" is currently not in elevated admin mode and function ProcessRestartInElevatedAdminMode was called ";
@@ -674,7 +679,7 @@ function ProcessRestartInElevatedAdminMode    (){ if( (ProcessIsRunningInElevate
                                                   if( (OsIsWindows) ){
                                                     OutProgress "  Start-Process -Verb RunAs -FilePath $(ProcessPsExecutable) -ArgumentList $cmd";
                                                     Start-Process -Verb "RunAs" -FilePath (ProcessPsExecutable) -ArgumentList $cmd;
-                                                    # ex: InvalidOperationException: This command cannot be run due to the error: Der Vorgang wurde durch den Benutzer abgebrochen.
+                                                    # Example exc: InvalidOperationException: This command cannot be run due to the error: Der Vorgang wurde durch den Benutzer abgebrochen.
                                                     OutProgress "Exiting in 10 seconds";
                                                     ProcessSleepSec 10;
                                                   }else{
@@ -798,7 +803,7 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 $prInfo.Arguments = $cmdArgs;
                                                 $prInfo.CreateNoWindow = $true;
                                                 $prInfo.WindowStyle = "Normal";
-                                                $prInfo.UseShellExecute = $false; <# UseShellExecute must be false when redirect io #>
+                                                $prInfo.UseShellExecute = $false; # UseShellExecute must be false when redirect io
                                                 $prInfo.RedirectStandardError = $true;
                                                 $prInfo.RedirectStandardOutput = $true;
                                                 $prInfo.RedirectStandardInput = $false; # parent and child have same standard-input and no additional pipe created.
@@ -884,7 +889,7 @@ function OsIsWindows                          (){ return [Boolean] ([System.Envi
                                                 # for future: function OsIsLinux(){ return [Boolean] ([System.Environment]::OSVersion.Platform -eq "Unix"); } # example: Ubuntu22: Version="5.15.0.41"
 function OsPsModulePathList                   (){ return [String[]] ([Environment]::GetEnvironmentVariable("PSModulePath", "Machine").
                                                   Split(";",[System.StringSplitOptions]::RemoveEmptyEntries)); }
-function OsPsModulePathContains               ( [String] $dir ){ # ex: "D:\MyGitRoot\MyGitAccount\MyPsLibRepoName"
+function OsPsModulePathContains               ( [String] $dir ){ # Example: "D:\MyGitRoot\MyGitAccount\MyPsLibRepoName"
                                                 [String[]] $a = (OsPsModulePathList | ForEach-Object{ FsEntryRemoveTrailingDirSep $_ });
                                                 return [Boolean] ($a -contains (FsEntryRemoveTrailingDirSep $dir)); }
 function OsPsModulePathAdd                    ( [String] $dir ){ if( OsPsModulePathContains $dir ){ return; }
@@ -918,8 +923,10 @@ function FsEntryGetAbsolutePath               ( [String] $fsEntry ){ # works wit
                                                 # see http://stackoverflow.com/questions/3038337/powershell-resolve-path-that-might-not-exist
                                                 if( $fsEntry -eq "" ){ return [String] ""; }
                                                 try{ return [String] ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($fsEntry)); }
-                                                catch [System.Management.Automation.DriveNotFoundException] { # ex: DriveNotFoundException: Cannot find drive. A drive with the name 'Z' does not exist.
-                                                  try{ return [String] [IO.Path]::GetFullPath($fsEntry); }catch{
+                                                catch [System.Management.Automation.DriveNotFoundException] {
+                                                  # Example: DriveNotFoundException: Cannot find drive. A drive with the name 'Z' does not exist.
+                                                  try{ return [String] [IO.Path]::GetFullPath($fsEntry);
+                                                  }catch{
                                                     # maybe this is not working for psdrives. Solve this if it occurrs.
                                                     throw [Exception] "[IO.Path]::GetFullPath(`"$fsEntry`") failed because $($_.Exception.Message)";
                                                   } } }
@@ -928,7 +935,7 @@ function FsEntryGetUncShare                   ( [String] $fsEntry ){ # return "\
                                                   if( $u.IsUnc -and $u.Segments.Count -ge 2 -and $u.Segments[0] -eq "/" ){
                                                     return [String] "$(DirSep)$(DirSep)$($u.Host)$(DirSep)$(StringRemoveRight $u.Segments[1] '/')$(DirSep)";
                                                   }
-                                                }catch{ $error.clear(); } # ex: "Ungültiger URI: Das URI-Format konnte nicht bestimmt werden.", "Ungültiger URI: Der URI ist leer."
+                                                }catch{ $error.clear(); } # Example: "Ungültiger URI: Das URI-Format konnte nicht bestimmt werden.", "Ungültiger URI: Der URI ist leer."
                                                 return [String] ""; }
 function FsEntryMakeValidFileName             ( [String] $str ){
                                                 [System.IO.Path]::GetInvalidFileNameChars() |
@@ -938,7 +945,8 @@ function FsEntryMakeRelative                  ( [String] $fsEntry, [String] $bel
                                                 # Works without IO to file system; if $fsEntry is not equal or below dir then it throws;
                                                 # if fs-entry is equal the below-dir then it returns a dot;
                                                 # a trailing backslash of the fs entry is not changed;
-                                                # trailing backslashes for belowDir are not nessessary. ex: "Dir1/Dir2" -eq (FsEntryMakeRelative "$HOME/Dir1/Dir2" "$HOME");
+                                                # trailing backslashes for belowDir are not nessessary.
+                                                # Example: "Dir1/Dir2" -eq (FsEntryMakeRelative "$HOME/Dir1/Dir2" "$HOME");
                                                 AssertNotEmpty $belowDir "belowDir";
                                                 $belowDir = FsEntryMakeTrailingDirSep (FsEntryGetAbsolutePath $belowDir);
                                                 $fsEntry = FsEntryGetAbsolutePath $fsEntry;
@@ -954,7 +962,8 @@ function FsEntryMakeTrailingDirSep            ( [String] $fsEntry ){
                                                 if( -not (FsEntryHasTrailingDirSep $result) ){ $result += $(DirSep); }
                                                 return [String] $result; }
 function FsEntryJoinRelativePatterns          ( [String] $rootDir, [String[]] $relativeFsEntriesPatternsSemicolonSeparated ){
-                                                # Create an array ex: @( "c:\myroot\bin\", "c:\myroot\obj\", "c:\myroot\*.tmp", ... ) from input as @( "bin\;obj\;", ";*.tmp;*.suo", ".\dir\d1?\", ".\dir\file*.txt");
+                                                # Create an array Example: @( "c:\myroot\bin\", "c:\myroot\obj\", "c:\myroot\*.tmp", ... )
+                                                #   from input as @( "bin\;obj\;", ";*.tmp;*.suo", ".\dir\d1?\", ".\dir\file*.txt");
                                                 # If an fs entry specifies a dir patterns then it must be specified by a trailing backslash.
                                                 [String[]] $a = @(); $relativeFsEntriesPatternsSemicolonSeparated |
                                                   Where-Object{$null -ne $_} |
@@ -970,7 +979,7 @@ function FsEntryGetFileName                   ( [String] $fsEntry ){
                                                 return [String] [System.IO.Path]::GetFileName((FsEntryRemoveTrailingDirSep $fsEntry)); }
 function FsEntryGetFileExtension              ( [String] $fsEntry ){
                                                 return [String] [System.IO.Path]::GetExtension((FsEntryRemoveTrailingDirSep $fsEntry)); }
-function FsEntryGetDrive                      ( [String] $fsEntry ){ # ex: "C:"
+function FsEntryGetDrive                      ( [String] $fsEntry ){ # Example: "C:"
                                                 return [String] (Split-Path -Qualifier (FsEntryGetAbsolutePath $fsEntry)); }
 function FsEntryIsDir                         ( [String] $fsEntry ){ return [Boolean] (Get-Item -Force -LiteralPath $fsEntry).PSIsContainer; } # empty string not allowed
 function FsEntryGetParentDir                  ( [String] $fsEntry ){ # Returned path does not contain trailing backslash; for c:\ or \\mach\share it return "";
@@ -1110,7 +1119,7 @@ function FsEntryCopyByPatternByOverwrite      ( [String] $fsEntryPattern, [Strin
                                                 Copy-Item -ErrorAction SilentlyContinue -Recurse -Force -Path $fsEntryPattern -Destination (FsEntryEsc $targetDir);
                                                 if( -not $? ){ if( ! $continueOnErr ){ AssertRcIsOk; }
                                                 else{ OutWarning "Warning: CopyFiles `"$fsEntryPattern`" to `"$targetDir`" failed, will continue"; } } }
-function FsEntryFindNotExistingVersionedName  ( [String] $fsEntry, [String] $ext = ".bck", [Int32] $maxNr = 9999 ){ # return ex: "C:\Dir\MyName.001.bck"
+function FsEntryFindNotExistingVersionedName  ( [String] $fsEntry, [String] $ext = ".bck", [Int32] $maxNr = 9999 ){ # Example return: "C:\Dir\MyName.001.bck"
                                                 $fsEntry = (FsEntryRemoveTrailingDirSep (FsEntryGetAbsolutePath $fsEntry));
                                                 if( $fsEntry.Length -gt (260-4-$ext.Length) ){
                                                   throw [Exception] "$(ScriptGetCurrentFunc)($fsEntry,$ext) not available because fullpath longer than 260-4-extLength"; }
@@ -1138,7 +1147,7 @@ function FsEntryAclRuleWrite                  ( [String] $modeSetAddOrDel, [Stri
                                                 elseif( $modeSetAddOrDel -eq "Add" ){ $acl.AddAccessRule($rule); }
                                                 elseif( $modeSetAddOrDel -eq "Del" ){ $acl.RemoveAccessRule($rule); }
                                                 else{ throw [Exception] "For modeSetAddOrDel expected 'Set', 'Add' or 'Del' but got `"$modeSetAddOrDel`""; }
-                                                Set-Acl -Path (FsEntryEsc $fsEntry) -AclObject $acl; <# Set-Acl does set or add #>
+                                                Set-Acl -Path (FsEntryEsc $fsEntry) -AclObject $acl; # Set-Acl does set or add
                                                 if( $recursive -and (FsEntryIsDir $fsEntry) ){
                                                   FsEntryListAsStringArray "$fsEntry$(DirSep)*" $false | Where-Object{$null -ne $_} |
                                                     ForEach-Object{ FsEntryAclRuleWrite $modeSetAddOrDel $_ $rule $true };
@@ -1205,7 +1214,7 @@ function FsEntryTryForceRenaming              ( [String] $fsEntry, [String] $ext
                                                   try{
                                                     FsEntryRename $fsEntry $newFileName;
                                                   }catch{
-                                                    # ex: System.UnauthorizedAccessException: Der Zugriff auf den Pfad wurde verweigert. bei System.IO.__Error.WinIOError(Int32 errorCode, String maybeFullPath) bei System.IO.FileInfo.MoveTo(String destFileName)
+                                                    # exc: System.UnauthorizedAccessException: Der Zugriff auf den Pfad wurde verweigert. bei System.IO.__Error.WinIOError(Int32 errorCode, String maybeFullPath) bei System.IO.FileInfo.MoveTo(String destFileName)
                                                     OutProgress "Force set owner to administrators and retry because FsEntryRename($fsEntry,$newFileName) failed because $($_.Exception.Message)";
                                                     [System.Security.Principal.IdentityReference] $account = PrivGetGroupAdministrators;
                                                     [System.Security.AccessControl.FileSystemAccessRule] $rule = (PrivFsRuleCreateFullControl $account (FsEntryIsDir $fsEntry));
@@ -1230,7 +1239,8 @@ function FsEntryResetTs                       ( [String] $fsEntry, [Boolean] $re
                                                 FsEntryListAsFileSystemInfo $fsEntry $recursive $true $true $true | Where-Object{$null -ne $_} | ForEach-Object{
                                                   [String] $f = $(FsEntryFsInfoFullNameDirWithBackSlash $_);
                                                   OutProgress "Set $(DateTimeAsStringIso $ts) of $(DateTimeAsStringIso $_.LastWriteTime) $f";
-                                                  try{ $_.LastWriteTime = $ts; $_.CreationTime = $ts; $_.LastAccessTime = $ts; }catch{
+                                                  try{ $_.LastWriteTime = $ts; $_.CreationTime = $ts; $_.LastAccessTime = $ts;
+                                                  }catch{
                                                     OutWarning "Warning: Ignoring SetTs($f) failed because $($_.Exception.Message)";
                                                   } }; }
 function FsEntryFindInParents                 ( [String] $fromFsEntry, [String] $searchFsEntryName ){
@@ -1268,14 +1278,14 @@ function DirDelete                            ( [String] $dir, [Boolean] $ignore
                                                 # Remove dir recursively if it exists, be careful when using this.
                                                 if( (DirExists $dir) ){
                                                   try{ OutProgress "DirDelete$(switch($ignoreReadonly){($true){''}default{'CareReadonly'}}) `"$dir`""; Remove-Item -Force:$ignoreReadonly -Recurse -LiteralPath $dir;
-                                                  }catch{ <# ex: Für das Ausführen des Vorgangs sind keine ausreichenden Berechtigungen vorhanden. #>
+                                                  }catch{ # Example: Für das Ausführen des Vorgangs sind keine ausreichenden Berechtigungen vorhanden.
                                                     throw [Exception] "$(ScriptGetCurrentFunc)$(switch($ignoreReadonly){($true){''}default{'CareReadonly'}})(`"$dir`") failed because $($_.Exception.Message) (maybe locked or readonly files exists)"; } } }
 function DirDeleteContent                     ( [String] $dir, [Boolean] $ignoreReadonly = $true ){
                                                 # remove dir content if it exists, be careful when using this.
                                                 if( (DirExists $dir) -and (@()+(Get-ChildItem -Force -Directory -LiteralPath $dir)).Count -gt 0 ){
                                                   try{ OutProgress "DirDeleteContent$(switch($ignoreReadonly){($true){''}default{'CareReadonly'}}) `"$dir`"";
                                                     Remove-Item -Force:$ignoreReadonly -Recurse "$(FsEntryEsc $dir)$(DirSep)*";
-                                                  }catch{ <# ex: Für das Ausführen des Vorgangs sind keine ausreichenden Berechtigungen vorhanden. #>
+                                                  }catch{ # exc: Für das Ausführen des Vorgangs sind keine ausreichenden Berechtigungen vorhanden.
                                                     throw [Exception] "$(ScriptGetCurrentFunc)$(switch($ignoreReadonly){($true){''}default{'CareReadonly'}})(`"$dir`") failed because $($_.Exception.Message) (maybe locked or readonly files exists)"; } } }
 function DirDeleteIfIsEmpty                   ( [String] $dir, [Boolean] $ignoreReadonly = $true ){
                                                 if( (DirExists $dir) -and (@()+(Get-ChildItem -Force -LiteralPath $dir)).Count -eq 0 ){ DirDelete $dir; } }
@@ -1306,7 +1316,7 @@ function FileReadContentAsLines               ( [String] $file, [String] $encodi
                                                 OutVerbose "FileRead $file";
                                                 return [String[]] (@()+(Get-Content -Encoding $encodingIfNoBom -LiteralPath $file)); }
 function FileReadJsonAsObject                 ( [String] $jsonFile ){
-                                                try{ Get-Content -Raw -Path $jsonFile | ConvertFrom-Json; }catch{ throw [Exception] "FileReadJsonAsObject(`"$jsonFile`") failed because $_"; } }
+                                                try{ Get-Content -Raw -Path $jsonFile | ConvertFrom-Json; }catch{ throw [Exception] "FileReadJsonAsObject(`"$jsonFile`") failed because $($_.Exception.Message)"; } }
 function FileWriteFromString                  ( [String] $file, [String] $content, [Boolean] $overwrite = $true, [String] $encoding = "UTF8BOM" ){
                                                 # Will create path of file. overwrite does ignore readonly attribute.
                                                 OutProgress "WriteFile $file"; FsEntryCreateParentDir $file;
@@ -1400,12 +1410,12 @@ function FileDelete                           ( [String] $file, [Boolean] $ignor
                                                   try{
                                                     Remove-Item -Force:$ignoreReadonly -LiteralPath $file;
                                                     return;
-                                                  }catch [System.Management.Automation.ItemNotFoundException] { # example: ItemNotFoundException: Cannot find path '$HOME/myfile.lnk' because it does not exist.
+                                                  }catch [System.Management.Automation.ItemNotFoundException] { # Example: ItemNotFoundException: Cannot find path '$HOME/myfile.lnk' because it does not exist.
                                                     return; #
-                                                  }catch [System.UnauthorizedAccessException] { # example: Access to the path '$HOME/Desktop/desktop.ini' is denied.
+                                                  }catch [System.UnauthorizedAccessException] { # Example: Access to the path '$HOME/Desktop/desktop.ini' is denied.
                                                     if( -not $ignoreAccessDenied ){ throw; }
                                                     OutWarning "Warning: Ignoring UnauthorizedAccessException for Remove-Item -Force:$ignoreReadonly -LiteralPath `"$file`""; return;
-                                                  }catch{ # ex: IOException: The process cannot access the file '$HOME\myprog.lnk' because it is being used by another process.
+                                                  }catch{ # exc: IOException: The process cannot access the file '$HOME\myprog.lnk' because it is being used by another process.
                                                     [Boolean] $isUsedByAnotherProc = $_.Exception -is [System.IO.IOException] -and $_.Exception.Message.Contains("The process cannot access the file ") -and $_.Exception.Message.Contains(" because it is being used by another process.");
                                                     if( -not $isUsedByAnotherProc ){ throw; }
                                                     if( $nrOfTries -ge 5 ){ throw; }
@@ -1446,7 +1456,7 @@ function CredentialGetSecureStrFromHexString  ( [String] $text ){
 function CredentialGetSecureStrFromText       ( [String] $text ){ AssertNotEmpty $text "$(ScriptGetCurrentFunc).callingText";
                                                 return [System.Security.SecureString] (ConvertTo-SecureString $text -AsPlainText -Force); }
 function CredentialGetHexStrFromSecureString  ( [System.Security.SecureString] $code ){
-                                                return [String] (ConvertFrom-SecureString $code); } # ex: "ea32f9d30de3d3dc7fcd86a6a8f587ed9"
+                                                return [String] (ConvertFrom-SecureString $code); } # Example return: "ea32f9d30de3d3dc7fcd86a6a8f587ed9"
 function CredentialGetTextFromSecureString    ( [System.Security.SecureString] $code ){
                                                 [Object] $bstr = [System.Runtime.InteropServices.Marshal]::SecureStringToBSTR($code);
                                                 return [String] [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr); }
@@ -1471,7 +1481,7 @@ function CredentialCreate                     ( [String] $username = "", [String
                                                 [String] $us = $username;
                                                 [String] $descr = switch($accessShortDescription -eq ""){($true){""}default{(" for $accessShortDescription")}};
                                                 while( $us -eq "" ){ $us = StdInReadLine "Enter username$($descr): "; }
-                                                if( $username -eq "" ){ $descr = ""; <# display descr only once #> }
+                                                if( $username -eq "" ){ $descr = ""; } # display descr only once
                                                 [System.Security.SecureString] $pwSecure = $null;
                                                 if( $password -eq "" ){ $pwSecure = StdInReadLinePw "Enter password for username=$($us)$($descr): "; }
                                                 else{ $pwSecure = CredentialGetSecureStrFromText $password; }
@@ -1518,10 +1528,10 @@ function PsDriveCreate                        ( [String] $drive, [String] $mount
                                                 try{
                                                   $dummyObj = New-PSDrive -Name ($drive -replace ":","") -Root $mountPoint -PSProvider "FileSystem" -Scope Global -Persist -Description "$mountPoint($drive)" -Credential $cred;
                                                 }catch{
-                                                  # ex: System.ComponentModel.Win32Exception (0x80004005): Der lokale Gerätename wird bereits verwendet
-                                                  # ex: System.Exception: Mehrfache Verbindungen zu einem Server oder einer freigegebenen Ressource von demselben Benutzer unter Verwendung mehrerer Benutzernamen sind nicht zulässig.
-                                                  #     Trennen Sie alle früheren Verbindungen zu dem Server bzw. der freigegebenen Ressource, und versuchen Sie es erneut
-                                                  # ex: System.Exception: New-PSDrive(Z,\\mycomp\Transfer,) failed because Das angegebene Netzwerkkennwort ist falsch
+                                                  # exc: System.ComponentModel.Win32Exception (0x80004005): Der lokale Gerätename wird bereits verwendet
+                                                  # exc: System.Exception: Mehrfache Verbindungen zu einem Server oder einer freigegebenen Ressource von demselben Benutzer unter Verwendung mehrerer Benutzernamen sind nicht zulässig.
+                                                  #      Trennen Sie alle früheren Verbindungen zu dem Server bzw. der freigegebenen Ressource, und versuchen Sie es erneut
+                                                  # exc: System.Exception: New-PSDrive(Z,\\mycomp\Transfer,) failed because Das angegebene Netzwerkkennwort ist falsch
                                                   throw [Exception] "New-PSDrive($drive,$mountPoint,$us) failed because $($_.Exception.Message)";
                                                 } }
 function NetExtractHostName                   ( [String] $url ){ return [String] ([System.Uri]$url).Host; }
@@ -1551,7 +1561,8 @@ function NetPingHostIsConnectable             ( [String] $hostName, [Boolean] $d
                                                 try{ [System.Net.Dns]::GetHostByName($hostName); }catch{ OutVerbose "Ignoring GetHostByName($hostName) failed because $($_.Exception.Message)"; }
                                                 # nslookup $hostName -ErrorAction SilentlyContinue | out-null;
                                                 return [Boolean] (Test-Connection -ComputerName $hostName -BufferSize 16 -Count 1 -ErrorAction SilentlyContinue -quiet); }
-<# Type: ServerCertificateValidationCallback #> Add-Type -TypeDefinition "using System;using System.Net;using System.Net.Security;using System.Security.Cryptography.X509Certificates; public class ServerCertificateValidationCallback { public static void Ignore() { ServicePointManager.ServerCertificateValidationCallback += delegate( Object obj, X509Certificate certificate, X509Chain chain, SslPolicyErrors errors ){ return true; }; } } ";
+# Type: ServerCertificateValidationCallback
+Add-Type -TypeDefinition "using System;using System.Net;using System.Net.Security;using System.Security.Cryptography.X509Certificates; public class ServerCertificateValidationCallback { public static void Ignore() { ServicePointManager.ServerCertificateValidationCallback += delegate( Object obj, X509Certificate certificate, X509Chain chain, SslPolicyErrors errors ){ return true; }; } } ";
 function NetWebRequestLastModifiedFailSafe    ( [String] $url ){ # Requests metadata from a downloadable file. Return DateTime.MaxValue in case of any problem
                                                 [net.WebResponse] $resp = $null;
                                                 try{
@@ -1573,7 +1584,7 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                 #   because they returned 404=not-found, but NetDownloadFileByCurl worked successfully.
                                                 # If ignoreSslCheck is true then it will currently ignore all following calls,
                                                 #   so this is no good solution (use NetDownloadFileByCurl).
-                                                # Maybe later: OAuth. Ex: https://docs.github.com/en/free-pro-team@latest/rest/overview/other-authentication-methods
+                                                # Maybe later: OAuth. Example: https://docs.github.com/en/free-pro-team@latest/rest/overview/other-authentication-methods
                                                 # Alternative on PS5 and PS7: Invoke-RestMethod -Uri "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/main/MnCommonPsToolLib/MnCommonPsToolLib.psm1" -OutFile "$env:TEMP/tmp/p.tmp";
                                                 [String] $authMethod = "Basic"; # Current implemented authMethods: "Basic".
                                                 AssertNotEmpty $url "NetDownloadFile.url"; # alternative check: -or $url.EndsWith("/")
@@ -1639,9 +1650,9 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                   [String] $stateMsg = "  Ok, downloaded $(FileGetSize $tarFile) bytes.";
                                                   OutProgress $stateMsg;
                                                 }catch{
-                                                  # ex: The request was aborted: Could not create SSL/TLS secure channel.
-                                                  # ex: Ausnahme beim Aufrufen von "DownloadFile" mit 2 Argument(en):  "The server committed a protocol violation. Section=ResponseStatusLine"
-                                                  # ex: System.Net.WebException: Der Remoteserver hat einen Fehler zurückgegeben: (404) Nicht gefunden.
+                                                  # exc: The request was aborted: Could not create SSL/TLS secure channel.
+                                                  # exc: Ausnahme beim Aufrufen von "DownloadFile" mit 2 Argument(en):  "The server committed a protocol violation. Section=ResponseStatusLine"
+                                                  # exc: System.Net.WebException: Der Remoteserver hat einen Fehler zurückgegeben: (404) Nicht gefunden.
                                                   # for future use: $fileNotExists = $_.Exception -is [System.Net.WebException] -and (([System.Net.WebException]($_.Exception)).Response.StatusCode.value__) -eq 404;
                                                   [String] $msg = $_.Exception.Message;
                                                   if( $msg.Contains("Section=ResponseStatusLine") ){ $msg = "Server returned not a valid HTTP response. "+$msg; }
@@ -1659,7 +1670,7 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                 # Supported features:  SSL certificates, HTTP POST, HTTP PUT, FTP uploading, HTTP form based upload,
                                                 #                      proxies, HTTP/2, cookies, user+password authentication (Basic, Plain, Digest,
                                                 #                      CRAM-MD5, NTLM, Negotiate and Kerberos), file transfer resume, proxy tunneling and more.
-                                                # ex: curl --show-error --output $tarFile --silent --create-dirs --connect-timeout 70 --retry 2 --retry-delay 5 --remote-time --stderr - --user "$($us):$pw" $url;
+                                                # Example: curl --show-error --output $tarFile --silent --create-dirs --connect-timeout 70 --retry 2 --retry-delay 5 --remote-time --stderr - --user "$($us):$pw" $url;
                                                 AssertNotEmpty $url "NetDownloadFileByCurl.url";
                                                 if( $us -ne "" ){ AssertNotEmpty $pw "password for username=$us"; }
                                                 [String[]] $opt = @( # see https://curl.haxx.se/docs/manpage.html
@@ -1678,7 +1689,7 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                   ,"--stderr","-"                            # Where to redirect stderr (use "-" for stdout)
                                                   # ,"--limit-rate","$limitRateBytesPerSec"  #
                                                   # ,"--progress-bar"                        # Display transfer progress as a progress bar
-                                                  # ,"--remote-name"                         # Write output to a file named as the remote file ex: "http://a.be/c.ext"
+                                                  # ,"--remote-name"                         # Write output to a file named as the remote file example: "http://a.be/c.ext"
                                                   # --remote-name-all                        # Use the remote file name for all URLs
                                                   # --max-time <seconds>                     # .
                                                   # --netrc-optional                         # .
@@ -1974,8 +1985,8 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                 Push-Location $tarDir;
                                                 [String] $stateBefore = FsEntryReportMeasureInfo $tarDir;
                                                 # alternative would be for wget: Invoke-WebRequest
-                                                [String] $wgetExe  = ProcessGetCommandInEnvPathOrAltPaths "wget" ; # ex: D:\Work\PortableProg\Tool\...
-                                                [String] $wgetExe2 = ProcessGetCommandInEnvPathOrAltPaths "wget2"; # ex: D:\Work\PortableProg\Tool\...
+                                                [String] $wgetExe  = ProcessGetCommandInEnvPathOrAltPaths "wget" ; # Example: D:\Work\PortableProg\Tool\...
+                                                [String] $wgetExe2 = ProcessGetCommandInEnvPathOrAltPaths "wget2"; # Example: D:\Work\PortableProg\Tool\...
                                                 if( $wgetExe2 -ne "" ){ $wgetExe = $wgetExe2; }
                                                 FileAppendLineWithTs $logf "Push-Location `"$tarDir`"; & `"$wgetExe`" `"$url`" $opt --password=*** ; Pop-Location; ";
                                                 #FileAppendLineWithTs $logf "  Note: Ignore the error messages: Failed to parse URI ''; No CAs were found in ''; Cannot resolve URI 'mailto:...'; Nothing to do - goodbye; ";
@@ -1992,7 +2003,7 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                     5 {"SslVerification"}
                                                     6 {"Authentication"}
                                                     7 {"Protocol"}
-                                                    8 {"ServerIssuedSomeResponse(ex:404NotFound)"}
+                                                    8 {"ServerIssuedSomeResponse(example:404NotFound)"}
                                                     default {"Unknown(rc=$rc)"} };
                                                   if( $errMsg -ne "" ){ FileAppendLineWithTs $logf "  ErrorCategory: $err  ErrorMessage: $errMsg"; }
                                                   OutWarning "  Warning: Ignored one or more occurrences of error category: $err $errMsg. More see logfile=`"$logf`".";
@@ -2020,12 +2031,13 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                   Where-Object{ $_ -notmatch "^\[[0-9]+\]\ Downloading\ \'.*" } );
                                                 FileWriteFromLines $logf2 $logLines $true;
                                                 }
-<# Script local variable: gitLogFile #>       [String] $script:gitLogFile = "${env:TEMP}/tmp/MnCommonPsToolLibLog/$(DateTimeNowAsStringIsoYear)/$(DateTimeNowAsStringIsoMonth)/Git.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
+# Script local variable: gitLogFile
+[String] $script:gitLogFile = "${env:TEMP}/tmp/MnCommonPsToolLibLog/$(DateTimeNowAsStringIsoYear)/$(DateTimeNowAsStringIsoMonth)/Git.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
 function GitBuildLocalDirFromUrl              ( [String] $tarRootDir, [String] $urlAndOptionalBranch ){
                                                 # Maps a root dir and a repo url with an optional sharp-char separated branch name
                                                 # to a target repo dir which contains all url fragments below the hostname.
-                                                # ex: (GitBuildLocalDirFromUrl "C:\WorkGit\" "https://github.com/mniederw/MnCommonPsToolLib")          == "C:\WorkGit\mniederw\MnCommonPsToolLib";
-                                                # ex: (GitBuildLocalDirFromUrl "C:\WorkGit\" "https://github.com/mniederw/MnCommonPsToolLib#MyBranch") == "C:\WorkGit\mniederw\MnCommonPsToolLib#MyBranch";
+                                                # Example: (GitBuildLocalDirFromUrl "C:\WorkGit\" "https://github.com/mniederw/MnCommonPsToolLib")          == "C:\WorkGit\mniederw\MnCommonPsToolLib";
+                                                # Example: (GitBuildLocalDirFromUrl "C:\WorkGit\" "https://github.com/mniederw/MnCommonPsToolLib#MyBranch") == "C:\WorkGit\mniederw\MnCommonPsToolLib#MyBranch";
                                                 return [String] (FsEntryGetAbsolutePath (Join-Path $tarRootDir (([System.Uri]$urlAndOptionalBranch).AbsolutePath+([System.Uri]$urlAndOptionalBranch).Fragment).Replace("\",$(DirSep)).Replace("/",$(DirSep)))); }
 function GitCmd                               ( [String] $cmd, [String] $tarRootDir, [String] $urlAndOptionalBranch, [Boolean] $errorAsWarning = $false ){
                                                 # For commands:
@@ -2045,21 +2057,21 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                 # If the branch name is specified with that form then it is also checked wether
                                                 # We assert that no AutoCrLf git attribute option is used.
                                                 # Pull-No-Rebase: We generally use no-rebase for pull because commit history should not be modified.
-                                                # ex: GitCmd Clone "C:\WorkGit" "https://github.com/mniederw/MnCommonPsToolLib"
-                                                # ex: GitCmd Clone "C:\WorkGit" "https://github.com/mniederw/MnCommonPsToolLib#MyBranch"
+                                                # Example: GitCmd Clone "C:\WorkGit" "https://github.com/mniederw/MnCommonPsToolLib"
+                                                # Example: GitCmd Clone "C:\WorkGit" "https://github.com/mniederw/MnCommonPsToolLib#MyBranch"
                                                 if( @("Clone","Fetch","Pull","CloneOrPull","Revert") -notcontains $cmd ){
                                                   throw [Exception] "Expected one of (Clone,Fetch,Pull,CloneOrPull,Revert) instead of: $cmd"; }
                                                 if( ($urlAndOptionalBranch -split "/",0)[-1] -notmatch "^[A-Za-z0-9]+[A-Za-z0-9._-]*(#[A-Za-z0-9]+[A-Za-z0-9._-]*)?`$" ){
                                                   throw [Exception] "Expected only ident-chars as (letter,numbers,.,_,-) for last part of `"$urlAndOptionalBranch`"."; }
-                                                [String[]] $urlOpt = @()+(StringSplitToArray "#" $urlAndOptionalBranch); # ex: @( "https://github.com/mniederw/MnCommonPsToolLib", "MyBranch" )
+                                                [String[]] $urlOpt = @()+(StringSplitToArray "#" $urlAndOptionalBranch); # Example: @( "https://github.com/mniederw/MnCommonPsToolLib", "MyBranch" )
                                                 if( $urlOpt.Count -gt 2 ){ throw [Exception] "Unknown third param in sharp-char separated urlAndBranch=`"$urlAndOptionalBranch`". "; }
                                                 if( $urlOpt.Count -gt 1 ){ AssertNotEmpty $urlOpt[1] "branch is empty in sharp-char separated urlAndBranch=`"$urlAndOptionalBranch`". "; }
-                                                [String] $url = $urlOpt[0]; # repo url without branch. Ex: "https://github.com/mniederw/MnCommonPsToolLib"
-                                                [String] $branch = switch($urlOpt.Count -gt 1){($true){$urlOpt[1]} default{""}}; # ex: "" or "MyBranch"
+                                                [String] $url = $urlOpt[0]; # repo url without branch. Example: "https://github.com/mniederw/MnCommonPsToolLib"
+                                                [String] $branch = switch($urlOpt.Count -gt 1){($true){$urlOpt[1]} default{""}}; # Example: "" or "MyBranch"
                                                 [String] $dir = (FsEntryRemoveTrailingDirSep (GitBuildLocalDirFromUrl $tarRootDir $urlAndOptionalBranch));
                                                 GitAssertAutoCrLfIsDisabled;
-                                                if( $cmd -eq "CloneOrPull"  ){ if( (DirNotExists $dir) ){ $cmd = "Clone"; }else{ $cmd = "Pull" ; }}
-                                                if( $cmd -eq "CloneOrFetch" ){ if( (DirNotExists $dir) ){ $cmd = "Clone"; }else{ $cmd = "Fetch"; }}
+                                                if( $cmd -eq "CloneOrPull"  ){ if( (DirNotExists $dir) ){ $cmd = "Clone"; }else{ $cmd = "Pull" ; } }
+                                                if( $cmd -eq "CloneOrFetch" ){ if( (DirNotExists $dir) ){ $cmd = "Clone"; }else{ $cmd = "Fetch"; } }
                                                 if( $branch -ne "" -and ($cmd -eq "Fetch" -or $cmd -eq "Pull") ){
                                                   [String] $currentBranch = (GitShowBranch $dir);
                                                   if( $currentBranch -ne $branch ){ throw [Exception] "$cmd $urlAndOptionalBranch to target `"$dir`" containing branch $currentBranch is denied because expected branch $branch. Before retry perform: GitSwitch `"$dir`" $branch;"; }
@@ -2086,8 +2098,8 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                     # if( $branch -ne "" ){ $gitArgs += @( $branch ); }
                                                   }else{ throw [Exception] "Unknown git cmd=`"$cmd`""; }
                                                   FileAppendLineWithTs $gitLogFile "GitCmd(`"$tarRootDir`",$urlAndOptionalBranch) git $(StringArrayDblQuoteItems $gitArgs)";
-                                                  # ex: "git" "-C" "$env:TEMP/tmp/mniederw/myrepo" "--git-dir=.git" "pull" "--quiet" "--no-stat" "--no-rebase" "https://github.com/mniederw/myrepo"
-                                                  # ex: "git" "clone" "--quiet" "--branch" "MyBranch" "--" "https://github.com/mniederw/myrepo" "$env:TEMP/tmp/mniederw/myrepo#MyBranch"
+                                                  # Example: "git" "-C" "$env:TEMP/tmp/mniederw/myrepo" "--git-dir=.git" "pull" "--quiet" "--no-stat" "--no-rebase" "https://github.com/mniederw/myrepo"
+                                                  # Example: "git" "clone" "--quiet" "--branch" "MyBranch" "--" "https://github.com/mniederw/myrepo" "$env:TEMP/tmp/mniederw/myrepo#MyBranch"
                                                   # TODO middle prio: check env param pull.rebase and think about display and usage
                                                   [String] $out = (ProcessStart "git" $gitArgs -careStdErrAsOut:$true -traceCmd:$true);
                                                   # Skip known unused strings which are written to stderr as:
@@ -2106,29 +2118,29 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                     $out = "";
                                                   }
                                                   StringSplitIntoLines $out | Where-Object{ StringIsFilled $_ } |
-                                                    ForEach-Object{ $_.Trim() } |
+                                                    ForEach-Object{ $_.Trim(); } |
                                                     Where-Object{ -not ($_.StartsWith("Checking out files: ") -and ($_.EndsWith(")") -or $_.EndsWith(", done."))) } |
                                                     ForEach-Object{ OutWarning "Warning: For (git $gitArgs) got unexpected output: $_"; };
-                                                  if( $branch -eq "" ){ $branch = "$(GitShowBranch $dir) (default=$(GitShowBranch $dir $true))"; }
-                                                  OutSuccess "  Ok, usedTimeInSec=$([Int64]($usedTime.Elapsed.TotalSeconds+0.999)) for url: $($url.PadRight(60)) branch: $branch ";
+                                                  [String] $branchInfo = "$((GitShowBranch $dir).PadRight(10)) ($(GitShowRemoteName $dir)-default=$(GitShowBranch $dir $true))";
+                                                  OutSuccess "  Ok, usedTimeInSec=$([Int64]($usedTime.Elapsed.TotalSeconds+0.999)) for url: $($url.PadRight(60)) branch: $branchInfo ";
                                                 }catch{
-                                                  # ex:              fatal: HttpRequestException encountered.
-                                                  # ex:              Fehler beim Senden der Anforderung.
-                                                  # ex:              fatal: AggregateException encountered.
-                                                  # ex:              Logon failed, use ctrl+c to cancel basic credential prompt.  - bash: /dev/tty: No such device or address - error: failed to execute prompt script (exit code 1) - fatal: could not read Username for 'https://github.com': No such file or directory
-                                                  # ex: Clone rc=128 remote: Repository not found.\nfatal: repository 'https://github.com/mniederw/UnknownRepo/' not found
-                                                  # ex:              fatal: Not a git repository: 'D:\WorkGit\mniederw\UnknownRepo\.git'
-                                                  # ex:              error: unknown option `anyUnknownOption'
-                                                  # ex: Pull  rc=128 fatal: refusing to merge unrelated histories
-                                                  # ex: Pull  rc=128 error: Pulling is not possible because you have unmerged files. - hint: Fix them up in the work tree, and then use 'git add/rm <file>' - fatal: Exiting because of an unresolved conflict. - hint: as appropriate to mark resolution and make a commit.
-                                                  # ex: Pull  rc=128 fatal: Exiting because of an unresolved conflict. - error: Pulling is not possible because you have unmerged files. - hint: as appropriate to mark resolution and make a commit. - hint: Fix them up in the work tree, and then use 'git add/rm <file>'
-                                                  # ex: Pull  rc=1   fatal: Couldn't find remote ref HEAD    (in case the repo contains no content)
-                                                  # ex:              error: Your local changes to the following files would be overwritten by merge:   (Then the lines: "        ...file..." "Aborting" "Please commit your changes or stash them before you merge.")
-                                                  # ex:              error: The following untracked working tree files would be overwritten by merge:   (Then the lines: "        ....file..." "Please move or remove them before you merge." "Aborting")
-                                                  # ex: Pull  rc=1   Auto-merging dir1/file1  CONFLICT (add/add): Merge conflict in dir1/file1  Automatic merge failed; fix conflicts and then commit the result.\nwarning: Cannot merge binary files: dir1/file1 (HEAD vs. ab654...)
-                                                  # ex: Pull  rc=1   fatal: unable to access 'https://github.com/anyUser/anyGitRepo/': Failed to connect to github.com port 443: Timed out
-                                                  # ex: Pull  rc=1   fatal: TaskCanceledException encountered. -    Eine Aufgabe wurde abgebrochen. - bash: /dev/tty: No such device or address - error: failed to execute prompt script (exit code 1) - fatal: could not read Username for 'https://github.com': No such file or directory
-                                                  $msg = "$(ScriptGetCurrentFunc)($cmd,$tarRootDir,$url) failed because $(StringReplaceNewlines $_.Exception.Message ' - ')";
+                                                  # exc:              fatal: HttpRequestException encountered.
+                                                  # exc:              Fehler beim Senden der Anforderung.
+                                                  # exc:              fatal: AggregateException encountered.
+                                                  # exc:              Logon failed, use ctrl+c to cancel basic credential prompt.  - bash: /dev/tty: No such device or address - error: failed to execute prompt script (exit code 1) - fatal: could not read Username for 'https://github.com': No such file or directory
+                                                  # exc: Clone rc=128 remote: Repository not found.\nfatal: repository 'https://github.com/mniederw/UnknownRepo/' not found
+                                                  # exc:              fatal: Not a git repository: 'D:\WorkGit\mniederw\UnknownRepo\.git'
+                                                  # exc:              error: unknown option `anyUnknownOption'
+                                                  # exc: Pull  rc=128 fatal: refusing to merge unrelated histories
+                                                  # exc: Pull  rc=128 error: Pulling is not possible because you have unmerged files. - hint: Fix them up in the work tree, and then use 'git add/rm <file>' - fatal: Exiting because of an unresolved conflict. - hint: as appropriate to mark resolution and make a commit.
+                                                  # exc: Pull  rc=128 fatal: Exiting because of an unresolved conflict. - error: Pulling is not possible because you have unmerged files. - hint: as appropriate to mark resolution and make a commit. - hint: Fix them up in the work tree, and then use 'git add/rm <file>'
+                                                  # exc: Pull  rc=1   fatal: Couldn't find remote ref HEAD    (in case the repo contains no content)
+                                                  # exc:              error: Your local changes to the following files would be overwritten by merge:   (Then the lines: "        ...file..." "Aborting" "Please commit your changes or stash them before you merge.")
+                                                  # exc:              error: The following untracked working tree files would be overwritten by merge:   (Then the lines: "        ....file..." "Please move or remove them before you merge." "Aborting")
+                                                  # exc: Pull  rc=1   Auto-merging dir1/file1  CONFLICT (add/add): Merge conflict in dir1/file1  Automatic merge failed; fix conflicts and then commit the result.\nwarning: Cannot merge binary files: dir1/file1 (HEAD vs. ab654...)
+                                                  # exc: Pull  rc=1   fatal: unable to access 'https://github.com/anyUser/anyGitRepo/': Failed to connect to github.com port 443: Timed out
+                                                  # exc: Pull  rc=1   fatal: TaskCanceledException encountered. -    Eine Aufgabe wurde abgebrochen. - bash: /dev/tty: No such device or address - error: failed to execute prompt script (exit code 1) - fatal: could not read Username for 'https://github.com': No such file or directory
+                                                  $msg = "$(ScriptGetCurrentFunc)($cmd,$tarRootDir,$url) failed because $(StringReplaceNewlines $($_.Exception.Message) ' - ')";
                                                   ScriptResetRc;
                                                   if( $cmd -eq "Pull" -and ( $msg.Contains("error: Your local changes to the following files would be overwritten by merge:") -or
                                                                              $msg.Contains("error: Pulling is not possible because you have unmerged files.") -or
@@ -2147,41 +2159,68 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   if( -not $errorAsWarning ){ throw [ExcMsg] $msg; }
                                                   OutWarning "Warning: $msg";
                                                 } }
+
 function GitShowUrl                           ( [String] $repoDir ){
-                                                # Example: "https://github.com/mniederw/MnCommonPsToolLib"
+                                                # Example: return "https://github.com/mniederw/MnCommonPsToolLib"
+                                                AssertNotEmpty $repoDir "repoDir";
                                                 [String] $out = (& "git" "--git-dir=$repoDir/.git" "config" "remote.origin.url"); AssertRcIsOk $out;
                                                 return [String] $out; }
-function GitShowRepo                          ( [String] $repoDir ){
-                                                # Example: "mniederw/MnCommonPsToolLib"
+function GitShowRemoteName                    ( [String] $repoDir ){
+                                                # Example: return "origin"
+                                                AssertNotEmpty $repoDir "repoDir";
+                                                [String] $out = (& "git" "--git-dir=$repoDir/.git" "remote"); AssertRcIsOk $out;
+                                                return [String] $out; }
+function GitShowRepo                          ( [String] $repoDir ){ # return owner and reponame separated with a slash.
+                                                # Example: return "mniederw/MnCommonPsToolLib"
+                                                AssertNotEmpty $repoDir "repoDir";
                                                 [String] $url = (GitShowUrl $repoDir);
                                                 ToolGithubApiAssertValidRepoUrl $url;
                                                 [String] $githubUrl = "https://github.com/";
                                                 Assert ($url.StartsWith($githubUrl)) "Expected $url starts with $githubUrl";
                                                 return [String] (StringRemoveLeft $url $githubUrl); }
 function GitShowBranch                        ( [String] $repoDir, [Boolean] $getDefault = $false ){
-                                                # return current branch (example: "master"). Returns empty if branch is detached.
+                                                # return current branch (example: "trunk"). Returns empty if branch is detached.
+                                                # If getDefault is specified then it returns in general main or master.
                                                 if( $getDefault ){
-                                                  return "main-or-master";
+                                                  # for future use: [String] $remote = (GitShowRemoteName $repoDir); # Example: "origin"
+                                                  # for future use: if( $remote -eq "" ){ throw [ExcMsg] "Cannot get default branch in repodir=`"$repoDir`" because GitShowRemoteName returned empty string."; }
+                                                  #[String[]] $out = (StringSplitIntoLines (ProcessStart "git" @("-C", (FsEntryRemoveTrailingDirSep $repoDir), "--git-dir=.git", "branch", "--remotes", "--no-color" ) -traceCmd:$false));
+                                                  [String[]] $out = (& "git" "-C" (FsEntryRemoveTrailingDirSep $repoDir) "--git-dir=.git" "branch" "--remotes" "--no-color"); AssertRcIsOk;
+                                                  [String] $pattern = "  origin/HEAD -> origin/";
+                                                  [String[]] $defBranch = @()+($out | Where-Object{ $_.StartsWith($pattern) } | ForEach-Object{ StringRemoveLeft $_ $pattern; });
+                                                  if( $defBranch.Count -ne 1 ){ throw [ExcMsg] "GitShowBranch(`"$repoDir`",$getDefault) failed because for (git branch --remotes) we expected a line with leading pattern `"$pattern`" but we got: `"$out`"."; }
+                                                  return [String] $defBranch[0];
                                                 }
-                                                [String] $out = (ProcessStart "git" @("-C", (FsEntryRemoveTrailingDirSep $repoDir), "--git-dir=.git", "branch") -traceCmd:$false);
-                                                [String] $line = "$(StringSplitIntoLines $out | Where-Object { $_.StartsWith("* ") } | Select-Object -First 1)";
-                                                # in future when newer version of git is common then we can use new option for get current-branch (2024-01: tested but not always works).
-                                                Assert ($line.StartsWith("* ") -and $line.Length -ge 3) "GitShowBranch(`"$repoDir`") expected result of git branch begins with `"* `" but got `"$line`" and expected minimum length of 3.";
-                                                return [String] (StringRemoveLeft $line "* ").Trim(); }
+                                                #[String] $out = (ProcessStart "git" @("-C", (FsEntryRemoveTrailingDirSep $repoDir), "--git-dir=.git", "branch", "--no-color", "--show-current" ) -traceCmd:$false);
+                                                [String] $out = (& "git" "-C" (FsEntryRemoveTrailingDirSep $repoDir) "--git-dir=.git" "branch" "--no-color" "--show-current"); AssertRcIsOk;
+                                                # old: [String] $line = "$(StringSplitIntoLines $out | Where-Object { $_.StartsWith("* ") } | Select-Object -First 1)";
+                                                # old: Assert ($line.StartsWith("* ") -and $line.Length -ge 3) "GitShowBranch(`"$repoDir`") expected result of git branch begins with `"* `" but got `"$line`" and expected minimum length of 3.";
+                                                # old: return [String] (StringRemoveLeft $line "* ").Trim(); }
+                                                return [String] $out.Trim(); }
+
+
+
+
+
+
 function GitShowChanges                       ( [String] $repoDir ){
                                                 # return changed, deleted and new files or dirs. Per entry one line prefixed with a change code.
+                                                AssertNotEmpty $repoDir "repoDir";
                                                 [String] $out = (ProcessStart "git" @("-C", (FsEntryRemoveTrailingDirSep $repoDir), "--git-dir=.git", "status", "--short") -traceCmd:$false);
                                                 return [String[]] (@()+(StringSplitIntoLines $out |
                                                   Where-Object{$null -ne $_} |
                                                   Where-Object{ StringIsFilled $_; })); }
 function GitSwitch                            ( [String] $repoDir, [String] $branch ){
+                                                AssertNotEmpty $repoDir "repoDir";
                                                 [String] $dummy = (ProcessStart "git" @("-C", (FsEntryRemoveTrailingDirSep $repoDir), "switch", $branch) -careStdErrAsOut:$true -traceCmd:$true); }
 function GitAdd                               ( [String] $fsEntryToAdd ){
+                                                AssertNotEmpty $repoDir "repoDir";
                                                 [String] $repoDir = FsEntryGetAbsolutePath "$(FsEntryFindInParents $fsEntryToAdd ".git")/.."; # not trailing slash allowed
                                                 [String] $dummy = (ProcessStart "git" @("-C", $repoDir, "add", $fsEntryToAdd) -traceCmd:$true); }
 function GitMerge                             ( [String] $repoDir, [String] $branch, [Boolean] $errorAsWarning = $false ){
                                                 # merge branch (remotes/origin) into current repodir, no-commit, no-fast-forward
-                                                Assert ($branch.Length -gt 0) "branch name is empty";
+                                                AssertNotEmpty $repoDir "repoDir";
+                                                AssertNotEmpty $branch "branch";
                                                 try{
                                                   [String] $out = (ProcessStart "git" @("-C", (FsEntryRemoveTrailingDirSep $repoDir), "--git-dir=.git", "merge", "--no-commit", "--no-ff", "remotes/origin/$branch") -careStdErrAsOut:$true -traceCmd:$false);
                                                   # Example output to console but not to stdout:
@@ -2193,7 +2232,7 @@ function GitMerge                             ( [String] $repoDir, [String] $bra
                                                   #   Automatic merge failed; fix conflicts and then commit the result.
                                                   OutProgress $out;
                                                 }catch{
-                                                  if( -not $errorAsWarning ){ throw [Exception] "Merge failed, fix conflicts manually: $_.Exception.Message"; }
+                                                  if( -not $errorAsWarning ){ throw [Exception] "Merge failed, fix conflicts manually: $($_.Exception.Message)"; }
                                                   OutWarning "Warning: Merge of branch $branch into `"$repoDir`" failed, fix conflicts manually. ";
                                                 } }
 function GithubPrepareCommand                 (){ # otherwise we would get: "A new release of gh is available: 2.7.0 → v2.31.0\nhttps://github.com/cli/cli/releases/tag/v2.31.0"
@@ -2271,9 +2310,10 @@ function ToolGetBranchCommit                 ( [String] $repo, [String] $branch,
                                                   # example: gh api repos/local-ch/ITZielbild/git/refs/heads/Develop --jq '.object.sha'
                                                   $out = (ProcessStart "gh" @("api", "repos/$repo/git/refs/heads/$branch", "--jq", ".object.sha" ) -careStdErrAsOut:$false -traceCmd:$traceCmd).Trim();
                                                 }catch{
-                                                  # ex: "rc=1  gh: Not Found (HTTP 404)"
-                                                  # ex: "rc=1  expected an object but got: array ([{"node_id":"MDM6UmVmMTQ0 ...])""
-                                                  if( $_.Exception.Message.Contains("gh: Not Found (HTTP 404)") -or $_.Exception.Message.Contains("expected an object but got: array ") ){
+                                                  # exc: "rc=1  gh: Not Found (HTTP 404)"
+                                                  # exc: "rc=1  expected an object but got: array ([{"node_id":"MDM6UmVmMTQ0 ...])""
+                                                  if( $_.Exception.Message.Contains("gh: Not Found (HTTP 404)") -or
+                                                      $_.Exception.Message.Contains("expected an object but got: array ") ){
                                                     $error.clear();
                                                     throw [ExcMsg] "ToolListBranchCommit: In github repo $repo no branch exists with name `"$branch`".";
                                                   }else{ throw; }
@@ -2281,7 +2321,7 @@ function ToolGetBranchCommit                 ( [String] $repo, [String] $branch,
                                                 Pop-Location;
                                                 if( $traceCmd ){ OutProgress $out; }else{ return [String] $out; } }
 function GitTortoiseCommit                    ( [String] $workDir, [String] $commitMessage = "" ){
-                                                [String] $tortoiseExe = (RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseGit" "ProcPath"); # ex: "C:\Program Files\TortoiseGit\bin\TortoiseGitProc.exe"
+                                                [String] $tortoiseExe = (RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseGit" "ProcPath"); # Example: "C:\Program Files\TortoiseGit\bin\TortoiseGitProc.exe"
                                                 Start-Process -NoNewWindow -Wait -FilePath "$tortoiseExe" -ArgumentList @("/command:commit","/path:`"$workDir`"", "/logmsg:$commitMessage"); AssertRcIsOk; }
 function GitListCommitComments                ( [String] $tarDir, [String] $localRepoDir, [String] $fileExtension = ".tmp",
                                                   [String] $prefix = "Log.", [Int32] $doOnlyIfOlderThanAgeInDays = 14 ){
@@ -2292,7 +2332,7 @@ function GitListCommitComments                ( [String] $tarDir, [String] $loca
                                                 # - Log.NameOfRepoParent.NameOfRepo.CommittedChangedFiles.tmp
                                                 # It is quite slow about 10 sec per repo, so it can be controlled by $doOnlyIfOlderThanAgeInDays.
                                                 # In case of a git error it outputs it as warning.
-                                                # ex: GitListCommitComments "C:\WorkGit\_CommitComments" "C:\WorkGit\mniederw\MnCommonPsToolLib"
+                                                # Example: GitListCommitComments "C:\WorkGit\_CommitComments" "C:\WorkGit\mniederw\MnCommonPsToolLib"
                                                 [String] $dir = FsEntryGetAbsolutePath $localRepoDir;
                                                 [String] $repoName =  (Split-Path -Leaf (Split-Path -Parent $dir)) + "." + (Split-Path -Leaf $dir);
                                                 function GitGetLog ([Boolean] $doSummary, [String] $fout) {
@@ -2306,8 +2346,9 @@ function GitListCommitComments                ( [String] $tarDir, [String] $loca
                                                     try{
                                                       $out = (ProcessStart "git" $options -careStdErrAsOut:$true -traceCmd:$true); # git can write warnings to stderr which we not handle as error
                                                     }catch{
-                                                      # ex: ProcessStart of ("git" "--git-dir=D:\WorkExternal\SrcGit\mniederw\MnCommonPsToolLib\.git" "log" "--after=1990-01-01" "--pretty=format:%ci %cn [%ce] %s" "--summary") failed with rc=128\nfatal: your current branch 'master' does not have any commits yet
-                                                      if( $_.Exception.Message.Contains("fatal: your current branch '") -and $_.Exception.Message.Contains("' does not have any commits yet") ){ # Last operation failed [rc=128]
+                                                      # Example: ProcessStart of ("git" "--git-dir=D:\WorkExternal\SrcGit\mniederw\MnCommonPsToolLib\.git" "log" "--after=1990-01-01" "--pretty=format:%ci %cn [%ce] %s" "--summary") failed with rc=128\nfatal: your current branch 'master' does not have any commits yet
+                                                      if( $_.Exception.Message.Contains("fatal: your current branch '") -and
+                                                          $_.Exception.Message.Contains("' does not have any commits yet") ){ # Last operation failed [rc=128]
                                                         $out +=  "$([Environment]::NewLine)" + "Info: your current branch 'master' does not have any commits yet.";
                                                         OutProgress "  Info: Empty branch without commits.";
                                                       }else{
@@ -2389,37 +2430,38 @@ function GitCloneOrPullUrls                   ( [String[]] $listOfRepoUrls, [Str
                                                 }
                                                 # alternative not yet works because vars: $listOfRepoUrls | Where-Object{$null -ne $_} | ForEachParallel -MaxThreads 10 { GitCmd "CloneOrPull" $tarRootDirOfAllRepos $_ $errorAsWarning; } }
                                                 # old else{ $listOfRepoUrls | Where-Object{$null -ne $_} | ForEach-Object { GetOne $_; } }
+                                                # for future use:
+                                                #   # Works later multithreaded and errors are written out, collected and throwed at the end.
+                                                #   # If you want single threaded then call it with only one item in the list.
+                                                #   OutProgress "GitCloneOrPullUrls NrOfUrls=$($listOfRepoUrls.Count) CallLog=`"$gitLogFile`" ";
+                                                #   [String[]] $errorLines = @();
+                                                #   if( $listOfRepoUrls.Count -eq 0 ){ OutProgress "Ok, GitCloneOrPullUrls was called with no urls so nothing to do."; return; }
+                                                #   [Object] $threadSafeDict = [System.Collections.Concurrent.ConcurrentDictionary[string,string]]::new();
+                                                #   $listOfRepoUrls | ForEach-Object { [System.Tuple]::Create($tarRootDirOfAllRepos,$_,$errorAsWarning,$threadSafeDict) } |
+                                                #   ForEach-Object{ #TODO later: ForEachParallel { GlobalVariablesInit;
+                                                #     [String] $tarRootDirOfAllRepos = $_.Item1;
+                                                #     [String] $url                  = $_.Item2;
+                                                #     [String] $errorAsWarning       = $_.Item3;
+                                                #     [Object] $threadSafeDict       = $_.Item4;
+                                                #     try{
+                                                #       GitCmd "CloneOrPull" $_.Item1 $_.Item2 $_.Item3;
+                                                #     }catch{
+                                                #       [String] $msg = "Error (GitCmd CloneOrPull $tarRootDirOfAllRepos $url $errorAsWarning): $(StringFromException $_.Exception)";
+                                                #       OutError $msg;
+                                                #       Assert $threadSafeDict.TryAdd($url,$msg);
+                                                #     }
+                                                #   };
+                                                #   $errorLines += $threadSafeDict.Values;
+                                                #   if( $errorLines.Count ){ throw [ExcMsg] (StringArrayConcat $errorLines); } }
                                                 if( $errorLines.Count ){ throw [ExcMsg] (StringArrayConcat $errorLines); } }
-                                                <# for future use:
-                                                # Works later multithreaded and errors are written out, collected and throwed at the end.
-                                                # If you want single threaded then call it with only one item in the list.
-                                                OutProgress "GitCloneOrPullUrls NrOfUrls=$($listOfRepoUrls.Count) CallLog=`"$gitLogFile`" ";
-                                                [String[]] $errorLines = @();
-                                                if( $listOfRepoUrls.Count -eq 0 ){ OutProgress "Ok, GitCloneOrPullUrls was called with no urls so nothing to do."; return; }
-                                                [Object] $threadSafeDict = [System.Collections.Concurrent.ConcurrentDictionary[string,string]]::new();
-                                                $listOfRepoUrls | ForEach-Object { [System.Tuple]::Create($tarRootDirOfAllRepos,$_,$errorAsWarning,$threadSafeDict) } |
-                                                ForEach-Object{ #TODO later: ForEachParallel { GlobalVariablesInit;
-                                                  [String] $tarRootDirOfAllRepos = $_.Item1;
-                                                  [String] $url                  = $_.Item2;
-                                                  [String] $errorAsWarning       = $_.Item3;
-                                                  [Object] $threadSafeDict       = $_.Item4;
-                                                  try{
-                                                    GitCmd "CloneOrPull" $_.Item1 $_.Item2 $_.Item3;
-                                                  }catch{
-                                                    [String] $msg = "Error (GitCmd CloneOrPull $tarRootDirOfAllRepos $url $errorAsWarning): $(StringFromException $_.Exception)";
-                                                    OutError $msg;
-                                                    Assert $threadSafeDict.TryAdd($url,$msg);
-                                                  }
-                                                };
-                                                $errorLines += $threadSafeDict.Values;
-                                                if( $errorLines.Count ){ throw [ExcMsg] (StringArrayConcat $errorLines); } }
-                                                #>
-<# Type: SvnEnvInfo #>                        Add-Type -TypeDefinition "public struct SvnEnvInfo {public string Url; public string Path; public string RealmPattern; public string CachedAuthorizationFile; public string CachedAuthorizationUser; public string Revision; }";
-                                                # ex: Url="https://myhost/svn/Work"; Path="D:\Work"; RealmPattern="https://myhost:443";
+# Type: SvnEnvInfo
+Add-Type -TypeDefinition "public struct SvnEnvInfo {public string Url; public string Path; public string RealmPattern; public string CachedAuthorizationFile; public string CachedAuthorizationUser; public string Revision; }";
+                                                # Example: Url="https://myhost/svn/Work"; Path="D:\Work"; RealmPattern="https://myhost:443";
                                                 # CachedAuthorizationFile="$env:APPDATA\Subversion\auth\svn.simple\25ff84926a354d51b4e93754a00064d6"; CachedAuthorizationUser="myuser"; Revision="1234"
 function SvnExe                               (){ # Note: if certificate is not accepted then a pem file (for example lets-encrypt-r3.pem) can be added to file "$env:APPDATA\Subversion\servers"
                                                 return [String] ((RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseSVN" "Directory") + ".\bin\svn.exe"); }
-<# Script local variable: svnLogFile #>       [String] $script:svnLogFile = "${env:TEMP}/tmp/MnCommonPsToolLibLog/$(DateTimeNowAsStringIsoYear)/$(DateTimeNowAsStringIsoMonth)/Svn.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
+# Script local variable: svnLogFile
+[String] $script:svnLogFile = "${env:TEMP}/tmp/MnCommonPsToolLibLog/$(DateTimeNowAsStringIsoYear)/$(DateTimeNowAsStringIsoMonth)/Svn.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
 function SvnEnvInfoGet                        ( [String] $workDir ){
                                                 # Return SvnEnvInfo; no param is null.
                                                 OutProgress "SvnEnvInfo - Get svn environment info of workDir=`"$workDir`"; ";
@@ -2623,7 +2665,7 @@ function SvnRevert                            ( [String] $workDir, [String[]] $r
                                                 } }
 function SvnTortoiseCommit                    ( [String] $workDir ){
                                                 FileAppendLineWithTs $svnLogFile "SvnTortoiseCommit(`"$workDir`") call checkin dialog";
-                                                [String] $tortoiseExe = (RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseSVN" "ProcPath"); # ex: "C:\Program Files\TortoiseSVN\bin\TortoiseProc.exe"
+                                                [String] $tortoiseExe = (RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseSVN" "ProcPath"); # Example: "C:\Program Files\TortoiseSVN\bin\TortoiseProc.exe"
                                                 Start-Process -NoNewWindow -Wait -FilePath "$tortoiseExe" -ArgumentList @("/closeonend:2","/command:commit","/path:`"$workDir`""); AssertRcIsOk; }
 function SvnUpdate                            ( [String] $workDir, [String] $user ){
                                                 SvnCheckoutAndUpdate $workDir "" $user $true; }
@@ -2660,11 +2702,11 @@ function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url
                                                     AssertRcIsOk (FileReadContentAsLines $tmp $encodingIfNoBom) $true;
                                                     break;
                                                   }catch{
-                                                    # ex: "svn: E230001: Server SSL certificate verification failed: issuer is not trusted"
-                                                    # ex: "svn: E205000: Try 'svn help checkout' for more information"
+                                                    # exc: "svn: E230001: Server SSL certificate verification failed: issuer is not trusted"
+                                                    # exc: "svn: E205000: Try 'svn help checkout' for more information"
                                                     # Note: if throwed then tmp file is empty.
                                                     [String] $m = $_.Exception.Message;
-                                                    if( $m.Contains(" E170013:") ){  # ex: "svn: E170013: Unable to connect to a repository at URL 'https://mycomp/svn/Work/mydir'"
+                                                    if( $m.Contains(" E170013:") ){  # exc: "svn: E170013: Unable to connect to a repository at URL 'https://mycomp/svn/Work/mydir'"
                                                       $m += " Note for E170013: Possibly a second error line with E230001=Server-SSL-certificate-verification-failed is given to output " +
                                                         "but if powershell trapping is enabled then this second error line is not given to exception message, so this information is lost " +
                                                         "and so after third retry it stops. Now you have the following three options in recommended order: " +
@@ -2679,15 +2721,15 @@ function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url
                                                     [String] $msg = "$(ScriptGetCurrentFunc)(dir=`"$workDir`",url=$url,user=$user) failed because $m. Logfile=`"$svnLogFile`".";
                                                     FileAppendLineWithTs $svnLogFile $msg;
                                                     [Boolean] $isKnownProblemToSolveWithRetry =
-                                                      $m.Contains(" E120106:") -or # ex: "svn: E120106: ra_serf: The server sent a truncated HTTP response body"
-                                                      $m.Contains(" E155037:") -or # ex: "svn: E155037: Previous operation has not finished; run 'cleanup' if it was interrupted"
-                                                      $m.Contains(" E155004:") -or # ex: "svn: E155004: Run 'svn cleanup' to remove locks (type 'svn help cleanup' for details)"
-                                                      $m.Contains(" E175002:") -or # ex: "svn: E175002: REPORT request on '/svn/Work/!svn/me' failed"
-                                                      $m.Contains(" E200030:") -or # ex: "svn: E200030: sqlite[S10]: disk I/O error, executing statement 'VACUUM '"
-                                                      $m.Contains(" E730054:") -or # ex: "svn: E730054: Error running context: Eine vorhandene Verbindung wurde vom Remotehost geschlossen."
-                                                      $m.Contains(" E170013:") -or # ex: "svn: E170013: Unable to connect to a repository at URL 'https://mycomp/svn/Work/mydir'"
-                                                      $m.Contains(" E200014:")   ; # ex: "svn: E200014: Checksum mismatch for '...file...'"
-                                                                                   #       (2023-12: we had a case with a unicode name of length 237chars which did not repair; in case we get another case then do not retry anymore)
+                                                      $m.Contains(" E120106:") -or # exc: "svn: E120106: ra_serf: The server sent a truncated HTTP response body"
+                                                      $m.Contains(" E155037:") -or # exc: "svn: E155037: Previous operation has not finished; run 'cleanup' if it was interrupted"
+                                                      $m.Contains(" E155004:") -or # exc: "svn: E155004: Run 'svn cleanup' to remove locks (type 'svn help cleanup' for details)"
+                                                      $m.Contains(" E175002:") -or # exc: "svn: E175002: REPORT request on '/svn/Work/!svn/me' failed"
+                                                      $m.Contains(" E200030:") -or # exc: "svn: E200030: sqlite[S10]: disk I/O error, executing statement 'VACUUM '"
+                                                      $m.Contains(" E730054:") -or # exc: "svn: E730054: Error running context: Eine vorhandene Verbindung wurde vom Remotehost geschlossen."
+                                                      $m.Contains(" E170013:") -or # exc: "svn: E170013: Unable to connect to a repository at URL 'https://mycomp/svn/Work/mydir'"
+                                                      $m.Contains(" E200014:")   ; # exc: "svn: E200014: Checksum mismatch for '...file...'"
+                                                                                   #        (2023-12: we had a case with a unicode name of length 237chars which did not repair; in case we get another case then do not retry anymore)
                                                     if( -not $isKnownProblemToSolveWithRetry -or $nrOfTries -ge $maxNrOfTries ){ throw [ExcMsg] $msg; }
                                                     [String] $msg2 = "Is try nr $nrOfTries of $maxNrOfTries, will do cleanup, wait 30 sec and if not reached max then retry.";
                                                     OutWarning "Warning: $msg $msg2";
@@ -2792,7 +2834,8 @@ function TfsExe                               (){ # return tfs executable
                                                 # for future use: tf.exe checkout /lock:checkout /recursive file
                                                 # for future use: tf.exe merge /baseless /recursive /version:C234~C239 branchFrom branchTo
                                                 # for future use: tf.exe workfold /workspace:ws /cloak
-<# Script local variable: tfsLogFile #>       [String] $script:tfsLogFile = "${env:TEMP}/tmp/MnCommonPsToolLibLog/$(DateTimeNowAsStringIsoYear)/$(DateTimeNowAsStringIsoMonth)/Tfs.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
+# Script local variable: tfsLogFile
+[String] $script:tfsLogFile = "${env:TEMP}/tmp/MnCommonPsToolLibLog/$(DateTimeNowAsStringIsoYear)/$(DateTimeNowAsStringIsoMonth)/Tfs.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
 function TfsHelpWorkspaceInfo                 (){
                                                 OutProgress "Help Workspace Info - Command Line Examples";
                                                 OutProgress "- Current Tool Path: `"$(TfsExe)`"";
@@ -2803,7 +2846,7 @@ function TfsHelpWorkspaceInfo                 (){
                                                 }
 function TfsShowAllWorkspaces                 ( [String] $url, [Boolean] $showPaths = $false, [Boolean] $currentMachineOnly = $false ){
                                                 # from all users on all machines; normal output is a table but if showPaths is true then it outputs 12 lines per entry
-                                                # ex: url=https://devops.mydomain.ch/MyTfsRoot
+                                                # Example: url=https://devops.mydomain.ch/MyTfsRoot
                                                 OutProgress "Show all tfs workspaces (showPaths=$showPaths,currentMachineOnly=$currentMachineOnly)";
                                                 [String] $fmt = "Brief"; if( $showPaths ){ $fmt = "Detailed"; }
                                                 [String] $mach = "*"; if( $currentMachineOnly ){ $mach = $ComputerName; }
@@ -2899,7 +2942,7 @@ function TfsDeleteLocalMachWorkspace          ( [String] $url ){ # we support on
                                                 #   Example4 (stderr):
                                                 #     "MYCOMPUTER" entspricht keinem Arbeitsbereich im Cache für den Server "*".
                                                 }
-function TfsGetNewestNoOverwrite              ( [String] $wsdir, [String] $tfsPath, [String] $url ){ # ex: TfsGetNewestNoOverwrite C:\MyWorkspace\Src $/Src https://devops.mydomain.ch/MyTfsRoot
+function TfsGetNewestNoOverwrite              ( [String] $wsdir, [String] $tfsPath, [String] $url ){ # Example: TfsGetNewestNoOverwrite C:\MyWorkspace\Src $/Src https://devops.mydomain.ch/MyTfsRoot
                                                 Assert $tfsPath.StartsWith("`$/") "expected tfsPath=`"$tfsPath`" begins with `$/.";
                                                 AssertNotEmpty $wsdir "wsdir";
                                                 $wsDir = FsEntryGetAbsolutePath $wsDir;
@@ -2926,17 +2969,17 @@ function TfsListOwnLocks                      ( [String] $wsdir, [String] $tfsPa
                                                   OutProgress "CD `"$wsdir`"; & `"$(TfsExe)`" vc status /noprompt /recursive /format:brief `"$tfsPath`" ";
                                                   [String[]] $out = @()+((    &    (TfsExe)   vc status /noprompt /recursive /format:brief   $tfsPath *>&1 ) |
                                                     Select-Object -Skip 2 | Where-Object{ StringIsFilled $_ }); AssertRcIsOk $out;
-                                                  # ex:
+                                                  # Example:
                                                   #    Dateiname    Ändern     Lokaler Pfad
                                                   #    ------------ ---------- -------------------------------------
                                                   #    $/Src/MyBranch
                                                   #    MyFile.txt   bearbeiten C:\MyWorkspace\Src\MyBranch\MyFile.txt
                                                   #
                                                   #    1 Änderungen
-                                                  # ex: Es sind keine ausstehenden Änderungen vorhanden.
+                                                  # Example: Es sind keine ausstehenden Änderungen vorhanden.
                                                   return [String[]] $out;
                                                 }finally{ Set-Location $cd; } }
-function TfsAssertNoLocksInDir                ( [String] $wsdir, [String] $tfsPath ){ # ex: "C:\MyWorkspace" "$/Src";
+function TfsAssertNoLocksInDir                ( [String] $wsdir, [String] $tfsPath ){ # Example: "C:\MyWorkspace" "$/Src";
                                                 [String[]] $allLocks = @()+(TfsListOwnLocks $wsdir $tfsPath);
                                                 if( $allLocks.Count -gt 0 ){
                                                   $allLocks | ForEach-Object{ OutProgress "Found Lock: $_"; };
@@ -2947,7 +2990,7 @@ function TfsMergeDir                          ( [String] $wsdir, [String] $tfsPa
                                                   OutProgress "CD `"$wsdir`"; & `"$(TfsExe)`" vc merge /noprompt /recursive /format:brief /version:T `"$tfsPath`" `"$tfsTargetBranch`" ";
                                                   [String[]] $dummyOut = @()+(&    (TfsExe)   vc merge /noprompt /recursive /format:brief /version:T   $tfsPath     $tfsTargetBranch); # later we would like to suppress stderr
                                                   ScriptResetRc;
-                                                  # ex:
+                                                  # Example:
                                                   #    Konflikt ("mergen, bearbeiten"): $/Src/MyBranch1/MyFile.txt;C123~C129 -> $/Src/MyBranch2/MyFile.txt;C121
                                                   #    3 Konflikte. Geben Sie "/format:detailed" an, um die einzelnen Konflikte in der Zusammenfassung aufzulisten.
                                                   #    mergen, bearbeiten: $/Src/MyBranch1/MyFile2.txt;C123~C129 -> $/Src/MyBranch2/MyFile2.txt;C121
@@ -2996,7 +3039,7 @@ function SqlGetCmdExe                         (){
                                                       ,"HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\100\Tools\ClientSetup" # sql server 2008
                                                     ) | Where-Object{ (RegistryExistsValue $_ "Path") } |
                                                     ForEach-Object{ ((RegistryGetValueAsString $_ "Path")+"sqlcmd.EXE") } |
-                                                    Where-Object{ (FileExists $_) } | Select-Object -First 1; # ex: "C:\Program Files\Microsoft SQL Server\130\Tools\Binn\sqlcmd.EXE"
+                                                    Where-Object{ (FileExists $_) } | Select-Object -First 1; # Example: "C:\Program Files\Microsoft SQL Server\130\Tools\Binn\sqlcmd.EXE"
                                                 }
                                                 if( $result -eq "" ){ throw [ExcMsg] "Cannot find sqlcmd.exe wether in path nor is any Sql Server 2022, 2019, 2016, 2014, 2012 or 2008 installed. "; }
                                                 return [String] $result; }
@@ -3057,7 +3100,7 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                 # This includes tables (including unique indexes), indexes (non-unique), views, stored procedures, functions, roles, schemas, db-triggers and table-Triggers.
                                                 # If a stored procedure, a function or a trigger is encrypted then a single line is put to its sql file indicating encrypted code cannot be dumped.
                                                 # It creates file "DbInfo.dbname.out" with some db infos. In case of an error it creates file "DbInfo.dbname.err".
-                                                # ex: SqlGenerateFullDbSchemaFiles "MyLogicEnvironment" "MySqlInstance" "MyDbName" "$env:TEMP/tmp/DumpFullDbSchemas"
+                                                # Example: SqlGenerateFullDbSchemaFiles "MyLogicEnvironment" "MySqlInstance" "MyDbName" "$env:TEMP/tmp/DumpFullDbSchemas"
                                                 [String] $currentUser = "$env:USERDOMAIN\$env:USERNAME";
                                                 [String] $traceInfo = "SqlGenerateFullDbSchemaFiles(logicalEnv=$logicalEnv,dbInstanceServerName=$dbInstanceServerName,dbname=$dbName,targetRootDir=$targetRootDir,currentUser=$currentUser)";
                                                 OutInfo $traceInfo;
@@ -3070,7 +3113,7 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                 [System.Reflection.Assembly]::LoadWithPartialName("Microsoft.SqlServer.SMO") | Out-Null;
                                                 [System.Reflection.Assembly]::LoadWithPartialName("System.Data") | Out-Null;
                                                 [Microsoft.SqlServer.Management.Smo.Server] $srv = new-object "Microsoft.SqlServer.Management.SMO.Server" $dbInstanceServerName;
-                                                # ex: $srv.Name = "MySqlInstance"; $srv.State = "Existing"; $srv.ConnectionContext = "Data Source=MySqlInstance;Integrated Security=True;MultipleActiveResultSets=False;Encrypt=False;TrustServerCertificate=False;Application Name=`"SQL Management`""
+                                                # Example: $srv.Name = "MySqlInstance"; $srv.State = "Existing"; $srv.ConnectionContext = "Data Source=MySqlInstance;Integrated Security=True;MultipleActiveResultSets=False;Encrypt=False;TrustServerCertificate=False;Application Name=`"SQL Management`""
                                                 try{
                                                    # can throw: MethodInvocationException: Exception calling "SetDefaultInitFields" with "2" argument(s): "Failed to connect to server MySqlInstance."
                                                   try{ $srv.SetDefaultInitFields([Microsoft.SqlServer.Management.SMO.View], "IsSystemObject");
@@ -3103,7 +3146,7 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                   #try{
                                                   #  [String] $dummy = $db.Parent; # check for read access
                                                   #}catch{
-                                                  #  # ex: ExtendedTypeSystemException: The following exception occurred while trying to enumerate the collection: "An exception occurred while executing a Transact-SQL statement or batch.".
+                                                  #  # Example: ExtendedTypeSystemException: The following exception occurred while trying to enumerate the collection: "An exception occurred while executing a Transact-SQL statement or batch.".
                                                   #  throw [Exception] "Accessing database $dbName failed because $_";
                                                   #}
                                                   [Array] $tables              = @()+($db.Tables               | Where-Object{$null -ne $_} | Where-Object{$_.IsSystemObject -eq $false}); # including unique indexes
@@ -3120,20 +3163,20 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                   [Int64] $spaceAvailableInMB  = [Math]::Ceiling( $db.SpaceAvailable                        / 1000000);
                                                   [String[]] $fileDbInfoContent = @(
                                                       "DbInfo: $dbName (current-user=$env:USERDOMAIN\$env:USERNAME)"
-                                                      ,"  Parent               : $($db.Parent                 )" # ex: [MySqlInstance.MyDomain.ch]
-                                                      ,"  Collation            : $($db.Collation              )" # ex: Latin1_General_CI_AS
-                                                      ,"  CompatibilityLevel   : $($db.CompatibilityLevel     )" # ex: Version100
-                                                      ,"  SpaceUsedDataInMB    : $spaceUsedDataInMB            " # ex: 40
-                                                      ,"  SpaceUsedIndexInMB   : $spaceUsedIndexInMB           " # ex: 12
-                                                      ,"  SpaceAvailableInMB   : $spaceAvailableInMB           " # ex: 11
-                                                      ,"  DefaultSchema        : $($db.DefaultSchema          )" # ex: dbo
-                                                      ,"  NrOfTables           : $($tables.Count              )" # ex: 2
-                                                      ,"  NrOfViews            : $($views.Count               )" # ex: 2
-                                                      ,"  NrOfStoredProcedures : $($storedProcedures.Count    )" # ex: 2
-                                                      ,"  NrOfUserDefinedFuncs : $($userDefFunctions.Count    )" # ex: 2
-                                                      ,"  NrOfDbTriggers       : $($dbTriggers.Count          )" # ex: 2
-                                                      ,"  NrOfTableTriggers    : $($tableTriggers.Count       )" # ex: 2
-                                                      ,"  NrOfIndexesNonUnique : $($indexesNonUnique.Count    )" # ex: 20
+                                                      ,"  Parent               : $($db.Parent                 )" # Example: [MySqlInstance.MyDomain.ch]
+                                                      ,"  Collation            : $($db.Collation              )" # Example: Latin1_General_CI_AS
+                                                      ,"  CompatibilityLevel   : $($db.CompatibilityLevel     )" # Example: Version100
+                                                      ,"  SpaceUsedDataInMB    : $spaceUsedDataInMB            " # Example: 40
+                                                      ,"  SpaceUsedIndexInMB   : $spaceUsedIndexInMB           " # Example: 12
+                                                      ,"  SpaceAvailableInMB   : $spaceAvailableInMB           " # Example: 11
+                                                      ,"  DefaultSchema        : $($db.DefaultSchema          )" # Example: dbo
+                                                      ,"  NrOfTables           : $($tables.Count              )" # Example: 2
+                                                      ,"  NrOfViews            : $($views.Count               )" # Example: 2
+                                                      ,"  NrOfStoredProcedures : $($storedProcedures.Count    )" # Example: 2
+                                                      ,"  NrOfUserDefinedFuncs : $($userDefFunctions.Count    )" # Example: 2
+                                                      ,"  NrOfDbTriggers       : $($dbTriggers.Count          )" # Example: 2
+                                                      ,"  NrOfTableTriggers    : $($tableTriggers.Count       )" # Example: 2
+                                                      ,"  NrOfIndexesNonUnique : $($indexesNonUnique.Count    )" # Example: 20
                                                   );
                                                   FileWriteFromLines $fileDbInfo $fileDbInfoContent $false; # throws if it already exists
                                                   OutProgress ("DbInfo: $dbName Collation=$($db.Collation) CompatibilityLevel=$($db.CompatibilityLevel) " +
@@ -3228,18 +3271,18 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                   OutProgress "";
                                                   OutSuccess "ok, done. Written files below: `"$tarDir`"";
                                                 }catch{
-                                                  # ex: "The given path's format is not supported."
-                                                  # ex: "Illegal characters in path."  (if table name contains double quotes)
-                                                  # ex: System.Management.Automation.ExtendedTypeSystemException: The following exception occurred while trying to enumerate the collection:
-                                                  #       "An exception occurred while executing a Transact-SQL statement or batch.".
-                                                  #       ---> Microsoft.SqlServer.Management.Common.ExecutionFailureException: An exception occurred while executing a Transact-SQL statement or batch.
-                                                  #       ---> System.Data.SqlClient.SqlException: The server principal "MyDomain\MyUser" is not able to access the database "MyDatabaseName" under the current security context.
-                                                  # ex: System.Management.Automation.MethodInvocationException: Exception calling "Script" with "1" argument(s):
-                                                  #       "The StoredProcedure '[mySchema].[MyTable]' cannot be scripted as its data is not accessible."
-                                                  #       ---> Microsoft.SqlServer.Management.Smo.FailedOperationException: The StoredProcedure '[mySchema].[MyTable]' cannot be scripted as its data is not accessible.
-                                                  #       ---> Microsoft.SqlServer.Management.Smo.PropertyCannotBeRetrievedException: Property TextHeader is not available for StoredProcedure '[mySchema].[MyTable]'.
-                                                  #       This property may not exist for this object, or may not be retrievable due to insufficient access rights. The text is encrypted.
-                                                  #       at Microsoft.SqlServer.Management.Smo.ScriptNameObjectBase.GetTextProperty(String requestingProperty, ScriptingPreferences sp, Boolean bThrowIfCreating)
+                                                  # exc: "The given path's format is not supported."
+                                                  # exc: "Illegal characters in path."  (if table name contains double quotes)
+                                                  # exc: System.Management.Automation.ExtendedTypeSystemException: The following exception occurred while trying to enumerate the collection:
+                                                  #        "An exception occurred while executing a Transact-SQL statement or batch.".
+                                                  #        ---> Microsoft.SqlServer.Management.Common.ExecutionFailureException: An exception occurred while executing a Transact-SQL statement or batch.
+                                                  #        ---> System.Data.SqlClient.SqlException: The server principal "MyDomain\MyUser" is not able to access the database "MyDatabaseName" under the current security context.
+                                                  # exc: System.Management.Automation.MethodInvocationException: Exception calling "Script" with "1" argument(s):
+                                                  #        "The StoredProcedure '[mySchema].[MyTable]' cannot be scripted as its data is not accessible."
+                                                  #        ---> Microsoft.SqlServer.Management.Smo.FailedOperationException: The StoredProcedure '[mySchema].[MyTable]' cannot be scripted as its data is not accessible.
+                                                  #        ---> Microsoft.SqlServer.Management.Smo.PropertyCannotBeRetrievedException: Property TextHeader is not available for StoredProcedure '[mySchema].[MyTable]'.
+                                                  #        This property may not exist for this object, or may not be retrievable due to insufficient access rights. The text is encrypted.
+                                                  #        at Microsoft.SqlServer.Management.Smo.ScriptNameObjectBase.GetTextProperty(String requestingProperty, ScriptingPreferences sp, Boolean bThrowIfCreating)
                                                   [String] $msg = $traceInfo + " failed because $($_.Exception)";
                                                   FileWriteFromLines "$tarDir$(DirSep)DbInfo.$dbName.err" $msg;
                                                   if( -not $errorAsWarning ){ throw [ExcMsg] $msg; }
@@ -3262,7 +3305,7 @@ function ToolGithubApiListOrgRepos            ( [String] $org, [System.Managemen
                                                 for( [Int32] $i = 1; $i -lt 100; $i++ ){
                                                   # REST API doc: https://developer.github.com/v3/repos/
                                                   # maximum 100 items per page
-                                                  # ex: https://api.github.com/orgs/arduino/repos?type=all&sort=id&per_page=100&page=2&affiliation=owner,collaborator,organization_member
+                                                  # Example: https://api.github.com/orgs/arduino/repos?type=all&sort=id&per_page=100&page=2&affiliation=owner,collaborator,organization_member
                                                   [String] $url = "https://api.github.com/orgs/$org/repos?per_page=100&page=$i";
                                                   [Object] $json = NetDownloadToString $url $us $pw | ConvertFrom-Json;
                                                   [Array] $a = @()+($json | Select-Object @{N='Url';E={$_.html_url}}, archived, private, fork, forks, language,
@@ -3286,14 +3329,14 @@ function ToolGithubApiDownloadLatestReleaseDir( [String] $repoUrl ){
                                                 # Example repoUrl="https://github.com/mniederw/MnCommonPsToolLib/"
                                                 ToolGithubApiAssertValidRepoUrl $repoUrl;
                                                 [String] $apiUrl = "https://api.github.com/repos/" + (StringRemoveLeft (StringRemoveRight $repoUrl "/") "https://github.com/" $false);
-                                                # ex: $apiUrl = "https://api.github.com/repos/mniederw/MnCommonPsToolLib"
+                                                # Example: $apiUrl = "https://api.github.com/repos/mniederw/MnCommonPsToolLib"
                                                 [String] $url = "$apiUrl/releases/latest";
                                                 OutProgress "Download: $url";
                                                 [Object] $apiObj = NetDownloadToString $url | ConvertFrom-Json;
                                                 [String] $relName = "$($apiObj.name) [$($apiObj.target_commitish),$((DateTimeFromStringOrDateTimeValue $apiObj.created_at).ToString("yyyy-MM-dd")),$($apiObj.tag_name)]";
                                                 OutProgress "Selected: `"$relName`"";
-                                                # ex: $apiObj.zipball_url = "https://api.github.com/repos/mniederw/MnCommonPsToolLib/zipball/V4.9"
-                                                # ex: $relName = "OpenSource-GPL3 MnCommonPsToolLib V4.9 en 2020-02-13 [master,2020-02-13,V4.9]"
+                                                # Example: $apiObj.zipball_url = "https://api.github.com/repos/mniederw/MnCommonPsToolLib/zipball/V4.9"
+                                                # Example: $relName = "OpenSource-GPL3 MnCommonPsToolLib V4.9 en 2020-02-13 [master,2020-02-13,V4.9]"
                                                 [String] $tarDir = DirCreateTemp "MnCoPsToLib_";
                                                 [String] $tarZip = "$tarDir$(DirSep)$relName.zip";
                                                 # We can download latest release zip by one of:
@@ -3302,9 +3345,9 @@ function ToolGithubApiDownloadLatestReleaseDir( [String] $repoUrl ){
                                                 # - https://github.com/mniederw/MnCommonPsToolLib/archive/V4.9.zip
                                                 # - https://codeload.github.com/mniederw/MnCommonPsToolLib/legacy.zip/master
                                                 NetDownloadFileByCurl "$apiUrl/zipball" $tarZip;
-                                                ToolUnzip $tarZip $tarDir; # Ex: ./mniederw-MnCommonPsToolLib-25dbfb0/*
+                                                ToolUnzip $tarZip $tarDir; # Example: ./mniederw-MnCommonPsToolLib-25dbfb0/*
                                                 FileDelete $tarZip;
-                                                 # list flat dirs, ex: "$env:TEMP/tmp/MnCoPsToLib_catkmrpnfdp/mniederw-MnCommonPsToolLib-25dbfb0/"
+                                                 # list flat dirs, Example: "$env:TEMP/tmp/MnCoPsToLib_catkmrpnfdp/mniederw-MnCommonPsToolLib-25dbfb0/"
                                                 [String[]] $dirs = (@()+(FsEntryListAsStringArray $tarDir $false $true $false));
                                                 if( $dirs.Count -ne 1 ){ throw [ExcMsg] "Expected one dir in `"$tarDir`" instead of: $dirs"; }
                                                 [String] $dir0 = $dirs[0];
@@ -3321,7 +3364,6 @@ function ToolEvalVsCodeExec                   (){ [String] $result = (ProcessFin
                                                   }
                                                   if( $result -eq "" ){ throw [ExcMsg] "VS Code executable was not found wether in path nor on windows at common locations for user or system programs."; }
                                                   return [String] $result; }
-
 
 function GetSetGlobalVar( [String] $var, [String] $val){ OutProgress "GetSetGlobalVar is OBSOLETE, replace it now by GitSetGlobalVar.";  GitSetGlobalVar $var $val; }
 
@@ -3354,8 +3396,8 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #     or better  "C:\Program Files\PowerShell\7\pwsh.EXE"
 # - Common parameters used enable stdandard options:
 #   [-Verbose] [-Debug] [-ErrorAction <ActionPreference>] [-WarningAction <ActionPreference>] [-ErrorVariable <String>] [-WarningVariable <String>] [-OutVariable <String>] [-OutBuffer <Int32>]
-# - Parameter attribute declarations (ex: Mandatory, Position): https://msdn.microsoft.com/en-us/library/ms714348(v=vs.85).aspx
-# - Parameter validation attributes (ex: ValidateRange): https://social.technet.microsoft.com/wiki/contents/articles/15994.powershell-advanced-function-parameter-attributes.aspx#Parameter_Validation_Attributes
+# - Parameter attribute declarations (Example: Mandatory, Position): https://msdn.microsoft.com/en-us/library/ms714348(v=vs.85).aspx
+# - Parameter validation attributes (Example: ValidateRange): https://social.technet.microsoft.com/wiki/contents/articles/15994.powershell-advanced-function-parameter-attributes.aspx#Parameter_Validation_Attributes
 # - Do Not Use: Avoid using $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") or Write-Error because different behaviour of powershell.exe and powershell_ise.exe
 # - Extensions: download and install PowerShell Community Extensions (PSCX) https://github.com/Pscx/Pscx for ntfs-junctions and symlinks.
 # - Special predefined variables which are not yet used in this script (use by $global:anyprefefinedvar; names are case insensitive):
@@ -3390,20 +3432,20 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #       Add-Type -TypeDefinition "public struct MyStruct {public string MyVar;}"; Assert( $null -eq (New-Object MyStruct).MyVar );
 #     And the string variable is null IF IT IS RUNNING IN A SCRIPT in ps5or7, if running interactive then it is not null:
 #       [String] $a = @() | Where-Object{ $false }; Write-Output "IsStringNull: $($null -eq $a)";
-#   - GetFullPath() works not with the current dir but with the working dir where powershell was started (ex. when running as administrator).
+#   - GetFullPath() works not with the current dir but with the working dir where powershell was started for example when running as administrator.
 #     http://stackoverflow.com/questions/4071775/why-is-powershell-resolving-paths-from-home-instead-of-the-current-directory/4072205
 #     powershell.exe         ;
-#                              Get-Location                                 <# ex: $HOME     #>;
+#                              Get-Location                                 # Example: $HOME
 #                              Write-Output hi > .\a.tmp   ;
-#                              [System.IO.Path]::GetFullPath(".\a.tmp")     <# is correct "$HOME\a.tmp"     #>;
+#                              [System.IO.Path]::GetFullPath(".\a.tmp")     # is correct "$HOME\a.tmp"
 #     powershell.exe as Admin;
-#                              Get-Location                                 <# ex: C:\WINDOWS\System32 #>;
+#                              Get-Location                                 # Example: C:\WINDOWS\System32
 #                              Set-Location $HOME;
-#                              [System.IO.Path]::GetFullPath(".\a.tmp")     <# is wrong   "C:\WINDOWS\System32\a.tmp" #>;
-#                              [System.IO.Directory]::GetCurrentDirectory() <# is         "C:\WINDOWS\System32"       #>;
-#                              (get-location).Path                          <# is         "$HOME"                     #>;
-#                              Resolve-Path .\a.tmp                         <# is correct "$HOME\a.tmp"               #>;
-#                              (Get-Item -Path ".\a.tmp" -Verbose).FullName <# is correct "$HOME\a.tmp"               #>;
+#                              [System.IO.Path]::GetFullPath(".\a.tmp")     # is wrong   "C:\WINDOWS\System32\a.tmp"
+#                              [System.IO.Directory]::GetCurrentDirectory() # is         "C:\WINDOWS\System32"
+#                              (get-location).Path                          # is         "$HOME"
+#                              Resolve-Path .\a.tmp                         # is correct "$HOME\a.tmp"
+#                              (Get-Item -Path ".\a.tmp" -Verbose).FullName # is correct "$HOME\a.tmp"
 #     Possible reasons: PS can have a regkey as current location. GetFullPath works with [System.IO.Directory]::GetCurrentDirectory().
 #     Recommendation: do not use [System.IO.Path]::GetFullPath, use Resolve-Path.
 #   - ForEach-Object iterates at lease once with $null in pipeline:
@@ -3470,9 +3512,9 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #     - ps5: %USERPROFILE%\Documents\WindowsPowerShell\Modules\  location for current users for any modules
 #     - ps7: %ProgramW6432%\PowerShell\Modules\                  location for all     users for any modules (ps7 and up, multiplatform)
 #     - ps7: %ProgramW6432%\powershell\7\Modules\                location for all     users for any modules (ps7 only  , multiplatform)
-#     - ps5: %ProgramW6432%\WindowsPowerShell\Modules\           location for all     users for any modules (ps5 and up) and             64bit environment (ex: "C:\Program Files")
-#     - ps5: %ProgramFiles(x86)%\WindowsPowerShell\Modules\      location for all     users for any modules (ps5 and up) and             32bit environment (ex: "C:\Program Files (x86")
-#     - ps5: %ProgramFiles%\WindowsPowerShell\Modules\           location for all     users for any modules (ps5 and up) and current 64/32 bit environment (ex: "C:\Program Files (x86)" or "C:\Program Files")
+#     - ps5: %ProgramW6432%\WindowsPowerShell\Modules\           location for all     users for any modules (ps5 and up) and             64bit environment (Example: "C:\Program Files")
+#     - ps5: %ProgramFiles(x86)%\WindowsPowerShell\Modules\      location for all     users for any modules (ps5 and up) and             32bit environment (Example: "C:\Program Files (x86")
+#     - ps5: %ProgramFiles%\WindowsPowerShell\Modules\           location for all     users for any modules (ps5 and up) and current 64/32 bit environment (Example: "C:\Program Files (x86)" or "C:\Program Files")
 #   - Not automatically added but currently strongly recommended additional folder:
 #     - %SystemRoot%\System32\WindowsPowerShell\v1.0\Modules\    location for windows modules for all users (ps5 and up)
 #       In future if ps7 can completely replace ps5 then we can remove this folder.
@@ -3505,7 +3547,7 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #     - Creates a new script scope which is deleted after script end, so it is side effect safe. Changes to global variables are also lost.
 #         & "./myscript.ps1" ...arguments... ; & $mycmd ...args... ; & { mycmd1; mycmd2 } AssertRcIsOk;
 #     - Precedence of commands: Alias > Function > Filter > Cmdlet > Application > ExternalScript > Script.
-#     - Override precedence of commands by using get-command, ex: Get-Command -commandType Application Ping
+#     - Override precedence of commands by using get-command, Example: Get-Command -commandType Application Ping
 #     - Very important for empty arguments or arguments with blanks:
 #       PS5: If an empty argument should be specified then two quotes as '' or "" or $null or $myEmptyVar
 #         do not work (will make the argument not present),
@@ -3518,14 +3560,14 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #         to use options instead of positional arguments to specify parameters.
 #         Best recommended solution: Use from our library: ProcessStart $exe $opt -traceCmd:$true;
 #       PS7: It works as it should, without additional double-double-quotes.
-#     - Resulttype is often [Object[]] (ex: (& dir).GetType()) but can also be [String] (ex: (ex: (& echo hi).GetType()).
+#     - Resulttype is often [Object[]] (Example: (& dir).GetType()) but can also be [String] (Example: (& echo hi).GetType()).
 #       so be careful on applying string functions to it, for example do not use:  (& anycmd).Trim()  but use ([String](& anycmd)).Trim()
 #   - Evaluate (string expansion) and run a command given in a string, does not create a new script scope
 #     and so works in local scope. Care for code injection.
 #       Invoke-Expression [-command] string [CommonParameters]
 #     Very important: It performs string expansion before running, so it can be a severe problem if the string contains character $.
 #     This behaviour is very bad and so avoid using Invoke-Expression and use & or . operators instead.
-#     Ex: $cmd1 = "Write-Output `$PSHome"; $cmd2 = "Write-Output $PSHome"; Invoke-Expression $cmd1; Invoke-Expression $cmd2;
+#     Example: $cmd1 = "Write-Output `$PSHome"; $cmd2 = "Write-Output $PSHome"; Invoke-Expression $cmd1; Invoke-Expression $cmd2;
 #   - Run a script or command remotely. See http://ss64.com/ps/invoke-command.html
 #     Invoke-Command
 #     If you use Invoke-Command to run a script or command on a remote computer,
@@ -3547,7 +3589,7 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #       see https://docs.microsoft.com/en-us/dotnet/api/system.diagnostics.processstartinfo.arguments
 #           https://github.com/PowerShell/PowerShell/issues/5576
 #       Start-Process -FilePath powershell.exe -Verb runAs -ArgumentList "-NoExit `"&`" notepad.exe `"`"`"Test WithBlank.txt`"`"`" "
-# - Call module with arguments: ex:  Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1" -ArgumentList $myinvocation.mycommand.Path;
+# - Call module with arguments: Example:  Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1" -ArgumentList $myinvocation.mycommand.Path;
 # - FsEntries: -LiteralPath means no interpretation of wildcards
 # - Extensions and libraries: https://www.powershellgallery.com/  http://ss64.com/links/pslinks.html
 # - Write Portable ps hints: https://powershell.org/2019/02/tips-for-writing-cross-platform-powershell-code/

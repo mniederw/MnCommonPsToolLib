@@ -28,20 +28,20 @@ function Test_Registry(){
   #   RegistryKeyGetHkey                   ( [String] $key ){
   #   RegistryKeyGetSubkey                 ( [String] $key ){
   #   RegistryPrivRuleCreate               ( [System.Security.Principal.IdentityReference] $account, [String] $regRight = "" ){
-  #                                          # ex: (PrivGetGroupAdministrators) "FullControl";
-  #                                          # regRight ex: "ReadKey", available enums: https://msdn.microsoft.com/en-us/library/system.security.accesscontrol.registryrights(v=vs.110).aspx
+  #                                          # Example: (PrivGetGroupAdministrators) "FullControl";
+  #                                          # regRight Example: "ReadKey", available enums: https://msdn.microsoft.com/en-us/library/system.security.accesscontrol.registryrights(v=vs.110).aspx
   #   RegistryPrivRuleToString             ( [System.Security.AccessControl.RegistryAccessRule] $rule ){
-  #                                          # ex: RegistryPrivRuleToString (RegistryPrivRuleCreate (PrivGetGroupAdministrators) "FullControl")
+  #                                          # Example: RegistryPrivRuleToString (RegistryPrivRuleCreate (PrivGetGroupAdministrators) "FullControl")
   #   RegistryKeySetOwner                  ( [String] $key, [System.Security.Principal.IdentityReference] $account ){
-  #                                          # ex: "HKLM:\Software\MyManufactor" (PrivGetGroupAdministrators);
+  #                                          # Example: "HKLM:\Software\MyManufactor" (PrivGetGroupAdministrators);
   #                                          # Changes only if owner is not yet the required one.
   #                                          # Note: Throws PermissionDenied if object is protected by TrustedInstaller.
   #                                          # Use force this if object is protected by TrustedInstaller,
   #                                          # then it asserts elevated mode and enables some token privileges.
   #   RegistryKeySetAclRight               ( [String] $key, [System.Security.Principal.IdentityReference] $account, [String] $regRight = "FullControl" ){
-  #                                          # ex: "HKLM:\Software\MyManufactor" (PrivGetGroupAdministrators) "FullControl";
+  #                                          # Example: "HKLM:\Software\MyManufactor" (PrivGetGroupAdministrators) "FullControl";
   #   RegistryKeyAddAclRule                ( [String] $key, [System.Security.AccessControl.RegistryAccessRule] $rule ){
   #   RegistryKeySetAclRule                ( [String] $key, [System.Security.AccessControl.RegistryAccessRule] $rule, [Boolean] $useAddNotSet = $false ){
-  #                                          # ex: "HKLM:\Software\MyManufactor" (PrivGetGroupAdministrators) "FullControl";
+  #                                          # Example: "HKLM:\Software\MyManufactor" (PrivGetGroupAdministrators) "FullControl";
 }
 Test_Registry;

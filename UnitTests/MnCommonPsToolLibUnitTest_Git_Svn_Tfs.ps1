@@ -10,8 +10,8 @@ function Test_Git_Svn_Tfs(){
   #   GitBuildLocalDirFromUrl              ( [String] $tarRootDir, [String] $urlAndOptionalBranch ){
   #                                          # Maps a root dir and a repo url with an optional sharp-char separated branch name
   #                                          # to a target repo dir which contains all url fragments below the hostname.
-  #                                          # ex: (GitBuildLocalDirFromUrl "C:\WorkGit\" "https://github.com/mniederw/MnCommonPsToolLib")          == "C:\WorkGit\mniederw\MnCommonPsToolLib";
-  #                                          # ex: (GitBuildLocalDirFromUrl "C:\WorkGit\" "https://github.com/mniederw/MnCommonPsToolLib#MyBranch") == "C:\WorkGit\mniederw\MnCommonPsToolLib#MyBranch";
+  #                                          # Example: (GitBuildLocalDirFromUrl "C:\WorkGit\" "https://github.com/mniederw/MnCommonPsToolLib")          == "C:\WorkGit\mniederw\MnCommonPsToolLib";
+  #                                          # Example: (GitBuildLocalDirFromUrl "C:\WorkGit\" "https://github.com/mniederw/MnCommonPsToolLib#MyBranch") == "C:\WorkGit\mniederw\MnCommonPsToolLib#MyBranch";
   #   GitCmd                               ( [String] $cmd, [String] $tarRootDir, [String] $urlAndOptionalBranch, [Boolean] $errorAsWarning = $false ){
   #                                          # For commands:
   #                                          #   "Clone"       : Creates a full local copy of specified repo. Target dir must not exist.
@@ -29,8 +29,8 @@ function Test_Git_Svn_Tfs(){
   #                                          # The urlAndOptionalBranch defines a repo url optionally with a sharp-char separated branch name (allowed chars: A-Z,a-z,0-9,.,_,-).
   #                                          # We assert the no AutoCrLf is used.
   #                                          # Pull-No-Rebase: We generally use no-rebase for pull because commit history should not be modified.
-  #                                          # ex: GitCmd Clone "C:\WorkGit" "https://github.com/mniederw/MnCommonPsToolLib"
-  #                                          # ex: GitCmd Clone "C:\WorkGit" "https://github.com/mniederw/MnCommonPsToolLib#MyBranch"
+  #                                          # Example: GitCmd Clone "C:\WorkGit" "https://github.com/mniederw/MnCommonPsToolLib"
+  #                                          # Example: GitCmd Clone "C:\WorkGit" "https://github.com/mniederw/MnCommonPsToolLib#MyBranch"
   #   GitShowUrl                           ( [String] $repoDir ){
   #   GitShowBranch                        ( [String] $repoDir ){
   #                                          # return current branch (example: "master").
@@ -46,14 +46,14 @@ function Test_Git_Svn_Tfs(){
   #                                          # - Log.NameOfRepoParent.NameOfRepo.CommittedChangedFiles.tmp
   #                                          # It is quite slow about 10 sec per repo, so it can be controlled by $doOnlyIfOlderThanAgeInDays.
   #                                          # In case of a git error it outputs it as warning.
-  #                                          # ex: GitListCommitComments "C:\WorkGit\_CommitComments" "C:\WorkGit\mniederw\MnCommonPsToolLib"
+  #                                          # Example: GitListCommitComments "C:\WorkGit\_CommitComments" "C:\WorkGit\mniederw\MnCommonPsToolLib"
   #   GitAssertAutoCrLfIsDisabled          (){ # use this before using git
   #   GitDisableAutoCrLf                   (){ # no output if nothing done.
   #   GitCloneOrPullUrls                   ( [String[]] $listOfRepoUrls, [String] $tarRootDirOfAllRepos, [Boolean] $errorAsWarning = $false ){
   #                                          # Works later multithreaded and errors are written out, collected and throwed at the end.
   #                                          # If you want single threaded then call it with only one item in the list.
   #   SvnEnvInfo :                         Add-Type -TypeDefinition "public struct SvnEnvInfo {public string Url; public string Path; public string RealmPattern; public string CachedAuthorizationFile; public string CachedAuthorizationUser; public string Revision; }";
-  #                                          # ex: Url="https://myhost/svn/Work"; Path="D:\Work"; RealmPattern="https://myhost:443";
+  #                                          # Example: Url="https://myhost/svn/Work"; Path="D:\Work"; RealmPattern="https://myhost:443";
   #                                          # CachedAuthorizationFile="$env:APPDATA\Subversion\auth\svn.simple\25ff84926a354d51b4e93754a00064d6"; CachedAuthorizationUser="myuser"; Revision="1234"
   #   SvnExe                               (){ # Note: if certificate is not accepted then a pem file (for example lets-encrypt-r3.pem) can be added to file "$env:APPDATA\Subversion\servers"
   #   SvnEnvInfoGet                        ( [String] $workDir ){
@@ -92,14 +92,14 @@ function Test_Git_Svn_Tfs(){
   #   TfsHelpWorkspaceInfo                 (){
   #   TfsShowAllWorkspaces                 ( [String] $url, [Boolean] $showPaths = $false, [Boolean] $currentMachineOnly = $false ){
   #                                          # from all users on all machines; normal output is a table but if showPaths is true then it outputs 12 lines per entry
-  #                                          # ex: url=https://devops.mydomain.ch/MyTfsRoot
+  #                                          # Example: url=https://devops.mydomain.ch/MyTfsRoot
   #   TfsShowLocalCachedWorkspaces         (){ # works without access an url
   #   TfsHasLocalMachWorkspace             ( [String] $url ){ # we support only workspace name identic to computername
   #   TfsInitLocalWorkspaceIfNotDone       ( [String] $url, [String] $rootDir ){
   #   TfsDeleteLocalMachWorkspace          ( [String] $url ){ # we support only workspace name identic to computername
-  #   TfsGetNewestNoOverwrite              ( [String] $wsdir, [String] $tfsPath, [String] $url ){ # ex: TfsGetNewestNoOverwrite C:\MyWorkspace\Src $/Src https://devops.mydomain.ch/MyTfsRoot
+  #   TfsGetNewestNoOverwrite              ( [String] $wsdir, [String] $tfsPath, [String] $url ){ # Example: TfsGetNewestNoOverwrite C:\MyWorkspace\Src $/Src https://devops.mydomain.ch/MyTfsRoot
   #   TfsListOwnLocks                      ( [String] $wsdir, [String] $tfsPath ){
-  #   TfsAssertNoLocksInDir                ( [String] $wsdir, [String] $tfsPath ){ # ex: "C:\MyWorkspace" "$/Src";
+  #   TfsAssertNoLocksInDir                ( [String] $wsdir, [String] $tfsPath ){ # Example: "C:\MyWorkspace" "$/Src";
   #   TfsMergeDir                          ( [String] $wsdir, [String] $tfsPath, [String] $tfsTargetBranch ){
   #   TfsResolveMergeConflict              ( [String] $wsdir, [String] $tfsPath, [Boolean] $keepTargetAndNotTakeSource ){
   #   TfsCheckinDirWhenNoConflict          ( [String] $wsdir, [String] $tfsPath, [String] $comment, [Boolean] $handleErrorsAsWarnings ){
