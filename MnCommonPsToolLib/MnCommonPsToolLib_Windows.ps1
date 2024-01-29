@@ -5,8 +5,8 @@
 #   but we ignore the errors because it its enough if the functions which uses these modules will fail.
 #   Example error: The specified module 'ScheduledTasks'/'SmbShare' was not loaded because no valid module file was found in any module directory.
 if( $null -ne (Import-Module -NoClobber -Name "ScheduledTasks" -ErrorAction Continue *>&1) ){ $error.clear(); Write-Warning "Ignored failing of Import-Module ScheduledTasks because it will fail later if a function is used from it."; } #
-if( $null -ne (Import-Module -NoClobber -Name "SmbShare"       -ErrorAction Continue *>&1) ){ $error.clear(); Write-Warning "Ignored failing of Import-Module SmbShare       because it will fail later if a function is used from it."; } # ex: Get-SMBShare, Get-SMBOpenFile, New-SMBShare, Get-SMBMapping, ...
-if( $null -ne (Import-Module -NoClobber -Name "CimCmdlets"     -ErrorAction Continue *>&1) ){ $error.clear(); Write-Warning "Ignored failing of Import-Module CimCmdlets     because it will fail later if a function is used from it."; } # ex: Get-CimInstance.
+if( $null -ne (Import-Module -NoClobber -Name "SmbShare"       -ErrorAction Continue *>&1) ){ $error.clear(); Write-Warning "Ignored failing of Import-Module SmbShare       because it will fail later if a function is used from it."; } # Example: Get-SMBShare, Get-SMBOpenFile, New-SMBShare, Get-SMBMapping, ...
+if( $null -ne (Import-Module -NoClobber -Name "CimCmdlets"     -ErrorAction Continue *>&1) ){ $error.clear(); Write-Warning "Ignored failing of Import-Module CimCmdlets     because it will fail later if a function is used from it."; } # Example: Get-CimInstance.
 
 
 
@@ -29,8 +29,8 @@ function OsIsWinScreenLocked                  (){ return [Boolean] ((@()+(Get-Pr
 function OsIsHibernateEnabled                 (){
                                                 if( (FileNotExists "$env:SystemDrive/hiberfil.sys") ){ return [Boolean] $false; }
                                                 if( OsIsWin7OrHigher ){ return [Boolean] (RegistryGetValueAsString "HKLM:\SYSTEM\CurrentControlSet\Control\Power" "HibernateEnabled") -eq "1"; }
-                                                # win7     ex: Die folgenden Standbymodusfunktionen sind auf diesem System verfügbar: Standby ( S1 S3 ) Ruhezustand Hybrider Standbymodus
-                                                # winVista ex: Die folgenden Ruhezustandfunktionen sind auf diesem System verfügbar: Standby ( S3 ) Ruhezustand Hybrider Standbymodus
+                                                # win7     Example: Die folgenden Standbymodusfunktionen sind auf diesem System verfügbar: Standby ( S1 S3 ) Ruhezustand Hybrider Standbymodus
+                                                # winVista Example: Die folgenden Ruhezustandfunktionen sind auf diesem System verfügbar: Standby ( S3 ) Ruhezustand Hybrider Standbymodus
                                                 [String] $out = @()+(& "$env:SystemRoot/System32/powercfg.exe" "-AVAILABLESLEEPSTATES" | Where-Object{
                                                   $_ -like "Die folgenden Standbymodusfunktionen sind auf diesem System verf*" -or $_ -like "Die folgenden Ruhezustandfunktionen sind auf diesem System verf*" });
                                                 AssertRcIsOk; return [Boolean] ((($out.Contains("Ruhezustand") -or $out.Contains("Hibernate"))) -and (FileExists "$env:SystemDrive/hiberfil.sys")); }
@@ -39,14 +39,14 @@ function OsWindowsFeatureGetInstalledNames    (){ # Requires windows-server-os o
                                                   ScriptImportModuleIfNotDone "ServerManager";
                                                   return [String[]] (@()+(Get-WindowsFeature | Where-Object{ $_.InstallState -eq "Installed" } | ForEach-Object{ $_.Name })); } # states: Installed, Available, Removed.
 function OsWindowsFeatureDoInstall            ( [String] $name ){
-                                                # ex: Web-Server, Web-Mgmt-Console, Web-Scripting-Tools, Web-Basic-Auth, Web-Windows-Auth, NET-FRAMEWORK-45-Core,
+                                                # Example: Web-Server, Web-Mgmt-Console, Web-Scripting-Tools, Web-Basic-Auth, Web-Windows-Auth, NET-FRAMEWORK-45-Core,
                                                 #   NET-FRAMEWORK-45-ASPNET, Web-HTTP-Logging, Web-NET-Ext45, Web-ASP-Net45, Telnet-Server, Telnet-Client.
                                                 ScriptImportModuleIfNotDone "ServerManager";
                                                   # Used for Install-WindowsFeature; Requires at least Win10Prof: RSAT https://www.microsoft.com/en-au/download/details.aspx?id=45520
                                                 OutProgress "Install-WindowsFeature -name $name -IncludeManagementTools";
                                                 [Object] $res = Install-WindowsFeature -name $name -IncludeManagementTools;
                                                 [String] $out = "Result: IsSuccess=$($res.Success) RequiresRestart=$($res.RestartNeeded) ExitCode=$($res.ExitCode) FeatureResult=$($res.FeatureResult)";
-                                                # ex: "Result: IsSuccess=True RequiresRestart=No ExitCode=NoChangeNeeded FeatureResult="
+                                                # Example: "Result: IsSuccess=True RequiresRestart=No ExitCode=NoChangeNeeded FeatureResult="
                                                 OutProgress $out; if( -not $res.Success ){ throw [Exception] "Install $name was not successful, please solve manually. $out"; } }
 function OsWindowsFeatureDoUninstall          ( [String] $name ){
                                                 ScriptImportModuleIfNotDone "ServerManager";
@@ -343,7 +343,7 @@ function RegistrySetValue                     ( [String] $key, [String] $name, [
                                                 try{
                                                   OutProgress "RegistrySetValue `"$key`" `"$name`" `"$type`" `"$val`"";
                                                   Set-ItemProperty -Path $key -Name $name -Type $type -Value $val;
-                                                }catch{ # ex: SecurityException: Requested registry access is not allowed.
+                                                }catch{ # Example: SecurityException: Requested registry access is not allowed.
                                                   throw [Exception] "$(ScriptGetCurrentFunc)($key,$name) failed because $($_.Exception.Message) (often it requires elevated mode)"; } }
 function RegistryImportFile                   ( [String] $regFile ){
                                                 $regFile = (FsEntryGetAbsolutePath $regFile);
@@ -375,16 +375,16 @@ function RegistryKeyGetSubkey                 ( [String] $key ){
                                                 if( $s.Count -le 1 ){ throw [Exception] "Missing `":\`" in `"$key`""; }
                                                 return [String] $s[1]; }
 function RegistryPrivRuleCreate               ( [System.Security.Principal.IdentityReference] $account, [String] $regRight = "" ){
-                                                # ex: (PrivGetGroupAdministrators) "FullControl";
-                                                # regRight ex: "ReadKey", available enums: https://msdn.microsoft.com/en-us/library/system.security.accesscontrol.registryrights(v=vs.110).aspx
+                                                # Example: (PrivGetGroupAdministrators) "FullControl";
+                                                # regRight Example: "ReadKey", available enums: https://msdn.microsoft.com/en-us/library/system.security.accesscontrol.registryrights(v=vs.110).aspx
                                                 if( $regRight -eq "" ){ return [System.Security.AccessControl.AccessControlSections]::None; }
                                                 $inh = [System.Security.AccessControl.InheritanceFlags]"ContainerInherit";
                                                 $pro = [System.Security.AccessControl.PropagationFlags]::None;
                                                 return New-Object System.Security.AccessControl.RegistryAccessRule($account,[System.Security.AccessControl.RegistryRights]$regRight,$inh,$pro,[System.Security.AccessControl.AccessControlType]::Allow); }
                                                 # alternative: "ObjectInherit,ContainerInherit"
 function RegistryPrivRuleToString             ( [System.Security.AccessControl.RegistryAccessRule] $rule ){
-                                                # ex: RegistryPrivRuleToString (RegistryPrivRuleCreate (PrivGetGroupAdministrators) "FullControl")
-                                                [String] $s = "$($rule.IdentityReference.ToString()):"; # ex: VORDEFINIERT\Administratoren
+                                                # Example: RegistryPrivRuleToString (RegistryPrivRuleCreate (PrivGetGroupAdministrators) "FullControl")
+                                                [String] $s = "$($rule.IdentityReference.ToString()):"; # Example: VORDEFINIERT\Administratoren
                                                 if( $rule.AccessControlType -band [System.Security.AccessControl.AccessControlType]::Allow             ){ $s += "+"; }
                                                 if( $rule.AccessControlType -band [System.Security.AccessControl.AccessControlType]::Deny              ){ $s += "-"; }
                                                 if( $rule.IsInherited ){
@@ -403,7 +403,7 @@ function RegistryPrivRuleToString             ( [System.Security.AccessControl.R
                                                 $s += (PrivAclRegRightsToString $rule.RegistryRights);
                                                 return [String] $s; }
 function RegistryKeyGetOwnerAsString          ( [String] $key ){
-                                                # ex: "HKLM:\Software\MyManufactor"
+                                                # Example: "HKLM:\Software\MyManufactor"
                                                 $key = RegistryMapToShortKey $key;
                                                 [Microsoft.Win32.RegistryKey] $hk = [Microsoft.Win32.RegistryKey]::OpenBaseKey((RegistryKeyGetHkey $key),[Microsoft.Win32.RegistryView]::Default);
                                                 [Microsoft.Win32.RegistryKey] $k = $hk.OpenSubKey((RegistryKeyGetSubkey $key),[Microsoft.Win32.RegistryKeyPermissionCheck]::ReadSubTree);
@@ -411,7 +411,7 @@ function RegistryKeyGetOwnerAsString          ( [String] $key ){
                                                 [System.Security.Principal.IdentityReference] $owner = $acl.GetOwner([System.Security.Principal.NTAccount]);
                                                 return [String] $owner.Value; }
 function RegistryKeySetOwner                  ( [String] $key, [System.Security.Principal.IdentityReference] $account ){
-                                                # ex: "HKLM:\Software\MyManufactor" (PrivGetGroupAdministrators);
+                                                # Example: "HKLM:\Software\MyManufactor" (PrivGetGroupAdministrators);
                                                 # Changes only if owner is not yet the required one.
                                                 # Note: Throws PermissionDenied if object is protected by TrustedInstaller.
                                                 # Use force this if object is protected by TrustedInstaller,
@@ -438,12 +438,12 @@ function RegistryKeySetOwner                  ( [String] $key, [System.Security.
                                                   #   $acl.SetOwner($account); Set-Acl -Path $key -AclObject $acl;
                                                 }catch{ throw [Exception] "$(ScriptGetCurrentFunc)($key,$account) failed because $($_.Exception.Message)"; } }
 function RegistryKeySetAclRight               ( [String] $key, [System.Security.Principal.IdentityReference] $account, [String] $regRight = "FullControl" ){
-                                                # ex: "HKLM:\Software\MyManufactor" (PrivGetGroupAdministrators) "FullControl";
+                                                # Example: "HKLM:\Software\MyManufactor" (PrivGetGroupAdministrators) "FullControl";
                                                 RegistryKeySetAclRule $key (RegistryPrivRuleCreate $account $regRight); }
 function RegistryKeyAddAclRule                ( [String] $key, [System.Security.AccessControl.RegistryAccessRule] $rule ){
                                                 RegistryKeySetAclRule $key $rule $true; }
 function RegistryKeySetAclRule                ( [String] $key, [System.Security.AccessControl.RegistryAccessRule] $rule, [Boolean] $useAddNotSet = $false ){
-                                                # ex: "HKLM:\Software\MyManufactor" (RegistryPrivRuleCreate (PrivGetGroupAdministrators) "FullControl");
+                                                # Example: "HKLM:\Software\MyManufactor" (RegistryPrivRuleCreate (PrivGetGroupAdministrators) "FullControl");
                                                 $key = RegistryMapToShortKey $key;
                                                 OutProgress "RegistryKeySetAclRule `"$key`" `"$(RegistryPrivRuleToString $rule)`"";
                                                 RegistryRequiresElevatedAdminMode;
@@ -497,7 +497,9 @@ function ServiceStop                          ( [String] $serviceName, [Boolean]
                                                 OutProgress "ServiceStop $serviceName $(switch($ignoreIfFailed){($true){'ignoreIfFailed'}default{''}})";
                                                 ProcessRestartInElevatedAdminMode;
                                                 try{ Stop-Service -Name $serviceName; } # Instead of check for stopped service we could also use -PassThru.
-                                                catch{ # ex: ServiceCommandException: Service 'Check Point Endpoint Security VPN (TracSrvWrapper)' cannot be stopped due to the following error: Cannot stop TracSrvWrapper service on computer '.'.
+                                                catch{
+                                                  # Example: ServiceCommandException: Service 'Check Point Endpoint Security VPN (TracSrvWrapper)' cannot be stopped
+                                                  #   due to the following error: Cannot stop TracSrvWrapper service on computer '.'.
                                                   if( $ignoreIfFailed ){ OutWarning "Warning: Stopping service failed, ignored: $($_.Exception.Message)"; }else{ throw; }
                                                 } }
 function ServiceStart                         ( [String] $serviceName ){
@@ -522,7 +524,9 @@ function ServiceSetStartType                  ( [String] $serviceName, [String] 
                                                   if( $s.StartType -ne $startTypeExt ){
                                                     ProcessRestartInElevatedAdminMode;
                                                     try{ Set-Service -Name $serviceName -StartupType $startTypeExt;
-                                                    }catch{ #ex: for aswbIDSAgent which is antivir protection we got: ServiceCommandException: Service ... cannot be configured due to the following error: Zugriff verweigert
+                                                    }catch{
+                                                      # Example: for aswbIDSAgent which is antivir protection we got:
+                                                      #   ServiceCommandException: Service ... cannot be configured due to the following error: Zugriff verweigert
                                                       [String] $msg = "$(ScriptGetCurrentFunc)($serviceName,$startType) because $($_.Exception.Message)";
                                                       if( -not $errorAsWarning ){ throw [Exception] $msg; }
                                                       OutWarning "Warning: Ignore failing of $msg";
@@ -534,8 +538,8 @@ function ServiceSetStartType                  ( [String] $serviceName, [String] 
                                                   } } }
 function ServiceMapHiddenToCurrentName        ( [String] $serviceName ){
                                                 # Hidden services on Windows 10: Some services do not have a static service name because they do not have any associated DLL or executable.
-                                                # This method maps a symbolic name as MessagingService_###### by the currently correct service name (ex: "MessagingService_26a344").
-                                                # The ###### symbolizes a random hex string of 5-6 chars. ex: (ServiceMapHiddenName "MessagingService_######") -eq "MessagingService_26a344";
+                                                # This method maps a symbolic name as MessagingService_###### by the currently correct service name (example: "MessagingService_26a344").
+                                                # The ###### symbolizes a random hex string of 5-6 chars. Example: (ServiceMapHiddenName "MessagingService_######") -eq "MessagingService_26a344";
                                                 # Currently all these known hidden services are internally started by "C:\WINDOWS\System32\svchost.exe -k UnistackSvcGroup". The following are known:
                                                 [String[]] $a = @( "MessagingService_######", "PimIndexMaintenanceSvc_######", "UnistoreSvc_######", "UserDataSvc_######", "WpnUserService_######", "CDPUserSvc_######", "OneSyncSvc_######" );
                                                 if( $a -notcontains $serviceName ){ return [String] $serviceName; }
@@ -599,7 +603,7 @@ function ShareExists                          ( [String] $shareName ){
 function ShareListAll                         ( [String] $selectShareName = "" ){
                                                 # uses newer module SmbShare
                                                 OutVerbose "List shares selectShareName=`"$selectShareName`"";
-                                                # Ex: ShareState: Online, ...; ShareType: InterprocessCommunication, PrintQueue, FileSystemDirectory;
+                                                # Example: ShareState: Online, ...; ShareType: InterprocessCommunication, PrintQueue, FileSystemDirectory;
                                                 return [Object] (Get-SMBShare | Where-Object{$null -ne $_} |
                                                   Where-Object{ $selectShareName -eq "" -or (FsEntryIsEqual $_.Name $selectShareName) } |
                                                   Select-Object Name, ShareType, Path, Description, ShareState, ConcurrentUserLimit, CurrentUsers |
@@ -610,7 +614,7 @@ function ShareLocksList                       ( [String] $path = "" ){
                                                 return [Object] (Get-SmbOpenFile | Where-Object{$null -ne $_} | Where-Object{ $_.Path.StartsWith($path,"OrdinalIgnoreCase") } |
                                                   Select-Object FileId, SessionId, Path, ClientComputerName, ClientUserName, Locks | Sort-Object Path); }
 function ShareLocksClose                      ( [String] $path = "" ){
-                                                # closes locks, ex: $path="D:\Transfer\" or $path="D:\Transfer\MyFile.txt"
+                                                # closes locks, Example: $path="D:\Transfer\" or $path="D:\Transfer\MyFile.txt"
                                                 ProcessRestartInElevatedAdminMode;
                                                 ShareLocksList $path |
                                                   Where-Object{$null -ne $_} |
@@ -661,7 +665,7 @@ function MountPointRemove                     ( [String] $drive, [String] $mount
                                                   Remove-PSDrive -Name ($drive -replace ":","") -Force; # Force means no confirmation
                                                 } }
 function MountPointCreate                     ( [String] $drive, [String] $mountPoint, [System.Management.Automation.PSCredential] $cred = $null, [Boolean] $errorAsWarning = $false ){
-                                                # ex: MountPointCreate "S:" "\\localhost\Transfer" (CredentialCreate "user1" "mypw")
+                                                # Example: MountPointCreate "S:" "\\localhost\Transfer" (CredentialCreate "user1" "mypw")
                                                 if( -not $drive.EndsWith(":") ){ throw [Exception] "Expected drive=`"$drive`" with trailing colon"; }
                                                 [String] $us = CredentialGetUsername $cred $true;
                                                 [String] $pw = CredentialGetPassword $cred;
@@ -680,21 +684,21 @@ function MountPointCreate                     ( [String] $drive, [String] $mount
                                                   }
                                                   OutProgress "$($traceInfo)Ok.";
                                                 }catch{
-                                                  # ex: System.Exception: New-SmbMapping(Z,\\spider\Transfer,spider\u0) failed because Mehrfache Verbindungen zu einem Server
-                                                  #     oder einer freigegebenen Ressource von demselben Benutzer unter Verwendung mehrerer Benutzernamen sind nicht zulässig.
-                                                  #     Trennen Sie alle früheren Verbindungen zu dem Server bzw. der freigegebenen Ressource, und versuchen Sie es erneut.
-                                                  # ex: Der Netzwerkname wurde nicht gefunden.
-                                                  # ex: Der Netzwerkpfad wurde nicht gefunden.
-                                                  # ex: Das angegebene Netzwerkkennwort ist falsch.
-                                                  [String] $exMsg = $_.Exception.Message.Trim();
-                                                  [String] $msg = "New-SmbMapping($drive,$mountPoint,$us) failed because $exMsg";
+                                                  # Example: System.Exception: New-SmbMapping(Z,\\spider\Transfer,spider\u0) failed because Mehrfache Verbindungen zu einem Server
+                                                  #          oder einer freigegebenen Ressource von demselben Benutzer unter Verwendung mehrerer Benutzernamen sind nicht zulässig.
+                                                  #          Trennen Sie alle früheren Verbindungen zu dem Server bzw. der freigegebenen Ressource, und versuchen Sie es erneut.
+                                                  # Example: Der Netzwerkname wurde nicht gefunden.
+                                                  # Example: Der Netzwerkpfad wurde nicht gefunden.
+                                                  # Example: Das angegebene Netzwerkkennwort ist falsch.
+                                                  [String] $excMsg = $_.Exception.Message.Trim();
+                                                  [String] $msg = "New-SmbMapping($drive,$mountPoint,$us) failed because $excMsg";
                                                   if( -not $errorAsWarning ){ throw [Exception] $msg; }
                                                   # also see http://www.winboard.org/win7-allgemeines/137514-windows-fehler-code-liste.html http://www.megos.ch/files/content/diverses/doserrors.txt
-                                                  if    ( $exMsg -eq "Der Netzwerkpfad wurde nicht gefunden."                      ){ $msg = "HostNotFound.";  } # 53 BAD_NETPATH
-                                                  elseif( $exMsg -eq "Der Netzwerkname wurde nicht gefunden."                      ){ $msg = "NameNotFound.";  } # 67 BAD_NET_NAME
-                                                  elseif( $exMsg -eq "Zugriff verweigert"                                          ){ $msg = "AccessDenied.";  } # 5 ACCESS_DENIED:
-                                                  elseif( $exMsg -eq "Das angegebene Netzwerkkennwort ist falsch."                 ){ $msg = "WrongPassword."; } # 86 INVALID_PASSWORD
-                                                  elseif( $exMsg -eq "Mehrfache Verbindungen zu einem Server oder einer "+
+                                                  if    ( $excMsg -eq "Der Netzwerkpfad wurde nicht gefunden."                      ){ $msg = "HostNotFound.";  } # 53 BAD_NETPATH
+                                                  elseif( $excMsg -eq "Der Netzwerkname wurde nicht gefunden."                      ){ $msg = "NameNotFound.";  } # 67 BAD_NET_NAME
+                                                  elseif( $excMsg -eq "Zugriff verweigert"                                          ){ $msg = "AccessDenied.";  } # 5 ACCESS_DENIED:
+                                                  elseif( $excMsg -eq "Das angegebene Netzwerkkennwort ist falsch."                 ){ $msg = "WrongPassword."; } # 86 INVALID_PASSWORD
+                                                  elseif( $excMsg -eq "Mehrfache Verbindungen zu einem Server oder einer "+
                                                                      "freigegebenen Ressource von demselben Benutzer unter "+
                                                                      "Verwendung mehrerer Benutzernamen sind nicht zulässig. "+
                                                                      "Trennen Sie alle früheren Verbindungen zu dem Server bzw. "+
@@ -712,10 +716,10 @@ function JuniperNcEstablishVpnConn            ( [String] $secureCredentialFile, 
                                                   try{
                                                     [String] $out = (& "$vpnProg" "-signout");
                                                     if( $out -eq "Network Connect is not running. Unable to signout from Secure Gateway." ){
-                                                      # ex: "Network Connect wird nicht ausgef³hrt. Die Abmeldung vom sicheren Gateway ist nicht m÷glich."
+                                                      # Example: "Network Connect wird nicht ausgef³hrt. Die Abmeldung vom sicheren Gateway ist nicht m÷glich."
                                                       ScriptResetRc; OutVerbose "Service is not running.";
                                                     }else{ AssertRcIsOk $out; }
-                                                  }catch{ ScriptResetRc; OutProgress "Ignoring signout exception: $($_)"; }
+                                                  }catch{ ScriptResetRc; OutProgress "Ignoring signout exception: $($_.Exception.Message)"; }
                                                 }
                                                 function JuniperNetworkConnectStart( [Int32] $maxPwTries = 9 ){
                                                   for ($i = 1; $i -le $maxPwTries; $i += 1){
@@ -771,8 +775,8 @@ function InfoAboutExistingShares              (){
                                                   #       if( $null -ne $ace.Trustee.Domain -and $ace.Trustee.Domain -ne "" ){ $username = "$($ace.Trustee.Domain)\$username" }
                                                   #       if( $null -eq $ace.Trustee.Name   -or  $ace.Trustee.Name   -eq "" ){ $username = $ace.Trustee.SIDString }
                                                   #       [Object] $o = New-Object Security.AccessControl.FileSystemAccessRule($username,$ace.AccessMask,$ace.AceType);
-                                                  #       # ex: FileSystemRights=FullControl; AccessControlType=Allow; IsInherited=False; InheritanceFlags=None; PropagationFlags=None; IdentityReference=Jeder;
-                                                  #       # ex: FileSystemRights=FullControl; AccessControlType=Allow; IsInherited=False; InheritanceFlags=None; PropagationFlags=None; IdentityReference=VORDEFINIERT\Administratoren;
+                                                  #       # Example: FileSystemRights=FullControl; AccessControlType=Allow; IsInherited=False; InheritanceFlags=None; PropagationFlags=None; IdentityReference=Jeder;
+                                                  #       # Example: FileSystemRights=FullControl; AccessControlType=Allow; IsInherited=False; InheritanceFlags=None; PropagationFlags=None; IdentityReference=VORDEFINIERT\Administratoren;
                                                   #       $s += "$([Environment]::NewLine)"+"".PadRight(26)+" (ACT="+$o.AccessControlType+",INH="+$o.IsInherited+",FSR="+$o.FileSystemRights+",INHF="+$o.InheritanceFlags+",PROP="+$o.PropagationFlags+",IDREF="+$o.IdentityReference+") ";
                                                   #     }
                                                   #   }catch{ $s += "$([Environment]::NewLine)"+"".PadRight(26)+" (unknown)"; }
@@ -929,8 +933,8 @@ function ToolUnzip                            ( [String] $srcZipFile, [String] $
                                               }
 function ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [String] $workDir, [String] $lnkFile, [String] $srcFile, [String[]] $arguments = @(),
                                                   [Boolean] $runElevated = $false, [Boolean] $ignoreIfSrcFileNotExists = $false ){
-                                                # ex: ToolCreateLnkIfNotExists $false "" "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\LinkToNotepad.lnk" "C:\Windows\notepad.exe";
-                                                # ex: ToolCreateLnkIfNotExists $false "" "$env:APPDATA\Microsoft\Internet Explorer\Quick Launch\LinkToNotepad.lnk" "C:\Windows\notepad.exe";
+                                                # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\LinkToNotepad.lnk" "C:\Windows\notepad.exe";
+                                                # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA\Microsoft\Internet Explorer\Quick Launch\LinkToNotepad.lnk" "C:\Windows\notepad.exe";
                                                 # If $forceRecreate is false and target lnkfile already exists then it does nothing.
                                                 # $workDir can be empty string.
                                                 # Icon: If next to the srcFile an ico file with the same filename exists then this will be taken.
@@ -974,19 +978,19 @@ function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [St
                                                 [String] $srcFileExtMenuLinkOpt = ".menulinkoptional.txt" ){
                                                 # Create menu entries based on menu-item-linkfiles below a dir.
                                                 # - targetMenuRootDir      : target start menu folder, example: "$env:APPDATA\Microsoft\Windows\Start Menu\Apps"
-                                                # - sourceDir              : Used to finds all files below sourceDir with the extension (ex: ".menulink.txt").
+                                                # - sourceDir              : Used to finds all files below sourceDir with the extension (example: ".menulink.txt").
                                                 #                            For each of these files it will create a menu item below the target menu root dir.
                                                 # - srcFileExtMenuLink     : Extension for mandatory menu linkfiles. The containing referenced command (in general an executable) must exist.
                                                 # - $srcFileExtMenuLinkOpt : Extension for optional  menu linkfiles. Menu item is created only if the containing referenced executable will exist.
-                                                # The name of the target menu item (ex: "Manufactor ProgramName V1") will be taken from the name
-                                                #   of the menu-item-linkfile (ex: ...\Manufactor ProgramName V1.menulink.txt) without the extension (ex: ".menulink.txt")
+                                                # The name of the target menu item (example: "Manufactor ProgramName V1") will be taken from the name
+                                                #   of the menu-item-linkfile (example: ...\Manufactor ProgramName V1.menulink.txt) without the extension (example: ".menulink.txt")
                                                 #   and the sub menu folder will be taken from the relative location of the menu-item-linkfile below the sourceDir.
-                                                # The command for the target menu will be taken from the first line (ex: "D:\MyApps\Manufactor ProgramName\AnyProgram.exe")
+                                                # The command for the target menu will be taken from the first line (example: "D:\MyApps\Manufactor ProgramName\AnyProgram.exe")
                                                 #   of the content of the menu-item-linkfile.
                                                 # If target lnkfile already exists it does nothing.
                                                 # Example: ToolCreateMenuLinksByMenuItemRefFile "$env:APPDATA\Microsoft\Windows\Start Menu\Apps" "D:\MyApps" ".menulink.txt";
-                                                [String] $m = FsEntryGetAbsolutePath $targetMenuRootDir; # ex: "$env:APPDATA\Microsoft\Windows\Start Menu\MyPortableProg"
-                                                [String] $sdir = FsEntryGetAbsolutePath $sourceDir; # ex: "D:\MyPortableProgs"
+                                                [String] $m = FsEntryGetAbsolutePath $targetMenuRootDir; # Example: "$env:APPDATA\Microsoft\Windows\Start Menu\MyPortableProg"
+                                                [String] $sdir = FsEntryGetAbsolutePath $sourceDir; # Example: "D:\MyPortableProgs"
                                                 OutProgress "Create menu links to `"$m`" from files below `"$sdir`" with extension `"$srcFileExtMenuLink`" or `"$srcFileExtMenuLinkOpt`" files";
                                                 Assert ($srcFileExtMenuLink    -ne "" -or (-not (FsEntryHasTrailingDirSep $srcFileExtMenuLink   ))) "srcMenuLinkFileExt=`"$srcFileExtMenuLink`" is empty or has trailing backslash";
                                                 Assert ($srcFileExtMenuLinkOpt -ne "" -or (-not (FsEntryHasTrailingDirSep $srcFileExtMenuLinkOpt))) "srcMenuLinkOptFileExt=`"$srcFileExtMenuLinkOpt`" is empty or has trailing backslash";
@@ -994,11 +998,11 @@ function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [St
                                                 [String[]] $menuLinkFiles =  (@()+(FsEntryListAsStringArray "$sdir$(DirSep)*$srcFileExtMenuLink"    $true $false));
                                                            $menuLinkFiles += (FsEntryListAsStringArray "$sdir$(DirSep)*$srcFileExtMenuLinkOpt" $true $false);
                                                            $menuLinkFiles =  (@()+($menuLinkFiles | Where-Object{$null -ne $_} | Sort-Object));
-                                                foreach( $f in $menuLinkFiles ){ # ex: "...\MyProg .menulinkoptional.txt"
-                                                  [String] $d = FsEntryGetParentDir $f; # ex: "D:\MyPortableProgs\Appl\Graphic"
-                                                  [String] $relBelowSrcDir = FsEntryMakeRelative $d $sdir; # ex: "Appl\Graphic" or "."
+                                                foreach( $f in $menuLinkFiles ){ # Example: "...\MyProg .menulinkoptional.txt"
+                                                  [String] $d = FsEntryGetParentDir $f; # Example: "D:\MyPortableProgs\Appl\Graphic"
+                                                  [String] $relBelowSrcDir = FsEntryMakeRelative $d $sdir; # Example: "Appl\Graphic" or "."
                                                   [String] $workDir = "";
-                                                  # ex: "$env:APPDATA\Microsoft\Windows\Start Menu\MyPortableProg\Appl\Graphic\Manufactor ProgramName V1 en 2016.lnk"
+                                                  # Example: "$env:APPDATA\Microsoft\Windows\Start Menu\MyPortableProg\Appl\Graphic\Manufactor ProgramName V1 en 2016.lnk"
                                                   [String] $fn = FsEntryGetFileName $f; $fn = StringRemoveRight $fn $srcFileExtMenuLink;
                                                   $fn = StringRemoveRight $fn $srcFileExtMenuLinkOpt; $fn = $fn.TrimEnd();
                                                   [String] $lnkFile = "$($m)$(DirSep)$($relBelowSrcDir)$(DirSep)$fn.lnk";
@@ -1012,7 +1016,7 @@ function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [St
                                                     if( $ar.Length -eq 0 ){ throw [Exception] "Missing a command line at first line in file=`"$f`" cmdline=`"$cmdLine`""; }
                                                     if( ($ar.Length-1) -gt 999 ){
                                                       throw [Exception] "Command line has more than the allowed 999 arguments at first line infile=`"$f`" nrOfArgs=$($ar.Length) cmdline=`"$cmdLine`""; }
-                                                    # ex: "D:\MyPortableProgs\Manufactor ProgramName\AnyProgram.exe"
+                                                    # Example: "D:\MyPortableProgs\Manufactor ProgramName\AnyProgram.exe"
                                                     [String] $srcFile = FsEntryGetAbsolutePath ([System.IO.Path]::Combine($d,$ar[0]));
                                                     [String[]] $arguments = @()+($ar | Select-Object -Skip 1);
                                                     $addTraceInfo = "and calling (ToolCreateLnkIfNotExists $forceRecreate `"$workDir`" `"$lnkFile`" `"$srcFile`" `"$arguments`" $false $ignoreIfSrcFileNotExists) ";
@@ -1056,14 +1060,14 @@ function ToolSetAssocFileExtToCmd             ( [String[]] $fileExtensions, [Str
                                                 #   If cmd does not begin with embedded double quotes then it is interpreted as a full path to an executable
                                                 #   otherwise it uses the cmd as it is.
                                                 # Ftype: Is a group of file extensions. If it not yet exists then a default will be created
-                                                #   in the style {extWithoutDot}file (ex: ps1file).
+                                                #   in the style {extWithoutDot}file (example: ps1file).
                                                 # AssertPrgExists: You can assert that the program in the command must exist but note that
                                                 #   variables enclosed in % char cannot be expanded because these are not powershell variables.
-                                                # ex: ToolSetAssocFileExtToCmd @(".log",".out") "$env:SystemRoot\System32\notepad.exe" "" $true;
-                                                # ex: ToolSetAssocFileExtToCmd ".log"           "$env:SystemRoot\System32\notepad.exe";
-                                                # ex: ToolSetAssocFileExtToCmd ".log"           "%SystemRoot%\System32\notepad.exe" "txtfile";
-                                                # ex: ToolSetAssocFileExtToCmd ".out"           "`"C:\Any.exe`" `"%1`" -xy";
-                                                # ex: ToolSetAssocFileExtToCmd ".out" "";
+                                                # Example: ToolSetAssocFileExtToCmd @(".log",".out") "$env:SystemRoot\System32\notepad.exe" "" $true;
+                                                # Example: ToolSetAssocFileExtToCmd ".log"           "$env:SystemRoot\System32\notepad.exe";
+                                                # Example: ToolSetAssocFileExtToCmd ".log"           "%SystemRoot%\System32\notepad.exe" "txtfile";
+                                                # Example: ToolSetAssocFileExtToCmd ".out"           "`"C:\Any.exe`" `"%1`" -xy";
+                                                # Example: ToolSetAssocFileExtToCmd ".out" "";
                                                 [String] $prg = $cmd; if( $cmd.StartsWith("`"") ){ $prg = ($prg -split "`"",0)[1]; }
                                                 [String] $exec = $cmd; if( -not $cmd.StartsWith("`"") ){ $exec = "`"$cmd`" `"%1`""; }
                                                 [String] $traceInfo = "ToolSetAssocFileExtToCmd($fileExtensions,`"$cmd`",$ftype,$assertPrgExists)";
@@ -1075,21 +1079,21 @@ function ToolSetAssocFileExtToCmd             ( [String[]] $fileExtensions, [Str
                                                   if( $_.Contains(",") ){ throw [ExcMsg] "$traceInfo failed because file ext contains blank: `"$_`""; };
                                                 };
                                                 $fileExtensions | Where-Object{$null -ne $_} | ForEach-Object{
-                                                  [String] $ext = $_; # ex: ".ps1"
+                                                  [String] $ext = $_; # Example: ".ps1"
                                                   if( $cmd -eq "" ){
                                                     OutProgress "DelFileAssociation ext=$ext :  cmd /c assoc $ext=";
-                                                    [String] $out = (& cmd.exe /c "assoc $ext=" *>&1); AssertRcIsOk; # ex: ""
+                                                    [String] $out = (& cmd.exe /c "assoc $ext=" *>&1); AssertRcIsOk; # Example: ""
                                                   }else{
                                                     [String] $ft = $ftype;
                                                     if( $ftype -eq "" ){
                                                       try{
-                                                        $ft = (& cmd.exe /c "assoc $ext" *>&1); AssertRcIsOk; # ex: ".ps1=Microsoft.PowerShellScript.1"
-                                                      }catch{ # "Dateizuordnung für die Erweiterung .ps9 nicht gefunden."
-                                                        $ft = (& cmd.exe /c "assoc $ext=$($ext.Substring(1))file" *>&1); AssertRcIsOk; # ex: ".ps1=ps1file"
+                                                        $ft = (& cmd.exe /c "assoc $ext" *>&1); AssertRcIsOk; # Example: ".ps1=Microsoft.PowerShellScript.1"
+                                                      }catch{ # Example: "Dateizuordnung für die Erweiterung .ps9 nicht gefunden."
+                                                        $ft = (& cmd.exe /c "assoc $ext=$($ext.Substring(1))file" *>&1); AssertRcIsOk; # Example: ".ps1=ps1file"
                                                       }
                                                       $ft = $ft.Split("=")[-1]; # "Microsoft.PowerShellScript.1" or "ps1file"
                                                     }
-                                                     # ex: Microsoft.PowerShellScript.1="C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe" "%1"
+                                                     # Example: Microsoft.PowerShellScript.1="C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe" "%1"
                                                     [String] $out = (& cmd.exe /c "ftype $ft=$exec"); AssertRcIsOk;
                                                     OutProgress "SetFileAssociation ext=$($ext.PadRight(6)) ftype=$($ft.PadRight(20)) cmd=$exec";
                                                   }
@@ -1106,11 +1110,11 @@ function ToolVs2019UserFolderGetLatestUsed    (){
                                                   $result = FsEntryMakeTrailingDirSep (FsEntryGetParentDir $result);
                                                 }
                                                 return [String] $result; }
-function ToolWin10PackageGetState             ( [String] $packageName ){ # ex: for "OpenSSH.Client" return "Installed","NotPresent".
+function ToolWin10PackageGetState             ( [String] $packageName ){ # Example: for "OpenSSH.Client" return "Installed","NotPresent".
                                                 ProcessRestartInElevatedAdminMode;
                                                 if( $packageName -eq "" ){ throw [Exception] "Missing packageName"; }
                                                 return [String] ((Get-WindowsCapability -Online | Where-Object name -like "${packageName}~*").State); }
-function ToolWin10PackageInstall              ( [String] $packageName ){ # ex: "OpenSSH.Client"
+function ToolWin10PackageInstall              ( [String] $packageName ){ # Example: "OpenSSH.Client"
                                                 OutProgress "Install Win10 Package if not installed: `"$packageName`"";
                                                 ProcessRestartInElevatedAdminMode;
                                                 if( (ToolWin10PackageGetState $packageName) -eq "Installed" ){
@@ -1262,8 +1266,8 @@ function ToolInstallNuPckMgrAndCommonPsGalMo(){
                                                   Install-Module -AcceptLicense -Scope AllUsers -Name PowerShellGet, SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate;
                                                 }catch{
                                                     # Install-Module : A parameter cannot be found that matches parameter name 'AcceptLicense'. ParameterBindingException
-                                                    [String] $err = $_.Exception.Message;
-                                                    OutProgress "Failed because $err";
+                                                    [String] $msg = $_.Exception.Message;
+                                                    OutProgress "Failed because $msg";
                                                     OutProgress "Sometimes it failed because unknown parameter AcceptLicense, so we retry without it. ";
                                                     OutProgress "Install-Module -Scope AllUsers -Name PowerShellGet, SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate; ";
                                                     Install-Module -Scope AllUsers -Name PowerShellGet, SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate;
@@ -1279,7 +1283,7 @@ function ToolInstallNuPckMgrAndCommonPsGalMo(){
                                                   }
                                                 }
                                                 # Set-Culture -CultureInfo de-CH; # change default culture for current user
-                                                OutProgress "Current Culture: $((Get-Culture).Name) = $((Get-Culture).DisplayName) "; # show current culture, ex: "de-CH"
+                                                OutProgress "Current Culture: $((Get-Culture).Name) = $((Get-Culture).DisplayName) "; # show current culture, Example: "de-CH"
                                                 OutProgress "update-help";
                                                 try{
                                                   (update-help -ErrorAction continue *>&1) | ForEach-Object{ OutProgress "  $_"; };

@@ -21,8 +21,8 @@ Write-Output "Show CurrentDir        = `"$PWD`"";
   # Local-Win10   : "D:\mywork\MyOwner\MyRepo"
   # Github-Windows: "D:\a\MyRepo\MyRepo"
   # Github-ubuntu : "/home/runner/work/MnCommonPsToolLib/MnCommonPsToolLib"
-Write-Output "GetTempPath: $([System.IO.Path]::GetTempPath())"; # ex: "/tmp/", "C:\Users\myuser\AppData\Local\Temp"
-Write-Output "Env-Tmpdir : $($env:TMPDIR)"; # ex: ""
+Write-Output "GetTempPath: $([System.IO.Path]::GetTempPath())"; # Example: "/tmp/", "C:\Users\myuser\AppData\Local\Temp"
+Write-Output "Env-Tmpdir : $($env:TMPDIR)"; # Example: ""
 Write-Output "Show GITHUB_WORKSPACE  = `"$($env:GITHUB_WORKSPACE)`"";
   # Local-Win10   : ""
   # Github-Win10  : "D:\a\MyRepo\MyRepo"
@@ -73,7 +73,7 @@ Push-Location $PSScriptRoot;
 
   Write-Output "Load our library";
   Import-Module "MnCommonPsToolLib.psm1";
-  Write-Output "Show MnCommonPsToolLibVersion: $Global:MnCommonPsToolLibVersion"; # ex: "7.01"
+  Write-Output "Show MnCommonPsToolLibVersion: $Global:MnCommonPsToolLibVersion"; # Example: "7.01"
 
   Write-Output "Remove all aliases except (cd,cat,clear,echo,dir,cp,mv,popd,pushd,rm,rmdir);";
   ProcessRemoveAllAlias @("cd","cat","clear","echo","dir","cp","mv","popd","pushd","rm","rmdir");

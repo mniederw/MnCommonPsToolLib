@@ -115,10 +115,10 @@ jobs:
           echo "List npm version: $((npm --version) || true)";
           echo "List npm installed modules globally: $((npm list --global) || true)";
           echo "List npm installed modules locally: $((npm list) || true)";
-          echo "ListDir /usr/lib/node_modules/: $((ls /usr/lib/node_modules/) || true)"; # ex: cordova  corepack  npm  sfdx-cli
+          echo "ListDir /usr/lib/node_modules/: $((ls /usr/lib/node_modules/) || true)"; # Example: cordova  corepack  npm  sfdx-cli
           echo "ListDir /home/runner/.local/bin/: $((ls /home/runner/.local/bin/) || true)";
           echo "ListDir ./node_modules/: $((ls ./node_modules/) || true)";
-          echo "ListFile ./package.json: $((cat ./package.json) || true)"; # ex: {"dependencies":{"fs":"0.0.1-security", "fs-extra":"^11.1.1", "xml2js":"^0.6.0", "jsonfile":"^6.1.0", "xmlmerge-js":"^0.2.5", "minimist":"^1.2.8", "path":"^0.12.7", "shelljs":"^0.8.5"}}
+          echo "ListFile ./package.json: $((cat ./package.json) || true)"; # Example: {"dependencies":{"fs":"0.0.1-security", "fs-extra":"^11.1.1", "xml2js":"^0.6.0", "jsonfile":"^6.1.0", "xmlmerge-js":"^0.2.5", "minimist":"^1.2.8", "path":"^0.12.7", "shelljs":"^0.8.5"}}
           # More usuful variables:
           #   RUNNER_WORKSPACE        = /home/runner/work/MnCommonPsToolLib
           #   GITHUB_WORKSPACE        = /home/runner/work/MnCommonPsToolLib/MnCommonPsToolLib
@@ -176,8 +176,8 @@ jobs:
 #   - shell: bash
 #     run: |
 #           echo "Inputtags: ${{ github.event.inputs.tag }}"
-#           echo "BranchRef: ${{github.ref}}"; # ex: "refs/heads/main"
-#           BranchName=$(echo "${{github.ref}}" | cut --delimiter=/ --fields=3- -); # ex: "main"
+#           echo "BranchRef: ${{github.ref}}"; # Example: "refs/heads/main"
+#           BranchName=$(echo "${{github.ref}}" | cut --delimiter=/ --fields=3- -); # Example: "main"
 #           BranchEnv="";
 #           if   [[ "$BranchName" == "main"  ]]; then BranchEnv="MAIN";
 #           elif [[ "$BranchName" == "trunk" ]]; then BranchEnv="ENV1";

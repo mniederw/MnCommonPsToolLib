@@ -71,7 +71,7 @@ function Test_String(){
   #
   # TODO function StringCommandLineToArray             ( [String] $commandLine ){
                                                 # Care spaces or tabs separated args and doublequoted args which can contain double doublequotes for escaping single doublequotes.
-                                                # ex: "my cmd.exe" arg1 "ar g2" "arg""3""" "arg4"""""  ex: StringCommandLineToArray "`"my cmd.exe`" arg1 `"ar g2`" `"arg`"`"3`"`"`" `"arg4`"`"`"`"`""
+                                                # Example: "my cmd.exe" arg1 "ar g2" "arg""3""" "arg4"""""  ex: StringCommandLineToArray "`"my cmd.exe`" arg1 `"ar g2`" `"arg`"`"3`"`"`" `"arg4`"`"`"`"`""
   Assert         ((StringNormalizeAsVersion ""                        ) -eq ""                       );
   Assert         ((StringNormalizeAsVersion "a"                       ) -eq "a"                      );
   Assert         ((StringNormalizeAsVersion "0"                       ) -eq "00000"                  );

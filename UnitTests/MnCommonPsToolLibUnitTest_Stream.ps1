@@ -15,7 +15,7 @@ function Test_Stream(){
 # StreamToStringDelEmptyLeadAndTrLines (){ $input | Out-String -Width 999999999 | ForEach-Object{ $_ -replace "[ \f\t\v]]+\r\n","\r\n" -replace "^(\r\n)+","" -replace "(\r\n)+$","" }; }
 # StreamToGridView                     (){ $input | Out-GridView -Title "TableData"; }
 # StreamToCsvStrings                   (){ $input | ConvertTo-Csv -NoTypeInformation; }
-#                                        # Note: For a simple string array as ex: @("one","two")|StreamToCsvStrings  it results with 3 lines "Length","3","3".
+#                                        # Note: For a simple string array as Example: @("one","two")|StreamToCsvStrings  it results with 3 lines "Length","3","3".
 # StreamToJsonString                   (){ $input | ConvertTo-Json -Depth 100; }
 # StreamToJsonCompressedString         (){ $input | ConvertTo-Json -Depth 100 -Compress; }
 # StreamToXmlString                    (){ $input | ConvertTo-Xml -Depth 999999999 -As String -NoTypeInformation; }
@@ -33,7 +33,7 @@ function Test_Stream(){
 #                                        if( $propertyNames.Count -eq 0 ){ $propertyNames = @("*"); }
 #                                        $input | Format-Table -Wrap -Force -autosize -HideTableHeaders $propertyNames | StreamToStringDelEmptyLeadAndTrLines; }
 # StreamToTableString                  ( [String[]] $propertyNames = @() ){
-#                                        # Note: For a simple string array as ex: @("one","two")|StreamToTableString  it results with 4 lines "Length","------","     3","     3".
+#                                        # Note: For a simple string array as example: @("one","two")|StreamToTableString  it results with 4 lines "Length","------","     3","     3".
 #                                        if( $propertyNames.Count -eq 0 ){ $propertyNames = @("*"); }
 #                                        $input | Format-Table -Wrap -Force -autosize $propertyNames | StreamToStringDelEmptyLeadAndTrLines; }
 # StreamToFile                         ( [String] $file, [Boolean] $overwrite = $true, [String] $encoding = "UTF8BOM" ){
