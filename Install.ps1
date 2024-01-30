@@ -90,6 +90,7 @@ if( $dirsWithPsm1Files.Count -ne 1 ){ throw [Exception] "Tool is designed for wo
 [String] $moduleTarDir32bit = "$tarRootDir32bit\$moduleName";
 [String] $moduleTarDir64bit = "$tarRootDir64bit\$moduleName";
 [String] $moduleTarDirLinux = "$linuxTargetDir/$moduleName";
+[String] $psVersion = "$($PSVersionTable.PSVersion.ToString()) $(switch((ShellSessionIs64not32Bit)){($true){"64bit"}($false){"32bit"}})";
 
 function CurrentInstallationModes( [String] $color = "White" ){
   if( (OsIsWindows) ){
@@ -136,18 +137,20 @@ if( (OsIsWindows) ){
   OutProgress     "An alternative installation for developers does also first an uninstallation ";
   OutProgress     "and then it adds the path of the module folder as entry to the ps module ";
   OutProgress     "path environment variable PSModulePath. ";
-  OutProgress     "An uninstallation does both, it removes the copied folder ";
-  OutProgress     "from the common ps module folder for all users for 32 and 64 bit ";
+  OutProgress     "An uninstallation does both, it removes the copied folder from the common ps ";
+  OutProgress     "module folder for all users for 32 and 64 bit ";
   OutProgress     "and it removes the path entry from the ps module path environment variable. ";
-  OutProgress     "As long as ps7 not contains all of ps5 modules we strongly recommend that ";
-  OutProgress     "PsModulePath also contains Ps5WinModDir and Ps5ModuleDir. ";
+  OutProgress     "As long as ps7 not contains all of ps5 modules and for having 32bit modules ";
+  OutProgress     "usable under 64bit we strongly recommend that PsModulePath also contains ";
+  OutProgress     "Ps5WinModDir and Ps5ModuleDir. ";
   OutProgress     "Imporant note: After any installation the current running programs which are ";
   OutProgress     "using the old PsModulePath or which did load previously the old module, they ";
-  OutProgress     "need to be restarted before they can use new installed module. This usually ";
-  OutProgress     "applies for a file manager or powershell sessions, but not for win-explorer. ";
+  OutProgress     "need to be restarted before they can use the new installed module. ";
+  OutProgress     "This usually applies for a file manager or ps sessions, but not for win-explorer. ";
   OutProgress     "By using this software you agree with the terms of GPL3. ";
   OutProgress     "";
   OutProgress     "Current environment:";
+  OutProgress     "  PsVersion                          = `"$psVersion`". ";
   OutProgress     "  Ps5WinModDir                       = `"$ps5WinModuleDir`". ";
   OutProgress     "  Ps5ModuleDir                       = `"$ps5ModuleDir`". ";
   OutProgress     "  PsModuleFolder(allUsers,64bit)     = `"$tarRootDir64bit`". ";
@@ -161,7 +164,7 @@ if( (OsIsWindows) ){
   OutProgress     "  PsModulePath contains SrcRootDir   = $(OsPsModulePathContains $srcRootDir). ";
   OutProgressText "  Current installation modes         = "; CurrentInstallationModes;
   if( ! (ShellSessionIs64not32Bit) ){
-    OutWarning "    Warning: Your current sessing is 32bit, it is recommended to generally use 64bit! ";
+    OutWarning "    Warning: Your current session is 32bit, it is recommended to generally use 64bit! ";
   }
   if( ! (OsPsModulePathContains $ps5WinModuleDir) ){
     OutWarning "    Warning: PsModulePath not contains Ps5WinModDir, it is strongly recommended to add them (see menu items)! ";
