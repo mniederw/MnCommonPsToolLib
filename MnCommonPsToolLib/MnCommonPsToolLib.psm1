@@ -8,7 +8,7 @@
 #Requires -Version 3.0
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $global:MnCommonPsToolLibVersion = "7.37"; # more see Releasenotes.txt
+[String] $global:MnCommonPsToolLibVersion = "7.38"; # more see Releasenotes.txt
 
 # This library encapsulates many common commands for the purpose of supporting compatibility between
 # multi platforms, simplifying commands, fixing usual problems, supporting tracing information,
@@ -2198,12 +2198,6 @@ function GitShowBranch                        ( [String] $repoDir, [Boolean] $ge
                                                 # old: Assert ($line.StartsWith("* ") -and $line.Length -ge 3) "GitShowBranch(`"$repoDir`") expected result of git branch begins with `"* `" but got `"$line`" and expected minimum length of 3.";
                                                 # old: return [String] (StringRemoveLeft $line "* ").Trim(); }
                                                 return [String] $out.Trim(); }
-
-
-
-
-
-
 function GitShowChanges                       ( [String] $repoDir ){
                                                 # return changed, deleted and new files or dirs. Per entry one line prefixed with a change code.
                                                 AssertNotEmpty $repoDir "repoDir";
@@ -2215,7 +2209,7 @@ function GitSwitch                            ( [String] $repoDir, [String] $bra
                                                 AssertNotEmpty $repoDir "repoDir";
                                                 [String] $dummy = (ProcessStart "git" @("-C", (FsEntryRemoveTrailingDirSep $repoDir), "switch", $branch) -careStdErrAsOut:$true -traceCmd:$true); }
 function GitAdd                               ( [String] $fsEntryToAdd ){
-                                                AssertNotEmpty $repoDir "repoDir";
+                                                AssertNotEmpty $fsEntryToAdd "fsEntryToAdd";
                                                 [String] $repoDir = FsEntryGetAbsolutePath "$(FsEntryFindInParents $fsEntryToAdd ".git")/.."; # not trailing slash allowed
                                                 [String] $dummy = (ProcessStart "git" @("-C", $repoDir, "add", $fsEntryToAdd) -traceCmd:$true); }
 function GitMerge                             ( [String] $repoDir, [String] $branch, [Boolean] $errorAsWarning = $false ){
@@ -2249,6 +2243,7 @@ function GithubAuthStatus                     (){
                                                 OutProgress $out; }
 function GithubListPullRequests               ( [String] $repo, [String] $filterToBranch = "", [String] $filterFromBranch = "", [String] $filterState = "open" ){
                                                 # repo has format [HOST/]OWNER/REPO
+                                                AssertNotEmpty $repo "repo";
                                                 [String] $fields = "number,state,createdAt,title,labels,author,assignees,updatedAt,url,body,closedAt,repository,authorAssociation,commentsCount,isLocked,isPullRequest,id";
                                                 GithubPrepareCommand;
                                                 [String] $out = (ProcessStart "gh" @("search", "prs", "--repo", $repo, "--state", $filterState, "--base", $filterToBranch, "--head", $filterFromBranch, "--json", $fields) -traceCmd:$true);
@@ -2258,7 +2253,8 @@ function GithubCreatePullRequest              ( [String] $repo, [String] $toBran
                                                 # title          : default title is "Merge $fromBranch into $toBranch".
                                                 # repoDirForCred : Any folder under any git repository, from which the credentials will be taken, use empty for current dir.
                                                 # example: GithubCreatePullRequest "mniederw/MnCommonPsToolLib" "trunk" "main" "" $PSScriptRoot;
-                                                OutProgress "Create a github-pull-request from branch $fromBranch to $toBranch in repo: $repo";
+                                                AssertNotEmpty $repo "repo";
+                                                OutProgress "Create a github-pull-request from branch $fromBranch to $toBranch in repo=$repo (repoDirForCred=$repoDirForCred)";
                                                 if( $title -eq "" ){ $title = "Merge $fromBranch to $toBranch"; }
                                                 [String[]] $prUrls = @()+(GithubListPullRequests $repo $toBranch $fromBranch |
                                                   Where-Object{$null -ne $_} | ForEach-Object{ $_.url });
@@ -2294,7 +2290,7 @@ function GithubMergeOpenPr                    ( [String] $prUrl, [String] $repoD
                                                 Push-Location $repoDirForCred;
                                                   GithubPrepareCommand;
                                                   [String] $out = "";
-                                                  $out = (ProcessStart "gh" @("pr", "merge", "--repo", $repo, "--merge", $prUrl) -traceCmd:$true);
+                                                  $out = (ProcessStart "gh" @("pr", "merge", "--repo", $repoDirForCred, "--merge", $prUrl) -traceCmd:$true);
                                                 Pop-Location;
                                                 OutProgress $out; }
 function ToolGetBranchCommit                 ( [String] $repo, [String] $branch, [String] $repoDirForCred = "", [Boolean] $traceCmd = $false ){
@@ -2303,7 +2299,8 @@ function ToolGetBranchCommit                 ( [String] $repo, [String] $branch,
                                                 # repoDirForCred : Any folder under any git repository, from which the credentials will be taken, use empty for current dir.
                                                 # traceCmd       : Output progress messages instead only the result.
                                                 # example: ToolListBranchCommit "mniederw/MnCommonPsToolLib" "trunk" $PSScriptRoot;
-                                                if( $traceCmd ){ OutProgress "List github-branch-commit from branch $branch in repo: $repo"; }
+                                                if( $traceCmd ){ OutProgress "List github-branch-commit from branch $branch in repo $repo (repoDirForCred=$repoDirForCred)"; }
+                                                AssertNotEmpty $repo "repo";
                                                 Push-Location $repoDirForCred;
                                                 GithubPrepareCommand;
                                                 [String] $out = "";
