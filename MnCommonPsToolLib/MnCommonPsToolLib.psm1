@@ -2369,13 +2369,35 @@ function GitListCommitComments                ( [String] $tarDir, [String] $loca
                                                 }
                                                 GitGetLog $false "$tarDir/$prefix$repoName.CommittedComments$fileExtension";
                                                 GitGetLog $true  "$tarDir/$prefix$repoName.CommittedChangedFiles$fileExtension"; }
-function GitAssertAutoCrLfIsDisabled          (){ # use this before using git; do not use core.autocrlf=true because it will lead sometimes to conflicts;
+function GitAssertAutoCrLfIsDisabled          (){
+                                                # Always use this before using git in general because the mode core.autocrlf=true
+                                                # will lead sometimes to conflicts (mixed eols, shared-files, merges, definition what is a text file).
+                                                # On Linux: The problem generally is not present because as default
+                                                #   the system settings (default for all users, stored in /etc/gitconfig) are not existing
+                                                #   and in the global settings (default for all repos of current user, stored in $HOME/.gitconfig)
+                                                #   this option also not exists and for the git command the default value of this mode is false.
+                                                # On Windows: The bad thing is that https://git-scm.com (for example in V2.43 from 2023-11-20) does create the file
+                                                #   C:\Install-dir-of-Git\etc\gitconfig with the entry "autocrlf = true" and so this is the default
+                                                #   for the system settings, which is not the same as on linux!
+                                                #   Probably this was done because in earlier days there were some windows text editors,
+                                                #   which did automatically silently replace all LF line endings by CRLF.
+                                                #   But no major editor is doing this anymore (notepad since 2018) and in contrast todays the editors on windows have options
+                                                #   to create text files from the beginning with LF line endings (https://editorconfig.org/) as linux editors always are doing it.
+                                                # With the $repo/.gitattributes file stored in the repo there is the possibility to define the usage of LF or CRLF
+                                                #   for all contributors of a repo but this is also not reasonable because there is no consistent definition
+                                                #   which files are text files and which not.
+                                                # Best way: Use .editorconfig file in your repo and or on top of your workspace, ref: https://editorconfig.org/ .
+                                                # List current line endings, use:  git ls-files --eol
+                                                # More: https://www.aleksandrhovhannisyan.com/blog/crlf-vs-lf-normalizing-line-endings-in-git/
+                                                # More: https://git-scm.com/docs/git-config see under option core.safecrlf which depends on core.autocrlf=true
+                                                #   it has the description "CRLF conversion bears a slight chance of corrupting data."
+                                                # We recommend (strongly on windows) to call GitDisableAutoCrLf after any git installation or update.
                                                 [String] $line1 = (StringMakeNonNull (& "git" "config" "--list" "--global" | Where-Object{ $_ -like "core.autocrlf=true" })); AssertRcIsOk;
-                                                [String] $line2 = (StringMakeNonNull (& "git" "config" "--list" "--system" | Where-Object{ $_ -like "core.autocrlf=true" })); AssertRcIsOk;
-                                                if( $line1 -ne "" -or $line2 -ne "" ){
-                                                  [String] $errmsg = "it is strongly recommended never use this because unexpected state and merge behaviours. Please change it by calling GitDisableAutoCrLf and then retry.";
-                                                  if( $line1 -ne "" ){ throw [ExcMsg] "Git is globally configured to use autocrlf conversions, $errmsg"; }
-                                                  if( $line2 -ne "" ){ throw [ExcMsg] "Git is systemwide configured to use autocrlf conversions, $errmsg"; }
+                                                [String] $errmsg = "it is strongly recommended never use this because unexpected state and merge behaviours. Please change it by calling GitDisableAutoCrLf and then retry.";
+                                                if( $line1 -ne "" ){ throw [ExcMsg] "Git is globally (for all repos of user) configured to use autocrlf conversions, $errmsg"; }
+                                                if( (OsIsWindows) -or (-not (OsIsWindows) -and (FileExists "/etc/gitconfig")) ){
+                                                  [String] $line2 = (StringMakeNonNull (& "git" "config" "--list" "--system" | Where-Object{ $_ -like "core.autocrlf=true" })); AssertRcIsOk;
+                                                  if( $line2 -ne "" ){ throw [ExcMsg] "Git is systemwide (for all users on machine) configured to use autocrlf conversions, $errmsg"; }
                                                 }
                                                 OutVerbose "ok, git-autocrlf is globally and systemwide defined as false or undefined."; }
 function GitSetGlobalVar                      ( [String] $var, [String] $val, [Boolean] $useSystemNotGlobal = $false ){
@@ -2399,7 +2421,7 @@ function GitSetGlobalVar                      ( [String] $var, [String] $val, [B
                                                     & "git" "config" $globalScope $var $val; AssertRcIsOk;
                                                   }
                                                 } }
-function GitDisableAutoCrLf                   (){ # no output if nothing done.
+function GitDisableAutoCrLf                   (){ # set this as default for global (all repos of user) and system (for all users on mach); no output if nothing done.
                                                 GitSetGlobalVar "core.autocrlf" "false"; GitSetGlobalVar "core.autocrlf" "false" $true; }
 function GitCloneOrPullUrls                   ( [String[]] $listOfRepoUrls, [String] $tarRootDirOfAllRepos, [Boolean] $errorAsWarning = $false ){
                                                 # Works later multithreaded and errors are written out, collected and throwed at the end.
