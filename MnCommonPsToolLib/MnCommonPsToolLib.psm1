@@ -1,4 +1,4 @@
-﻿# MnCommonPsToolLib - Common Powershell Tool Library for PS5 and PS7 and multiplatforms (Windows, Linux and OSX)
+# MnCommonPsToolLib - Common Powershell Tool Library for PS5 and PS7 and multiplatforms (Windows, Linux and OSX)
 # --------------------------------------------------------------------------------------------------------------
 # Published at: https://github.com/mniederw/MnCommonPsToolLib
 # Licensed under GPL3. This is freeware.
@@ -8,7 +8,7 @@
 #Requires -Version 3.0
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $global:MnCommonPsToolLibVersion = "7.38"; # more see Releasenotes.txt
+[String] $global:MnCommonPsToolLibVersion = "7.40"; # more see Releasenotes.txt
 
 # This library encapsulates many common commands for the purpose of supporting compatibility between
 # multi platforms, simplifying commands, fixing usual problems, supporting tracing information,
@@ -2406,23 +2406,30 @@ function GitSetGlobalVar                      ( [String] $var, [String] $val, [B
                                                 # The order of priority for configuration levels is: local, global, system.
                                                 AssertNotEmpty $var;
                                                 # check if defined
-                                                [String] $globalScope = "--global"; if( $useSystemNotGlobal ){ $globalScope = "--system"; }
-                                                [String] $a = "$(& "git" "config" "--list" $globalScope | Where-Object{ $_ -like "$var=*" })"; AssertRcIsOk;
-                                                 # if defined then we can get value; this statement would throw if var would not be defined
-                                                if( $a -ne "" ){ $a = (& "git" "config" $globalScope $var); AssertRcIsOk; }
+                                                [String] $confScope     = $(switch($useSystemNotGlobal){($true){"--system"      }($false){"--global"        }});
+                                                [String] $confFileLinux = $(switch($useSystemNotGlobal){($true){"/etc/gitconfig"}($false){"$HOME/.gitconfig"}});
+                                                [String] $a = "";
+                                                if( (OsIsWindows) -or (-not (OsIsWindows) -and (FileExists $confFileLinux)) ){
+                                                  # if conf file was never created then we would get for example: fatal: unable to read config file '/etc/gitconfig': No such file or directory
+                                                  $a = "$(& "git" "config" "--list" $confScope | Where-Object{ $_ -like "$var=*" })"; AssertRcIsOk;
+                                                }
+                                                # if defined then we can get value; this statement would throw if var would not be defined
+                                                if( $a -ne "" ){ $a = (& "git" "config" $confScope $var); AssertRcIsOk; }
                                                 if( $a -eq $val ){
-                                                  OutDebug "GitSetVar$($globalScope): $var=`"$val`" was already done.";
+                                                  OutDebug "GitSetVar$($confScope): $var=`"$val`" was already done.";
                                                 }else{
                                                   if( $val -eq "" ){
-                                                    OutProgress "GitSetVar$($globalScope): $var=`"$val`" (will unset var)";
-                                                    & "git" "config" $globalScope --unset $var; AssertRcIsOk;
+                                                    OutProgress "GitSetVar$($confScope): $var=`"$val`" (will unset var)";
+                                                    & "git" "config" $confScope --unset $var; AssertRcIsOk;
                                                   }else{
-                                                    OutProgress "GitSetVar$($globalScope): $var=`"$val`" ";
-                                                    & "git" "config" $globalScope $var $val; AssertRcIsOk;
+                                                    OutProgress "GitSetVar$($confScope): $var=`"$val`" ";
+                                                    & "git" "config" $confScope $var $val; AssertRcIsOk;
                                                   }
                                                 } }
 function GitDisableAutoCrLf                   (){ # set this as default for global (all repos of user) and system (for all users on mach); no output if nothing done.
-                                                GitSetGlobalVar "core.autocrlf" "false"; GitSetGlobalVar "core.autocrlf" "false" $true; }
+                                                [String] $val = $(switch((OsIsWindows)){($true){"false"}($false){""}});
+                                                GitSetGlobalVar "core.autocrlf" $val;
+                                                GitSetGlobalVar "core.autocrlf" $val $true; }
 function GitCloneOrPullUrls                   ( [String[]] $listOfRepoUrls, [String] $tarRootDirOfAllRepos, [Boolean] $errorAsWarning = $false ){
                                                 # Works later multithreaded and errors are written out, collected and throwed at the end.
                                                 # If you want single threaded then call it with only one item in the list.
