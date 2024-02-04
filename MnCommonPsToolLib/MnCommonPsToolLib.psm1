@@ -8,7 +8,7 @@
 #Requires -Version 3.0
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $global:MnCommonPsToolLibVersion = "7.40"; # more see Releasenotes.txt
+[String] $global:MnCommonPsToolLibVersion = "7.41"; # more see Releasenotes.txt
 
 # This library encapsulates many common commands for the purpose of supporting compatibility between
 # multi platforms, simplifying commands, fixing usual problems, supporting tracing information,
@@ -264,6 +264,7 @@ function StringAsInt64                        ( [String] $s ){ if( ! (StringIsIn
 function StringLeft                           ( [String] $s, [Int32] $len ){ return [String] $s.Substring(0,(Int32Clip $len 0 $s.Length)); }
 function StringRight                          ( [String] $s, [Int32] $len ){ return [String] $s.Substring($s.Length-(Int32Clip $len 0 $s.Length)); }
 function StringRemoveRightNr                  ( [String] $s, [Int32] $len ){ return [String] (StringLeft $s ($s.Length-$len)); }
+function StringRemoveLeftNr                   ( [String] $s, [Int32] $len ){ return [String] (StringRight $s ($s.Length-$len)); }
 function StringPadRight                       ( [String] $s, [Int32] $len, [Boolean] $doQuote = $false, [Char] $c = " "){
                                                 [String] $r = $s; if( $doQuote ){ $r = '"'+$r+'"'; } return [String] $r.PadRight($len,$c); }
 function StringSplitIntoLines                 ( [String] $s ){ return [String[]] (($s -replace "`r`n", "`n") -split "`n"); } # for empty string it returns an array with one item.
@@ -2212,6 +2213,56 @@ function GitAdd                               ( [String] $fsEntryToAdd ){
                                                 AssertNotEmpty $fsEntryToAdd "fsEntryToAdd";
                                                 [String] $repoDir = FsEntryGetAbsolutePath "$(FsEntryFindInParents $fsEntryToAdd ".git")/.."; # not trailing slash allowed
                                                 [String] $dummy = (ProcessStart "git" @("-C", $repoDir, "add", $fsEntryToAdd) -traceCmd:$true); }
+function GitBranchList                        ( [String] $repoDir, [Boolean] $remotesOnly = $false ){
+                                                # return sorted string list of all branches of a local repo dir
+                                                # example: @("main","origin/main","origin/trunk");
+                                                AssertNotEmpty $repoDir "repoDir";
+                                                [String[]] $opt = @("-C", (FsEntryRemoveTrailingDirSep $repoDir), "branch", "--all" ); if( $remotesOnly ){ $opt += "--remotes"; }
+                                                [String[]] $result = (StringSplitIntoLines (ProcessStart "git" $opt)) | ForEach-Object{ StringRemoveLeftNr $_ 2 } |
+                                                  ForEach-Object{ if( $_.StartsWith("remotes/") ){ StringRemoveLeftNr $_ "remotes/".Length; }else{ $_; } } |
+                                                  Where-Object{ $_ -ne "" -and (-not $_.StartsWith("origin/HEAD ")) } | Sort-Object;
+                                                return [String[]] $result; }
+<#
+function GitBranchRecreate                    ( [String] $repoUrlWithFromBranch, [String] $toBranch ){
+                                                # Clone a repo to temp dir, delete the toBranch if it exists, recreate it and delete the temp dir.
+                                                # repoUrlWithFromBranch: Repo url with a sharp-character separated fromBranch.
+                                                #   if no sharp-character and fromBranch are specified then the default branch (for example: main) is taken as fromBranch.
+                                                #   if a sharp-character is used then the fromBranch cannot be empty.
+                                                # toBranch: Target branch, must be different than current default branch (main).
+                                                # example: GitBranchRecreate https://github.com/mniederw/MnCommonPsToolLib#trunk "trunk2";
+                                                OutProgress "ToolBranchRecreate($repoUrlWithFromBranch,toBranch=$toBranch), clone to temp dir, delete and create branch";
+                                                AssertNotEmpty $repoUrlWithFromBranch "repoUrlWithFromBranch";
+                                                AssertNotEmpty $toBranch "toBranch";
+
+                                                # TODO evaluate the default branch of the repo and assert that this does not match the $toBranch
+                                                # assert that a from branch is specified
+                                                [String] $tmpDir = DirCreateTemp "TM/R"; # Tool Menu Repos
+                                                GitCmd "Clone" $tmpDir $repoUrlWithFromBranch;
+                                                [String] $repoDir = (GitBuildLocalDirFromUrl $tmpDir $repoUrlWithFromBranch);
+                                                OutProgress "RepoDir: $repoDir";
+                                                [String] $fromBranch = (GitShowBranch $repoDir);
+                                                OutProgress "FromBranch: $fromBranch";
+                                                [String] $defaultBranch = (GitShowBranch $repoDir $true);
+                                                OutProgress "DefaultBranch: $defaultBranch";
+                                                [String] $remoteName = (GitShowRemoteName $repoDir);
+                                                OutProgress "RemoteName: $remoteName";
+                                                Assert ($toBranch -ne $fromBranch) "ToolBranchRecreate($repoUrlWithFromBranch,toBranch=$toBranch) assertion failed because the from and to branch must be different";
+                                                [String] $remoteName = (GitShowRemoteName $repoDir); # example: "origin"
+                                                if( (GitBranchList $repoDir $true) -contains "$remoteName/$toBranch" ){
+                                                  OutProgress "Delete the remote branch: $toBranch";
+                                                  [String] $out = (ProcessStart "git" @("-C", (FsEntryRemoveTrailingDirSep $repoDir), "--git-dir=.git", "--delete", "push", $remoteName, $toBranch") -traceCmd:$true);
+                                                  OutProgress "Output: `"$out`"";
+                                                }
+
+                                                # TODO create branch and push it
+
+                                                OutProgress "List";
+                                                GitBranchList $repoDir
+
+                                                #DirDelete $tmpDir;
+
+                                                OutProgress "Ok, done. Recreated branch: $toBranch"; }
+#>
 function GitMerge                             ( [String] $repoDir, [String] $branch, [Boolean] $errorAsWarning = $false ){
                                                 # merge branch (remotes/origin) into current repodir, no-commit, no-fast-forward
                                                 AssertNotEmpty $repoDir "repoDir";
