@@ -816,7 +816,7 @@ function InfoAboutRunningProcessesAndServices (){
                                                   ,"RunningProcesses:",(ProcessListRunningsAsStringArray),""
                                                   ,"RunningServices:" ,(ServiceListRunnings) ,""
                                                   ,"ExistingServices:",(ServiceListExistingsAsStringArray),""
-                                                  ,"AvailablePowershellModules:" ,(Get-Module -ListAvailable)
+                                                  ,"AvailablePowershellModules:" ,(HelpListOfAllModules)
                                                   # usually: AppLocker, BitsTransfer, PSDiagnostics, TroubleshootingPack, WebAdministration, SQLASCMDLETS, SQLPS.
                                                 ); }
 function InfoHdSpeed                          (){ # Works only on Windows
