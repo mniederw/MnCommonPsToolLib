@@ -25,7 +25,7 @@ function FsEntryMakeTrailingDirSep            ( [String] $fsEntry ){
                                                 [String] $result = $fsEntry; if( -not (FsEntryHasTrailingDirSep $result) ){ $result += $(DirSep); } return [String] $result; }
 function FsEntryGetAbsolutePath               ( [String] $fsEntry ){ return [String] ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($fsEntry)); }
 function OsPsModulePathList                   (){ return [String[]] ([Environment]::GetEnvironmentVariable("PSModulePath", "Machine").
-                                                  Split(";",[System.StringSplitOptions]::RemoveEmptyEntries)); }
+                                                Split(";",[System.StringSplitOptions]::RemoveEmptyEntries)); }
 function OsPsModulePathContains               ( [String] $dir ){ # Example: "D:\WorkGit\myuser\MyPsLibRepoName"
                                                 [String[]] $a = (OsPsModulePathList | ForEach-Object{ FsEntryRemoveTrailingDirSep $_ });
                                                 return [Boolean] ($a -contains (FsEntryRemoveTrailingDirSep $dir)); }
@@ -145,7 +145,8 @@ if( (OsIsWindows) ){
   OutProgress     "Ps5WinModDir and Ps5ModuleDir. ";
   OutProgress     "Imporant note: After any installation the current running programs which are ";
   OutProgress     "using the old PsModulePath or which did load previously the old module, they ";
-  OutProgress     "need to be restarted before they can use the new installed module. ";
+  OutProgress     "need to be restarted or at least refresh all environment variables before ";
+  OutProgress     "they can use the new installed module. ";
   OutProgress     "This usually applies for a file manager or ps sessions, but not for win-explorer. ";
   OutProgress     "By using this software you agree with the terms of GPL3. ";
   OutProgress     "";

@@ -8,7 +8,7 @@
 #Requires -Version 3.0
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $global:MnCommonPsToolLibVersion = "7.41"; # more see Releasenotes.txt
+[String] $global:MnCommonPsToolLibVersion = "7.42"; # more see Releasenotes.txt
 
 # This library encapsulates many common commands for the purpose of supporting compatibility between
 # multi platforms, simplifying commands, fixing usual problems, supporting tracing information,
@@ -269,9 +269,9 @@ function StringPadRight                       ( [String] $s, [Int32] $len, [Bool
                                                 [String] $r = $s; if( $doQuote ){ $r = '"'+$r+'"'; } return [String] $r.PadRight($len,$c); }
 function StringSplitIntoLines                 ( [String] $s ){ return [String[]] (($s -replace "`r`n", "`n") -split "`n"); } # for empty string it returns an array with one item.
 function StringReplaceNewlines                ( [String] $s, [String] $repl = " " ){ return [String] ($s -replace "`r`n", "`n" -replace "`r", "" -replace "`n", $repl); }
-function StringSplitToArray                   ( [String] $word, [String] $s, [Boolean] $removeEmptyEntries = $true ){ # works case sensitive
-                                                # this not works correctly on PS5: return [String[]] $s.Split($word,$(switch($removeEmptyEntries){($true){[System.StringSplitOptions]::RemoveEmptyEntries}default{[System.StringSplitOptions]::None}})); }
-                                                [String[]] $res = ($s -csplit $word,0,"SimpleMatch");
+function StringSplitToArray                   ( [String] $sep, [String] $s, [Boolean] $removeEmptyEntries = $true ){ # works case sensitive
+                                                # this not works correctly on PS5: return [String[]] $s.Split($sep,$(switch($removeEmptyEntries){($true){[System.StringSplitOptions]::RemoveEmptyEntries}default{[System.StringSplitOptions]::None}})); }
+                                                [String[]] $res = ($s -csplit $sep,0,"SimpleMatch");
                                                 $res = ($res | Where-Object{ (-not $removeEmptyEntries) -or $_ -ne "" });
                                                 return [String[]] (@()+$res); }
 function StringReplaceEmptyByTwoQuotes        ( [String] $str ){ return [String] $(switch((StringIsNullOrEmpty $str)){($true){"`"`""}default{$str}}); }
@@ -853,9 +853,43 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
 function ProcessEnvVarGet                     ( [String] $name, [System.EnvironmentVariableTarget] $scope = [System.EnvironmentVariableTarget]::Process ){
                                                 return [String] [Environment]::GetEnvironmentVariable($name,$scope); }
 function ProcessEnvVarSet                     ( [String] $name, [String] $val, [System.EnvironmentVariableTarget] $scope = [System.EnvironmentVariableTarget]::Process, [Boolean] $traceCmd = $true ){
-                                                 # Scope: MACHINE, USER, PROCESS.
+                                                 # Scope: MACHINE, USER, PROCESS. Use empty string to delete a value
                                                  if( $traceCmd ){ OutProgress "SetEnvironmentVariable scope=$scope $name=`"$val`""; }
                                                  [Environment]::SetEnvironmentVariable($name,$val,$scope); }
+function ProcessRefreshEnvVars                ( [Boolean] $traceCmd = $true ){ # Use this after an installer did change environment variables for example by extending the path.
+                                                if( $traceCmd ){ OutProgress "ProcessRefreshEnvVars"; }
+                                                [Hashtable] $envVarUser = [System.Environment]::GetEnvironmentVariables([System.EnvironmentVariableTarget]::User);
+                                                [Hashtable] $envVarMach = [System.Environment]::GetEnvironmentVariables([System.EnvironmentVariableTarget]::Machine);
+                                                [Hashtable] $envVarProc = [System.Environment]::GetEnvironmentVariables([System.EnvironmentVariableTarget]::Process);
+                                                [Hashtable] $envVarNewP = @{};
+                                                # Note: On Windows ps5/7 does automatically append ".CPL" to PATHEXT env var in process scope.
+                                                if( (OsIsWindows) -and -not $envVarMach["PATHEXT"].Contains(".CPL") ){ $envVarMach["PATHEXT"] = "$($envVarMach["PATHEXT"]);.CPL"; }
+                                                $envVarMach.Keys | ForEach-Object{ $envVarNewP[$_] = $envVarMach[$_]; }
+                                                $envVarUser.Keys | ForEach-Object{ $envVarNewP[$_] = $envVarUser[$_]; }
+                                                # Note: Powershell preceeds the PATH env var on Windows with
+                                                #   "$HOME\Documents\PowerShell\Modules;C:\Program Files\PowerShell\Modules;c:\program files\powershell\7\Modules;"
+                                                #   and so we only add new parts.
+                                                [String] $sep = (OsPathSeparator);
+                                                [String[]] $p = (StringSplitToArray $sep $envVarProc["PATH"] $true);
+                                                [String[]] $n = (StringSplitToArray $sep ([System.Environment]::GetEnvironmentVariable("Path","Machine")+$sep+
+                                                                                          [System.Environment]::GetEnvironmentVariable("Path","User")) $true);
+                                                $n | Where-Object{ "" -ne "$_" -and $p -notcontains $_ } | ForEach-Object{ OutProgress "Extended PATH by: `"$_`""; $p += $_; };
+                                                $envVarNewP["PATH"] = (StringArrayConcat $p $sep)+$(switch("$($envVarProc["PATH"])".EndsWith($sep)){($true){$sep}($false){""}});
+                                                # Note: Powershell preceeds the PSModulePath env var on Windows with
+                                                #   "C:\Users\u4\Documents\PowerShell\Modules;C:\Program Files\PowerShell\Modules;c:\program files\powershell\7\Modules;"
+                                                #   and so we only add new parts.
+                                                [String[]] $p = (StringSplitToArray $sep $envVarProc["PSModulePath"] $true);
+                                                [String[]] $n = (StringSplitToArray $sep ([System.Environment]::GetEnvironmentVariable("PSModulePath","Machine")+$sep+
+                                                                                          [System.Environment]::GetEnvironmentVariable("PSModulePath","User")) $true);
+                                                $n | Where-Object{ "" -ne "$_" -and $p -notcontains $_ } | ForEach-Object{ OutProgress "Extended PSModulePath by: `"$_`""; $p += $_; };
+                                                $envVarNewP["PSModulePath"] = (StringArrayConcat $p $sep)+$(switch("$($envVarProc["PSModulePath"])".EndsWith($sep)){($true){$sep}($false){""}});
+                                                #
+                                                $envVarNewP.Keys | ForEach-Object{ [String] $val = $envVarNewP[$_];
+                                                  if( $_ -ne "USERNAME" -and # we not set USERNAME because from machine scope we got SYSTEM.
+                                                    "$($envVarProc[$_])" -ne "$val" ){
+                                                    ProcessEnvVarSet $_ $val -traceCmd:$traceCmd;
+                                                  }else{ OutVerbose "ProcessRefreshEnvVars AreEqual $_ $val"; }
+                                                } }
 function ProcessRemoveAllAlias                ( [String[]] $excludeAliasNames = @(), [Boolean] $doTrace = $false ){
                                                 # remove all existing aliases on any levels (local, script, private, and global).
                                                 # We recommend to exclude the followings: @("cd","cat","clear","echo","dir","cp","mv","popd","pushd","rm","rmdir").
@@ -880,7 +914,7 @@ function HelpHelp                             (){ Get-Help     | ForEach-Object{
 function HelpListOfAllVariables               (){ Get-Variable | Sort-Object Name | ForEach-Object{ OutInfo "$($_.Name.PadRight(32)) $($_.Value)"; } } # Select-Object Name, Value | StreamToListString
 function HelpListOfAllAliases                 (){ Get-Alias    | Select-Object CommandType, Name, Version, Source | StreamToTableString | ForEach-Object{ OutInfo $_; } }
 function HelpListOfAllCommands                (){ Get-Command  | Select-Object CommandType, Name, Version, Source | StreamToTableString | ForEach-Object{ OutInfo $_; } }
-function HelpListOfAllModules                 (){ Get-Module -ListAvailable | Sort-Object Name | Select-Object Name, ModuleType, Version, ExportedCommands; }
+function HelpListOfAllModules                 (){ Get-Module -ListAvailable | Sort-Object Name | Select-Object Name, ModuleType, Version, ExportedCommands; } # depends on $env:PSModulePath
 function HelpListOfAllExportedCommands        (){ (Get-Module -ListAvailable).ExportedCommands.Values | Sort-Object Name | Select-Object Name, ModuleName; }
 function HelpGetType                          ( [Object] $obj ){ return [String] $obj.GetType(); }
 function OsPsVersion                          (){ return [String] (""+$Host.Version.Major+"."+$Host.Version.Minor); } # alternative: $PSVersionTable.PSVersion.Major
@@ -889,7 +923,20 @@ function OsIsWindows                          (){ return [Boolean] ([System.Envi
                                                 # Alternative: "$($env:WINDIR)" -ne ""; In PS6 and up you can use: $IsMacOS, $IsLinux, $IsWindows.
                                                 # for future: function OsIsLinux(){ return [Boolean] ([System.Environment]::OSVersion.Platform -eq "Unix"); } # example: Ubuntu22: Version="5.15.0.41"
 function OsPathSeparator                      (){ return [String] $(switch(OsIsWindows){$true{";"}default{":"}}); } # separator for PATH environment variable
-function OsPsModulePathList                   (){ return [String[]] ([Environment]::GetEnvironmentVariable("PSModulePath", "Machine").
+function OsPsModulePathList                   (){ # return content of $env:PSModulePath
+                                                # Usual entries: On Windows, PS5/PS7, scope MACHINE:
+                                                #   C:\Windows\system32\WindowsPowerShell\v1.0\Modules   (strongly recommended as long as ps7 not contains all of ps5)
+                                                #   C:\Program Files\WindowsPowerShell\Modules
+                                                #   C:\Prg\Network\VersionControl\VisualSvn VisualSvn Server\PowerShellModules
+                                                #   D:\MyDevelopDir\mniederw\MnCommonPsToolLib#trunk
+                                                # Usual additonal entries: On Windows PS5, scope PROCESS:
+                                                #   $HOME\Documents\WindowsPowerShell\Modules
+                                                # Usual additonal entries: On Windows PS7, scope PROCESS:
+                                                #   $HOME\Documents\PowerShell\Modules
+                                                #   C:\Program Files\PowerShell\Modules
+                                                #   c:\program files\powershell\7\Modules
+                                                # Note: If a single backslash is part of the PSModulePath then autocompletion is very slow (2017-08).
+                                                return [String[]] ([Environment]::GetEnvironmentVariable("PSModulePath", "Machine").
                                                   Split(";",[System.StringSplitOptions]::RemoveEmptyEntries)); }
 function OsPsModulePathContains               ( [String] $dir ){ # Example: "D:\MyGitRoot\MyGitAccount\MyPsLibRepoName"
                                                 [String[]] $a = (OsPsModulePathList | ForEach-Object{ FsEntryRemoveTrailingDirSep $_ });
@@ -2288,7 +2335,7 @@ function GithubAuthStatus                     (){
                                                 [String] $out = (ProcessStart "gh" @("auth", "status") -careStdErrAsOut:$true -traceCmd:$true);
                                                 # Output:
                                                 #   github.com
-                                                #     Ô£ô Logged in to github.com as myowner (C:\Users\myuser\AppData\Roaming\GitHub CLI\hosts.yml)
+                                                #     Ô£ô Logged in to github.com as myowner ($HOME\AppData\Roaming\GitHub CLI\hosts.yml)
                                                 #     Ô£ô Git operations for github.com configured to use https protocol.
                                                 #     Ô£ô Token: *******************
                                                 OutProgress $out; }
@@ -3459,11 +3506,15 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 # Powershell useful knowledge and additional documentation
 # ========================================================
 #
-# - Enable powershell: Before using any powershell script you must enable on 64bit and on 32bit environment!
+# - Enable powershell: Before using any powershell script, the following default modes are predefined:
+#     Current mode on PS7       environment: RemoteSigned
+#     Current mode on PS5-64bit environment: AllSigned
+#     Current mode on PS5-32bit environment: AllSigned
+#   so you must enable them on 64bit and on 32bit environment!
 #   It requires admin rights so either run a cmd.exe shell with admin mode and call:
-#     PS7  :  pwsh -Command Set-ExecutionPolicy -Scope LocalMachine Unrestricted
-#     64bit:  %SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe Set-Executionpolicy -Scope LocalMachine Unrestricted
-#     32bit:  %SystemRoot%\SysWOW64\WindowsPowerShell\v1.0\powershell.exe Set-Executionpolicy -Scope LocalMachine Unrestricted
+#     PS7      :  pwsh                                               -Command Set-ExecutionPolicy -Scope LocalMachine Unrestricted
+#     PS5-64bit:  %SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe Set-Executionpolicy -Scope LocalMachine Unrestricted
+#     PS5-32bit:  %SystemRoot%\SysWOW64\WindowsPowerShell\v1.0\powershell.exe Set-Executionpolicy -Scope LocalMachine Unrestricted
 #   or start each powershell and run:  Set-Executionpolicy Unrestricted
 #   or run: reg.exe add "HKLM\SOFTWARE\Microsoft\PowerShell\1\ShellIds\Microsoft.PowerShell" /f /t REG_SZ /v "ExecutionPolicy" /d "Unrestricted"
 #   or run any ps1 even when in restricted mode with:  PowerShell.exe -ExecutionPolicy Unrestricted -NoProfile -File "myfile.ps1"
