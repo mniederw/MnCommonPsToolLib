@@ -85,7 +85,7 @@ function OsIsWindows                          (){ return [Boolean] ([System.Envi
 [String] $srcRootDir        = $PSScriptRoot; if( $srcRootDir -eq "" ){ $srcRootDir = FsEntryGetAbsolutePath "."; } # Example: "D:\WorkGit\myuser\MyNameOfPsToolLib_master"
 [String[]] $dirsWithPsm1Files = @()+(DirListDirs $srcRootDir | Where-Object{ DirHasFiles $_ "*.psm1" });
 if( $dirsWithPsm1Files.Count -ne 1 ){ throw [Exception] "Tool is designed for working below '$srcRootDir' with exactly one directory which contains psm1 files but found $($dirsWithPsm1Files.Count) dirs ($dirsWithPsm1Files)"; }
-[String] $moduleSrcDir      = $dirsWithPsm1Files[0]; # Example: "D:\WorkGit\myuser\MyNameOfPsToolLib_master\MyNameOfPsToolLib" or "/home/myuser/WorkExt/mniederw/MnCommonPsToolLib#trunk/MnCommonPsToolLib"
+[String] $moduleSrcDir      = $dirsWithPsm1Files[0]; # Example: "D:\WorkGit\myuser\MyNameOfPsToolLib_master\MyNameOfPsToolLib" or "/home/myuser/Workspace/mniederw/MnCommonPsToolLib#trunk/MnCommonPsToolLib"
 [String] $moduleName        = [System.IO.Path]::GetFileName($moduleSrcDir); # Example: "MyNameOfPsToolLib"
 [String] $moduleTarDir32bit = "$tarRootDir32bit\$moduleName";
 [String] $moduleTarDir64bit = "$tarRootDir64bit\$moduleName";
