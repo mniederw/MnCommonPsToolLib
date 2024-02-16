@@ -2490,9 +2490,11 @@ function GitAssertAutoCrLfIsDisabled          (){
                                                 # More: https://git-scm.com/docs/git-config see under option core.safecrlf which depends on core.autocrlf=true
                                                 #   it has the description "CRLF conversion bears a slight chance of corrupting data."
                                                 # We recommend (strongly on windows) to call GitDisableAutoCrLf after any git installation or update.
-                                                [String] $line1 = (StringMakeNonNull (& "git" "config" "--list" "--global" | Where-Object{ $_ -like "core.autocrlf=true" })); AssertRcIsOk;
                                                 [String] $errmsg = "it is strongly recommended never use this because unexpected state and merge behaviours. Please change it by calling GitDisableAutoCrLf and then retry.";
-                                                if( $line1 -ne "" ){ throw [ExcMsg] "Git is globally (for all repos of user) configured to use autocrlf conversions, $errmsg"; }
+                                                if( (FileExists "$HOME/.gitconfig") ){
+                                                  [String] $line1 = (StringMakeNonNull (& "git" "config" "--list" "--global" | Where-Object{ $_ -like "core.autocrlf=true" })); AssertRcIsOk;
+                                                  if( $line1 -ne "" ){ throw [ExcMsg] "Git is globally (for all repos of user) configured to use autocrlf conversions, $errmsg"; }
+                                                }
                                                 if( (OsIsWindows) -or (-not (OsIsWindows) -and (FileExists "/etc/gitconfig")) ){
                                                   [String] $line2 = (StringMakeNonNull (& "git" "config" "--list" "--system" | Where-Object{ $_ -like "core.autocrlf=true" })); AssertRcIsOk;
                                                   if( $line2 -ne "" ){ throw [ExcMsg] "Git is systemwide (for all users on machine) configured to use autocrlf conversions, $errmsg"; }
