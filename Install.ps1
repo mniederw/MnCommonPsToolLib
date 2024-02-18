@@ -24,8 +24,10 @@ function FsEntryRemoveTrailingDirSep          ( [String] $fsEntry ){ [String] $r
 function FsEntryMakeTrailingDirSep            ( [String] $fsEntry ){
                                                 [String] $result = $fsEntry; if( -not (FsEntryHasTrailingDirSep $result) ){ $result += $(DirSep); } return [String] $result; }
 function FsEntryGetAbsolutePath               ( [String] $fsEntry ){ return [String] ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($fsEntry)); }
+function OsIsWindows                          (){ return [Boolean] ([System.Environment]::OSVersion.Platform -eq "Win32NT"); }
+function OsPathSeparator                      (){ return [String] $(switch(OsIsWindows){$true{";"}default{":"}}); } # separator for PATH environment variable
 function OsPsModulePathList                   (){ return [String[]] ([Environment]::GetEnvironmentVariable("PSModulePath", "Machine").
-                                                Split(";",[System.StringSplitOptions]::RemoveEmptyEntries)); }
+                                                Split((OsPathSeparator),[System.StringSplitOptions]::RemoveEmptyEntries)); }
 function OsPsModulePathContains               ( [String] $dir ){ # Example: "D:\WorkGit\myuser\MyPsLibRepoName"
                                                 [String[]] $a = (OsPsModulePathList | ForEach-Object{ FsEntryRemoveTrailingDirSep $_ });
                                                 return [Boolean] ($a -contains (FsEntryRemoveTrailingDirSep $dir)); }
@@ -33,7 +35,7 @@ function OsPsModulePathAdd                    ( [String] $dir ){ if( (OsPsModule
                                                 OsPsModulePathSet ((OsPsModulePathList)+@( (FsEntryRemoveTrailingDirSep $dir) )); }
 function OsPsModulePathDel                    ( [String] $dir ){ OsPsModulePathSet (OsPsModulePathList |
                                                 Where-Object{ (FsEntryRemoveTrailingDirSep $_) -ne (FsEntryRemoveTrailingDirSep $dir) }); }
-function OsPsModulePathSet                    ( [String[]] $pathList ){ [Environment]::SetEnvironmentVariable("PSModulePath", ($pathList -join ";")+";", "Machine"); }
+function OsPsModulePathSet                    ( [String[]] $pathList ){ [Environment]::SetEnvironmentVariable("PSModulePath", ($pathList -join OsPathSeparator)+OsPathSeparator, "Machine"); }
 function DirExists                            ( [String] $dir ){ try{ return [Boolean] (Test-Path -PathType Container -LiteralPath $dir ); }
                                                 catch{ throw [Exception] "DirExists($dir) failed because $($_.Exception.Message)"; } }
 function DirListDirs                          ( [String] $dir ){ return [String[]] (@()+(Get-ChildItem -Force -Directory -Path $dir | ForEach-Object{ $_.FullName })); }
@@ -76,7 +78,6 @@ function AddToPsModulePath                    ( [String] $dir ){
                                                   OutProgress "To system var PsModulePath appending `"$dir`".";
                                                   OsPsModulePathAdd $dir;
                                                 } }
-function OsIsWindows                          (){ return [Boolean] ([System.Environment]::OSVersion.Platform -eq "Win32NT"); }
 
 # see https://docs.microsoft.com/en-us/powershell/scripting/developer/module/installing-a-powershell-module
 [String] $linuxTargetDir    = "$HOME/.local/share/powershell/Modules";
@@ -85,7 +86,7 @@ function OsIsWindows                          (){ return [Boolean] ([System.Envi
 [String] $srcRootDir        = $PSScriptRoot; if( $srcRootDir -eq "" ){ $srcRootDir = FsEntryGetAbsolutePath "."; } # Example: "D:\WorkGit\myuser\MyNameOfPsToolLib_master"
 [String[]] $dirsWithPsm1Files = @()+(DirListDirs $srcRootDir | Where-Object{ DirHasFiles $_ "*.psm1" });
 if( $dirsWithPsm1Files.Count -ne 1 ){ throw [Exception] "Tool is designed for working below '$srcRootDir' with exactly one directory which contains psm1 files but found $($dirsWithPsm1Files.Count) dirs ($dirsWithPsm1Files)"; }
-[String] $moduleSrcDir      = $dirsWithPsm1Files[0]; # Example: "D:\WorkGit\myuser\MyNameOfPsToolLib_master\MyNameOfPsToolLib" or "/home/myuser/WorkExt/mniederw/MnCommonPsToolLib#trunk/MnCommonPsToolLib"
+[String] $moduleSrcDir      = $dirsWithPsm1Files[0]; # Example: "D:\WorkGit\myuser\MyNameOfPsToolLib_master\MyNameOfPsToolLib" or "/home/myuser/Workspace/mniederw/MnCommonPsToolLib#trunk/MnCommonPsToolLib"
 [String] $moduleName        = [System.IO.Path]::GetFileName($moduleSrcDir); # Example: "MyNameOfPsToolLib"
 [String] $moduleTarDir32bit = "$tarRootDir32bit\$moduleName";
 [String] $moduleTarDir64bit = "$tarRootDir64bit\$moduleName";

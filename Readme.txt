@@ -1,6 +1,14 @@
 ﻿MnCommonPsToolLib - Common Powershell Tool Library for PS5 and PS7 and works on multiplatforms (Windows, Linux and OSX)
 =======================================================================================================================
 
+> 🇺🇦 UKRAINE [IS BEING ATTACKED](https://war.ukraine.ua/) BY RUSSIAN ARMY. CIVILIANS ARE GETTING KILLED. RESIDENTIAL AREAS ARE GETTING BOMBED.
+> - Help Ukraine via:
+>   - [Serhiy Prytula Charity Foundation](https://prytulafoundation.org/en/)
+>   - [Come Back Alive Charity Foundation](https://savelife.in.ua/en/donate-en/)
+>   - [National Bank of Ukraine](https://bank.gov.ua/en/news/all/natsionalniy-bank-vidkriv-spetsrahunok-dlya-zboru-koshtiv-na-potrebi-armiyi)
+> - More info on [war.ukraine.ua](https://war.ukraine.ua/) and [MFA of Ukraine](https://twitter.com/MFA_Ukraine)
+
+
 Published at: https://github.com/mniederw/MnCommonPsToolLib
 Licensed under GPL3. This is freeware.
 2013-2024 produced by Marc Niederwieser, Switzerland.

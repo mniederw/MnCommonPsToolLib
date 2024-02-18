@@ -81,7 +81,7 @@ function PrivGetGroupAuthenticatedUsers       (){ return [System.Security.Princi
 function PrivGetGroupEveryone                 (){ return [System.Security.Principal.IdentityReference] (New-Object System.Security.Principal.SecurityIdentifier("S-1-1-0"                                                       )).Translate([System.Security.Principal.NTAccount]); } # Jeder
 function PrivGetUserTrustedInstaller          (){ return [System.Security.Principal.IdentityReference] (New-Object System.Security.Principal.SecurityIdentifier("S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464")).Translate([System.Security.Principal.NTAccount]); } # NT SERVICE\TrustedInstaller
 function PrivFsRuleAsString                   ( [System.Security.AccessControl.FileSystemAccessRule] $rule ){
-                                                return [String] "($($rule.IdentityReference);$(($rule.FileSystemRights) -replace ' ','');$($rule.InheritanceFlags -replace ' ','');$($rule.PropagationFlags -replace ' ','');$($rule.AccessControlType);IsInherited=$($rule.IsInherited))";
+                                                return [String] "($($rule.IdentityReference);$(($rule.FileSystemRights).Replace(' ',''));$($rule.InheritanceFlags.Replace(' ',''));$($rule.PropagationFlags.Replace(' ',''));$($rule.AccessControlType);IsInherited=$($rule.IsInherited))";
                                                 } # for later: CentralAccessPolicyId, CentralAccessPolicyName, Sddl="O:BAG:SYD:PAI(A;OICI;FA;;;SY)(A;;FA;;;BA)"
 function PrivAclAsString                      ( [System.Security.AccessControl.FileSystemSecurity] $acl ){
                                                 [String] $s = "Owner=$($acl.Owner);Group=$($acl.Group);Acls=";
@@ -268,7 +268,7 @@ function PrivAclFsRightsFromString            ( [String] $s ){ # inverse of Priv
                                                 }; return [System.Security.AccessControl.FileSystemRights] $result; }
 function RegistryMapToShortKey                ( [String] $key ){ # Note: HKCU: will be replaced by HKLM:\SOFTWARE\Classes" otherwise it would not work
                                                 if( -not $key.StartsWith("HKEY_","CurrentCultureIgnoreCase") ){ return [String] $key; }
-                                                return [String] $key -replace "HKEY_LOCAL_MACHINE:","HKLM:" -replace "HKEY_CURRENT_USER:","HKCU:" -replace "HKEY_CLASSES_ROOT:","HKCR:" -replace "HKCR:","HKLM:\SOFTWARE\Classes" -replace "HKEY_USERS:","HKU:" -replace "HKEY_CURRENT_CONFIG:","HKCC:"; }
+                                                return [String] $key.Replace("HKEY_LOCAL_MACHINE:","HKLM:").Replace("HKEY_CURRENT_USER:","HKCU:").Replace("HKEY_CLASSES_ROOT:","HKCR:").Replace("HKCR:","HKLM:\SOFTWARE\Classes").Replace("HKEY_USERS:","HKU:").Replace("HKEY_CURRENT_CONFIG:","HKCC:"); }
 function RegistryRequiresElevatedAdminMode    ( [String] $key ){
                                                 if( (RegistryMapToShortKey $key).StartsWith("HKLM:","CurrentCultureIgnoreCase") ){ ProcessRestartInElevatedAdminMode; } }
 function RegistryAssertIsKey                  ( [String] $key ){
@@ -286,7 +286,7 @@ function RegistryExistsValue                  ( [String] $key, [String] $name = 
                                                 return [Boolean] ($k -and $null -ne $k.GetValue($name, $null)); }
 function RegistryCreateKey                    ( [String] $key ){  # creates key if not exists
                                                 $key = RegistryMapToShortKey $key; RegistryAssertIsKey $key;
-                                                if( ! (RegistryExistsKey $key) ){
+                                                if( -not (RegistryExistsKey $key) ){
                                                   OutProgress "RegistryCreateKey `"$key`"";
                                                   RegistryRequiresElevatedAdminMode $key;
                                                   New-Item -Force -Path $key | Out-Null; } }
@@ -309,7 +309,7 @@ function RegistryListValueNames               ( [String] $key ){
 function RegistryDelKey                       ( [String] $key ){
                                                 $key = RegistryMapToShortKey $key;
                                                 RegistryAssertIsKey $key;
-                                                if( !(RegistryExistsKey $key) ){ return; }
+                                                if( -not (RegistryExistsKey $key) ){ return; }
                                                 OutProgress "RegistryDelKey `"$key`"";
                                                 RegistryRequiresElevatedAdminMode;
                                                 Remove-Item -Path "$key"; }
@@ -317,7 +317,7 @@ function RegistryDelValue                     ( [String] $key, [String] $name = 
                                                 $key = RegistryMapToShortKey $key;
                                                 RegistryAssertIsKey $key;
                                                 if( $name -eq "" ){ $name = "(default)"; }
-                                                if( !(RegistryExistsValue $key $name) ){ return; }
+                                                if( -not (RegistryExistsValue $key $name) ){ return; }
                                                 OutProgress "RegistryDelValue `"$key`" `"$name`"";
                                                 RegistryRequiresElevatedAdminMode;
                                                 Remove-ItemProperty -Path $key -Name $name; }
@@ -336,7 +336,7 @@ function RegistrySetValue                     ( [String] $key, [String] $name, [
                                                 RegistryAssertIsKey $key;
                                                 if( $name -eq "" ){ $name = "(default)"; }
                                                 RegistryCreateKey $key;
-                                                if( !$overwriteEvenIfStringValueIsEqual ){
+                                                if( -not $overwriteEvenIfStringValueIsEqual ){
                                                   [Object] $obj = RegistryGetValueAsObject $key $name;
                                                   if( $null -ne $obj -and $null -ne $val -and $obj.GetType() -eq $val.GetType() -and $obj.ToString() -eq $val.ToString() ){ return; }
                                                 }
@@ -543,7 +543,7 @@ function ServiceMapHiddenToCurrentName        ( [String] $serviceName ){
                                                 # Currently all these known hidden services are internally started by "C:\WINDOWS\System32\svchost.exe -k UnistackSvcGroup". The following are known:
                                                 [String[]] $a = @( "MessagingService_######", "PimIndexMaintenanceSvc_######", "UnistoreSvc_######", "UserDataSvc_######", "WpnUserService_######", "CDPUserSvc_######", "OneSyncSvc_######" );
                                                 if( $a -notcontains $serviceName ){ return [String] $serviceName; }
-                                                [String] $mask = $serviceName -replace "_######","_*";
+                                                [String] $mask = $serviceName.Replace("_######","_*");
                                                 [String] $result = (Get-Service * |
                                                   Where-Object{$null -ne $_} |
                                                   ForEach-Object{ Name } |
@@ -564,7 +564,7 @@ function TaskIsDisabled                       ( [String] $taskPathAndName ){
 function TaskDisable                          ( [String] $taskPathAndName ){
                                                 [String] $taskPath = (FsEntryMakeTrailingDirSep (FsEntryRemoveTrailingDirSep (Split-Path -Parent $taskPathAndName)));
                                                 [String] $taskName = Split-Path -Leaf $taskPathAndName;
-                                                if( !(TaskIsDisabled $taskPathAndName) ){
+                                                if( -not (TaskIsDisabled $taskPathAndName) ){
                                                   OutProgress "TaskDisable $taskPathAndName"; ProcessRestartInElevatedAdminMode;
                                                   try{ Disable-ScheduledTask -TaskPath $taskPath -TaskName $taskName | Out-Null; }
                                                   catch{ OutWarning "Warning: Ignore failing of disabling task `"$taskPathAndName`" because $($_.Exception.Message)"; } } }
@@ -598,23 +598,26 @@ function ShareGetTypeNr                       ( [String] $typeName ){
                                                 return [UInt32] $(switch($typeName){ "DiskDrive"{0} "PrintQueue"{1} "Device"{2} "IPC"{3}
                                                 "DiskDriveAdmin"{2147483648} "PrintQueueAdmin"{2147483649} "DeviceAdmin"{2147483650} "IPCAdmin"{2147483651} default{4294967295} }); }
 function ShareExists                          ( [String] $shareName ){
+                                                FsEntryRemoveTrailingDirSep $shareName;
                                                 return [Boolean] ($null -ne (Get-SMBShare | Where-Object{$null -ne $_} |
-                                                  Where-Object{ $shareName -ne "" -and (FsEntryIsEqual $_.Name $shareName) })); }
+                                                  Where-Object{ $shareName -ne "" -and (FsEntryPathIsEqual $_.Name $shareName) })); }
 function ShareListAll                         ( [String] $selectShareName = "" ){
                                                 # uses newer module SmbShare
                                                 OutVerbose "List shares selectShareName=`"$selectShareName`"";
                                                 # Example: ShareState: Online, ...; ShareType: InterprocessCommunication, PrintQueue, FileSystemDirectory;
                                                 return [Object] (Get-SMBShare | Where-Object{$null -ne $_} |
-                                                  Where-Object{ $selectShareName -eq "" -or (FsEntryIsEqual $_.Name $selectShareName) } |
+                                                  Where-Object{ $selectShareName -eq "" -or ($_.Name -eq $selectShareName) } |
                                                   Select-Object Name, ShareType, Path, Description, ShareState, ConcurrentUserLimit, CurrentUsers |
                                                   Sort-Object TypeName, Name); }
 function ShareLocksList                       ( [String] $path = "" ){
                                                 # list currenty read or readwrite locked open files of a share, requires elevated admin mode
+                                                $path = FsEntryGetAbsolutePath $path;
                                                 ProcessRestartInElevatedAdminMode;
                                                 return [Object] (Get-SmbOpenFile | Where-Object{$null -ne $_} | Where-Object{ $_.Path.StartsWith($path,"OrdinalIgnoreCase") } |
                                                   Select-Object FileId, SessionId, Path, ClientComputerName, ClientUserName, Locks | Sort-Object Path); }
 function ShareLocksClose                      ( [String] $path = "" ){
-                                                # closes locks, Example: $path="D:\Transfer\" or $path="D:\Transfer\MyFile.txt"
+                                                # closes locks, Example: $path="D:/Transfer/" or $path="D:/Transfer/MyFile.txt"
+                                                $path = FsEntryGetAbsolutePath $path;
                                                 ProcessRestartInElevatedAdminMode;
                                                 ShareLocksList $path |
                                                   Where-Object{$null -ne $_} |
@@ -622,10 +625,12 @@ function ShareLocksClose                      ( [String] $path = "" ){
                                                     OutProgress "ShareLocksClose `"$($_.Path)`"";
                                                     Close-SmbOpenFile -Force -FileId $_.FileId; }; }
 function ShareCreate                          ( [String] $shareName, [String] $dir, [String] $descr = "", [Int32] $nrOfAccessUsers = 25, [Boolean] $ignoreIfAlreadyExists = $true ){
+                                                FsEntryAssertHasTrailingDirSep $dir;
+                                                $dir = FsEntryGetAbsolutePath $dir;
                                                 DirAssertExists $dir "ShareCreate($shareName)";
                                                 [Object] $existingShare = ShareListAll $shareName |
                                                   Where-Object{$null -ne $_} |
-                                                  Where-Object{ $_.Path -ieq $dir } |
+                                                  Where-Object{ FsEntryPathIsEqual $_.Path $dir } |
                                                   Select-Object -First 1;
                                                 if( $null -ne $existingShare ){
                                                   OutVerbose "Already exists shareName=`"$shareName`" dir=`"$dir`" ";
@@ -645,42 +650,48 @@ function MountPointLocksListAll               (){
                                                 Sort-Object ServerName, ShareName, UserName, Credential); }
 function MountPointListAll                    (){ # we define mountpoint as a share mapped to a local path
                                                 return [Object] (Get-SmbMapping | Select-Object LocalPath, RemotePath, Status); }
-function MountPointGetByDrive                 ( [String] $drive ){ # return null if not found
+function MountPointGetByDrive                 ( [String] $drive ){ # Example: "C:"; return null if not found.
                                                 if( -not $drive.EndsWith(":") ){ throw [Exception] "Expected drive=`"$drive`" with trailing colon"; }
                                                 return [Object] (Get-SmbMapping -LocalPath $drive -ErrorAction SilentlyContinue); }
 function MountPointRemove                     ( [String] $drive, [String] $mountPoint = "", [Boolean] $suppressProgress = $false ){
-                                                # Also remove PsDrive; drive can be empty then mountPoint must be given
+                                                # Example: "C:"; Also remove PsDrive; drive can be empty then mountPoint must be given
                                                 if( $drive -eq "" -and $mountPoint -eq "" ){ throw [Exception] "$(ScriptGetCurrentFunc): missing either drive or mountPoint."; }
                                                 if( $drive -ne "" -and -not $drive.EndsWith(":") ){ throw [Exception] "Expected drive=`"$drive`" with trailing colon"; }
+                                                FsEntryAssertHasTrailingDirSep $mountPoint;
+                                                $mountPoint = FsEntryGetAbsolutePath $mountPoint;
+                                                [String] $mnt = FsEntryRemoveTrailingDirSep $mountPoint;
                                                 if( $drive -ne "" -and $null -ne (MountPointGetByDrive $drive) ){
                                                   if( -not $suppressProgress ){ OutProgress "MountPointRemove drive=$drive"; }
                                                   Remove-SmbMapping -LocalPath $drive -Force -UpdateProfile;
                                                 }
-                                                if( $mountPoint -ne "" -and $null -ne (Get-SmbMapping -RemotePath $mountPoint -ErrorAction SilentlyContinue) ){
+                                                if( $mnt -ne "" -and $null -ne (Get-SmbMapping -RemotePath $mnt -ErrorAction SilentlyContinue) ){
                                                   if( -not $suppressProgress ){ OutProgress "MountPointRemovePath $mountPoint"; }
-                                                  Remove-SmbMapping -RemotePath $mountPoint -Force -UpdateProfile;
+                                                  Remove-SmbMapping -RemotePath $mnt -Force -UpdateProfile;
                                                 }
-                                                if( $drive -ne "" -and $null -ne (Get-PSDrive -Name ($drive -replace ":","") -ErrorAction SilentlyContinue) ){
+                                                if( $drive -ne "" -and $null -ne (Get-PSDrive -Name $drive.Replace(":","") -ErrorAction SilentlyContinue) ){
                                                   if( -not $suppressProgress ){ OutProgress "MountPointRemovePsDrive $drive"; }
-                                                  Remove-PSDrive -Name ($drive -replace ":","") -Force; # Force means no confirmation
+                                                  Remove-PSDrive -Name $drive.Replace(":","") -Force; # Force means no confirmation
                                                 } }
 function MountPointCreate                     ( [String] $drive, [String] $mountPoint, [System.Management.Automation.PSCredential] $cred = $null, [Boolean] $errorAsWarning = $false ){
-                                                # Example: MountPointCreate "S:" "\\localhost\Transfer" (CredentialCreate "user1" "mypw")
+                                                # Example: MountPointCreate "S:" "//localhost/Transfer" (CredentialCreate "user1" "mypw")
                                                 if( -not $drive.EndsWith(":") ){ throw [Exception] "Expected drive=`"$drive`" with trailing colon"; }
+                                                FsEntryAssertHasTrailingDirSep $mountPoint;
+                                                $mountPoint = FsEntryGetAbsolutePath $mountPoint;
+                                                [String] $mnt = FsEntryRemoveTrailingDirSep $mountPoint;
                                                 [String] $us = CredentialGetUsername $cred $true;
                                                 [String] $pw = CredentialGetPassword $cred;
                                                 [String] $traceInfo = "MountPointCreate drive=$drive mountPoint=$($mountPoint.PadRight(22)) us=$($us.PadRight(12)) pw=*** state=";
                                                 [Object] $smbMap = MountPointGetByDrive $drive;
-                                                if( $null -ne $smbMap -and (FsEntryIsEqual $smbMap.RemotePath $mountPoint) -and $smbMap.Status -eq "OK" ){
+                                                if( $null -ne $smbMap -and (FsEntryPathIsEqual $smbMap.RemotePath $mnt) -and $smbMap.Status -eq "OK" ){
                                                   OutProgress "$($traceInfo)OkNoChange.";
                                                   return;
                                                 }
                                                 try{
                                                   MountPointRemove $drive $mountPoint $true; # Required because New-SmbMapping has no force param.
                                                   if( $pw -eq ""){
-                                                    $dummyObj = New-SmbMapping -LocalPath $drive -RemotePath $mountPoint -Persistent $true -UserName $us;
+                                                    $dummyObj = New-SmbMapping -LocalPath $drive -RemotePath $mnt -Persistent $true -UserName $us;
                                                   }else{
-                                                    $dummyObj = New-SmbMapping -LocalPath $drive -RemotePath $mountPoint -Persistent $true -UserName $us -Password $pw;
+                                                    $dummyObj = New-SmbMapping -LocalPath $drive -RemotePath $mnt -Persistent $true -UserName $us -Password $pw;
                                                   }
                                                   OutProgress "$($traceInfo)Ok.";
                                                 }catch{
@@ -691,7 +702,7 @@ function MountPointCreate                     ( [String] $drive, [String] $mount
                                                   # Example: Der Netzwerkpfad wurde nicht gefunden.
                                                   # Example: Das angegebene Netzwerkkennwort ist falsch.
                                                   [String] $excMsg = $_.Exception.Message.Trim();
-                                                  [String] $msg = "New-SmbMapping($drive,$mountPoint,$us) failed because $excMsg";
+                                                  [String] $msg = "New-SmbMapping($drive,$mnt,$us) failed because $excMsg";
                                                   if( -not $errorAsWarning ){ throw [Exception] $msg; }
                                                   # also see http://www.winboard.org/win7-allgemeines/137514-windows-fehler-code-liste.html http://www.megos.ch/files/content/diverses/doserrors.txt
                                                   if    ( $excMsg -eq "Der Netzwerkpfad wurde nicht gefunden."                      ){ $msg = "HostNotFound.";  } # 53 BAD_NETPATH
@@ -890,8 +901,8 @@ function ToolHibernateModeDisable             (){
 function ToolActualizeHostsFileByMaster       ( [String] $srcHostsFile ){
                                                 OutInfo "Actualize hosts file by a master file";
                                                 # regular manually way: run notepad.exe with admin rights, open the file, edit, save.
-                                                [String] $tarHostsFile = "$env:SystemRoot$(DirSep)System32$(DirSep)drivers$(DirSep)etc$(DirSep)hosts";
-                                                [String] $tardir = RegistryGetValueAsString "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "DataBasePath";
+                                                [String] $tarHostsFile = FsEntryGetAbsolutePath "$env:SystemRoot/System32/drivers/etc/hosts";
+                                                [String] $tardir = FsEntryMakeTrailingDirSep (RegistryGetValueAsString "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "DataBasePath");
                                                 if( $tardir -ne (FsEntryGetParentDir $tarHostsFile) ){
                                                   throw [Exception] "Expected HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters:DataBasePath=`"$tardir`" equal to dir of: `"$tarHostsFile`"";
                                                 }
@@ -938,6 +949,9 @@ function ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [Strin
                                                 # If $forceRecreate is false and target lnkfile already exists then it does nothing.
                                                 # $workDir can be empty string.
                                                 # Icon: If next to the srcFile an ico file with the same filename exists then this will be taken.
+                                                $workDir = FsEntryGetAbsolutePath $workDir;
+                                                $lnkFile = FsEntryGetAbsolutePath $lnkFile;
+                                                $srcFile = FsEntryGetAbsolutePath $srcFile;
                                                 [String] $descr = $srcFile;
                                                 if( $ignoreIfSrcFileNotExists -and (FileNotExists $srcFile) ){
                                                   OutVerbose "NotCreatedBecauseSourceFileNotExists: $lnkFile"; return;
@@ -989,6 +1003,8 @@ function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [St
                                                 #   of the content of the menu-item-linkfile.
                                                 # If target lnkfile already exists it does nothing.
                                                 # Example: ToolCreateMenuLinksByMenuItemRefFile "$env:APPDATA\Microsoft\Windows\Start Menu\Apps" "D:\MyApps" ".menulink.txt";
+                                                FsEntryAssertHasTrailingDirSep $targetMenuRootDir;
+                                                FsEntryAssertHasTrailingDirSep $sourceDir;
                                                 [String] $m = FsEntryGetAbsolutePath $targetMenuRootDir; # Example: "$env:APPDATA\Microsoft\Windows\Start Menu\MyPortableProg"
                                                 [String] $sdir = FsEntryGetAbsolutePath $sourceDir; # Example: "D:\MyPortableProgs"
                                                 OutProgress "Create menu links to `"$m`" from files below `"$sdir`" with extension `"$srcFileExtMenuLink`" or `"$srcFileExtMenuLinkOpt`" files";
@@ -1107,7 +1123,7 @@ function ToolVs2019UserFolderGetLatestUsed    (){
                                                 if( $a.Count -gt 0 ){
                                                   $result = $a[0];
                                                   $a | Select-Object -Skip 1 | ForEach-Object { if( FileExistsAndIsNewer $_ $result ){ $result = $_; } }
-                                                  $result = FsEntryMakeTrailingDirSep (FsEntryGetParentDir $result);
+                                                  $result = FsEntryGetParentDir $result;
                                                 }
                                                 return [String] $result; }
 function ToolWin10PackageGetState             ( [String] $packageName ){ # Example: for "OpenSSH.Client" return "Installed","NotPresent".
@@ -1163,6 +1179,7 @@ function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $
                                                 # Note: if not in elevated admin mode and if it is required then it will download file twice,
                                                 #   once to check for differences and once after switching to elevated admin mode.
                                                 # Example: ToolPerformFileUpdateAndIsActualized "$env:TEMP/tmp/a.psm1" "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/master/MnCommonPsToolLib/MnCommonPsToolLib.psm1" $true $true "Please restart" $false $true;
+                                                $targetFile = FsEntryGetAbsolutePath $targetFile;
                                                 try{
                                                   OutInfo "Update file `"$targetFile`"";
                                                   OutProgress "FromUrl: $url";
@@ -1203,24 +1220,25 @@ function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $
                                                   }
                                                   return [Boolean] $false;
                                                 } }
-function ToolInstallOrUpdate                  ( [String] $installMedia, [String] $mainTargetFileMinIsoDate, [String] $mainTargetFile, [String] $installDirsSemicSep, [String] $installHints = "" ){
+function ToolInstallOrUpdate                  ( [String] $installMedia, [String] $mainTargetFileMinIsoDate, [String] $mainTargetRelFile, [String] $installDirsSemicSep, [String] $installHints = "" ){
                                                 # Check if a main target file exists in one of the installDirs and wether it has a minimum expected date.
                                                 # If not it will be installed or updated by calling installmedia asynchronously which is in general a half automatic installation procedure.
                                                 # Example: ToolInstallOrUpdate "Freeware\NetworkClient\Browser\OpenSource-MPL2 Firefox V89.0 64bit multilang 2021.exe" "2021-05-27" "firefox.exe" "$env:ProgramFiles\Mozilla Firefox ; C:\Prg\Network\Browser\OpenSource-MPL2 Firefox\" "Not install autoupdate";
+                                                $installMedia   = FsEntryGetAbsolutePath $installMedia;
                                                 [String[]] $installDirs = @()+(StringSplitToArray ";" $installDirsSemicSep);
                                                 [DateTime] $mainTargetFileMinDate = DateTimeFromStringIso $mainTargetFileMinIsoDate;
                                                 [DateTime] $mainTargetFileDate = [DateTime]::MinValue; # default also means not installed
-                                                [String]   $installDirsStr = $installDirs | ForEach-Object{ "`"$_`"; " };
+                                                [String]   $installDirsStr = $installDirs | ForEach-Object{ FsEntryGetAbsolutePath $_; }| ForEach-Object{ "`"$_`"; " };
                                                 Assert ($installDirs.Count -gt 0) "Missing an installDir";
                                                 $installDirs | ForEach-Object{
-                                                  [String] $f = [System.IO.Path]::Combine($_,$mainTargetFile);
+                                                  [String] $f = FsEntryGetAbsolutePath ([System.IO.Path]::Combine($_,$mainTargetRelFile));
                                                   if( FileExists $f ){
                                                     if( $mainTargetFileDate -ne [DateTime]::MinValue ){
                                                       OutWarning "Warning: Installed main target file already found in previous installDir so ignore duplicate also installed main target file: `"$f`"";
                                                     }else{ $mainTargetFileDate = FsEntryGetLastModified $f; }
                                                   }
                                                 };
-                                                OutProgress "Target: MinDate=$mainTargetFileMinIsoDate FileTs=$(DateTimeAsStringIso $mainTargetFileDate "yyyy-MM-dd") File=`"$mainTargetFile`" InstallDirs=$installDirsStr";
+                                                OutProgress "Target: MinDate=$mainTargetFileMinIsoDate FileTs=$(DateTimeAsStringIso $mainTargetFileDate "yyyy-MM-dd") File=`"$mainTargetRelFile`" InstallDirs=$installDirsStr";
                                                 if( FileNotExists $installMedia ){
                                                   OutWarning "Warning: Missing Installmedia `"$installMedia`"";
                                                 }elseif( $mainTargetFileDate -lt $mainTargetFileMinDate ){

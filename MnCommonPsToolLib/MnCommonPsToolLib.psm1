@@ -8,7 +8,7 @@
 #Requires -Version 3.0
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $global:MnCommonPsToolLibVersion = "7.42"; # more see Releasenotes.txt
+[String] $global:MnCommonPsToolLibVersion = "7.44"; # more see Releasenotes.txt
 
 # This library encapsulates many common commands for the purpose of supporting compatibility between
 # multi platforms, simplifying commands, fixing usual problems, supporting tracing information,
@@ -259,16 +259,16 @@ function StringIsNotEmpty                     ( [String] $s ){ return [Boolean] 
 function StringIsFilled                       ( [String] $s ){ return [Boolean] (-not [String]::IsNullOrWhiteSpace($s)); }
 function StringIsInt32                        ( [String] $s ){ [String] $tmp = ""; return [Int32]::TryParse($s,[ref]$tmp); }
 function StringIsInt64                        ( [String] $s ){ [String] $tmp = ""; return [Int64]::TryParse($s,[ref]$tmp); }
-function StringAsInt32                        ( [String] $s ){ if( ! (StringIsInt32 $s) ){ throw [Exception] "Is not an Int32: $s"; } return ($s -as [Int32]); }
-function StringAsInt64                        ( [String] $s ){ if( ! (StringIsInt64 $s) ){ throw [Exception] "Is not an Int64: $s"; } return ($s -as [Int64]); }
+function StringAsInt32                        ( [String] $s ){ if( -not (StringIsInt32 $s) ){ throw [Exception] "Is not an Int32: $s"; } return ($s -as [Int32]); }
+function StringAsInt64                        ( [String] $s ){ if( -not (StringIsInt64 $s) ){ throw [Exception] "Is not an Int64: $s"; } return ($s -as [Int64]); }
 function StringLeft                           ( [String] $s, [Int32] $len ){ return [String] $s.Substring(0,(Int32Clip $len 0 $s.Length)); }
 function StringRight                          ( [String] $s, [Int32] $len ){ return [String] $s.Substring($s.Length-(Int32Clip $len 0 $s.Length)); }
 function StringRemoveRightNr                  ( [String] $s, [Int32] $len ){ return [String] (StringLeft $s ($s.Length-$len)); }
 function StringRemoveLeftNr                   ( [String] $s, [Int32] $len ){ return [String] (StringRight $s ($s.Length-$len)); }
 function StringPadRight                       ( [String] $s, [Int32] $len, [Boolean] $doQuote = $false, [Char] $c = " "){
                                                 [String] $r = $s; if( $doQuote ){ $r = '"'+$r+'"'; } return [String] $r.PadRight($len,$c); }
-function StringSplitIntoLines                 ( [String] $s ){ return [String[]] (($s -replace "`r`n", "`n") -split "`n"); } # for empty string it returns an array with one item.
-function StringReplaceNewlines                ( [String] $s, [String] $repl = " " ){ return [String] ($s -replace "`r`n", "`n" -replace "`r", "" -replace "`n", $repl); }
+function StringSplitIntoLines                 ( [String] $s ){ return [String[]] ($s.Replace("`r`n","`n").Replace("`r","`n") -split "`n"); } # for empty string it returns an array with one item.
+function StringReplaceNewlines                ( [String] $s, [String] $repl = " " ){ return [String] $s.Replace("`r`n","`n").Replace("`r","`n").Replace("`n",$repl); }
 function StringSplitToArray                   ( [String] $sep, [String] $s, [Boolean] $removeEmptyEntries = $true ){ # works case sensitive
                                                 # this not works correctly on PS5: return [String[]] $s.Split($sep,$(switch($removeEmptyEntries){($true){[System.StringSplitOptions]::RemoveEmptyEntries}default{[System.StringSplitOptions]::None}})); }
                                                 [String[]] $res = ($s -csplit $sep,0,"SimpleMatch");
@@ -308,21 +308,21 @@ function StringFromException                  ( [Exception] $exc ){
                                                 [String] $typeName = switch($exc.GetType().Name -eq "ExcMsg" ){($true){"Error"}default{$exc.GetType().Name;}};
                                                 [String] $excMsg   = StringReplaceNewlines $exc.Message;
                                                 [String] $excData  = ""; foreach($key in $exc.Data.Keys){ $excData += "$nl  $key=`"$($exc.Data[$key])`"."; } # note: .Data is never null.
-                                                [String] $stackTr  = switch($null -eq $exc.StackTrace){($true){""}default{"$nl  StackTrace:$nl $($exc.StackTrace -replace `"$nl`",`"$nl `")"}};
+                                                [String] $stackTr  = switch($null -eq $exc.StackTrace){($true){""}default{("$nl  StackTrace:$nl "+$exc.StackTrace.Replace("$nl","$nl "))}};
                                                 return [String] "$($typeName): $excMsg$excData$stackTr"; }
 function StringFromErrorRecord                ( [System.Management.Automation.ErrorRecord] $er ){ # In powershell in a catch block always this type is used for $_ .
                                                 [String] $msg = (StringFromException $er.Exception);
                                                 [String] $nl = [Environment]::NewLine;
-                                                 $msg += "$nl  ScriptStackTrace: $nl    $($er.ScriptStackTrace -replace `"$nl`",`"$nl    `")"; # Example: at <ScriptBlock>, C:\myfile.psm1: line 800 at MyFunc
-                                                 $msg += "$nl  InvocationInfo:$nl    $($er.InvocationInfo.PositionMessage -replace `"$nl`",`"$nl    `")"; # At D:\myfile.psm1:800 char:83 \n   + ...   +   ~~~
+                                                 $msg += "$nl  ScriptStackTrace: $nl    "+$er.ScriptStackTrace.Replace("$nl","$nl    "); # Example: at <ScriptBlock>, C:\myfile.psm1: line 800 at MyFunc
+                                                 $msg += "$nl  InvocationInfo:$nl    "+$er.InvocationInfo.PositionMessage.Replace("$nl","$nl    "); # At D:\myfile.psm1:800 char:83 \n   + ...   +   ~~~
                                                  $msg += "$nl  Ts=$(DateTimeNowAsStringIso) User=$($env:username) mach=$($ComputerName) ";
-                                                 # $msg += "$nl  InvocationInfoLine: $($er.InvocationInfo.Line -replace `"$nl`",`" `" -replace `"\s+`",`" `" )";
+                                                 # $msg += "$nl  InvocationInfoLine: "+($er.InvocationInfo.Line.Replace("$nl"," ") -replace "\s+"," ");
                                                  # $msg += "$nl  InvocationInfoMyCommand: $($er.InvocationInfo.MyCommand)"; # Example: ForEach-Object
                                                  # $msg += "$nl  InvocationInfoInvocationName: $($er.InvocationInfo.InvocationName)"; # Example: ForEach-Object
                                                  # $msg += "$nl  InvocationInfoPSScriptRoot: $($er.InvocationInfo.PSScriptRoot)"; # Example: D:\MyModuleDir
                                                  # $msg += "$nl  InvocationInfoPSCommandPath: $($er.InvocationInfo.PSCommandPath)"; # Example: D:\MyToolModule.psm1
                                                  # $msg += "$nl  FullyQualifiedErrorId: $($er.FullyQualifiedErrorId)"; # Example: "System.ArgumentOutOfRangeException,Microsoft.PowerShell.Commands.ForEachObjectCommand"
-                                                 # $msg += "$nl  ErrorRecord: $($er.ToString() -replace `"$nl`",`" `")"; # Example: "Specified argument was out of the range of valid values. Parametername: times"
+                                                 # $msg += "$nl  ErrorRecord: "+$er.ToString().Replace("$nl"," "); # Example: "Specified argument was out of the range of valid values. Parametername: times"
                                                  # $msg += "$nl  CategoryInfo: $(switch($null -ne $er.CategoryInfo){($true){$er.CategoryInfo.ToString()}default{''}})"; # https://msdn.microsoft.com/en-us/library/system.management.automation.errorcategory(v=vs.85).aspx
                                                  # $msg += "$nl  PipelineIterationInfo: $($er.PipelineIterationInfo|Where-Object{$null -ne $_}|ForEach-Object{'$_, '})";
                                                  # $msg += "$nl  TargetObject: $($er.TargetObject)"; # can be null
@@ -673,7 +673,7 @@ function ProcessRestartInElevatedAdminMode    (){ if( (ProcessIsRunningInElevate
                                                   $msg += "and so restart will not be performed. Now it will continue but it probably will fail.";
                                                   OutWarning "Warning: $msg";
                                                 }else{
-                                                  $cmd = $cmd -replace "`"","`"`"`""; # see https://docs.microsoft.com/en-us/dotnet/api/system.diagnostics.processstartinfo.arguments
+                                                  $cmd = $cmd.Replace("`"","`"`"`""); # see https://docs.microsoft.com/en-us/dotnet/api/system.diagnostics.processstartinfo.arguments
                                                   $cmd = $(switch((ProcessIsLesserEqualPs5)){ $true{"& `"$cmd`""} default{"-Command `"$cmd`""}});
                                                   $cmd = $(switch(ScriptIsProbablyInteractive){ ($true){"-NoExit -NoLogo "} default{""} }) + $cmd;
                                                   OutProgress "Not running in elevated administrator mode so elevate current script and exit:";
@@ -707,7 +707,7 @@ function ProcessListRunningsAsStringArray     (){ return [String[]] (StringSplit
                                                     Where-Object{$null -ne $_} |
                                                     Format-Table -auto -HideTableHeaders " ",ProcessName,ProductVersion,Company |
                                                     StreamToStringDelEmptyLeadAndTrLines))); }
-function ProcessIsRunning                     ( [String] $processName ){ return [Boolean] ($null -ne (Get-Process -ErrorAction SilentlyContinue ($processName -replace ".exe",""))); }
+function ProcessIsRunning                     ( [String] $processName ){ return [Boolean] ($null -ne (Get-Process -ErrorAction SilentlyContinue ($processName.Replace(".exe","")))); }
 function ProcessCloseMainWindow               ( [String] $processName ){ # enter name without exe extension.
                                                 while( (ProcessIsRunning $processName) ){
                                                   Get-Process $processName | ForEach-Object {
@@ -715,11 +715,11 @@ function ProcessCloseMainWindow               ( [String] $processName ){ # enter
                                                     $_.CloseMainWindow() | Out-Null;
                                                     ProcessSleepSec 1; }; } }
 function ProcessKill                          ( [String] $processName ){ # kill all with the specified name, note if processes are not from owner then it requires to previously call ProcessRestartInElevatedAdminMode
-                                                [System.Diagnostics.Process[]] $p = Get-Process ($processName -replace ".exe","") -ErrorAction SilentlyContinue;
+                                                [System.Diagnostics.Process[]] $p = Get-Process $processName.Replace(".exe","") -ErrorAction SilentlyContinue;
                                                 if( $null -ne $p ){ OutProgress "ProcessKill $processName"; $p.Kill(); } }
 function ProcessSleepSec                      ( [Int32] $sec ){ Start-Sleep -Seconds $sec; }
-function ProcessListInstalledAppx             (){ if( ! (OsIsWindows) ){ return [String[]] @(); }
-                                                  if( ! (ProcessIsLesserEqualPs5) ){
+function ProcessListInstalledAppx             (){ if( -not (OsIsWindows) ){ return [String[]] @(); }
+                                                  if( -not (ProcessIsLesserEqualPs5) ){
                                                     # 2023-03: Problems using Get-AppxPackage in PS7, see end of: https://github.com/PowerShell/PowerShell/issues/13138
                                                     Import-Module -Name Appx -UseWindowsPowerShell 3> $null;
                                                       # We suppress the output: WARNING: Module Appx is loaded in Windows PowerShell using WinPSCompatSession remoting session;
@@ -923,7 +923,7 @@ function OsIsWindows                          (){ return [Boolean] ([System.Envi
                                                 # Alternative: "$($env:WINDIR)" -ne ""; In PS6 and up you can use: $IsMacOS, $IsLinux, $IsWindows.
                                                 # for future: function OsIsLinux(){ return [Boolean] ([System.Environment]::OSVersion.Platform -eq "Unix"); } # example: Ubuntu22: Version="5.15.0.41"
 function OsPathSeparator                      (){ return [String] $(switch(OsIsWindows){$true{";"}default{":"}}); } # separator for PATH environment variable
-function OsPsModulePathList                   (){ # return content of $env:PSModulePath
+function OsPsModulePathList                   (){ # return content of $env:PSModulePath as string-array with os dependent dir separators.
                                                 # Usual entries: On Windows, PS5/PS7, scope MACHINE:
                                                 #   C:\Windows\system32\WindowsPowerShell\v1.0\Modules   (strongly recommended as long as ps7 not contains all of ps5)
                                                 #   C:\Program Files\WindowsPowerShell\Modules
@@ -936,17 +936,20 @@ function OsPsModulePathList                   (){ # return content of $env:PSMod
                                                 #   C:\Program Files\PowerShell\Modules
                                                 #   c:\program files\powershell\7\Modules
                                                 # Note: If a single backslash is part of the PSModulePath then autocompletion is very slow (2017-08).
-                                                return [String[]] ([Environment]::GetEnvironmentVariable("PSModulePath", "Machine").
-                                                  Split(";",[System.StringSplitOptions]::RemoveEmptyEntries)); }
+                                                return [String[]] (@()+(([Environment]::GetEnvironmentVariable("PSModulePath","Machine").
+                                                  Split((OsPathSeparator),[System.StringSplitOptions]::RemoveEmptyEntries)) | Where-Object{$null -ne $_} |
+                                                  ForEach-Object{ FsEntryRemoveTrailingDirSep (FsEntryGetAbsolutePath $_) })); }
 function OsPsModulePathContains               ( [String] $dir ){ # Example: "D:\MyGitRoot\MyGitAccount\MyPsLibRepoName"
-                                                [String[]] $a = (OsPsModulePathList | ForEach-Object{ FsEntryRemoveTrailingDirSep $_ });
-                                                return [Boolean] ($a -contains (FsEntryRemoveTrailingDirSep $dir)); }
+                                                [String[]] $a = OsPsModulePathList;
+                                                return [Boolean] ($a -contains (FsEntryRemoveTrailingDirSep (FsEntryGetAbsolutePath $dir))); }
 function OsPsModulePathAdd                    ( [String] $dir ){ if( OsPsModulePathContains $dir ){ return; }
-                                                OsPsModulePathSet ((OsPsModulePathList)+@( (FsEntryRemoveTrailingDirSep $dir) )); }
-function OsPsModulePathDel                    ( [String] $dir ){ OsPsModulePathSet (OsPsModulePathList |
-                                                Where-Object{ (FsEntryRemoveTrailingDirSep $_) -ne (FsEntryRemoveTrailingDirSep $dir) }); }
-function OsPsModulePathSet                    ( [String[]] $pathList ){ [Environment]::SetEnvironmentVariable("PSModulePath", ($pathList -join ";")+";", "Machine"); }
-function PrivAclRegRightsToString              ( [System.Security.AccessControl.RegistryRights] $r ){
+                                                OsPsModulePathSet ((OsPsModulePathList)+@($dir)); }
+function OsPsModulePathDel                    ( [String] $dir ){ OsPsModulePathSet (@()+(OsPsModulePathList | Where-Object{$null -ne $_} |
+                                                Where-Object{ -not (FsEntryPathIsEqual $_ $dir) })); }
+function OsPsModulePathSet                    ( [String[]] $pathList ){ [String] $s = ((@()+($pathList | Where-Object{$null -ne $_} |
+                                                  ForEach-Object{ FsEntryRemoveTrailingDirSep (FsEntryGetAbsolutePath $_) })) -join (OsPathSeparator))+(OsPathSeparator);
+                                                [Environment]::SetEnvironmentVariable("PSModulePath",$s,"Machine"); }
+function PrivAclRegRightsToString             ( [System.Security.AccessControl.RegistryRights] $r ){
                                                 [String] $result = "";
                                                 # Ref: https://docs.microsoft.com/en-us/dotnet/api/system.security.accesscontrol.registryrights?view=netframework-4.8
                                                 if(   $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::FullControl         ){ $s += "F,"; } # exert full control over a registry key, and to modify its access rules and audit rules.
@@ -968,9 +971,11 @@ function DirSep                               (){ return [Char] [IO.Path]::Direc
 function FsEntryEsc                           ( [String] $fsentry ){ AssertNotEmpty $fsentry "file-system-entry"; # Escaping is not nessessary if a command supports -LiteralPath.
                                                 return [String] [Management.Automation.WildcardPattern]::Escape($fsentry); } # Important for chars as [,], etc.
 function FsEntryGetAbsolutePath               ( [String] $fsEntry ){ # works without IO, so no check to file system; does not remove a trailing dir-separator. Return empty for empty input.
+                                                # Convert dir-separators slashes or backslashes to correct os dependent dir separators.
                                                 # Note: We cannot use (Resolve-Path -LiteralPath $fsEntry) because it will throw if path not exists,
                                                 # see http://stackoverflow.com/questions/3038337/powershell-resolve-path-that-might-not-exist
                                                 if( $fsEntry -eq "" ){ return [String] ""; }
+                                                if( (OsIsWindows) && $fsEntry.StartsWith("//") ){ $fsEntry = $fsEntry.Replace("/","\"); }
                                                 try{ return [String] ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($fsEntry)); }
                                                 catch [System.Management.Automation.DriveNotFoundException] {
                                                   # Example: DriveNotFoundException: Cannot find drive. A drive with the name 'Z' does not exist.
@@ -982,7 +987,7 @@ function FsEntryGetAbsolutePath               ( [String] $fsEntry ){ # works wit
 function FsEntryGetUncShare                   ( [String] $fsEntry ){ # return "\\host\sharename\" of a given unc path, return empty string if fs entry is not an unc path
                                                 try{ [System.Uri] $u = (New-Object System.Uri -ArgumentList $fsEntry);
                                                   if( $u.IsUnc -and $u.Segments.Count -ge 2 -and $u.Segments[0] -eq "/" ){
-                                                    return [String] "$(DirSep)$(DirSep)$($u.Host)$(DirSep)$(StringRemoveRight $u.Segments[1] '/')$(DirSep)";
+                                                    return [String] (FsEntryGetAbsolutePath "//$($u.Host)/$(StringRemoveRight $u.Segments[1] '/')/");
                                                   }
                                                 }catch{ $error.clear(); } # Example: "Ungültiger URI: Das URI-Format konnte nicht bestimmt werden.", "Ungültiger URI: Der URI ist leer."
                                                 return [String] ""; }
@@ -1003,25 +1008,28 @@ function FsEntryMakeRelative                  ( [String] $fsEntry, [String] $bel
                                                 Assert ($fsEntry.StartsWith($belowDir,"CurrentCultureIgnoreCase")) "expected `"$fsEntry`" is below `"$belowDir`"";
                                                 return [String] ($(switch($prefixWithDotDir){($true){".$(DirSep)"}default{""}})+$fsEntry.Substring($belowDir.Length)); }
 function FsEntryHasTrailingDirSep             ( [String] $fsEntry ){ return [Boolean] ($fsEntry.EndsWith("\") -or $fsEntry.EndsWith("/")); }
+function FsEntryAssertHasTrailingDirSep       ( [String] $fsEntry ){ if( $fsEntry -eq "" -or (FsEntryHasTrailingDirSep $fsEntry) ){ return; }
+                                                OutWarning "Warning: For specifying a dir it expects a trailing dir separator for: `"$fsEntry`". NOTE: In MnCommonPsToolLib V7.x this is only a warning, but in next version this will throw! "; return;
+                                                throw [Exception] "For specifying a dir it expects a trailing dir separator for: `"$fsEntry`""; }
 function FsEntryRemoveTrailingDirSep          ( [String] $fsEntry ){ [String] $r = $fsEntry;
                                                 if( $r -ne "" ){ while( FsEntryHasTrailingDirSep $r ){ $r = $r.Remove($r.Length-1); }
-                                                if( $r -eq "" ){ $r = $fsEntry; } } return [String] $r; }
+                                                if( $r -eq "" ){ $r = $fsEntry; } } return [String] (FsEntryGetAbsolutePath $r); }
 function FsEntryMakeTrailingDirSep            ( [String] $fsEntry ){
                                                 [String] $result = $fsEntry;
-                                                if( -not (FsEntryHasTrailingDirSep $result) ){ $result += $(DirSep); }
-                                                return [String] $result; }
+                                                if( $result -ne "" -and -not (FsEntryHasTrailingDirSep $result) ){ $result += "/"; }
+                                                return [String] (FsEntryGetAbsolutePath $result); }
 function FsEntryJoinRelativePatterns          ( [String] $rootDir, [String[]] $relativeFsEntriesPatternsSemicolonSeparated ){
                                                 # Create an array Example: @( "c:\myroot\bin\", "c:\myroot\obj\", "c:\myroot\*.tmp", ... )
                                                 #   from input as @( "bin\;obj\;", ";*.tmp;*.suo", ".\dir\d1?\", ".\dir\file*.txt");
-                                                # If an fs entry specifies a dir patterns then it must be specified by a trailing backslash.
+                                                # If an fs entry specifies a dir patterns then it must be specified by a trailing directory delimiter.
                                                 [String[]] $a = @(); $relativeFsEntriesPatternsSemicolonSeparated |
                                                   Where-Object{$null -ne $_} |
                                                   ForEach-Object{ $a += (StringSplitToArray ";" $_); };
-                                                return [String[]] (@()+($a | ForEach-Object{ "$rootDir$(DirSep)$_" })); }
-function FsEntryIsEqual                       ( [String] $fs1, [String] $fs2, [Boolean] $caseSensitive = $false ){
-                                                # compare independent on slash or backslash dir separator.
-                                                if( $caseSensitive ){ return [Boolean] (FsEntryGetAbsolutePath $fs1) -ceq (FsEntryGetAbsolutePath $fs2); }
-                                                return [Boolean] (FsEntryGetAbsolutePath $fs1) -eq (FsEntryGetAbsolutePath $fs2); }
+                                                return [String[]] (@()+($a | ForEach-Object{ FsEntryGetAbsolutePath "$rootDir/$_"; })); }
+function FsEntryPathIsEqual                   ( [String] $fs1, [String] $fs2 ){ # compare independent on trailing dir separators. Case sensitivity depends on OS.
+                                                $fs1 = FsEntryRemoveTrailingDirSep (FsEntryGetAbsolutePath $fs1);
+                                                $fs2 = FsEntryRemoveTrailingDirSep (FsEntryGetAbsolutePath $fs2);
+                                                return [Boolean] $(switch((OsIsWindows)){($true){$fs1 -eq $fs2} ($false){$fs1 -ceq $fs2}}); }
 function FsEntryGetFileNameWithoutExt         ( [String] $fsEntry ){
                                                 return [String] [System.IO.Path]::GetFileNameWithoutExtension((FsEntryRemoveTrailingDirSep $fsEntry)); }
 function FsEntryGetFileName                   ( [String] $fsEntry ){
@@ -1031,14 +1039,13 @@ function FsEntryGetFileExtension              ( [String] $fsEntry ){
 function FsEntryGetDrive                      ( [String] $fsEntry ){ # Example: "C:"
                                                 return [String] (Split-Path -Qualifier (FsEntryGetAbsolutePath $fsEntry)); }
 function FsEntryIsDir                         ( [String] $fsEntry ){ return [Boolean] (Get-Item -Force -LiteralPath $fsEntry).PSIsContainer; } # empty string not allowed
-function FsEntryGetParentDir                  ( [String] $fsEntry ){ # Returned path does not contain trailing backslash; for c:\ or \\mach\share it return "";
-                                                return [String] (Split-Path -LiteralPath (FsEntryGetAbsolutePath $fsEntry)); }
-function FsEntryExists                        ( [String] $fsEntry ){
-                                                return [Boolean] (DirExists $fsEntry) -or (FileExists $fsEntry); }
+function FsEntryGetParentDir                  ( [String] $fsEntry ){ # Returned path contains trailing backslash; for c:\ or \\mach\share it returns empty string;
+                                                return [String] (FsEntryMakeTrailingDirSep (Split-Path -LiteralPath (FsEntryGetAbsolutePath $fsEntry))); }
+function FsEntryExists                        ( [String] $fsEntry ){ return [Boolean] (Test-Path -LiteralPath $fsEntry); }
 function FsEntryNotExists                     ( [String] $fsEntry ){
                                                 return [Boolean] -not (FsEntryExists $fsEntry); }
 function FsEntryAssertExists                  ( [String] $fsEntry, [String] $text = "Assertion failed" ){
-                                                if( !(FsEntryExists $fsEntry) ){ throw [Exception] "$text because fs entry not exists: `"$fsEntry`""; } }
+                                                if( -not (FsEntryExists $fsEntry) ){ throw [Exception] "$text because fs entry not exists: `"$fsEntry`""; } }
 function FsEntryAssertNotExists               ( [String] $fsEntry, [String] $text = "Assertion failed" ){
                                                 if(  (FsEntryExists $fsEntry) ){ throw [Exception] "$text because fs entry already exists: `"$fsEntry`""; } }
 function FsEntryGetLastModified               ( [String] $fsEntry ){
@@ -1050,14 +1057,17 @@ function FsEntryNotExistsOrIsOlderThanBeginOf ( [String] $fsEntry, [String] $beg
 function FsEntryExistsAndIsNewerThanBeginOf   ( [String] $fsEntry, [String] $beginOf ){ # more see: DateTimeGetBeginOf
                                                 return [Boolean] (-not (FsEntryNotExistsOrIsOlderThanBeginOf $fsEntry $beginOf)); }
 function FsEntrySetAttributeReadOnly          ( [String] $fsEntry, [Boolean] $val ){ # use false for $val to make file writable
-                                                OutProgress "FsFileSetAttributeReadOnly `"$fsEntry`" $val"; Set-ItemProperty (FsEntryEsc $fsEntry) -name IsReadOnly -value $val; }
+                                                $fsEntry = FsEntryGetAbsolutePath $fsEntry;
+                                                OutProgress "FsFileSetAttributeReadOnly `"$fsEntry`" $val";
+                                                Set-ItemProperty (FsEntryEsc $fsEntry) -name IsReadOnly -value $val; }
 function FsEntryFindFlatSingleByPattern       ( [String] $fsEntryPattern, [Boolean] $allowNotFound = $false ){
                                                 # it throws if file not found or more than one file exists. if allowNotFound is true then if return empty if not found.
                                                 [System.IO.FileSystemInfo[]] $r = @()+(Get-ChildItem -Force -ErrorAction SilentlyContinue -Path $fsEntryPattern | Where-Object{$null -ne $_});
                                                 if( $r.Count -eq 0 ){ if( $allowNotFound ){ return [String] ""; } throw [Exception] "No file exists: `"$fsEntryPattern`""; }
                                                 if( $r.Count -gt 1 ){ throw [Exception] "More than one file exists: `"$fsEntryPattern`""; }
                                                 return [String] $r[0].FullName; }
-function FsEntryFsInfoFullNameDirWithBackSlash( [System.IO.FileSystemInfo] $fsInfo ){ return [String] ($fsInfo.FullName+$(switch($fsInfo.PSIsContainer){($true){$(DirSep)}default{""}})); }
+function FsEntryFsInfoFullNameDirWithBackSlash( [System.IO.FileSystemInfo] $fsInfo ){ # TODO later rename this function
+                                                return [String] ($fsInfo.FullName+$(switch($fsInfo.PSIsContainer){($true){$(DirSep)}default{""}})); }
 function FsEntryListAsFileSystemInfo          ( [String] $fsEntryPattern, [Boolean] $recursive = $true, [Boolean] $includeDirs = $true, [Boolean] $includeFiles = $true, [Boolean] $inclTopDir = $false ){
                                                 # List entries specified by a pattern, which applies to files and directories and which can contain wildards (*,?).
                                                 # Internally it uses Get-Item and Get-ChildItem.
@@ -1097,7 +1107,7 @@ function FsEntryListAsFileSystemInfo          ( [String] $fsEntryPattern, [Boole
                                                 if( $pa.Length -eq 2 -and $pa.EndsWith(":") -and $pa -match "[a-z]" ){ $pa += $(DirSep); }
                                                 if( $inclTopDir -and $includeDirs -and -not ($pa -eq "*" -or $pa.EndsWith("$(DirSep)*")) ){
                                                   $result += @()+((Get-Item -Force -ErrorAction SilentlyContinue -Path $pa) |
-                                                  Where-Object{$null -ne $_} | Where-Object{ $_.PSIsContainer });
+                                                    Where-Object{$null -ne $_} | Where-Object{ $_.PSIsContainer });
                                                 }
                                                 try{
                                                   $result += (@()+(Get-ChildItem -Force -ErrorAction SilentlyContinue -Recurse:$recursive -Path $pa |
@@ -1110,17 +1120,19 @@ function FsEntryListAsStringArray             ( [String] $fsEntryPattern, [Boole
                                                 # Output of directories will have a trailing backslash. more see FsEntryListAsFileSystemInfo.
                                                 return [String[]] (@()+(FsEntryListAsFileSystemInfo $fsEntryPattern $recursive $includeDirs $includeFiles $inclTopDir | Where-Object{$null -ne $_} |
                                                   ForEach-Object{ FsEntryFsInfoFullNameDirWithBackSlash $_} )); }
-function FsEntryDelete                        ( [String] $fsEntry ){
+function FsEntryDelete                        ( [String] $fsEntry ){ # depends strongly on trailing dir separator
                                                 if( (FsEntryHasTrailingDirSep $fsEntry) ){ DirDelete $fsEntry; }else{ FileDelete $fsEntry; } }
 function FsEntryDeleteToRecycleBin            ( [String] $fsEntry ){
                                                 Add-Type -AssemblyName Microsoft.VisualBasic;
-                                                [String] $e = FsEntryGetAbsolutePath $fsEntry;
-                                                OutProgress "FsEntryDeleteToRecycleBin `"$e`"";
-                                                FsEntryAssertExists $e "Not exists: `"$e`"";
-                                                if( FsEntryIsDir $e ){ [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory($e,"OnlyErrorDialogs","SendToRecycleBin");
-                                                }else{                 [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($e,"OnlyErrorDialogs","SendToRecycleBin"); } }
+                                                $fsEntry = FsEntryGetAbsolutePath $fsEntry;
+                                                OutProgress "FsEntryDeleteToRecycleBin `"$fsEntry`"";
+                                                FsEntryAssertExists $fsEntry "Not exists: `"$fsEntry`"";
+                                                if( FsEntryIsDir $fsEntry ){ [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteDirectory($fsEntry,"OnlyErrorDialogs","SendToRecycleBin");
+                                                }else{                       [Microsoft.VisualBasic.FileIO.FileSystem]::DeleteFile($fsEntry,"OnlyErrorDialogs","SendToRecycleBin"); } }
 function FsEntryRename                        ( [String] $fsEntryFrom, [String] $fsEntryTo ){
                                                 # for files or dirs, relative or absolute, origin must exists, directory parts must be identic.
+                                                $fsEntryFrom = FsEntryGetAbsolutePath $fsEntryFrom;
+                                                $fsEntryTo   = FsEntryGetAbsolutePath $fsEntryTo;
                                                 OutProgress "FsEntryRename `"$fsEntryFrom`" `"$fsEntryTo`"";
                                                 FsEntryAssertExists $fsEntryFrom; FsEntryAssertNotExists $fsEntryTo;
                                                 [String] $fs1 = (FsEntryGetAbsolutePath (FsEntryRemoveTrailingDirSep $fsEntryFrom));
@@ -1134,7 +1146,9 @@ function FsEntryCreateHardLink                ( [String] $newHardLink, [String] 
                                                 New-Item -ItemType HardLink -Name (FsEntryEsc $newHardLink) -Value (FsEntryEsc $fsEntryOrigin); }
 function FsEntryCreateDirSymLink              ( [String] $symLinkDir, [String] $symLinkOriginDir ){
                                                 # Create symlinks to dirs. On windows creates junctions which are symlinks to dirs with some slightly other behaviour around privileges and local/remote usage.
-                                                if( !(DirExists $symLinkOriginDir) ){
+                                                FsEntryAssertHasTrailingDirSep $symLinkDir;
+                                                FsEntryAssertHasTrailingDirSep $symLinkOriginDir;
+                                                if( -not (DirExists $symLinkOriginDir) ){
                                                   throw [Exception] "Cannot create dir sym link because original directory not exists: `"$symLinkOriginDir`""; }
                                                 FsEntryAssertNotExists $symLinkDir "Cannot create dir sym link";
                                                 [String] $cd = Get-Location;
@@ -1155,6 +1169,7 @@ function FsEntryReportMeasureInfo             ( [String] $fsEntry ){ # Must exis
                                                 return [String] "SizeInBytes=$($size.sum); NrOfFsEntries=$($size.count);"; }
 function FsEntryCreateParentDir               ( [String] $fsEntry ){ [String] $dir = FsEntryGetParentDir $fsEntry; DirCreate $dir; }
 function FsEntryMoveByPatternToDir            ( [String] $fsEntryPattern, [String] $targetDir, [Boolean] $showProgress = $false ){ # Target dir must exists. pattern is non-recursive scanned.
+                                                $targetDir = FsEntryGetAbsolutePath $targetDir;
                                                 OutProgress "FsEntryMoveByPatternToDir `"$fsEntryPattern`" to `"$targetDir`""; DirAssertExists $targetDir;
                                                 FsEntryListAsStringArray $fsEntryPattern $false |
                                                   Where-Object{$null -ne $_} | Sort-Object |
@@ -1163,13 +1178,15 @@ function FsEntryMoveByPatternToDir            ( [String] $fsEntryPattern, [Strin
                                                     Move-Item -Force -Path $_ -Destination (FsEntryEsc $targetDir);
                                                   }; }
 function FsEntryCopyByPatternByOverwrite      ( [String] $fsEntryPattern, [String] $targetDir, [Boolean] $continueOnErr = $false ){
+                                                $targetDir = FsEntryGetAbsolutePath $targetDir;
                                                 OutProgress "FsEntryCopyByPatternByOverwrite `"$fsEntryPattern`" to `"$targetDir`" continueOnErr=$continueOnErr";
+                                                FsEntryAssertHasTrailingDirSep $targetDir;
                                                 DirCreate $targetDir;
                                                 Copy-Item -ErrorAction SilentlyContinue -Recurse -Force -Path $fsEntryPattern -Destination (FsEntryEsc $targetDir);
-                                                if( -not $? ){ if( ! $continueOnErr ){ AssertRcIsOk; }
+                                                if( -not $? ){ if( -not $continueOnErr ){ AssertRcIsOk; }
                                                 else{ OutWarning "Warning: CopyFiles `"$fsEntryPattern`" to `"$targetDir`" failed, will continue"; } } }
 function FsEntryFindNotExistingVersionedName  ( [String] $fsEntry, [String] $ext = ".bck", [Int32] $maxNr = 9999 ){ # Example return: "C:\Dir\MyName.001.bck"
-                                                $fsEntry = (FsEntryRemoveTrailingDirSep (FsEntryGetAbsolutePath $fsEntry));
+                                                $fsEntry = FsEntryRemoveTrailingDirSep (FsEntryGetAbsolutePath $fsEntry);
                                                 if( $fsEntry.Length -gt (260-4-$ext.Length) ){
                                                   throw [Exception] "$(ScriptGetCurrentFunc)($fsEntry,$ext) not available because fullpath longer than 260-4-extLength"; }
                                                 [Int32] $n = 1; do{
@@ -1190,6 +1207,7 @@ function FsEntryAclSetInheritance             ( [String] $fsEntry ){
                                                 } }
 function FsEntryAclRuleWrite                  ( [String] $modeSetAddOrDel, [String] $fsEntry, [System.Security.AccessControl.FileSystemAccessRule] $rule, [Boolean] $recursive = $false ){
                                                 # $modeSetAddOrDel = "Set", "Add", "Del".
+                                                $targetDir = FsEntryGetAbsolutePath $targetDir;
                                                 OutProgress "FsEntryAclRuleWrite $modeSetAddOrDel `"$fsEntry`" `"$(PrivFsRuleAsString $rule)`"";
                                                 [System.Security.AccessControl.FileSystemSecurity] $acl = FsEntryAclGet $fsEntry;
                                                 if    ( $modeSetAddOrDel -eq "Set" ){ $acl.SetAccessRule($rule); }
@@ -1198,11 +1216,12 @@ function FsEntryAclRuleWrite                  ( [String] $modeSetAddOrDel, [Stri
                                                 else{ throw [Exception] "For modeSetAddOrDel expected 'Set', 'Add' or 'Del' but got `"$modeSetAddOrDel`""; }
                                                 Set-Acl -Path (FsEntryEsc $fsEntry) -AclObject $acl; # Set-Acl does set or add
                                                 if( $recursive -and (FsEntryIsDir $fsEntry) ){
-                                                  FsEntryListAsStringArray "$fsEntry$(DirSep)*" $false | Where-Object{$null -ne $_} |
+                                                  FsEntryListAsStringArray "$fsEntry/*" $false | Where-Object{$null -ne $_} |
                                                     ForEach-Object{ FsEntryAclRuleWrite $modeSetAddOrDel $_ $rule $true };
                                                 } }
 function FsEntryTrySetOwner                   ( [String] $fsEntry, [System.Security.Principal.IdentityReference] $account, [Boolean] $recursive = $false ){
                                                 # usually account is (PrivGetGroupAdministrators); if the entry itself cannot be set then it tries to set on its parent the fullcontrol for admins.
+                                                $fsEntry = FsEntryGetAbsolutePath $fsEntry;
                                                 ProcessRestartInElevatedAdminMode;
                                                 PrivEnableTokenPrivilege SeTakeOwnershipPrivilege;
                                                 PrivEnableTokenPrivilege SeRestorePrivilege;
@@ -1230,7 +1249,7 @@ function FsEntryTrySetOwner                   ( [String] $fsEntry, [System.Secur
                                                       }
                                                     } }
                                                   if( $recursive -and $fs.PSIsContainer ){
-                                                    FsEntryListAsStringArray "$fs$(DirSep)*" $false | Where-Object{$null -ne $_} |
+                                                    FsEntryListAsStringArray "$fs/*" $false | Where-Object{$null -ne $_} |
                                                       ForEach-Object{ FsEntryTrySetOwner $_ $account $true };
                                                   }
                                                 }catch{
@@ -1250,13 +1269,14 @@ function FsEntryTrySetOwnerAndAclsIfNotSet    ( [String] $fsEntry, [System.Secur
                                                     FsEntryAclRuleWrite "Set" $fsEntry $rule $false;
                                                   }
                                                   if( $recursive -and $isDir ){
-                                                    FsEntryListAsStringArray "$fsEntry$(DirSep)*" $false | Where-Object{$null -ne $_} |
+                                                    FsEntryListAsStringArray "$fsEntry/*" $false | Where-Object{$null -ne $_} |
                                                       ForEach-Object{ FsEntryTrySetOwnerAndAclsIfNotSet $_ $account $true };
                                                   }
                                                 }catch{
                                                   OutWarning "Warning: FsEntryTrySetOwnerAndAclsIfNotSet `"$fsEntry`" $account $recursive : Failed because $($_.Exception.Message)";
                                                 } }
 function FsEntryTryForceRenaming              ( [String] $fsEntry, [String] $extension ){
+                                                $fsEntry = FsEntryGetAbsolutePath $fsEntry;
                                                 if( (FsEntryExists $fsEntry) ){
                                                   ProcessRestartInElevatedAdminMode; # because rename os files and change acls
                                                   [String] $newFileName = (FsEntryFindNotExistingVersionedName $fsEntry $extension);
@@ -1282,6 +1302,7 @@ function FsEntryTryForceRenaming              ( [String] $fsEntry, [String] $ext
 function FsEntryResetTs                       ( [String] $fsEntry, [Boolean] $recursive, [String] $tsInIsoFmt = "2000-01-01 00:00" ){
                                                 # Overwrite LastWriteTime, CreationTime and LastAccessTime. Drive ts cannot be changed and so are ignored. Used for example to anonymize ts.
                                                 [DateTime] $ts = DateTimeFromStringIso $tsInIsoFmt;
+                                                $fsEntry = FsEntryGetAbsolutePath $fsEntry;
                                                 OutProgress "FsEntrySetTs `"$fsEntry`" recursive=$recursive ts=$(DateTimeAsStringIso $ts)";
                                                 FsEntryAssertExists $fsEntry; [Boolean] $inclDirs = $true;
                                                 if( -not (FsEntryIsDir $fsEntry) ){ $recursive = $false; $inclDirs = $false; }
@@ -1300,7 +1321,7 @@ function FsEntryFindInParents                 ( [String] $fromFsEntry, [String] 
                                                 [String] $d = $fromFsEntry;
                                                 while( $d -ne "" ){
                                                   [String] $p = FsEntryGetParentDir $d;
-                                                  [String] $e = "$p$(DirSep)$searchFsEntryName";
+                                                  [String] $e = FsEntryGetAbsolutePath "$p/$searchFsEntryName";
                                                   if( FsEntryExists $e ){ return [String] $e; }
                                                   $d = $p;
                                                 } return [String] ""; # not found
@@ -1312,33 +1333,47 @@ function FsEntryGetSize                       ( [String] $fsEntry ){ # Must exis
                                                 if( $null -eq $size ){ return [Int64] 0; }
                                                 return [Int64] $size.sum; }
 function DriveFreeSpace                       ( [String] $drive ){
+                                                FsEntryAssertHasTrailingDirSep $drive;
                                                 return [Int64] (Get-PSDrive $drive | Select-Object -ExpandProperty Free); }
 function DirExists                            ( [String] $dir ){
+                                                FsEntryAssertHasTrailingDirSep $dir;
                                                 try{ return [Boolean] (Test-Path -PathType Container -LiteralPath $dir); }catch{ throw [Exception] "$(ScriptGetCurrentFunc)($dir) failed because $($_.Exception.Message)"; } }
-function DirNotExists                         ( [String] $dir ){ return [Boolean] -not (DirExists $dir); }
+function DirNotExists                         ( [String] $dir ){ FsEntryAssertHasTrailingDirSep $dir; return [Boolean] -not (DirExists $dir); }
 function DirAssertExists                      ( [String] $dir, [String] $text = "Assertion" ){
+                                                FsEntryAssertHasTrailingDirSep $dir;
                                                 if( -not (DirExists $dir) ){ throw [Exception] "$text failed because dir not exists: `"$dir`"."; } }
-function DirCreate                            ( [String] $dir ){
-                                                New-Item -type directory -Force (FsEntryEsc $dir) | Out-Null; } # create dir if it not yet exists,;we do not call OutProgress because is not an important change.
+function DirCreate                            ( [String] $dir ){ # create dir if it not yet exists; we do not call OutProgress because is not an important change.
+                                                FsEntryAssertHasTrailingDirSep $dir;
+                                                New-Item -type directory -Force (FsEntryEsc $dir) | Out-Null; }
 function DirCreateTemp                        ( [String] $prefix = "" ){ while($true){
-                                                [String] $d = Join-Path ([System.IO.Path]::GetTempPath()) ($prefix + "." + (StringLeft ([System.IO.Path]::GetRandomFileName().Replace(".","")) 6)); # 6 alphachars has 2G possibilities
+                                                [String] $d = FsEntryMakeTrailingDirSep "$([System.IO.Path]::GetTempPath())/$prefix.$(StringLeft ([System.IO.Path]::GetRandomFileName().Replace('.','')) 6)"; # 6 alphachars has 2G possibilities
                                                 if( FsEntryNotExists $d ){ DirCreate $d; return [String] $d; } } }
 function DirDelete                            ( [String] $dir, [Boolean] $ignoreReadonly = $true ){
                                                 # Remove dir recursively if it exists, be careful when using this.
+                                                $dir = FsEntryGetAbsolutePath $dir;
+                                                FsEntryAssertHasTrailingDirSep $dir;
                                                 if( (DirExists $dir) ){
-                                                  try{ OutProgress "DirDelete$(switch($ignoreReadonly){($true){''}default{'CareReadonly'}}) `"$dir`""; Remove-Item -Force:$ignoreReadonly -Recurse -LiteralPath $dir;
+                                                  try{ OutProgress "DirDelete$(switch($ignoreReadonly){($true){''}default{'CareReadonly'}}) `"$dir`"";
+                                                    Remove-Item -Force:$ignoreReadonly -Recurse -LiteralPath $dir;
                                                   }catch{ # Example: Für das Ausführen des Vorgangs sind keine ausreichenden Berechtigungen vorhanden.
                                                     throw [Exception] "$(ScriptGetCurrentFunc)$(switch($ignoreReadonly){($true){''}default{'CareReadonly'}})(`"$dir`") failed because $($_.Exception.Message) (maybe locked or readonly files exists)"; } } }
 function DirDeleteContent                     ( [String] $dir, [Boolean] $ignoreReadonly = $true ){
                                                 # remove dir content if it exists, be careful when using this.
+                                                $dir = FsEntryGetAbsolutePath $dir;
+                                                FsEntryAssertHasTrailingDirSep $dir;
                                                 if( (DirExists $dir) -and (@()+(Get-ChildItem -Force -Directory -LiteralPath $dir)).Count -gt 0 ){
                                                   try{ OutProgress "DirDeleteContent$(switch($ignoreReadonly){($true){''}default{'CareReadonly'}}) `"$dir`"";
-                                                    Remove-Item -Force:$ignoreReadonly -Recurse "$(FsEntryEsc $dir)$(DirSep)*";
+                                                    Remove-Item -Force:$ignoreReadonly -Recurse "$(FsEntryEsc $dir)/*";
                                                   }catch{ # exc: Für das Ausführen des Vorgangs sind keine ausreichenden Berechtigungen vorhanden.
                                                     throw [Exception] "$(ScriptGetCurrentFunc)$(switch($ignoreReadonly){($true){''}default{'CareReadonly'}})(`"$dir`") failed because $($_.Exception.Message) (maybe locked or readonly files exists)"; } } }
 function DirDeleteIfIsEmpty                   ( [String] $dir, [Boolean] $ignoreReadonly = $true ){
+                                                FsEntryAssertHasTrailingDirSep $dir;
                                                 if( (DirExists $dir) -and (@()+(Get-ChildItem -Force -LiteralPath $dir)).Count -eq 0 ){ DirDelete $dir; } }
 function DirCopyToParentDirByAddAndOverwrite  ( [String] $srcDir, [String] $tarParentDir ){
+                                                FsEntryAssertHasTrailingDirSep $srcDir;
+                                                FsEntryAssertHasTrailingDirSep $tarParentDir;
+                                                $srcDir       = FsEntryGetAbsolutePath $srcDir;
+                                                $tarParentDir = FsEntryGetAbsolutePath $tarParentDir;
                                                 OutProgress "DirCopyToParentDirByAddAndOverwrite `"$srcDir`" to `"$tarParentDir`"";
                                                 if( -not (DirExists $srcDir) ){ throw [Exception] "Missing source dir `"$srcDir`""; }
                                                 DirCreate $tarParentDir; Copy-Item -Force -Recurse (FsEntryEsc $srcDir) (FsEntryEsc $tarParentDir); }
@@ -1368,17 +1403,20 @@ function FileReadJsonAsObject                 ( [String] $jsonFile ){
                                                 try{ Get-Content -Raw -Path $jsonFile | ConvertFrom-Json; }catch{ throw [Exception] "FileReadJsonAsObject(`"$jsonFile`") failed because $($_.Exception.Message)"; } }
 function FileWriteFromString                  ( [String] $file, [String] $content, [Boolean] $overwrite = $true, [String] $encoding = "UTF8BOM" ){
                                                 # Will create path of file. overwrite does ignore readonly attribute.
+                                                $file = FsEntryGetAbsolutePath $file;
                                                 OutProgress "WriteFile $file"; FsEntryCreateParentDir $file;
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
                                                 Out-File -Force -NoClobber:$(-not $overwrite) -Encoding $encoding -Inputobject $content -LiteralPath $file; }
                                                 # alternative: Set-Content -Encoding $encoding -Path (FsEntryEsc $file) -Value $content; but this would lock file,
                                                 # more see http://stackoverflow.com/questions/10655788/powershell-set-content-and-out-file-what-is-the-difference
 function FileWriteFromLines                   ( [String] $file, [String[]] $lines, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM" ){
+                                                $file = FsEntryGetAbsolutePath $file;
                                                 OutProgress "WriteFile $file";
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
                                                 FsEntryCreateParentDir $file;
                                                 $lines | Out-File -Force -NoClobber:$(-not $overwrite) -Encoding $encoding -LiteralPath $file; }
 function FileCreateEmpty                      ( [String] $file, [Boolean] $overwrite = $false, [Boolean] $quiet = $false, [String] $encoding = "UTF8BOM" ){
+                                                $file = FsEntryGetAbsolutePath $file;
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
                                                 if( -not $quiet -and $overwrite ){ OutProgress "FileCreateEmpty-ByOverwrite $file"; }
                                                 FsEntryCreateParentDir $file;
@@ -1415,6 +1453,7 @@ function FileReadEncoding                     ( [String] $file ){
                                                 if($b.Length -ge 4 -and $b[0] -eq 0x84 -and $b[1] -eq 0x31 -and $b[2] -eq 0x95 -and $b[3] -eq 0x33 ){ return [String] "GB-18030"         ; }
                                                 else                                                                                                { return [String] "Default"          ; } } # codepage on windows 1252=ANSI and otherwise UTF8.
 function FileTouch                            ( [String] $file ){
+                                                $file = FsEntryGetAbsolutePath $file;
                                                 OutProgress "Touch: `"$file`"";
                                                 if( FileExists $file ){ (Get-Item -Force -LiteralPath $file).LastWriteTime = (Get-Date); }
                                                 else{ FileCreateEmpty $file $false $false "ASCII"; } }
@@ -1454,6 +1493,7 @@ function FileContentsAreEqual                 ( [String] $f1, [String] $f2, [Boo
 function FileDelete                           ( [String] $file, [Boolean] $ignoreReadonly = $true, [Boolean] $ignoreAccessDenied = $false ){
                                                 # for hidden files it is also required to set ignoreReadonly=true.
                                                 # In case the file is used by another process it waits some time between a retries.
+                                                $file = FsEntryGetAbsolutePath $file;
                                                 if( (FileExists $file) ){ OutProgress "FileDelete$(switch($ignoreReadonly){($true){''}default{'CareReadonly'}}) `"$file`""; }
                                                 [Int32] $nrOfTries = 0; while($true){ $nrOfTries++;
                                                   try{
@@ -1470,10 +1510,14 @@ function FileDelete                           ( [String] $file, [Boolean] $ignor
                                                     if( $nrOfTries -ge 5 ){ throw; }
                                                     Start-Sleep -Milliseconds $(switch($nrOfTries){1{50}2{100}3{200}4{400}default{800}}); } } }
 function FileCopy                             ( [String] $srcFile, [String] $tarFile, [Boolean] $overwrite = $false ){
+                                                $srcFile = FsEntryGetAbsolutePath $srcFile;
+                                                $tarFile = FsEntryGetAbsolutePath $tarFile;
                                                 OutProgress "FileCopy(Overwrite=$overwrite) `"$srcFile`" to `"$tarFile`" $(switch($(FileExists $(FsEntryEsc $tarFile))){($true){'(Target exists)'}default{''}})";
                                                 FsEntryCreateParentDir $tarFile;
                                                 Copy-Item -Force:$overwrite (FsEntryEsc $srcFile) (FsEntryEsc $tarFile); }
 function FileMove                             ( [String] $srcFile, [String] $tarFile, [Boolean] $overwrite = $false ){
+                                                $srcFile = FsEntryGetAbsolutePath $srcFile;
+                                                $tarFile = FsEntryGetAbsolutePath $tarFile;
                                                 OutProgress "FileMove(Overwrite=$overwrite) `"$srcFile`" to `"$tarFile`"$(switch($(FileExists $(FsEntryEsc $tarFile))){($true){'(Target exists)'}default{''}})";
                                                 FsEntryCreateParentDir $tarFile;
                                                 Move-Item -Force:$overwrite -LiteralPath $srcFile -Destination $tarFile; }
@@ -1481,6 +1525,7 @@ function FileGetHexStringOfHash128BitsMd5     ( [String] $srcFile ){ [String] $m
 function FileGetHexStringOfHash256BitsSha2    ( [String] $srcFile ){ return [String] (get-filehash -Algorithm "SHA256" $srcFile).Hash; } # 2017-11 ps standard is SHA256, available are: SHA1;SHA256;SHA384;SHA512;MACTripleDES;MD5;RIPEMD160
 function FileGetHexStringOfHash512BitsSha2    ( [String] $srcFile ){ return [String] (get-filehash -Algorithm "SHA512" $srcFile).Hash; } # 2017-12: this is our standard for ps
 function FileUpdateItsHashSha2FileIfNessessary( [String] $srcFile ){
+                                                $srcFile = FsEntryGetAbsolutePath $srcFile;
                                                 [String] $hashTarFile = "$srcFile.sha2";
                                                 [String] $hashSrc = FileGetHexStringOfHash512BitsSha2 $srcFile;
                                                 [String] $hashTar = $(switch((FileNotExists $hashTarFile) -or (FileGetSize $hashTarFile) -gt 8200){
@@ -1519,7 +1564,9 @@ function CredentialGetPassword                ( [System.Management.Automation.PS
 function CredentialWriteToFile                ( [System.Management.Automation.PSCredential] $cred, [String] $secureCredentialFile ){
                                                 FileWriteFromString $secureCredentialFile ($cred.UserName+"$([Environment]::NewLine)"+(CredentialGetHexStrFromSecureString $cred.Password)); }
 function CredentialRemoveFile                 ( [String] $secureCredentialFile ){
-                                                OutProgress "CredentialRemoveFile `"$secureCredentialFile`""; FileDelete $secureCredentialFile; }
+                                                $secureCredentialFile = FsEntryGetAbsolutePath $secureCredentialFile;
+                                                OutProgress "CredentialRemoveFile `"$secureCredentialFile`"";
+                                                FileDelete $secureCredentialFile; }
 function CredentialReadFromFile               ( [String] $secureCredentialFile ){
                                                 [String[]] $s = (@()+(StringSplitIntoLines (FileReadContentAsString $secureCredentialFile "Default")));
                                                 try{ [String] $us = $s[0]; [System.Security.SecureString] $pwSecure = CredentialGetSecureStrFromHexString $s[1];
@@ -1571,11 +1618,12 @@ function PsDriveListAll                       (){
                                                 # Not used: Root, Provider. PSDrive: Note are only for current session, even if persist.
 function PsDriveCreate                        ( [String] $drive, [String] $mountPoint, [System.Management.Automation.PSCredential] $cred = $null ){
                                                 if( -not $drive.EndsWith(":") ){ throw [Exception] "Expected drive=`"$drive`" with trailing colon"; }
+                                                $mountPoint = FsEntryGetAbsolutePath $mountPoint;
                                                 MountPointRemove $drive $mountPoint;
                                                 [String] $us = CredentialGetUsername $cred $true;
                                                 OutProgress "PsDriveCreate drive=$drive mountPoint=$mountPoint username=$us";
                                                 try{
-                                                  $dummyObj = New-PSDrive -Name ($drive -replace ":","") -Root $mountPoint -PSProvider "FileSystem" -Scope Global -Persist -Description "$mountPoint($drive)" -Credential $cred;
+                                                  $dummyObj = New-PSDrive -Name $drive.Replace(":","") -Root $mountPoint -PSProvider "FileSystem" -Scope Global -Persist -Description "$mountPoint($drive)" -Credential $cred;
                                                 }catch{
                                                   # exc: System.ComponentModel.Win32Exception (0x80004005): Der lokale Gerätename wird bereits verwendet
                                                   # exc: System.Exception: Mehrfache Verbindungen zu einem Server oder einer freigegebenen Ressource von demselben Benutzer unter Verwendung mehrerer Benutzernamen sind nicht zulässig.
@@ -1635,6 +1683,7 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                 #   so this is no good solution (use NetDownloadFileByCurl).
                                                 # Maybe later: OAuth. Example: https://docs.github.com/en/free-pro-team@latest/rest/overview/other-authentication-methods
                                                 # Alternative on PS5 and PS7: Invoke-RestMethod -Uri "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/main/MnCommonPsToolLib/MnCommonPsToolLib.psm1" -OutFile "$env:TEMP/tmp/p.tmp";
+                                                $tarFile = FsEntryGetAbsolutePath $tarFile;
                                                 [String] $authMethod = "Basic"; # Current implemented authMethods: "Basic".
                                                 AssertNotEmpty $url "NetDownloadFile.url"; # alternative check: -or $url.EndsWith("/")
                                                 if( $us -ne "" ){ AssertNotEmpty $pw "password for username=$us"; }
@@ -1692,7 +1741,7 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                       OutVerbose "Invoke-WebRequest -Uri `"$url`" -OutFile `"$tarFile`" -MaximumRedirection 2 -TimeoutSec 70 -UserAgent `"$userAgent`" -Headers `"$headers`" (Credential-User=`"$us`",authMethod=$authMethod);";
                                                       Invoke-WebRequest -Uri $url -OutFile $tarFile -MaximumRedirection 2 -TimeoutSec 70 -UserAgent $userAgent -Headers $headers -Credential $cred;
                                                     }else{
-                                                      OutVerbose "Invoke-WebRequest -Uri `"$url`" -OutFile `"$tarFile`" -MaximumRedirection 2 -TimeoutSec 70 -UserAgent `"$userAgent`";";
+                                                      OutVerbose "Invoke-WebRequest -Uri `"$url`" -OutFile `"$tarFile`" -MaximumRedirection 2 -TimeoutSec 70 -UserAgent `"$userAgent`"; ";
                                                       Invoke-WebRequest -Uri $url -OutFile $tarFile -MaximumRedirection 2 -TimeoutSec 70 -UserAgent $userAgent;
                                                     }
                                                   }
@@ -1720,6 +1769,7 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                 #                      proxies, HTTP/2, cookies, user+password authentication (Basic, Plain, Digest,
                                                 #                      CRAM-MD5, NTLM, Negotiate and Kerberos), file transfer resume, proxy tunneling and more.
                                                 # Example: curl --show-error --output $tarFile --silent --create-dirs --connect-timeout 70 --retry 2 --retry-delay 5 --remote-time --stderr - --user "$($us):$pw" $url;
+                                                $tarFile = FsEntryGetAbsolutePath $tarFile;
                                                 AssertNotEmpty $url "NetDownloadFileByCurl.url";
                                                 if( $us -ne "" ){ AssertNotEmpty $pw "password for username=$us"; }
                                                 [String[]] $opt = @( # see https://curl.haxx.se/docs/manpage.html
@@ -1891,7 +1941,7 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                 #   for the curl-ca-bundle.crt file as it is descripted in https://curl.se/docs/sslcerts.html
                                                 #   we needed a solution for this. So, when the current curl executable is that from system32 folder
                                                 #   then the first found curl-ca-bundle.crt file in path var is used for cacert option.
-                                                if( (FsEntryIsEqual $curlExe "$env:SystemRoot/System32/curl.exe") ){
+                                                if( (FsEntryPathIsEqual $curlExe "$env:SystemRoot/System32/curl.exe") ){
                                                   [String] $s = StringMakeNonNull (Get-Command -CommandType Application -Name curl-ca-bundle.crt -ErrorAction SilentlyContinue |
                                                     Select-Object -First 1 | Foreach-Object { $_.Path });
                                                   if( $s -ne "" ){ $curlCaCert = $s; }
@@ -1944,17 +1994,17 @@ function NetDownloadIsSuccessful              ( [String] $url ){ # test wether a
                                                 }catch{ OutVerbose "Ignoring problems on NetDownloadToString $url failed because $($_.Exception.Message)"; }
                                                 GlobalSetModeHideOutProgress $false; return [Boolean] $res; }
 function NetDownloadSite                      ( [String] $url, [String] $tarDir, [Int32] $level = 999,
-                                                  [Int32] $maxBytes = 0, [String] $us = "", [String] $pw = "",
-                                                  [Boolean] $ignoreSslCheck = $false,
-                                                  [Int32] $limitRateBytesPerSec = ([Int32]::MaxValue),
-                                                  [Boolean] $alsoRetrieveToParentOfUrl = $false ){
+                                                  [Int32] $maxBytes = 0, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false,
+                                                  [Int32] $limitRateBytesPerSec = ([Int32]::MaxValue), [Boolean] $alsoRetrieveToParentOfUrl = $false ){
                                                 # Mirror site to dir; wget: HTTP, HTTPS, FTP. Logfile is written into target dir. Password is not logged.
                                                 # If wget2 (multithreaded) is in path then use wget2, otherwise wget.
-                                                [String] $logf  = "$tarDir$(DirSep).Download.$(DateTimeNowAsStringIsoMonth).detail.log";
-                                                [String] $links = "$tarDir$(DirSep).Download.$(DateTimeNowAsStringIsoMonth).links.log";
-                                                [String] $logf2 = "$tarDir$(DirSep).Download.$(DateTimeNowAsStringIsoMonth).log";
-                                                [String] $caCert = ""; # default seams to be on windows: C:/ProgramData/ssl/ca-bundle.pem"; Maybe for future: "wget2-ca-bundle.crt";
+                                                $tarDir = FsEntryGetAbsolutePath $tarDir;
                                                 OutProgress "NetDownloadSite $url ";
+                                                FsEntryAssertHasTrailingDirSep $tarDir;
+                                                [String] $logf  = "$tarDir/.Download.$(DateTimeNowAsStringIsoMonth).detail.log";
+                                                [String] $links = "$tarDir/.Download.$(DateTimeNowAsStringIsoMonth).links.log";
+                                                [String] $logf2 = "$tarDir/.Download.$(DateTimeNowAsStringIsoMonth).log";
+                                                [String] $caCert = ""; # default seams to be on windows: C:/ProgramData/ssl/ca-bundle.pem"; Maybe for future: "wget2-ca-bundle.crt";
                                                 OutProgress "  (only newer files) to `"$tarDir`"";
                                                 OutProgress "  Logfile: `"$logf`"";
                                                 [String[]] $opt = @(
@@ -2081,7 +2131,7 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                 FileWriteFromLines $logf2 $logLines $true;
                                                 }
 # Script local variable: gitLogFile
-[String] $script:gitLogFile = "${env:TEMP}/tmp/MnCommonPsToolLibLog/$(DateTimeNowAsStringIsoYear)/$(DateTimeNowAsStringIsoMonth)/Git.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
+[String] $script:gitLogFile = FsEntryGetAbsolutePath "${env:TEMP}/tmp/MnCommonPsToolLibLog/$(DateTimeNowAsStringIsoYear)/$(DateTimeNowAsStringIsoMonth)/Git.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
 function GitBuildLocalDirFromUrl              ( [String] $tarRootDir, [String] $urlAndOptionalBranch ){
                                                 # Maps a root dir and a repo url with an optional sharp-char separated branch name
                                                 # to a target repo dir which contains all url fragments below the hostname.
@@ -2108,6 +2158,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                 # Pull-No-Rebase: We generally use no-rebase for pull because commit history should not be modified.
                                                 # Example: GitCmd Clone "C:\WorkGit" "https://github.com/mniederw/MnCommonPsToolLib"
                                                 # Example: GitCmd Clone "C:\WorkGit" "https://github.com/mniederw/MnCommonPsToolLib#MyBranch"
+                                                $tarRootDir = FsEntryGetAbsolutePath $tarRootDir;
                                                 if( @("Clone","Fetch","Pull","CloneOrPull","Revert") -notcontains $cmd ){
                                                   throw [Exception] "Expected one of (Clone,Fetch,Pull,CloneOrPull,Revert) instead of: $cmd"; }
                                                 if( ($urlAndOptionalBranch -split "/",0)[-1] -notmatch "^[A-Za-z0-9]+[A-Za-z0-9._-]*(#[A-Za-z0-9]+[A-Za-z0-9._-]*)?`$" ){
@@ -2314,6 +2365,7 @@ function GitMerge                             ( [String] $repoDir, [String] $bra
                                                 # merge branch (remotes/origin) into current repodir, no-commit, no-fast-forward
                                                 AssertNotEmpty $repoDir "repoDir";
                                                 AssertNotEmpty $branch "branch";
+                                                $repoDir = FsEntryGetAbsolutePath $repoDir;
                                                 try{
                                                   [String] $out = (ProcessStart "git" @("-C", (FsEntryRemoveTrailingDirSep $repoDir), "--git-dir=.git", "merge", "--no-commit", "--no-ff", "remotes/origin/$branch") -careStdErrAsOut:$true -traceCmd:$false);
                                                   # Example output to console but not to stdout:
@@ -2429,20 +2481,21 @@ function GitListCommitComments                ( [String] $tarDir, [String] $loca
                                                 # It is quite slow about 10 sec per repo, so it can be controlled by $doOnlyIfOlderThanAgeInDays.
                                                 # In case of a git error it outputs it as warning.
                                                 # Example: GitListCommitComments "C:\WorkGit\_CommitComments" "C:\WorkGit\mniederw\MnCommonPsToolLib"
-                                                [String] $dir = FsEntryGetAbsolutePath $localRepoDir;
-                                                [String] $repoName =  (Split-Path -Leaf (Split-Path -Parent $dir)) + "." + (Split-Path -Leaf $dir);
+                                                $tarDir       = FsEntryGetAbsolutePath $tarDir;
+                                                $localRepoDir = FsEntryGetAbsolutePath $localRepoDir;
+                                                [String] $repoName =  (Split-Path -Leaf (Split-Path -Parent $localRepoDir)) + "." + (Split-Path -Leaf $localRepoDir);
                                                 function GitGetLog ([Boolean] $doSummary, [String] $fout) {
                                                   $fout = FsEntryGetAbsolutePath $fout;
                                                   if( -not (FsEntryNotExistsOrIsOlderThanNrDays $fout $doOnlyIfOlderThanAgeInDays) ){
                                                     OutProgress "Process git log not nessessary because file is newer than $doOnlyIfOlderThanAgeInDays days: $fout";
                                                   }else{
-                                                    [String[]] $options = @( "--git-dir=$dir\.git", "log", "--after=1990-01-01", "--pretty=format:%ci %cn [%ce] %s" );
+                                                    [String[]] $options = @( "--git-dir=$localRepoDir\.git", "log", "--after=1990-01-01", "--pretty=format:%ci %cn [%ce] %s" );
                                                     if( $doSummary ){ $options += "--summary"; }
                                                     [String] $out = "";
                                                     try{
                                                       $out = (ProcessStart "git" $options -careStdErrAsOut:$true -traceCmd:$true); # git can write warnings to stderr which we not handle as error
                                                     }catch{
-                                                      # Example: ProcessStart of ("git" "--git-dir=D:\WorkExternal\SrcGit\mniederw\MnCommonPsToolLib\.git" "log" "--after=1990-01-01" "--pretty=format:%ci %cn [%ce] %s" "--summary") failed with rc=128\nfatal: your current branch 'master' does not have any commits yet
+                                                      # Example: ProcessStart of ("git" "--git-dir=D:\Workspace\mniederw\MnCommonPsToolLib\.git" "log" "--after=1990-01-01" "--pretty=format:%ci %cn [%ce] %s" "--summary") failed with rc=128\nfatal: your current branch 'master' does not have any commits yet
                                                       if( $_.Exception.Message.Contains("fatal: your current branch '") -and
                                                           $_.Exception.Message.Contains("' does not have any commits yet") ){ # Last operation failed [rc=128]
                                                         $out +=  "$([Environment]::NewLine)" + "Info: your current branch 'master' does not have any commits yet.";
@@ -2453,7 +2506,7 @@ function GitListCommitComments                ( [String] $tarDir, [String] $loca
                                                         if( $_.Exception.Message.Contains("warning: inexact rename detection was skipped due to too many files.") ){
                                                           $out += "$([Environment]::NewLine)" + "  The reason is that the config value of diff.renamelimit with its default of 100 is too small. ";
                                                           $out += "$([Environment]::NewLine)" + "  Before a next retry you should either add the two lines (`"[diff]`",`"  renamelimit = 999999`") to .git/config file, ";
-                                                          $out += "$([Environment]::NewLine)" + "  or run (git `"--git-dir=$dir\.git`" config diff.renamelimit 999999) ";
+                                                          $out += "$([Environment]::NewLine)" + "  or run (git `"--git-dir=$localRepoDir\.git`" config diff.renamelimit 999999) ";
                                                           $out += "$([Environment]::NewLine)" + "  or run (git config --global diff.renamelimit 999999). Instead of 999999 you can also try a lower value as 200,400, etc. ";
                                                         }else{
                                                           $out += "$([Environment]::NewLine)" + "  Outfile `"$fout`" is probably not correctly filled.";
@@ -2490,9 +2543,11 @@ function GitAssertAutoCrLfIsDisabled          (){
                                                 # More: https://git-scm.com/docs/git-config see under option core.safecrlf which depends on core.autocrlf=true
                                                 #   it has the description "CRLF conversion bears a slight chance of corrupting data."
                                                 # We recommend (strongly on windows) to call GitDisableAutoCrLf after any git installation or update.
-                                                [String] $line1 = (StringMakeNonNull (& "git" "config" "--list" "--global" | Where-Object{ $_ -like "core.autocrlf=true" })); AssertRcIsOk;
                                                 [String] $errmsg = "it is strongly recommended never use this because unexpected state and merge behaviours. Please change it by calling GitDisableAutoCrLf and then retry.";
-                                                if( $line1 -ne "" ){ throw [ExcMsg] "Git is globally (for all repos of user) configured to use autocrlf conversions, $errmsg"; }
+                                                if( (FileExists "$HOME/.gitconfig") ){
+                                                  [String] $line1 = (StringMakeNonNull (& "git" "config" "--list" "--global" | Where-Object{ $_ -like "core.autocrlf=true" })); AssertRcIsOk;
+                                                  if( $line1 -ne "" ){ throw [ExcMsg] "Git is globally (for all repos of user) configured to use autocrlf conversions, $errmsg"; }
+                                                }
                                                 if( (OsIsWindows) -or (-not (OsIsWindows) -and (FileExists "/etc/gitconfig")) ){
                                                   [String] $line2 = (StringMakeNonNull (& "git" "config" "--list" "--system" | Where-Object{ $_ -like "core.autocrlf=true" })); AssertRcIsOk;
                                                   if( $line2 -ne "" ){ throw [ExcMsg] "Git is systemwide (for all users on machine) configured to use autocrlf conversions, $errmsg"; }
@@ -2586,9 +2641,10 @@ Add-Type -TypeDefinition "public struct SvnEnvInfo {public string Url; public st
 function SvnExe                               (){ # Note: if certificate is not accepted then a pem file (for example lets-encrypt-r3.pem) can be added to file "$env:APPDATA\Subversion\servers"
                                                 return [String] ((RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseSVN" "Directory") + ".\bin\svn.exe"); }
 # Script local variable: svnLogFile
-[String] $script:svnLogFile = "${env:TEMP}/tmp/MnCommonPsToolLibLog/$(DateTimeNowAsStringIsoYear)/$(DateTimeNowAsStringIsoMonth)/Svn.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
+[String] $script:svnLogFile = FsEntryGetAbsolutePath "${env:TEMP}/tmp/MnCommonPsToolLibLog/$(DateTimeNowAsStringIsoYear)/$(DateTimeNowAsStringIsoMonth)/Svn.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
 function SvnEnvInfoGet                        ( [String] $workDir ){
                                                 # Return SvnEnvInfo; no param is null.
+                                                $workDir = FsEntryGetAbsolutePath $workDir;
                                                 OutProgress "SvnEnvInfo - Get svn environment info of workDir=`"$workDir`"; ";
                                                 FileAppendLineWithTs $svnLogFile "SvnEnvInfoGet(`"$workDir`")";
                                                 # Example:
@@ -2642,9 +2698,9 @@ function SvnEnvInfoGet                        ( [String] $workDir ){
                                                 $result.CachedAuthorizationFile = "";
                                                 $result.CachedAuthorizationUser = "";
                                                 # Svn can cache more than one server connection option, so we need to find the correct one by matching the realmPattern in realmstring which identifies a server connection.
-                                                [String] $svnCachedAuthorizationDir = "$env:APPDATA$(DirSep)Subversion$(DirSep)auth$(DirSep)svn.simple";
+                                                [String] $svnCachedAuthorizationDir = "$env:APPDATA/Subversion/auth/svn.simple/";
                                                 # Care only file names like "25ff84926a354d51b4e93754a00064d6"
-                                                [String[]] $files = (@()+(FsEntryListAsStringArray "$svnCachedAuthorizationDir$(DirSep)*" $false $false |
+                                                [String[]] $files = (@()+(FsEntryListAsStringArray "$svnCachedAuthorizationDir/*" $false $false |
                                                   Where-Object{$null -ne $_} |
                                                   Where-Object{ (FsEntryGetFileName $_) -match "^[0-9a-f]{32}$" } |
                                                   Sort-Object));
@@ -2689,32 +2745,36 @@ function SvnEnvInfoGet                        ( [String] $workDir ){
                                                 return [SvnEnvInfo] $result; }
 function SvnGetDotSvnDir                      ( $workSubDir ){
                                                 # Return absolute .svn dir up from given dir which must exists.
-                                                [String] $d = FsEntryGetAbsolutePath $workSubDir;
+                                                $workSubDir = FsEntryGetAbsolutePath $workSubDir;
+                                                [String] $d = $workSubDir;
                                                 for( [Int32] $i = 0; $i -lt 200; $i++ ){
-                                                  if( DirExists "$d$(DirSep).svn" ){ return [String] "$d$(DirSep).svn"; }
+                                                  if( DirExists "$d/.svn/" ){ return [String] (FsEntryGetAbsolutePath "$d/.svn/"); }
                                                   $d = FsEntryGetAbsolutePath (Join-Path $d "..");
                                                 }
                                                 throw [Exception] "Missing directory '.svn' within or up from the path `"$workSubDir`""; }
 function SvnAuthorizationSave                ( [String] $workDir, [String] $user ){
                                                 # If this part fails then you should clear authorization account in svn settings.
+                                                $workDir = FsEntryGetAbsolutePath $workDir;
                                                 OutProgress "SvnAuthorizationSave user=$user";
                                                 FileAppendLineWithTs $svnLogFile "SvnAuthorizationSave(`"$workDir`")";
                                                 [String] $dotSvnDir = SvnGetDotSvnDir $workDir;
-                                                DirCopyToParentDirByAddAndOverwrite "$env:APPDATA$(DirSep)Subversion$(DirSep)auth$(DirSep)svn.simple" "$dotSvnDir$(DirSep)OwnSvnAuthSimpleSaveUser_$user$(DirSep)"; }
+                                                DirCopyToParentDirByAddAndOverwrite "$env:APPDATA/Subversion/auth/svn.simple/" "$dotSvnDir/OwnSvnAuthSimpleSaveUser_$user/"; }
 function SvnAuthorizationTryLoadFile          ( [String] $workDir, [String] $user ){
                                                 # If work auth dir exists then copy content to svn cache dir.
+                                                $workDir = FsEntryGetAbsolutePath $workDir;
                                                 OutProgress "SvnAuthorizationTryLoadFile - try to reload from an earlier save";
                                                 FileAppendLineWithTs $svnLogFile "SvnAuthorizationTryLoadFile(`"$workDir`")";
                                                 [String] $dotSvnDir = SvnGetDotSvnDir $workDir;
-                                                [String] $svnWorkAuthDir = "$dotSvnDir$(DirSep)OwnSvnAuthSimpleSaveUser_$user$(DirSep)svn.simple";
-                                                [String] $svnAuthDir = "$env:APPDATA$(DirSep)Subversion$(DirSep)auth$(DirSep)";
+                                                [String] $svnWorkAuthDir = "$dotSvnDir/OwnSvnAuthSimpleSaveUser_$user/svn.simple/";
+                                                [String] $svnAuthDir = "$env:APPDATA/Subversion/auth/";
                                                 if( DirExists $svnWorkAuthDir ){
                                                   DirCopyToParentDirByAddAndOverwrite $svnWorkAuthDir $svnAuthDir;
                                                 }else{
                                                   OutProgress "Load not done because not found dir: `"$svnWorkAuthDir`"";
-                                                } } # For later usage: function SvnAuthorizationClear (){ FileAppendLineWithTs $svnLogFile "SvnAuthorizationClear"; [String] $svnAuthCurr = "$env:APPDATA$(DirSep)Subversion$(DirSep)auth$(DirSep)svn.simple"; DirCopyToParentDirByAddAndOverwrite $svnAuthCurr $svnAuthWork; }
+                                                } } # For later usage: function SvnAuthorizationClear (){ FileAppendLineWithTs $svnLogFile "SvnAuthorizationClear"; [String] $svnAuthCurr = "$env:APPDATA/Subversion/auth/svn.simple/"; DirCopyToParentDirByAddAndOverwrite $svnAuthCurr $svnAuthWork; }
 function SvnCleanup                           ( [String] $workDir ){
                                                 # Cleanup a previously failed checkout, update or commit operation.
+                                                $workDir = FsEntryGetAbsolutePath $workDir;
                                                 FileAppendLineWithTs $svnLogFile "SvnCleanup(`"$workDir`")";
                                                 # For future alternative option: --trust-server-cert-failures unknown-ca,cn-mismatch,expired,not-yet-valid,other
                                                 [String[]] $out = @()+(& (SvnExe) "cleanup" --non-interactive $workDir); AssertRcIsOk $out;
@@ -2764,6 +2824,7 @@ function SvnStatus                            ( [String] $workDir, [Boolean] $sh
                                                 #   ' ' normal
                                                 #   'C' tree-Conflicted
                                                 # If the item is a tree conflict victim, an additional line is printed after the item's status line, explaining the nature of the conflict.
+                                                $workDir = FsEntryGetAbsolutePath $workDir;
                                                 FileAppendLineWithTs $svnLogFile "SvnStatus(`"$workDir`")";
                                                 OutVerbose "SvnStatus - List pending changes";
                                                 [String[]] $out = @()+(& (SvnExe) "status" $workDir); AssertRcIsOk $out;
@@ -2779,8 +2840,9 @@ function SvnStatus                            ( [String] $workDir, [Boolean] $sh
                                                 return [Boolean] $hasAnyChange; }
 function SvnRevert                            ( [String] $workDir, [String[]] $relativeRevertFsEntries ){
                                                 # Undo the specified fs-entries if they have any pending change.
+                                                $workDir = FsEntryGetAbsolutePath $workDir;
                                                 foreach( $e in $relativeRevertFsEntries ){
-                                                  [String] $f = "$workDir$(DirSep)$e";
+                                                  [String] $f = "$workDir/$e";
                                                   FileAppendLineWithTs $svnLogFile "SvnRevert(`"$f`")";
                                                   # avoid:  svn: E155010: The node 'C:\MyWorkDir\UnexistingDir' was not found.
                                                   if( (FsEntryExists $f) ){
@@ -2789,6 +2851,7 @@ function SvnRevert                            ( [String] $workDir, [String[]] $r
                                                   }
                                                 } }
 function SvnTortoiseCommit                    ( [String] $workDir ){
+                                                $workDir = FsEntryGetAbsolutePath $workDir;
                                                 FileAppendLineWithTs $svnLogFile "SvnTortoiseCommit(`"$workDir`") call checkin dialog";
                                                 [String] $tortoiseExe = (RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseSVN" "ProcPath"); # Example: "C:\Program Files\TortoiseSVN\bin\TortoiseProc.exe"
                                                 Start-Process -NoNewWindow -Wait -FilePath "$tortoiseExe" -ArgumentList @("/closeonend:2","/command:commit","/path:`"$workDir`""); AssertRcIsOk; }
@@ -2800,6 +2863,7 @@ function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url
                                                 # Note: we do not use svn-update because svn-checkout does the same (the difference is only the use of an url).
                                                 # Note: sometimes often after 5-20 GB received there is a network problem which aborts svn-checkout,
                                                 #   so if it is recognised as a known exception then it will automatically do a cleanup, wait for 30 sec and retry (max 100 times).
+                                                $workDir = FsEntryGetAbsolutePath $workDir;
                                                 if( $doUpdateOnly ){
                                                   Assert ((DirExists $workDir) -and (SvnGetDotSvnDir $workDir)) "missing work dir or it is not a svn repo: `"$workDir`"";
                                                   [String] $repoUrl = (SvnEnvInfoGet $workDir).Url;
@@ -2819,7 +2883,7 @@ function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url
                                                   # Alternative for checkout: tortoiseExe /closeonend:2 /command:checkout /path:$workDir /url:$url
                                                   if( $doUpdateOnly ){ $opt = @( "update"  ) + $opt + @(       $workDir ); }
                                                   else               { $opt = @( "checkout") + $opt + @( $url, $workDir ); }
-                                                  [String] $logline = $opt; $logline = $logline -replace "--password $pw", "--password ...";
+                                                  [String] $logline = $opt; $logline = $logline.Replace("--password $pw","--password ...");
                                                   FileAppendLineWithTs $svnLogFile "`"$(SvnExe)`" $logline";
                                                   try{
                                                     & (SvnExe) $opt 2> $tmp | ForEach-Object{ FileAppendLineWithTs $svnLogFile ("  "+$_); OutProgress $_ 2; };
@@ -2863,9 +2927,11 @@ function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url
                                                     ProcessSleepSec 30;
                                                   }finally{ FileDelTempFile $tmp; } } }
 function SvnPreCommitCleanupRevertAndDelFiles ( [String] $workDir, [String[]] $relativeDelFsEntryPatterns, [String[]] $relativeRevertFsEntries ){
+                                                $workDir = FsEntryGetAbsolutePath $workDir;
                                                 OutInfo "SvnPreCommitCleanupRevertAndDelFiles `"$workDir`"";
+                                                FsEntryAssertHasTrailingDirSep $workDir;
                                                 [String] $dotSvnDir = SvnGetDotSvnDir $workDir;
-                                                [String] $svnRequiresCleanup = "$dotSvnDir$(DirSep)OwnSvnRequiresCleanup.txt";
+                                                [String] $svnRequiresCleanup = "$dotSvnDir/OwnSvnRequiresCleanup.txt";
                                                 if( (FileExists $svnRequiresCleanup) ){ # Optimized because it is slow.
                                                   OutProgress "SvnCleanup - Perform cleanup because previous run was not completed";
                                                   SvnCleanup $workDir;
@@ -2881,13 +2947,15 @@ function SvnPreCommitCleanupRevertAndDelFiles ( [String] $workDir, [String[]] $r
 function SvnTortoiseCommitAndUpdate           ( [String] $workDir, [String] $svnUrl, [String] $svnUser, [Boolean] $ignoreIfHostNotReachable, [String] $pw = "" ){
                                                 # Check svn dir, do svn cleanup, check svn user by asserting it matches previously used svn user, delete temporary files, svn commit (interactive), svn update.
                                                 # If pw is empty then it takes it from svn-credential-cache.
+                                                $workDir = FsEntryGetAbsolutePath $workDir;
+                                                FsEntryAssertHasTrailingDirSep $workDir;
                                                 [String] $traceInfo = "SvnTortoiseCommitAndUpdate workdir=`"$workDir`" url=$svnUrl user=$svnUser";
                                                 OutInfo $traceInfo;
                                                 OutProgress "SvnLogFile: `"$svnLogFile`"";
                                                 FileAppendLineWithTs $svnLogFile ("$([Environment]::NewLine)"+("-"*80)+"$([Environment]::NewLine)"+(DateTimeNowAsStringIso "yyyy-MM-dd HH:mm")+" "+$traceInfo);
                                                 try{
                                                   [String] $dotSvnDir = SvnGetDotSvnDir $workDir;
-                                                  [String] $svnRequiresCleanup = "$dotSvnDir$(DirSep)OwnSvnRequiresCleanup.txt";
+                                                  [String] $svnRequiresCleanup = "$dotSvnDir/OwnSvnRequiresCleanup.txt";
                                                   # Check preconditions.
                                                   AssertNotEmpty $svnUrl "SvnUrl";
                                                   AssertNotEmpty $svnUser "SvnUser";
@@ -2952,7 +3020,7 @@ function TfsExe                               (){ # return tfs executable
                                                   (FsEntryGetAbsolutePath "$env:VS140COMNTOOLS/../IDE/TF.exe"),
                                                   (FsEntryGetAbsolutePath "$env:VS120COMNTOOLS/../IDE/TF.exe"),
                                                   (FsEntryGetAbsolutePath "$env:VS100COMNTOOLS/../IDE/TF.exe"),
-                                                  "$(FsEntryGetAbsolutePath (FsEntryGetParentDir (StringRemoveOptEnclosingDblQuotes (RegistryGetValueAsString "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\devenv.exe"))))\$tfExe"
+                                                  (FsEntryGetAbsolutePath "$(FsEntryGetParentDir (StringRemoveOptEnclosingDblQuotes (RegistryGetValueAsString "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\devenv.exe")))/$tfExe")
                                                 );
                                                 foreach( $i in $a ){ if( FileExists $i ) { return [String] $i; } }
                                                 throw [ExcMsg] "Missing one of the files: $a"; }
@@ -2960,7 +3028,7 @@ function TfsExe                               (){ # return tfs executable
                                                 # for future use: tf.exe merge /baseless /recursive /version:C234~C239 branchFrom branchTo
                                                 # for future use: tf.exe workfold /workspace:ws /cloak
 # Script local variable: tfsLogFile
-[String] $script:tfsLogFile = "${env:TEMP}/tmp/MnCommonPsToolLibLog/$(DateTimeNowAsStringIsoYear)/$(DateTimeNowAsStringIsoMonth)/Tfs.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
+[String] $script:tfsLogFile = FsEntryGetAbsolutePath "${env:TEMP}/tmp/MnCommonPsToolLibLog/$(DateTimeNowAsStringIsoYear)/$(DateTimeNowAsStringIsoMonth)/Tfs.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
 function TfsHelpWorkspaceInfo                 (){
                                                 OutProgress "Help Workspace Info - Command Line Examples";
                                                 OutProgress "- Current Tool Path: `"$(TfsExe)`"";
@@ -2977,8 +3045,8 @@ function TfsShowAllWorkspaces                 ( [String] $url, [Boolean] $showPa
                                                 [String] $mach = "*"; if( $currentMachineOnly ){ $mach = $ComputerName; }
                                                 OutProgress                                    "& `"$(TfsExe)`" vc workspaces /noprompt /format:$fmt /owner:* /computer:$mach /collection:$url";
                                                 [String[]] $out = @()+(StringArrayInsertIndent (&    (TfsExe)   vc workspaces /noprompt /format:$fmt /owner:* /computer:$mach /collection:$url) 2); ScriptResetRc;
-                                                $out | ForEach-Object{ $_ -replace "--------------------------------------------------", "-" } |
-                                                       ForEach-Object{ $_ -replace "==================================================", "=" } |
+                                                $out | ForEach-Object{ $_.Replace("--------------------------------------------------","-") } |
+                                                       ForEach-Object{ $_.Replace("==================================================","=") } |
                                                        ForEach-Object{ OutProgress $_ };
                                                 # Example1:
                                                 #   Sammlung: https://devops.mydomain.ch/MyTfsRoot
@@ -3019,7 +3087,7 @@ function TfsShowLocalCachedWorkspaces         (){ # works without access an url
                                                 OutProgress "Show local cached tfs workspaces";
                                                 OutProgress                                    "& `"$(TfsExe)`" vc workspaces /noprompt /format:Brief";
                                                 [String[]] $out = @()+(StringArrayInsertIndent (&    (TfsExe)   vc workspaces /noprompt /format:Brief) 2); AssertRcIsOk $out;
-                                                $out | ForEach-Object{ $_ -replace "--------------------------------------------------", "-" } |
+                                                $out | ForEach-Object{ $_.Replace("--------------------------------------------------","-") } |
                                                   ForEach-Object{ OutProgress $_ };
                                                 # Format Detailed is only allowed if collection is specified
                                                 # Example1:
@@ -3039,12 +3107,14 @@ function TfsHasLocalMachWorkspace             ( [String] $url ){ # we support on
                                                 OutProgress           "  & `"$(TfsExe)`" vc workspaces /noprompt /format:Brief /owner:* /computer:$mach /collection:$url";
                                                 [String[]] $out = @()+(&    (TfsExe)   vc workspaces /noprompt /format:Brief /owner:* /computer:$mach /collection:$url *>&1 |
                                                   Select-Object -Skip 2 | Where-Object{ $_.StartsWith("$wsName ") }); ScriptResetRc;
-                                                $out | ForEach-Object{ $_ -replace "--------------------------------------------------", "-" } | ForEach-Object{ OutProgress $_ };
+                                                $out | ForEach-Object{ $_.Replace("--------------------------------------------------","-") } | ForEach-Object{ OutProgress $_ };
                                                 return [Boolean] ($out.Length -gt 0); }
 function TfsInitLocalWorkspaceIfNotDone       ( [String] $url, [String] $rootDir ){
                                                 # also creates the directory "./$tf/" (or "./$tf1/", etc. ).
+                                                $rootDir = FsEntryGetAbsolutePath $rootDir;
                                                 [string] $wsName = $ComputerName;
                                                 OutProgress "Init local tfs workspaces with name identic to computername if not yet done of $url to `"$rootDir`"";
+                                                FsEntryAssertHasTrailingDirSep $rootDir;
                                                 if( (TfsHasLocalMachWorkspace $url) ){ OutProgress "Init-Workspace not nessessary because has already workspace identic to computername."; return; }
                                                 [String] $cd = (Get-Location); Set-Location $rootDir; try{
                                                     OutProgress         "& `"$(TfsExe)`" vc workspace /new /noprompt /location:local /collection:$url $wsName";
@@ -3068,6 +3138,7 @@ function TfsDeleteLocalMachWorkspace          ( [String] $url ){ # we support on
                                                 #     "MYCOMPUTER" entspricht keinem Arbeitsbereich im Cache für den Server "*".
                                                 }
 function TfsGetNewestNoOverwrite              ( [String] $wsdir, [String] $tfsPath, [String] $url ){ # Example: TfsGetNewestNoOverwrite C:\MyWorkspace\Src $/Src https://devops.mydomain.ch/MyTfsRoot
+                                                $wsdir = FsEntryGetAbsolutePath $wsdir;
                                                 Assert $tfsPath.StartsWith("`$/") "expected tfsPath=`"$tfsPath`" begins with `$/.";
                                                 AssertNotEmpty $wsdir "wsdir";
                                                 $wsDir = FsEntryGetAbsolutePath $wsDir;
@@ -3090,6 +3161,7 @@ function TfsGetNewestNoOverwrite              ( [String] $wsdir, [String] $tfsPa
                                                   if( $out.Count -gt 0 ){ $out | ForEach-Object{ OutProgress "  $_"; }; }
                                                 }finally{ Set-Location $cd; } }
 function TfsListOwnLocks                      ( [String] $wsdir, [String] $tfsPath ){
+                                                $wsdir = FsEntryGetAbsolutePath $wsdir;
                                                 [String] $cd = (Get-Location); Set-Location $wsdir; try{
                                                   OutProgress "CD `"$wsdir`"; & `"$(TfsExe)`" vc status /noprompt /recursive /format:brief `"$tfsPath`" ";
                                                   [String[]] $out = @()+((    &    (TfsExe)   vc status /noprompt /recursive /format:brief   $tfsPath *>&1 ) |
@@ -3105,12 +3177,14 @@ function TfsListOwnLocks                      ( [String] $wsdir, [String] $tfsPa
                                                   return [String[]] $out;
                                                 }finally{ Set-Location $cd; } }
 function TfsAssertNoLocksInDir                ( [String] $wsdir, [String] $tfsPath ){ # Example: "C:\MyWorkspace" "$/Src";
+                                                $wsdir = FsEntryGetAbsolutePath $wsdir;
                                                 [String[]] $allLocks = @()+(TfsListOwnLocks $wsdir $tfsPath);
                                                 if( $allLocks.Count -gt 0 ){
                                                   $allLocks | ForEach-Object{ OutProgress "Found Lock: $_"; };
                                                   throw [ExcMsg] "Assertion failed because there exists pending locks under `"$tfsPath`"";
                                                 } }
 function TfsMergeDir                          ( [String] $wsdir, [String] $tfsPath, [String] $tfsTargetBranch ){
+                                                $wsdir = FsEntryGetAbsolutePath $wsdir;
                                                 [String] $cd = (Get-Location); Set-Location $wsdir; try{
                                                   OutProgress "CD `"$wsdir`"; & `"$(TfsExe)`" vc merge /noprompt /recursive /format:brief /version:T `"$tfsPath`" `"$tfsTargetBranch`" ";
                                                   [String[]] $dummyOut = @()+(&    (TfsExe)   vc merge /noprompt /recursive /format:brief /version:T   $tfsPath     $tfsTargetBranch); # later we would like to suppress stderr
@@ -3128,6 +3202,7 @@ function TfsMergeDir                          ( [String] $wsdir, [String] $tfsPa
                                                 #}catch{ ScriptResetRc; OutProgress "Ignoring Error: $($_.Exception)";
                                                 }finally{ Set-Location $cd; } }
 function TfsResolveMergeConflict              ( [String] $wsdir, [String] $tfsPath, [Boolean] $keepTargetAndNotTakeSource ){
+                                                $wsdir = FsEntryGetAbsolutePath $wsdir;
                                                 [String] $resolveMode = switch( $keepTargetAndNotTakeSource ){ $true{"TakeTheirs"} $false{"AcceptYours"} };
                                                 [String] $cd = (Get-Location); Set-Location $wsdir; try{
                                                   OutProgress "CD `"$wsdir`"; & `"$(TfsExe)`" vc resolve /noprompt /recursive /auto:$resolveMode `"$tfsPath`" ";
@@ -3136,6 +3211,7 @@ function TfsResolveMergeConflict              ( [String] $wsdir, [String] $tfsPa
                                                 }finally{ Set-Location $cd; } }
 function TfsCheckinDirWhenNoConflict          ( [String] $wsdir, [String] $tfsPath, [String] $comment, [Boolean] $handleErrorsAsWarnings ){
                                                 # Return true if checkin was successful.
+                                                $wsdir = FsEntryGetAbsolutePath $wsdir;
                                                 [String] $cd = (Get-Location); Set-Location $wsdir; try{
                                                   # Note: sometimes it seem to write this to stderror:
                                                   #  "Es sind keine ausstehenden Änderungen vorhanden, die mit den angegebenen Elementen übereinstimmen.\nEs wurden keine Dateien eingecheckt."
@@ -3149,6 +3225,7 @@ function TfsCheckinDirWhenNoConflict          ( [String] $wsdir, [String] $tfsPa
                                                   return [Boolean] $false;
                                                 }finally{ Set-Location $cd; } }
 function TfsUndoAllLocksInDir                 ( [String] $dir ){ # Undo all locks below dir to cleanup a previous failed operation as from merging.
+                                                $dir = FsEntryGetAbsolutePath $dir;
                                                 OutProgress           "& `"$(TfsExe)`" vc undo /noprompt /recursive `"$dir`"";
                                                 [String[]] $out = @()+(&    (TfsExe)   vc undo /noprompt /recursive   $dir); AssertRcIsOk $out; }
 function SqlGetCmdExe                         (){
@@ -3169,16 +3246,20 @@ function SqlGetCmdExe                         (){
                                                 if( $result -eq "" ){ throw [ExcMsg] "Cannot find sqlcmd.exe wether in path nor is any Sql Server 2022, 2019, 2016, 2014, 2012 or 2008 installed. "; }
                                                 return [String] $result; }
 function SqlRunScriptFile                     ( [String] $sqlserver, [String] $sqlfile, [String] $outFile, [Boolean] $continueOnErr ){ # old style. It is recommended to use: SqlPerformFile
+                                                $sqlfile = FsEntryGetAbsolutePath $sqlfile;
+                                                $outFile = FsEntryGetAbsolutePath $outFile;
                                                 FileAssertExists $sqlfile;
                                                 OutProgress "SqlRunScriptFile sqlserver=$sqlserver sqlfile=`"$sqlfile`" out=`"$outfile`" contOnErr=$continueOnErr";
                                                 FsEntryCreateParentDir $outfile;
                                                 & (SqlGetCmdExe) "-b" "-S" $sqlserver "-i" $sqlfile "-o" $outfile;
-                                                if( -not $? ){ if( ! $continueOnErr ){ AssertRcIsOk; }
+                                                if( -not $? ){ if( -not $continueOnErr ){ AssertRcIsOk; }
                                                 else{ OutWarning "Warning: Ignore SqlRunScriptFile `"$sqlfile`" on `"$sqlserver`" failed with rc=$(ScriptGetAndClearLastRc), more see outfile, will continue"; } }
                                                 FileAssertExists $outfile; }
 function SqlPerformFile                       ( [String] $connectionString, [String] $sqlFile, [String] $logFileToAppend = "", [Int32] $queryTimeoutInSec = 0, [Boolean] $showPrint = $true, [Boolean] $showRows = $true){
                                                 # Print are given out in yellow by internal verbose option; rows are currently given out only in a simple csv style without headers.
                                                 # ConnectString example: "Server=myInstance;Database=TempDB;Integrated Security=True;"  queryTimeoutInSec: 1..65535,0=endless;
+                                                $sqlfile = FsEntryGetAbsolutePath $sqlfile;
+                                                $logFileToAppend = FsEntryGetAbsolutePath $logFileToAppend;
                                                 ScriptImportModuleIfNotDone "SqlServer";
                                                 [String] $currentUser = "$env:USERDOMAIN\$env:USERNAME";
                                                 [String] $traceInfo = "SqlPerformCmd(connectionString=`"$connectionString`",sqlFile=`"$sqlFile`",queryTimeoutInSec=$queryTimeoutInSec,showPrint=$showPrint,showRows=$showRows,currentUser=$currentUser)";
@@ -3226,10 +3307,11 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                 # If a stored procedure, a function or a trigger is encrypted then a single line is put to its sql file indicating encrypted code cannot be dumped.
                                                 # It creates file "DbInfo.dbname.out" with some db infos. In case of an error it creates file "DbInfo.dbname.err".
                                                 # Example: SqlGenerateFullDbSchemaFiles "MyLogicEnvironment" "MySqlInstance" "MyDbName" "$env:TEMP/tmp/DumpFullDbSchemas"
+                                                $targetRootDir = FsEntryGetAbsolutePath $targetRootDir;
                                                 [String] $currentUser = "$env:USERDOMAIN\$env:USERNAME";
                                                 [String] $traceInfo = "SqlGenerateFullDbSchemaFiles(logicalEnv=$logicalEnv,dbInstanceServerName=$dbInstanceServerName,dbname=$dbName,targetRootDir=$targetRootDir,currentUser=$currentUser)";
                                                 OutInfo $traceInfo;
-                                                [String] $tarDir = "$targetRootDir$(DirSep)$(Get-Date -Format yyyy-MM-dd)$(DirSep)$logicalEnv$(DirSep)$dbName";
+                                                [String] $tarDir = "$targetRootDir/$(Get-Date -Format yyyy-MM-dd)/$logicalEnv/$dbName/";
                                                 if( DirExists $tarDir ){
                                                   [String] $msg = "Nothing done because target dir already exists: `"$tarDir`"";
                                                   if( $errorAsWarning ){ OutWarning "Warning: $msg"; return; }
@@ -3267,7 +3349,7 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                   # not yet used: [Microsoft.SqlServer.Management.Smo.DependencyType] $deptype = New-Object "Microsoft.SqlServer.Management.Smo.DependencyType";
                                                   [Microsoft.SqlServer.Management.Smo.Database] $db = $srv.Databases[$dbName];
                                                   if( $null -eq $db ){ throw [Exception] "Not found database with current user."; }
-                                                  [String] $fileDbInfo = "$tarDir$(DirSep)DbInfo.$dbName.out";
+                                                  [String] $fileDbInfo = "$tarDir/DbInfo.$dbName.out";
                                                   #try{
                                                   #  [String] $dummy = $db.Parent; # check for read access
                                                   #}catch{
@@ -3313,21 +3395,21 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                   OutProgress "Schemas ";
                                                   foreach( $i in $dbSchemas ){
                                                     [String] $name = FsEntryMakeValidFileName $i.Name;
-                                                    $options.FileName = "$tarDir$(DirSep)Schema.$name.sql";
+                                                    $options.FileName = "$tarDir/Schema.$name.sql";
                                                     New-Item $options.FileName -type file -force | Out-Null;
                                                     $scr.Script($i);
                                                   }
                                                   OutProgress "Roles ";
                                                   foreach( $i in $dbRoles ){
                                                     [String] $name = FsEntryMakeValidFileName $i.Name;
-                                                    $options.FileName = "$tarDir$(DirSep)Role.$name.sql";
+                                                    $options.FileName = "$tarDir/Role.$name.sql";
                                                     New-Item $options.FileName -type file -force | Out-Null;
                                                     $scr.Script($i);
                                                   }
                                                   OutProgress "DbTriggers ";
                                                   foreach( $i in $dbTriggers ){
                                                     [String] $name = FsEntryMakeValidFileName $i.Name;
-                                                    $options.FileName = "$tarDir$(DirSep)DbTrigger.$name.sql";
+                                                    $options.FileName = "$tarDir/DbTrigger.$name.sql";
                                                     New-Item $options.FileName -type file -force | Out-Null;
                                                     if( $i.IsEncrypted ){
                                                       FileAppendLine $options.FileName "Note: DbTrigger $name is encrypted, so cannot be dumped.";
@@ -3338,7 +3420,7 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                   OutProgress "Tables "; # inclusive unique indexes
                                                   foreach( $i in $tables ){
                                                     [String] $name = FsEntryMakeValidFileName "$($i.Schema).$($i.Name)";
-                                                    $options.FileName = "$tarDir$(DirSep)Table.$name.sql";
+                                                    $options.FileName = "$tarDir/Table.$name.sql";
                                                     New-Item $options.FileName -type file -force | Out-Null;
                                                     $smoObjects = New-Object Microsoft.SqlServer.Management.Smo.UrnCollection;
                                                     $smoObjects.Add($i.Urn);
@@ -3348,14 +3430,14 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                   OutProgress "Views ";
                                                   foreach( $i in $views ){
                                                     [String] $name = FsEntryMakeValidFileName "$($i.Schema).$($i.Name)";
-                                                    $options.FileName = "$tarDir$(DirSep)View.$name.sql";
+                                                    $options.FileName = "$tarDir/View.$name.sql";
                                                     New-Item $options.FileName -type file -force | Out-Null;
                                                     $scr.Script($i);
                                                   }
                                                   OutProgress "StoredProcedures";
                                                   foreach( $i in $storedProcedures ){
                                                     [String] $name = FsEntryMakeValidFileName "$($i.Schema).$($i.Name)";
-                                                    $options.FileName = "$tarDir$(DirSep)StoredProcedure.$name.sql";
+                                                    $options.FileName = "$tarDir/StoredProcedure.$name.sql";
                                                     New-Item $options.FileName -type file -force | Out-Null;
                                                     if( $i.IsEncrypted ){
                                                       FileAppendLine $options.FileName "Note: StoredProcedure $name is encrypted, so cannot be dumped.";
@@ -3366,7 +3448,7 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                   OutProgress "UserDefinedFunctions ";
                                                   foreach( $i in $userDefFunctions ){
                                                     [String] $name = FsEntryMakeValidFileName "$($i.Schema).$($i.Name)";
-                                                    $options.FileName = "$tarDir$(DirSep)UserDefinedFunction.$name.sql";
+                                                    $options.FileName = "$tarDir/UserDefinedFunction.$name.sql";
                                                     New-Item $options.FileName -type file -force | Out-Null;
                                                     if( $i.IsEncrypted ){
                                                       FileAppendLine $options.FileName "Note: UserDefinedFunction $name is encrypted, so cannot be dumped.";
@@ -3377,7 +3459,7 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                   OutProgress "TableTriggers ";
                                                   foreach( $i in $tableTriggers ){
                                                     [String] $name = FsEntryMakeValidFileName "$($i.Parent.Schema).$($i.Parent.Name).$($i.Name)";
-                                                    $options.FileName = "$tarDir$(DirSep)TableTrigger.$name.sql";
+                                                    $options.FileName = "$tarDir/TableTrigger.$name.sql";
                                                     New-Item $options.FileName -type file -force | Out-Null;
                                                     if( $i.IsEncrypted ){
                                                       FileAppendLine $options.FileName "Note: TableTrigger $name is encrypted, so cannot be dumped.";
@@ -3388,7 +3470,7 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                   OutProgress "IndexesNonUnique ";
                                                   foreach( $i in $indexesNonUnique ){
                                                     [String] $name = FsEntryMakeValidFileName "$($i.Parent.Schema).$($i.Parent.Name).$($i.Name)";
-                                                    $options.FileName = "$tarDir$(DirSep)IndexesNonUnique.$name.sql";
+                                                    $options.FileName = "$tarDir/IndexesNonUnique.$name.sql";
                                                     New-Item $options.FileName -type file -force | Out-Null;
                                                     $scr.Script($i);
                                                   }
@@ -3409,9 +3491,9 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                   #        This property may not exist for this object, or may not be retrievable due to insufficient access rights. The text is encrypted.
                                                   #        at Microsoft.SqlServer.Management.Smo.ScriptNameObjectBase.GetTextProperty(String requestingProperty, ScriptingPreferences sp, Boolean bThrowIfCreating)
                                                   [String] $msg = $traceInfo + " failed because $($_.Exception)";
-                                                  FileWriteFromLines "$tarDir$(DirSep)DbInfo.$dbName.err" $msg;
+                                                  FileWriteFromLines "$tarDir/DbInfo.$dbName.err" $msg;
                                                   if( -not $errorAsWarning ){ throw [ExcMsg] $msg; }
-                                                  OutWarning "Warning: Ignore failing of $msg `nCreated `"$tarDir$(DirSep)DbInfo.$dbName.err`".";
+                                                  OutWarning "Warning: Ignore failing of $msg `nCreated `"$tarDir/DbInfo.$dbName.err`".";
                                                 }
                                               }
 function ToolTailFile                         ( [String] $file ){ OutProgress "Show tail of file until ctrl-c is entered"; Get-Content -Wait $file; }
@@ -3463,7 +3545,7 @@ function ToolGithubApiDownloadLatestReleaseDir( [String] $repoUrl ){
                                                 # Example: $apiObj.zipball_url = "https://api.github.com/repos/mniederw/MnCommonPsToolLib/zipball/V4.9"
                                                 # Example: $relName = "OpenSource-GPL3 MnCommonPsToolLib V4.9 en 2020-02-13 [master,2020-02-13,V4.9]"
                                                 [String] $tarDir = DirCreateTemp "MnCoPsToLib_";
-                                                [String] $tarZip = "$tarDir$(DirSep)$relName.zip";
+                                                [String] $tarZip = "$tarDir/$relName.zip";
                                                 # We can download latest release zip by one of:
                                                 # - https://api.github.com/repos/mniederw/MnCommonPsToolLib/zipball
                                                 # - https://api.github.com/repos/mniederw/MnCommonPsToolLib/zipball/V4.9
@@ -3476,7 +3558,7 @@ function ToolGithubApiDownloadLatestReleaseDir( [String] $repoUrl ){
                                                 [String[]] $dirs = (@()+(FsEntryListAsStringArray $tarDir $false $true $false));
                                                 if( $dirs.Count -ne 1 ){ throw [ExcMsg] "Expected one dir in `"$tarDir`" instead of: $dirs"; }
                                                 [String] $dir0 = $dirs[0];
-                                                FsEntryMoveByPatternToDir "$dir0$(DirSep)*" $tarDir;
+                                                FsEntryMoveByPatternToDir "$dir0/*" $tarDir;
                                                 DirDelete $dir0;
                                                 return [String] $tarDir; }
 function ToolEvalVsCodeExec                   (){ [String] $result = (ProcessFindExecutableInPath "code");
@@ -3490,7 +3572,8 @@ function ToolEvalVsCodeExec                   (){ [String] $result = (ProcessFin
                                                   if( $result -eq "" ){ throw [ExcMsg] "VS Code executable was not found wether in path nor on windows at common locations for user or system programs."; }
                                                   return [String] $result; }
 
-function GetSetGlobalVar( [String] $var, [String] $val){ OutProgress "GetSetGlobalVar is OBSOLETE, replace it now by GitSetGlobalVar.";  GitSetGlobalVar $var $val; }
+function GetSetGlobalVar( [String] $var, [String] $val){ OutProgress "GetSetGlobalVar is DEPRECATED, replace it now by GitSetGlobalVar.";  GitSetGlobalVar $var $val; }
+function FsEntryIsEqual ( [String] $fs1, [String] $fs2, [Boolean] $caseSensitive = $false ){ OutProgress "FsEntryIsEqual is DEPRECATED, replace it now by FsEntryPathIsEqual."; return (FsEntryPathIsEqual $fs1 $fs2); }
 
 # ----------------------------------------------------------------------------------------------------
 
