@@ -5,6 +5,7 @@ Major version will reflect breaking changes, minor identifies extensions and thi
 Breaking changes are usually removed deprecated functions or changed behaviours.
 Current version can be requested by: $MnCommonPsToolLibVersion
 
+2024-02-16  V7.44  Expects always a dir separator for specifying dirs (currently only a warning, later it throws), Update FsEntryMakeTrailingDirSep, FsEntryGetParentDir. Deprecated FsEntryIsEqual (use FsEntryPathIsEqual).
 2024-02-11  V7.43  Fix GitAssertAutoCrLfIsDisabled, Update Doc.
 2024-02-07  V7.42  Add ProcessRefreshEnvVars.
 2024-02-04  V7.41  Add GitBranchList, StringRemoveLeftNr.
