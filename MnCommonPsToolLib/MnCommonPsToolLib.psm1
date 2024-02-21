@@ -977,7 +977,7 @@ function FsEntryGetAbsolutePath               ( [String] $fsEntry ){ # works wit
                                                 # Note: We cannot use (Resolve-Path -LiteralPath $fsEntry) because it will throw if path not exists,
                                                 # see http://stackoverflow.com/questions/3038337/powershell-resolve-path-that-might-not-exist
                                                 if( $fsEntry -eq "" ){ return [String] ""; }
-                                                if( (OsIsWindows) && $fsEntry.StartsWith("//") ){ $fsEntry = $fsEntry.Replace("/","\"); }
+                                                if( (OsIsWindows) -and $fsEntry.StartsWith("//") ){ $fsEntry = $fsEntry.Replace("/","\"); }
                                                 try{ return [String] ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($fsEntry)); }
                                                 catch [System.Management.Automation.DriveNotFoundException] {
                                                   # Example: DriveNotFoundException: Cannot find drive. A drive with the name 'Z' does not exist.
