@@ -53,14 +53,15 @@ Files of this repository:
 - InstallEnablePowerShellToUnrestrictedRequiresAdminRights.bat :
   If you never enabled powershell to run without warning dialogs then run this script,
   which sets execution mode to run unrestricted (=Bypass) and so without any security warning.
-  This is recommended if you can trust yourself, that you won't click by accident
-  on unknown powershell script files.
+  This is recommended if you can trust yourself, that you won't click by accident on unknown 
+  powershell script files. If your powershell is already configured so that you can run scripts,
+  then you can perform these actions also with the Install.ps1.
 
 - MnCommonPsToolLib\MnCommonPsToolLib.psm1 :
   This is the single powershell module file, which must be located in a folder
   with the same name under a folder from PsModulePath to be auto loadable.
 
-- Install.ps1      : Menu script to easy install or uninstall this powershell module.
+- Install.ps1      : Menu script to easy install or uninstall this powershell module and set ps execution mode.
 
 - LICENSE_GPL3.txt : Standard License file.
 

@@ -35,7 +35,7 @@ function OsPsModulePathAdd                    ( [String] $dir ){ if( (OsPsModule
                                                 OsPsModulePathSet ((OsPsModulePathList)+@( (FsEntryRemoveTrailingDirSep $dir) )); }
 function OsPsModulePathDel                    ( [String] $dir ){ OsPsModulePathSet (OsPsModulePathList |
                                                 Where-Object{ (FsEntryRemoveTrailingDirSep $_) -ne (FsEntryRemoveTrailingDirSep $dir) }); }
-function OsPsModulePathSet                    ( [String[]] $pathList ){ [Environment]::SetEnvironmentVariable("PSModulePath", ($pathList -join OsPathSeparator)+OsPathSeparator, "Machine"); }
+function OsPsModulePathSet                    ( [String[]] $pathList ){ [Environment]::SetEnvironmentVariable("PSModulePath", ($pathList -join (OsPathSeparator))+(OsPathSeparator), "Machine"); }
 function DirExists                            ( [String] $dir ){ try{ return [Boolean] (Test-Path -PathType Container -LiteralPath $dir ); }
                                                 catch{ throw [Exception] "DirExists($dir) failed because $($_.Exception.Message)"; } }
 function DirListDirs                          ( [String] $dir ){ return [String[]] (@()+(Get-ChildItem -Force -Directory -Path $dir | ForEach-Object{ $_.FullName })); }
@@ -51,9 +51,13 @@ function ProcessPsExecutable                  (){ return [String] $(switch((Proc
 function ProcessIsRunningInElevatedAdminMode  (){ return [Boolean] ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).
                                                   IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"); }
 function ProcessRestartInElevatedAdminMode    (){ if( -not (ProcessIsRunningInElevatedAdminMode) ){
-                                                [String[]] $cmd = @( (ScriptGetTopCaller) ) + $sel;
-                                                OutProgress "Not running in elevated administrator mode so elevate current script and exit: `n  $cmd";
-                                                Start-Process -Verb "RunAs" -FilePath (ProcessPsExecutable) -ArgumentList "& `"$cmd`" ";
+                                                [String] $cmd = @( (ScriptGetTopCaller) ) + $sel;
+                                                $cmd = $cmd.Replace("`"","`"`"`""); # see https://docs.microsoft.com/en-us/dotnet/api/system.diagnostics.processstartinfo.arguments
+                                                $cmd = $(switch((ProcessIsLesserEqualPs5)){ $true{"& `"$cmd`""} default{"-Command `"$cmd`""}});
+                                                $cmd = "-NoExit -NoLogo " + $cmd;
+                                                OutProgress "Not running in elevated administrator mode, so elevate current script and exit: `n  & `"$(ProcessPsExecutable)`" $cmd ";
+                                                Start-Process -Verb "RunAs" -FilePath (ProcessPsExecutable) -ArgumentList $cmd;
+                                                OutProgress "Exiting in 5 seconds"; Start-Sleep -Seconds 5;
                                                 [Environment]::Exit("0"); throw [Exception] "Exit done, but it did not work, so it throws now an exception."; } }
 function ShellSessionIs64not32Bit             (){ if( "$env:ProgramFiles" -eq "$env:ProgramW6432" ){ return [Boolean] $true ; }
                                                 elseif( "$env:ProgramFiles" -eq "${env:ProgramFiles(x86)}" ){ return [Boolean] $false; }
@@ -149,6 +153,9 @@ if( (OsIsWindows) ){
   OutProgress     "need to be restarted or at least refresh all environment variables before ";
   OutProgress     "they can use the new installed module. ";
   OutProgress     "This usually applies for a file manager or ps sessions, but not for win-explorer. ";
+  OutProgress     "To work sensibly with powershell you should set the execution mode to Bypass ";
+  OutProgress     "(default is RemoteSigned). We recommend this if you trust yourself, that you ";
+  OutProgress     "won't click by accident on unknown ps script files.";
   OutProgress     "By using this software you agree with the terms of GPL3. ";
   OutProgress     "";
   OutProgress     "Current environment:";
@@ -159,7 +166,9 @@ if( (OsIsWindows) ){
   OutProgress     "  PsModuleFolder(allUsers,32bit)     = `"$tarRootDir32bit`". ";
   OutProgress     "  SrcRootDir                         = `"$srcRootDir`". ";
   OutProgress     "  IsInElevatedAdminMode              = $(ProcessIsRunningInElevatedAdminMode).";
-  OutProgress     "  Executionpolicy-LocalMachine       = $(Get-Executionpolicy).";
+  OutProgress     "  Executionpolicy-PS7                = $(& "$env:SystemDrive\Program Files\PowerShell\7\pwsh.EXE"           -Command Get-Executionpolicy).";
+  OutProgress     "  Executionpolicy-PS5-64bit          = $(& "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -Command Get-Executionpolicy).";
+  OutProgress     "  Executionpolicy-PS5-32bit          = $(& "$env:SystemRoot\SysWOW64\WindowsPowerShell\v1.0\powershell.exe" -Command Get-Executionpolicy).";
   OutProgress     "  ShellSessionIs64not32Bit           = $(ShellSessionIs64not32Bit). ";
   OutProgress     "  PsModulePath contains Ps5WinModDir = $(OsPsModulePathContains $ps5WinModuleDir). ";
   OutProgress     "  PsModulePath contains Ps5ModuleDir = $(OsPsModulePathContains $ps5ModuleDir). ";
@@ -180,9 +189,11 @@ if( (OsIsWindows) ){
   OutInfo         "  N = Uninstall all modes. ";
   OutInfo         "  U = When installed in standard mode do update from web. "; # in future do download and also switch to standard mode.
   OutInfo         "  W = Add Ps5WinModDir and Ps5ModuleDir to system PsModulePath environment variable. ";
+  OutInfo         "  B = Elevate and Configure Execution Policy to Bypass       for environment ps7, ps5-64bit and ps5-32bit. ";
+  OutInfo         "  R = Elevate and Configure Execution Policy to RemoteSigned for environment ps7, ps5-64bit and ps5-32bit. ";
   OutInfo         "  Q = Quit. `n";
-  if( $sel -ne "" ){ OutProgress "Selection: $sel "; }
-  while( @("I","A","N","U","W","Q") -notcontains $sel ){
+  if( $sel -ne "" ){ OutProgress "Selection (afterwards exit): $sel "; }
+  while( @("I","A","N","U","W","Q","B","R") -notcontains $sel ){
     OutQuestion "Enter selection case insensitive and press enter: ";
     $sel = (Read-Host);
   }
@@ -198,6 +209,17 @@ if( (OsIsWindows) ){
                       OutProgressText "Current installation modes: "; CurrentInstallationModes "Green"; }
   if( $sel -eq "U" ){ SelfUpdate; }
   if( $sel -eq "W" ){ AddToPsModulePath $ps5WinModuleDir; AddToPsModulePath $ps5ModuleDir; }
+  if( $sel -eq "B" ){ ProcessRestartInElevatedAdminMode;
+                      OutProgress "Set-Executionpolicy Bypass";
+                      & "$env:SystemDrive\Program Files\PowerShell\7\pwsh.EXE"           -Command { Set-Executionpolicy Bypass; };
+                      & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -Command { Set-Executionpolicy Bypass; };
+                      & "$env:SystemRoot\SysWOW64\WindowsPowerShell\v1.0\powershell.exe" -Command { Set-Executionpolicy Bypass; };
+  }
+  if( $sel -eq "R" ){ ProcessRestartInElevatedAdminMode;
+                      OutProgress "Set-Executionpolicy RemoteSigned";
+                      & "$env:SystemDrive\Program Files\PowerShell\7\pwsh.EXE"           -Command { Set-Executionpolicy RemoteSigned };
+                      & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -Command { Set-Executionpolicy RemoteSigned };
+                      & "$env:SystemRoot\SysWOW64\WindowsPowerShell\v1.0\powershell.exe" -Command { Set-Executionpolicy RemoteSigned }; }
   if( $sel -eq "Q" ){ OutProgress "Quit."; }
 }else{ # non-windows
   OutProgress     "Running on Non-Windows OS (Linux, MacOS) ";
@@ -206,7 +228,7 @@ if( (OsIsWindows) ){
   OutInfo         "";
   OutInfo         "  I = Install or reinstall in standard mode. ";
   OutInfo         "  Q = Quit. `n";
-  if( $sel -ne "" ){ OutProgress "Selection: $sel "; }
+  if( $sel -ne "" ){ OutProgress "Selection (afterwards exit): $sel "; }
   while( @("I","Q") -notcontains $sel ){
     OutQuestion "Enter selection case insensitive and press enter: ";
     $sel = (Read-Host);
