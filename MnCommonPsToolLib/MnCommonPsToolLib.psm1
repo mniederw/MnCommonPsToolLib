@@ -8,7 +8,7 @@
 #Requires -Version 3.0
 # Version: Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
 #   Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-[String] $global:MnCommonPsToolLibVersion = "7.44"; # more see Releasenotes.txt
+[String] $global:MnCommonPsToolLibVersion = "7.45"; # more see Releasenotes.txt
 
 # This library encapsulates many common commands for the purpose of supporting compatibility between
 # multi platforms, simplifying commands, fixing usual problems, supporting tracing information,
@@ -282,6 +282,7 @@ function StringRemoveRight                    ( [String] $str, [String] $strRigh
 function StringRemoveOptEnclosingDblQuotes    ( [String] $s ){ if( $s.Length -ge 2 -and $s.StartsWith("`"") -and $s.EndsWith("`"") ){
                                                 return [String] $s.Substring(1,$s.Length-2); } return [String] $s; }
 function StringMakeNonNull                    ( [String] $s ){ if( $null -eq $s ){ return ""; }else{ return $s; } }
+function StringExistsInStringArray            ( [String] $itemCaseSensitive, [String[]] $a ){ return [Boolean] (StringArrayContains $a $itemCaseSensitive); }
 function StringArrayInsertIndent              ( [String[]] $lines, [Int32] $nrOfBlanks ){
                                                 return [String[]] (@()+($lines | Where-Object{$null -ne $_} | ForEach-Object{ ((" "*$nrOfBlanks)+$_); })); }
 function StringArrayDistinct                  ( [String[]] $lines ){ return [String[]] (@()+($lines | Where-Object{$null -ne $_} | Select-Object -Unique)); }
@@ -970,6 +971,7 @@ function PrivAclRegRightsToString             ( [System.Security.AccessControl.R
 function DirSep                               (){ return [Char] [IO.Path]::DirectorySeparatorChar; }
 function FsEntryEsc                           ( [String] $fsentry ){ AssertNotEmpty $fsentry "file-system-entry"; # Escaping is not nessessary if a command supports -LiteralPath.
                                                 return [String] [Management.Automation.WildcardPattern]::Escape($fsentry); } # Important for chars as [,], etc.
+function FsEntryUnifyDirSep                   ( [String] $fsEntry ){ return [String] ($fsEntry -replace "[\\/]",(DirSep)); }
 function FsEntryGetAbsolutePath               ( [String] $fsEntry ){ # works without IO, so no check to file system; does not remove a trailing dir-separator. Return empty for empty input.
                                                 # Convert dir-separators slashes or backslashes to correct os dependent dir separators.
                                                 # Note: We cannot use (Resolve-Path -LiteralPath $fsEntry) because it will throw if path not exists,

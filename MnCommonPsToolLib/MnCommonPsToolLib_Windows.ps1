@@ -1338,7 +1338,7 @@ function MnCommonPsToolLibSelfUpdate          ( [Boolean] $doWaitForEnterKeyIfFa
                                                 [String]  $moduleName = "MnCommonPsToolLib";
                                                 [String]  $tarRootDir = "$Env:ProgramW6432/WindowsPowerShell/Modules"; # more see: https://msdn.microsoft.com/en-us/library/dd878350(v=vs.85).aspx
                                                 [String]  $moduleFile = "$tarRootDir/$moduleName/${moduleName}.psm1";
-                                                if( (FileNotExists $moduleFile) ){ OutProgress "MnCommonPsToolLibSelfUpdate: Note: Cannot self update because is not installed in standard mode under `"$env:ProgramFiles\WindowsPowerShell\Modules\`" "; return; }
+                                                if( (FileNotExists $moduleFile) ){ OutProgress "MnCommonPsToolLibSelfUpdate: Note: Cannot self update because is not installed in standard mode under `"$env:ProgramFiles\WindowsPowerShell\Modules\`". You probably used alternative installation to use it as developer. "; return; }
                                                 #
                                                 [String]  $modFile     = "$tarRootDir/$moduleName/${moduleName}.psm1";
                                                 [String]  $url         = "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/master/$moduleName/${moduleName}.psm1";
