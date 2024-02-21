@@ -520,7 +520,7 @@ function StdInAssertAllowInteractions         (){ if( $global:ModeDisallowIntera
                                                 throw [Exception] "Cannot read for input because all interactions are disallowed, either caller should make sure variable ModeDisallowInteractions is false or he should not call an input method."; } }
 function StdInReadLine                        ( [String] $line ){ OutStringInColor "Cyan" $line; StdInAssertAllowInteractions; return [String] (Read-Host); }
 function StdInReadLinePw                      ( [String] $line ){ OutStringInColor "Cyan" $line; StdInAssertAllowInteractions; return [System.Security.SecureString] (Read-Host -AsSecureString); }
-function StdInAskForEnter                     (){ [String] $dummyLine = StdInReadLine "Press Enter to Exit"; }
+function StdInAskForEnter                     ( [String] $msg = "Press Enter to Exit" ){ [String] $dummyLine = StdInReadLine $msg; }
 function StdInAskForBoolean                   ( [String] $msg = "Enter Yes or No (y/n)?", [String] $strForYes = "y", [String] $strForNo = "n" ){
                                                  while($true){ OutStringInColor "Magenta" $msg;
                                                  [String] $answer = StdInReadLine ""; if( $answer -eq $strForYes ){ return [Boolean] $true ; }
