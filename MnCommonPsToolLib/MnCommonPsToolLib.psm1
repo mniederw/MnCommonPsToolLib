@@ -854,26 +854,37 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
 function ProcessEnvVarGet                     ( [String] $name, [System.EnvironmentVariableTarget] $scope = [System.EnvironmentVariableTarget]::Process ){
                                                 return [String] [Environment]::GetEnvironmentVariable($name,$scope); }
 function ProcessEnvVarSet                     ( [String] $name, [String] $val, [System.EnvironmentVariableTarget] $scope = [System.EnvironmentVariableTarget]::Process, [Boolean] $traceCmd = $true ){
-                                                 # Scope: MACHINE, USER, PROCESS. Use empty string to delete a value
-                                                 if( $traceCmd ){ OutProgress "SetEnvironmentVariable scope=$scope $name=`"$val`""; }
-                                                 [Environment]::SetEnvironmentVariable($name,$val,$scope); }
-function ProcessRefreshEnvVars                ( [Boolean] $traceCmd = $true ){ # Use this after an installer did change environment variables for example by extending the path.
+                                                # Scope: MACHINE, USER, PROCESS. Use empty string to delete a value
+                                                if( $traceCmd ){ OutProgress "SetEnvironmentVariable scope=$scope $name=`"$val`""; }
+                                                [Environment]::SetEnvironmentVariable($name,$val,$scope); }
+function ProcessEnvVarPathAdd                 ( [String] $dir = "", [String] $scope = "User" ){ # add dir to path if it not yet contains it
+                                                if( $dir -eq "" ){ return; }
+                                                $dir = FsEntryMakeTrailingDirSep (FsEntryGetAbsolutePath $dir);
+                                                [String[]] $pathUser =  (@()+((ProcessEnvVarGet "PATH" $scope).Split((OsPathSeparator),[System.StringSplitOptions]::RemoveEmptyEntries)) |
+                                                  Where-Object{$null -ne $_} | ForEach-Object{ FsEntryMakeTrailingDirSep (FsEntryGetAbsolutePath $_) });
+                                                if( (@()+($pathUser | Where-Object{$null -ne $_} | Where-Object{ FsEntryPathIsEqual $_ $dir })).Count -gt 0 ){ return; }
+                                                OutProgress "ProcessEnvVarPathAdd-User `"$dir`" ";
+                                                $pathUser += $dir;
+                                                ProcessEnvVarSet "PATH" ($pathUser -join (OsPathSeparator)) "User" -traceCmd:$false;
+                                              }
+function ProcessRefreshEnvVars                ( [Boolean] $traceCmd = $true ){ # Use this after an installer did change environment variables for example by extending the PATH.
                                                 if( $traceCmd ){ OutProgress "ProcessRefreshEnvVars"; }
-                                                [Hashtable] $envVarUser = [System.Environment]::GetEnvironmentVariables([System.EnvironmentVariableTarget]::User);
-                                                [Hashtable] $envVarMach = [System.Environment]::GetEnvironmentVariables([System.EnvironmentVariableTarget]::Machine);
-                                                [Hashtable] $envVarProc = [System.Environment]::GetEnvironmentVariables([System.EnvironmentVariableTarget]::Process);
-                                                [Hashtable] $envVarNewP = @{};
+                                                [Hashtable] $envVarUser = [Hashtable]::new([System.Environment]::GetEnvironmentVariables([System.EnvironmentVariableTarget]::User),[StringComparer]::InvariantCultureIgnoreCase);
+                                                [Hashtable] $envVarMach = [Hashtable]::new([System.Environment]::GetEnvironmentVariables([System.EnvironmentVariableTarget]::Machine),[StringComparer]::InvariantCultureIgnoreCase);
+                                                [Hashtable] $envVarProc = [Hashtable]::new([System.Environment]::GetEnvironmentVariables([System.EnvironmentVariableTarget]::Process),[StringComparer]::InvariantCultureIgnoreCase);
+                                                [Hashtable] $envVarNewP = [Hashtable]::new(@{},[StringComparer]::InvariantCultureIgnoreCase);
                                                 # Note: On Windows ps5/7 does automatically append ".CPL" to PATHEXT env var in process scope.
                                                 if( (OsIsWindows) -and -not $envVarMach["PATHEXT"].Contains(".CPL") ){ $envVarMach["PATHEXT"] = "$($envVarMach["PATHEXT"]);.CPL"; }
-                                                $envVarMach.Keys | ForEach-Object{ $envVarNewP[$_] = $envVarMach[$_]; }
-                                                $envVarUser.Keys | ForEach-Object{ $envVarNewP[$_] = $envVarUser[$_]; }
+                                                # On a default Windows 10 the Path variable is not in uppercase, but we want this for compatibility to linux and osx.
+                                                $envVarMach.Keys | ForEach-Object{ if( $_ -eq "PATH" ){ $_ = $_.ToUpper(); } $envVarNewP[$_] = $envVarMach[$_]; }
+                                                $envVarUser.Keys | ForEach-Object{ if( $_ -eq "PATH" ){ $_ = $_.ToUpper(); } $envVarNewP[$_] = $envVarUser[$_]; }
                                                 # Note: Powershell preceeds the PATH env var on Windows with
                                                 #   "$HOME\Documents\PowerShell\Modules;C:\Program Files\PowerShell\Modules;c:\program files\powershell\7\Modules;"
                                                 #   and so we only add new parts.
                                                 [String] $sep = (OsPathSeparator);
                                                 [String[]] $p = (StringSplitToArray $sep $envVarProc["PATH"] $true);
-                                                [String[]] $n = (StringSplitToArray $sep ([System.Environment]::GetEnvironmentVariable("Path","Machine")+$sep+
-                                                                                          [System.Environment]::GetEnvironmentVariable("Path","User")) $true);
+                                                [String[]] $n = (StringSplitToArray $sep ([System.Environment]::GetEnvironmentVariable("PATH","Machine")+$sep+
+                                                                                          [System.Environment]::GetEnvironmentVariable("PATH","User")) $true);
                                                 $n | Where-Object{ "" -ne "$_" -and $p -notcontains $_ } | ForEach-Object{ OutProgress "Extended PATH by: `"$_`""; $p += $_; };
                                                 $envVarNewP["PATH"] = (StringArrayConcat $p $sep)+$(switch("$($envVarProc["PATH"])".EndsWith($sep)){($true){$sep}($false){""}});
                                                 # Note: Powershell preceeds the PSModulePath env var on Windows with
