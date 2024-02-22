@@ -854,9 +854,19 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
 function ProcessEnvVarGet                     ( [String] $name, [System.EnvironmentVariableTarget] $scope = [System.EnvironmentVariableTarget]::Process ){
                                                 return [String] [Environment]::GetEnvironmentVariable($name,$scope); }
 function ProcessEnvVarSet                     ( [String] $name, [String] $val, [System.EnvironmentVariableTarget] $scope = [System.EnvironmentVariableTarget]::Process, [Boolean] $traceCmd = $true ){
-                                                 # Scope: MACHINE, USER, PROCESS. Use empty string to delete a value
-                                                 if( $traceCmd ){ OutProgress "SetEnvironmentVariable scope=$scope $name=`"$val`""; }
-                                                 [Environment]::SetEnvironmentVariable($name,$val,$scope); }
+                                                # Scope: MACHINE, USER, PROCESS. Use empty string to delete a value
+                                                if( $traceCmd ){ OutProgress "SetEnvironmentVariable scope=$scope $name=`"$val`""; }
+                                                [Environment]::SetEnvironmentVariable($name,$val,$scope); }
+function ProcessEnvVarPathAdd                 ( [String] $dir = "", [String] $scope = "User" ){ # add dir to path if it not yet contains it
+                                                if( $dir -eq "" ){ return; }
+                                                $dir = FsEntryMakeTrailingDirSep (FsEntryGetAbsolutePath $dir);
+                                                [String[]] $pathUser =  (@()+((ProcessEnvVarGet "PATH" $scope).Split((OsPathSeparator),[System.StringSplitOptions]::RemoveEmptyEntries)) |
+                                                  Where-Object{$null -ne $_} | ForEach-Object{ FsEntryMakeTrailingDirSep (FsEntryGetAbsolutePath $_) });
+                                                if( ($pathUser | Where-Object{$null -ne $_} | Where-Object{ FsEntryPathIsEqual $_ $dir }).Count -gt 0 ){ return; }
+                                                OutProgress "ProcessEnvVarPathAdd-User `"$dir`" ";
+                                                $pathUser += $dir;
+                                                ProcessEnvVarSet "PATH" ($pathUser -join (OsPathSeparator)) "User" -traceCmd:$false;
+                                              }
 function ProcessRefreshEnvVars                ( [Boolean] $traceCmd = $true ){ # Use this after an installer did change environment variables for example by extending the PATH.
                                                 if( $traceCmd ){ OutProgress "ProcessRefreshEnvVars"; }
                                                 [Hashtable] $envVarUser = [Hashtable]::new([System.Environment]::GetEnvironmentVariables([System.EnvironmentVariableTarget]::User),[StringComparer]::InvariantCultureIgnoreCase);
