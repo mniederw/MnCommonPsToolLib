@@ -1408,7 +1408,7 @@ function FileExists                           ( [String] $file ){ AssertNotEmpty
 function FileNotExists                        ( [String] $file ){
                                                 return [Boolean] -not (FileExists $file); }
 function FileAssertExists                     ( [String] $file ){
-                                                if( (FileNotExists $file) ){ throw [Exception] "File not exists: `"$file`"."; } }
+                                                if( (FsEntryHasTrailingDirSep $file) ){ throw [Exception] "File has not allowed trailing dir sep: `"$file`"."; }; if( (FileNotExists $file) ){ throw [Exception] "File not exists: `"$file`"."; } }
 function FileExistsAndIsNewer                 ( [String] $ftar, [String] $fsrc ){
                                                 FileAssertExists $fsrc; return [Boolean] ((FileExists $ftar) -and ((FsEntryGetLastModified $ftar) -ge (FsEntryGetLastModified $fsrc))); }
 function FileNotExistsOrIsOlder               ( [String] $ftar, [String] $fsrc ){

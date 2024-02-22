@@ -942,47 +942,52 @@ function ToolUnzip                            ( [String] $srcZipFile, [String] $
                                                 # alternative: in PS5 there is: Expand-Archive zipfile -DestinationPath tardir
                                                 [System.IO.Compression.ZipFile]::ExtractToDirectory($srcZipFile, $tarDir);
                                               }
-function ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [String] $workDir, [String] $lnkFile, [String] $srcFile, [String[]] $arguments = @(),
-                                                  [Boolean] $runElevated = $false, [Boolean] $ignoreIfSrcFileNotExists = $false ){
-                                                # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\LinkToNotepad.lnk" "C:\Windows\notepad.exe";
-                                                # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA\Microsoft\Internet Explorer\Quick Launch\LinkToNotepad.lnk" "C:\Windows\notepad.exe";
-                                                # If $forceRecreate is false and target lnkfile already exists then it does nothing.
-                                                # $workDir can be empty string.
+function ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [String] $workDir, [String] $lnkFile, [String] $srcFsEntry, [String[]] $arguments = @(),
+                                                  [Boolean] $runElevated = $false, [Boolean] $ignoreIfSrcNotExists = $false ){
+                                                # Creates links to files as programs or document files or to directories.
+                                                # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA/Microsoft/Windows/Start Menu/Programs/LinkToNotepad.lnk" "C:/Windows/notepad.exe";
+                                                # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA/Microsoft/Internet Explorer/Quick Launch/LinkToNotepad.lnk" "C:/Windows/notepad.exe";
+                                                # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA/Microsoft/Windows/Start Menu/- Folders/C - SendTo.lnk" "$HOME/AppData/Roaming/Microsoft/Windows/SendTo/";
+                                                # forceRecreate: if is false and target lnkfile already exists then it does nothing.
+                                                # workDir             : can be empty string. Internally it then takes the parent of the file.
+                                                # srcFsEntry          : file or dir. A dir must be specified by a trailing dir separator!
+                                                # runElevated         : the link is marked to request for run in elevated mode.
+                                                # ignoreIfSrcNotExists: if source not exists it will be silently ignored, but then the lnk file cannot be created.
                                                 # Icon: If next to the srcFile an ico file with the same filename exists then this will be taken.
-                                                $workDir = FsEntryGetAbsolutePath $workDir;
-                                                $lnkFile = FsEntryGetAbsolutePath $lnkFile;
-                                                $srcFile = FsEntryGetAbsolutePath $srcFile;
-                                                [String] $descr = $srcFile;
-                                                if( $ignoreIfSrcFileNotExists -and (FileNotExists $srcFile) ){
+                                                $workDir    = FsEntryGetAbsolutePath $workDir;
+                                                $lnkFile    = FsEntryGetAbsolutePath $lnkFile;
+                                                $srcFsEntry = FsEntryGetAbsolutePath $srcFsEntry;
+                                                [String] $descr = $srcFsEntry;
+                                                [Boolean] $isDir = FsEntryHasTrailingDirSep $srcFsEntry;
+                                                if( $ignoreIfSrcNotExists -and (($isDir -and (DirNotExists $srcFsEntry)) -or (-not $isDir -and (FileNotExists $srcFsEntry))) ){
                                                   OutVerbose "NotCreatedBecauseSourceFileNotExists: $lnkFile"; return;
                                                 }
-                                                FileAssertExists $srcFile;
+                                                if( $isDir ){ DirAssertExists $srcFsEntry; }else{ FileAssertExists $srcFsEntry; }
                                                 if( $forceRecreate ){ FileDelete $lnkFile; }
                                                 if( (FileExists $lnkFile) ){
                                                   OutVerbose "Unchanged: $lnkFile";
                                                 }else{
                                                     [String] $argLine = $arguments; # array to string
-                                                    if( $workDir -eq "" ){ $workDir = FsEntryGetParentDir $srcFile; }
+                                                    if( $workDir -eq "" ){ if( $isDir ){ $workDir = $srcFsEntry; }else{ $workDir = FsEntryGetParentDir $srcFsEntry; } }
+                                                    [String] $iconFile = (StringRemoveRight (FsEntryRemoveTrailingDirSep $srcFsEntry) (FsEntryGetFileExtension $srcFsEntry)) + ".ico";
+                                                    [String] $ico = $(switch((FileNotExists $iconFile)){($true){$iconFile}($false){",0"}});
                                                     OutProgress "CreateShortcut `"$lnkFile`"";
-                                                    OutVerbose "WScript.Shell.CreateShortcut `"$workDir`" `"$lnkFile`" `"$srcFile`" `"$argLine`" `"$descr`"";
                                                     try{
-                                                      FsEntryCreateParentDir $lnkFile;
                                                       [Object] $wshShell = New-Object -comObject WScript.Shell;
-                                                      [Object] $s = $wshShell.CreateShortcut($lnkFile); # do not use FsEntryEsc otherwise [ will be created as `[
-                                                      [String] $src = FsEntryEsc $srcFile;
-                                                      [String] $ico = (StringRemoveRight $src (FsEntryGetFileExtension $src) $false) + ".ico";
-                                                      if( (FileNotExists $ico) ){ $ico = ",0"; }
-                                                      $s.TargetPath = $src;
-                                                      $s.Arguments = $argLine;
+                                                      [Object] $s   = $wshShell.CreateShortcut($lnkFile); # do not use FsEntryEsc otherwise [ will be created as `[
+                                                      $s.TargetPath       = FsEntryEsc $srcFsEntry;
+                                                      $s.Arguments        = $argLine;
                                                       $s.WorkingDirectory = FsEntryEsc $workDir;
-                                                      $s.Description = $descr;
-                                                      $s.IconLocation = $ico; # $s.IconLocation = ",0" "myprog.exe, 0" "myprog.ico";
+                                                      $s.Description      = $descr;
+                                                      $s.IconLocation     = $ico; # one of: ",0" "myprog.exe, 0" "myprog.ico";
+                                                      OutVerbose "WScript.Shell.CreateShortcut workDir=`"$workDir`" lnk=`"$lnkFile`" src=`"$srcFsEntry`" arg=`"$argLine`" descr=`"$descr`" ico==`"$ico`"";
+                                                      FsEntryCreateParentDir $lnkFile;
                                                       # $s.WindowStyle = 1; 1=Normal; 3=Maximized; 7=Minimized;
                                                       # $s.Hotkey = "CTRL+SHIFT+F"; # requires restart explorer
                                                       # $s.RelativePath = ...
                                                       $s.Save(); # does overwrite
                                                     }catch{
-                                                      throw [ExcMsg] "$(ScriptGetCurrentFunc)(`"$workDir`",`"$lnkFile`",`"$srcFile`",`"$argLine`",`"$descr`") failed because $($_.Exception.Message)";
+                                                      throw [ExcMsg] "$(ScriptGetCurrentFunc)(`"$workDir`",`"$lnkFile`",`"$srcFsEntry`",`"$argLine`",`"$descr`") failed because $($_.Exception.Message)";
                                                     }
                                                   if( $runElevated ){
                                                     [Byte[]] $bytes = [IO.File]::ReadAllBytes($lnkFile); $bytes[0x15] = $bytes[0x15] -bor 0x20; [IO.File]::WriteAllBytes($lnkFile,$bytes);  # set bit 6 of byte nr 21
@@ -1026,7 +1031,7 @@ function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [St
                                                   [String] $cmdLine = FileReadContentAsLines $f $encodingIfNoBom | Select-Object -First 1;
                                                   [String] $addTraceInfo = "";
                                                   [Boolean] $forceRecreate = FileNotExistsOrIsOlder $lnkFile $f;
-                                                  [Boolean] $ignoreIfSrcFileNotExists = $f.EndsWith($srcFileExtMenuLinkOpt);
+                                                  [Boolean] $ignoreIfSrcNotExists = $f.EndsWith($srcFileExtMenuLinkOpt);
                                                   try{
                                                     [String[]] $ar = @()+(StringCommandLineToArray $cmdLine); # can throw: Expected blank or tab char or end of string but got char ...
                                                     if( $ar.Length -eq 0 ){ throw [Exception] "Missing a command line at first line in file=`"$f`" cmdline=`"$cmdLine`""; }
@@ -1035,8 +1040,8 @@ function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [St
                                                     # Example: "D:\MyPortableProgs\Manufactor ProgramName\AnyProgram.exe"
                                                     [String] $srcFile = FsEntryGetAbsolutePath ([System.IO.Path]::Combine($d,$ar[0]));
                                                     [String[]] $arguments = @()+($ar | Select-Object -Skip 1);
-                                                    $addTraceInfo = "and calling (ToolCreateLnkIfNotExists $forceRecreate `"$workDir`" `"$lnkFile`" `"$srcFile`" `"$arguments`" $false $ignoreIfSrcFileNotExists) ";
-                                                    ToolCreateLnkIfNotExists $forceRecreate $workDir $lnkFile $srcFile $arguments $false $ignoreIfSrcFileNotExists;
+                                                    $addTraceInfo = "and calling (ToolCreateLnkIfNotExists $forceRecreate `"$workDir`" `"$lnkFile`" `"$srcFile`" `"$arguments`" $false $ignoreIfSrcNotExists) ";
+                                                    ToolCreateLnkIfNotExists $forceRecreate $workDir $lnkFile $srcFile $arguments $false $ignoreIfSrcNotExists;
                                                   }catch{
                                                     [String] $msg = "$($_.Exception.Message).$(switch(-not $cmdLine.StartsWith('`"')){($true){' Maybe first file of content in menulink file should be quoted.'}default{' Maybe if first file not exists you may use file extension `".menulinkoptional`" instead of `".menulink`".'}})";
                                                     OutWarning "Warning: Create menulink by reading file `"$f`", taking first line as cmdLine ($cmdLine) $addTraceInfo failed because $msg";
@@ -1212,6 +1217,7 @@ function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $
                                                     FileMove $tmp $targetFile $true;
                                                     OutSuccess "Ok, updated `"$targetFile`". $additionalOkUpdMsg";
                                                   }
+                                                  ProcessRefreshEnvVars;
                                                   return [Boolean] $true;
                                                 }catch{
                                                   OutWarning "Warning: Update failed because $($_.Exception.Message)";
@@ -1251,7 +1257,7 @@ function ToolInstallOrUpdate                  ( [String] $installMedia, [String]
                                                 }else{
                                                   OutProgress "Is up-to-date: `"$installMedia`"";
                                                 } }
-function ToolInstallNuPckMgrAndCommonPsGalMo(){
+function ToolInstallNuPckMgrAndCommonPsGalMo  (){
                                                 OutInfo     "Install or actualize Nuget Package Manager and from PSGallery some common modules: ";
                                                 OutProgress "  InstallModules: SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate. Update-Help. ";
                                                 OutProgress "  Needs about 1 min.";
@@ -1328,17 +1334,47 @@ function ToolInstallNuPckMgrAndCommonPsGalMo(){
                                                 #     And Update-Module : Das Modul 'Pester' wurde nicht mithilfe von 'Install-Module' installiert und kann folglich nicht aktualisiert werden.
                                                 # - Example: Uninstall-Module -MaximumVersion "0.9.99" -Name SqlServer;
                                                 }
-function MnCommonPsToolLibSelfUpdate          ( [Boolean] $doWaitForEnterKeyIfFailed = $false ){
-                                                # If installed in standard mode (saved under c:\Program Files\WindowsPowerShell\Modules\...)
+function ToolManuallyDownloadAndInstallProg   ( [String] $programName, [String] $programDownloadUrl, [String] $mainTargetFileMinIsoDate = "0001-01-01", [String] $programExecutableOrDir = "", [String] $programConfigurations = "" ){
+                                                # Example: ToolManuallyDownloadAndInstallProg "Powershell-V7"     "https://learn.microsoft.com/de-de/powershell/scripting/install/installing-powershell-on-windows" "0001-01-01" "pwsh.exe" "";
+                                                # Example: ToolManuallyDownloadAndInstallProg "TortoiseGit 64bit" "https://tortoisegit.org/download/" "0001-01-01" "C:/Program Files/TortoiseGit/bin/TortoiseGit.dll" "";
+                                                OutInfo "Check `"$programName`" by existance of executable or dir `"$programExecutableOrDir`" and $mainTargetFileMinIsoDate ";
+                                                [Boolean] $isDir = (FsEntryHasTrailingDirSep $programExecutableOrDir);
+                                                [DateTime] $mainTargetFileMinDate = DateTimeFromStringIso $mainTargetFileMinIsoDate;
+                                                while($true){
+                                                  if( $programExecutableOrDir -ne "" ){
+                                                    [String] $exe = (ProcessFindExecutableInPath $programExecutableOrDir);
+                                                    if( $isDir ){
+                                                      if( (DirExists $programExecutableOrDir) ){ return; }
+                                                    }else{
+                                                      if( $exe -ne "" ){
+                                                        if( $mainTargetFileMinDate -eq [DateTime]::MinValue ){ return; }
+                                                        [DateTime] $mainTargetFileDate = FsEntryGetLastModified $exe;
+                                                        if( $mainTargetFileDate -ge $mainTargetFileMinDate ){ return; }
+                                                      }
+                                                    }
+                                                  }
+                                                  OutInfo "Please download and install `"$programName`" ";
+                                                  OutProgress "Follow the configurations: `"$programConfigurations`" ";
+                                                  ProcessOpenAssocFile $programDownloadUrl;
+                                                  StdInAskForEnterContinue;
+                                                  ProcessRefreshEnvVars;
+                                                  if( $programExecutableOrDir -eq "" ){ return; } # if exec not specified then we open url only once!
+                                                } }
+function MnCommonPsToolLibSelfUpdate          (){
+                                                # If installed in standard mode (saved under c:/Program Files/WindowsPowerShell/Modules/...)
                                                 # then it performs a self update to the newest version from github otherwise output a note.
                                                 [String]  $additionalOkUpdMsg = "`n  Please restart all processes which currently loaded this module before using changed functions of this library.";
                                                 [Boolean] $requireElevatedAdminMode = $true;
                                                 [Boolean] $assertFilePreviouslyExists = $true;
                                                 [Boolean] $performPing = $true;
                                                 [String]  $moduleName = "MnCommonPsToolLib";
-                                                [String]  $tarRootDir = "$Env:ProgramW6432/WindowsPowerShell/Modules"; # more see: https://msdn.microsoft.com/en-us/library/dd878350(v=vs.85).aspx
-                                                [String]  $moduleFile = "$tarRootDir/$moduleName/${moduleName}.psm1";
-                                                if( (FileNotExists $moduleFile) ){ OutProgress "MnCommonPsToolLibSelfUpdate: Note: Cannot self update because is not installed in standard mode under `"$env:ProgramFiles\WindowsPowerShell\Modules\`". You probably used alternative installation to use it as developer. "; return; }
+                                                [String]  $tarRootDir = FsEntryGetAbsolutePath "$Env:ProgramW6432/WindowsPowerShell/Modules/"; # more see: https://msdn.microsoft.com/en-us/library/dd878350(v=vs.85).aspx
+                                                [String]  $moduleFile = FsEntryGetAbsolutePath "$tarRootDir/$moduleName/${moduleName}.psm1";
+                                                if( (FileNotExists $moduleFile) ){
+                                                  OutProgress "MnCommonPsToolLibSelfUpdate: Nothing done because is not installed in standard mode under `"$tarRootDir`". ";
+                                                  if( (OsPsModulePathContains $PSScriptRoot) ){ OutProgress "  Current script is in PsModulePath so it is Installed-for-Developers! "; }else{ ProcessSleepSec 5; }
+                                                  return;
+                                                }
                                                 #
                                                 [String]  $modFile     = "$tarRootDir/$moduleName/${moduleName}.psm1";
                                                 [String]  $url         = "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/master/$moduleName/${moduleName}.psm1";
