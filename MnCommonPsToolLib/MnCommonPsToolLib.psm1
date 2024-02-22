@@ -875,35 +875,43 @@ function ProcessEnvVarList                    (){
                                                 $envVarProc.Keys | Sort-Object | ForEach-Object{ OutProgress "`"PROCESS`",`"$($_.PadRight(32))`",`"$($envVarProc[$_])`""; }
                                                 $envVarUser.Keys | Sort-Object | ForEach-Object{ OutProgress "`"USER   `",`"$($_.PadRight(32))`",`"$($envVarUser[$_])`""; }
                                                 $envVarMach.Keys | Sort-Object | ForEach-Object{ OutProgress "`"MACHINE`",`"$($_.PadRight(32))`",`"$($envVarMach[$_])`""; } }
+function ProcessPathVarStringToUnifiedArray   ( [String] $pathVarString ){
+                                                return [String[]] (@()+(StringSplitToArray (OsPathSeparator) $pathVarString $true | 
+                                                  Where-Object{$null -ne $_} | ForEach-Object{ FsEntryMakeTrailingDirSep (FsEntryGetAbsolutePath $_) })); }
 function ProcessRefreshEnvVars                ( [Boolean] $traceCmd = $true ){ # Use this after an installer did change environment variables for example by extending the PATH.
                                                 if( $traceCmd ){ OutProgress "ProcessRefreshEnvVars"; }
                                                 [Hashtable] $envVarUser = [Hashtable]::new([System.Environment]::GetEnvironmentVariables([System.EnvironmentVariableTarget]::User   ),[StringComparer]::InvariantCultureIgnoreCase);
                                                 [Hashtable] $envVarMach = [Hashtable]::new([System.Environment]::GetEnvironmentVariables([System.EnvironmentVariableTarget]::Machine),[StringComparer]::InvariantCultureIgnoreCase);
                                                 [Hashtable] $envVarProc = [Hashtable]::new([System.Environment]::GetEnvironmentVariables([System.EnvironmentVariableTarget]::Process),[StringComparer]::InvariantCultureIgnoreCase);
                                                 [Hashtable] $envVarNewP = [Hashtable]::new(@{},[StringComparer]::InvariantCultureIgnoreCase);
+                                                # On a default Windows 10 the path variable has the name "Path" but on linux and osx it has the name "PATH".
                                                 # Note: On Windows ps5/7 does automatically append ".CPL" to PATHEXT env var in process scope.
                                                 if( (OsIsWindows) -and -not $envVarMach["PATHEXT"].Contains(".CPL") ){ $envVarMach["PATHEXT"] = "$($envVarMach["PATHEXT"]);.CPL"; }
-                                                # On a default Windows 10 the Path variable is not in uppercase, but we want this for compatibility to linux and osx.
-                                                $envVarMach.Keys | ForEach-Object{ if( $_ -eq "PATH" ){ $_ = $_.ToUpper(); } $envVarNewP[$_] = $envVarMach[$_]; }
-                                                $envVarUser.Keys | ForEach-Object{ if( $_ -eq "PATH" ){ $_ = $_.ToUpper(); } $envVarNewP[$_] = $envVarUser[$_]; }
-                                                # Note: Powershell preceeds the PATH env var on Windows with
+                                                $envVarMach.Keys | ForEach-Object{ $envVarNewP[$_] = $envVarMach[$_]; }
+                                                $envVarUser.Keys | ForEach-Object{ $envVarNewP[$_] = $envVarUser[$_]; }
+                                                $envVarNewP["PATH"        ] = $envVarProc["PATH"        ];
+                                                $envVarNewP["PSModulePath"] = $envVarProc["PSModulePath"];
+                                                # Note: For PATH we do not touch current order of process scope but append new ones.
+                                                [String] $sep = OsPathSeparator;
+                                                [String[]] $p = ProcessPathVarStringToUnifiedArray $envVarProc["PATH"];
+                                                [String[]] $mAndU = ProcessPathVarStringToUnifiedArray ($envVarMach["PATH"] + $sep + $envVarUser["PATH"]);
+                                                $mAndU | ForEach-Object{ 
+                                                  if( "" -ne "$_" -and $p -notcontains $_ ){ $p += $_;
+                                                    OutProgress "Extended PATH of scope process by: `"$_`"";
+                                                    $envVarNewP["PATH"] = $envVarNewP["PATH"] + $(switch("$($envVarNewP["PATH"])".EndsWith($sep)){($true){""}($false){$sep}}) + $_; # append 
+                                                  }
+                                                };
+                                                # Note: Powershell preceeds the PSModulePath env var on Windows of process scope with
                                                 #   "$HOME\Documents\PowerShell\Modules;C:\Program Files\PowerShell\Modules;c:\program files\powershell\7\Modules;"
-                                                #   and so we only add new parts.
-                                                [String] $sep = (OsPathSeparator);
-                                                [String[]] $p = (StringSplitToArray $sep $envVarProc["PATH"] $true);
-                                                [String[]] $n = (StringSplitToArray $sep ([System.Environment]::GetEnvironmentVariable("PATH","Machine")+$sep+
-                                                                                          [System.Environment]::GetEnvironmentVariable("PATH","User")) $true);
-                                                $n | Where-Object{ "" -ne "$_" -and $p -notcontains $_ } | ForEach-Object{ OutProgress "Extended PATH by: `"$_`""; $p += $_; };
-                                                $envVarNewP["PATH"] = (StringArrayConcat $p $sep)+$(switch("$($envVarProc["PATH"])".EndsWith($sep)){($true){$sep}($false){""}});
-                                                # Note: Powershell preceeds the PSModulePath env var on Windows with
-                                                #   "C:\Users\u4\Documents\PowerShell\Modules;C:\Program Files\PowerShell\Modules;c:\program files\powershell\7\Modules;"
-                                                #   and so we only add new parts.
-                                                [String[]] $p = (StringSplitToArray $sep $envVarProc["PSModulePath"] $true);
-                                                [String[]] $n = (StringSplitToArray $sep ([System.Environment]::GetEnvironmentVariable("PSModulePath","Machine")+$sep+
-                                                                                          [System.Environment]::GetEnvironmentVariable("PSModulePath","User")) $true);
-                                                $n | Where-Object{ "" -ne "$_" -and $p -notcontains $_ } | ForEach-Object{ OutProgress "Extended PSModulePath by: `"$_`""; $p += $_; };
-                                                $envVarNewP["PSModulePath"] = (StringArrayConcat $p $sep)+$(switch("$($envVarProc["PSModulePath"])".EndsWith($sep)){($true){$sep}($false){""}});
-                                                #
+                                                #   and so we only check for new parts of user and machine scope and do not touch current order of process scope but append new ones.
+                                                [String[]] $p = ProcessPathVarStringToUnifiedArray $envVarProc["PSModulePath"];
+                                                [String[]] $mAndU = ProcessPathVarStringToUnifiedArray ($envVarMach["PSModulePath"] + $sep + $envVarUser["PSModulePath"]);
+                                                $mAndU | ForEach-Object{ 
+                                                  if( "" -ne "$_" -and $p -notcontains $_ ){ $p += $_;
+                                                    OutProgress "Extended PSModulePath of scope process by: `"$_`"";
+                                                    $envVarNewP["PSModulePath"] = $envVarNewP["PSModulePath"] + $(switch("$($envVarNewP["PSModulePath"])".EndsWith($sep)){($true){""}($false){$sep}}) + $_; # append 
+                                                  }
+                                                };
                                                 $envVarNewP.Keys | ForEach-Object{ [String] $val = $envVarNewP[$_];
                                                   if( $_ -ne "USERNAME" -and # we not set USERNAME because from machine scope we got SYSTEM.
                                                     "$($envVarProc[$_])" -ne "$val" ){
