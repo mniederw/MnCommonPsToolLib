@@ -862,7 +862,7 @@ function ProcessEnvVarPathAdd                 ( [String] $dir = "", [String] $sc
                                                 $dir = FsEntryMakeTrailingDirSep (FsEntryGetAbsolutePath $dir);
                                                 [String[]] $pathUser =  (@()+((ProcessEnvVarGet "PATH" $scope).Split((OsPathSeparator),[System.StringSplitOptions]::RemoveEmptyEntries)) |
                                                   Where-Object{$null -ne $_} | ForEach-Object{ FsEntryMakeTrailingDirSep (FsEntryGetAbsolutePath $_) });
-                                                if( ($pathUser | Where-Object{$null -ne $_} | Where-Object{ FsEntryPathIsEqual $_ $dir }).Count -gt 0 ){ return; }
+                                                if( (@()+($pathUser | Where-Object{$null -ne $_} | Where-Object{ FsEntryPathIsEqual $_ $dir })).Count -gt 0 ){ return; }
                                                 OutProgress "ProcessEnvVarPathAdd-User `"$dir`" ";
                                                 $pathUser += $dir;
                                                 ProcessEnvVarSet "PATH" ($pathUser -join (OsPathSeparator)) "User" -traceCmd:$false;
