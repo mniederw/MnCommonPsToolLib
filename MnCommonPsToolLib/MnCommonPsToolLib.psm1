@@ -860,9 +860,9 @@ function ProcessEnvVarSet                     ( [String] $name, [String] $val, [
                                                 [Environment]::SetEnvironmentVariable($name,$val,$scope); }
 function ProcessEnvVarPathAdd                 ( [String] $dir = "", [String] $scope = "User" ){ # add dir to path if it not yet contains it
                                                 if( $dir -eq "" ){ return; }
-                                                $dir = FsEntryMakeTrailingDirSep (FsEntryGetAbsolutePath $dir);
+                                                $dir = FsEntryMakeTrailingDirSep $dir;
                                                 [String[]] $pathUser =  (@()+((ProcessEnvVarGet "PATH" $scope).Split((OsPathSeparator),[System.StringSplitOptions]::RemoveEmptyEntries)) |
-                                                  Where-Object{$null -ne $_} | ForEach-Object{ FsEntryMakeTrailingDirSep (FsEntryGetAbsolutePath $_) });
+                                                  Where-Object{$null -ne $_} | ForEach-Object{ FsEntryMakeTrailingDirSep $_ });
                                                 if( (@()+($pathUser | Where-Object{$null -ne $_} | Where-Object{ FsEntryPathIsEqual $_ $dir })).Count -gt 0 ){ return; }
                                                 OutProgress "ProcessEnvVarPathAdd-User `"$dir`" ";
                                                 $pathUser += $dir;
@@ -878,7 +878,7 @@ function ProcessEnvVarList                    (){
                                                 $envVarMach.Keys | Sort-Object | ForEach-Object{ OutProgress "`"MACHINE`",`"$($_.PadRight(32))`",`"$($envVarMach[$_])`""; } }
 function ProcessPathVarStringToUnifiedArray   ( [String] $pathVarString ){
                                                 return [String[]] (@()+(StringSplitToArray (OsPathSeparator) $pathVarString $true |
-                                                  Where-Object{$null -ne $_} | ForEach-Object{ FsEntryMakeTrailingDirSep (FsEntryGetAbsolutePath $_) })); }
+                                                  Where-Object{$null -ne $_} | ForEach-Object{ FsEntryMakeTrailingDirSep $_ })); }
 function ProcessRefreshEnvVars                ( [Boolean] $traceCmd = $true ){ # Use this after an installer did change environment variables for example by extending the PATH.
                                                 if( $traceCmd ){ OutProgress "ProcessRefreshEnvVars"; }
                                                 [Hashtable] $envVarUser = [Hashtable]::new([System.Environment]::GetEnvironmentVariables([System.EnvironmentVariableTarget]::User   ),[StringComparer]::InvariantCultureIgnoreCase);
@@ -954,29 +954,28 @@ function OsIsWindows                          (){ return [Boolean] ([System.Envi
 function OsPathSeparator                      (){ return [String] $(switch(OsIsWindows){$true{";"}default{":"}}); } # separator for PATH environment variable
 function OsPsModulePathList                   (){ # return content of $env:PSModulePath as string-array with os dependent dir separators.
                                                 # Usual entries: On Windows, PS5/PS7, scope MACHINE:
-                                                #   C:\Windows\system32\WindowsPowerShell\v1.0\Modules   (strongly recommended as long as ps7 not contains all of ps5)
-                                                #   C:\Program Files\WindowsPowerShell\Modules
-                                                #   C:\Prg\Network\VersionControl\VisualSvn VisualSvn Server\PowerShellModules
-                                                #   D:\MyDevelopDir\mniederw\MnCommonPsToolLib#trunk
+                                                #   C:\Windows\system32\WindowsPowerShell\v1.0\Modules\   (strongly recommended as long as ps7 not contains all of ps5)
+                                                #   C:\Program Files\WindowsPowerShell\Modules\
+                                                #   D:\MyDevelopDir\mniederw\MnCommonPsToolLib#trunk\
                                                 # Usual additonal entries: On Windows PS5, scope PROCESS:
-                                                #   $HOME\Documents\WindowsPowerShell\Modules
+                                                #   $HOME\Documents\WindowsPowerShell\Modules\
                                                 # Usual additonal entries: On Windows PS7, scope PROCESS:
-                                                #   $HOME\Documents\PowerShell\Modules
-                                                #   C:\Program Files\PowerShell\Modules
-                                                #   c:\program files\powershell\7\Modules
+                                                #   $HOME\Documents\PowerShell\Modules\
+                                                #   C:\Program Files\PowerShell\Modules\
+                                                #   c:\program files\powershell\7\Modules\
                                                 # Note: If a single backslash is part of the PSModulePath then autocompletion is very slow (2017-08).
                                                 return [String[]] (@()+(([Environment]::GetEnvironmentVariable("PSModulePath","Machine").
                                                   Split((OsPathSeparator),[System.StringSplitOptions]::RemoveEmptyEntries)) | Where-Object{$null -ne $_} |
-                                                  ForEach-Object{ FsEntryRemoveTrailingDirSep (FsEntryGetAbsolutePath $_) })); }
+                                                  ForEach-Object{ FsEntryMakeTrailingDirSep $_ })); }
 function OsPsModulePathContains               ( [String] $dir ){ # Example: "D:\MyGitRoot\MyGitAccount\MyPsLibRepoName"
                                                 [String[]] $a = OsPsModulePathList;
-                                                return [Boolean] ($a -contains (FsEntryRemoveTrailingDirSep (FsEntryGetAbsolutePath $dir))); }
-function OsPsModulePathAdd                    ( [String] $dir ){ if( OsPsModulePathContains $dir ){ return; }
+                                                return [Boolean] ($a -contains (FsEntryMakeTrailingDirSep $dir)); }
+function OsPsModulePathAdd                    ( [String] $dir ){ $dir = FsEntryMakeTrailingDirSep $dir; if( (OsPsModulePathContains $dir) ){ return; }
                                                 OsPsModulePathSet ((OsPsModulePathList)+@($dir)); }
-function OsPsModulePathDel                    ( [String] $dir ){ OsPsModulePathSet (@()+(OsPsModulePathList | Where-Object{$null -ne $_} |
-                                                Where-Object{ -not (FsEntryPathIsEqual $_ $dir) })); }
+function OsPsModulePathDel                    ( [String] $dir ){ $dir = FsEntryMakeTrailingDirSep $dir; OsPsModulePathSet (@()+(OsPsModulePathList |
+                                                Where-Object{$null -ne $_} | Where-Object{ -not (FsEntryPathIsEqual $_ $dir) })); }
 function OsPsModulePathSet                    ( [String[]] $pathList ){ [String] $s = ((@()+($pathList | Where-Object{$null -ne $_} |
-                                                  ForEach-Object{ FsEntryRemoveTrailingDirSep (FsEntryGetAbsolutePath $_) })) -join (OsPathSeparator))+(OsPathSeparator);
+                                                  ForEach-Object{ FsEntryRemoveTrailingDirSep $_ })) -join (OsPathSeparator))+(OsPathSeparator);
                                                 [Environment]::SetEnvironmentVariable("PSModulePath",$s,"Machine"); }
 function PrivAclRegRightsToString             ( [System.Security.AccessControl.RegistryRights] $r ){
                                                 [String] $result = "";
@@ -1032,7 +1031,7 @@ function FsEntryMakeRelative                  ( [String] $fsEntry, [String] $bel
                                                 # trailing backslashes for belowDir are not nessessary.
                                                 # Example: "Dir1/Dir2" -eq (FsEntryMakeRelative "$HOME/Dir1/Dir2" "$HOME");
                                                 AssertNotEmpty $belowDir "belowDir";
-                                                $belowDir = FsEntryMakeTrailingDirSep (FsEntryGetAbsolutePath $belowDir);
+                                                $belowDir = FsEntryMakeTrailingDirSep $belowDir;
                                                 $fsEntry = FsEntryGetAbsolutePath $fsEntry;
                                                 if( (FsEntryMakeTrailingDirSep $fsEntry) -eq $belowDir ){ $fsEntry += "$(DirSep)."; }
                                                 Assert ($fsEntry.StartsWith($belowDir,"CurrentCultureIgnoreCase")) "expected `"$fsEntry`" is below `"$belowDir`"";
@@ -1057,8 +1056,8 @@ function FsEntryJoinRelativePatterns          ( [String] $rootDir, [String[]] $r
                                                   ForEach-Object{ $a += (StringSplitToArray ";" $_); };
                                                 return [String[]] (@()+($a | ForEach-Object{ FsEntryGetAbsolutePath "$rootDir/$_"; })); }
 function FsEntryPathIsEqual                   ( [String] $fs1, [String] $fs2 ){ # compare independent on trailing dir separators. Case sensitivity depends on OS.
-                                                $fs1 = FsEntryRemoveTrailingDirSep (FsEntryGetAbsolutePath $fs1);
-                                                $fs2 = FsEntryRemoveTrailingDirSep (FsEntryGetAbsolutePath $fs2);
+                                                $fs1 = FsEntryRemoveTrailingDirSep $fs1;
+                                                $fs2 = FsEntryRemoveTrailingDirSep $fs2;
                                                 return [Boolean] $(switch((OsIsWindows)){($true){$fs1 -eq $fs2} ($false){$fs1 -ceq $fs2}}); }
 function FsEntryGetFileNameWithoutExt         ( [String] $fsEntry ){
                                                 return [String] [System.IO.Path]::GetFileNameWithoutExtension((FsEntryRemoveTrailingDirSep $fsEntry)); }
@@ -1165,8 +1164,8 @@ function FsEntryRename                        ( [String] $fsEntryFrom, [String] 
                                                 $fsEntryTo   = FsEntryGetAbsolutePath $fsEntryTo;
                                                 OutProgress "FsEntryRename `"$fsEntryFrom`" `"$fsEntryTo`"";
                                                 FsEntryAssertExists $fsEntryFrom; FsEntryAssertNotExists $fsEntryTo;
-                                                [String] $fs1 = (FsEntryGetAbsolutePath (FsEntryRemoveTrailingDirSep $fsEntryFrom));
-                                                [String] $fs2 = (FsEntryGetAbsolutePath (FsEntryRemoveTrailingDirSep $fsEntryTo));
+                                                [String] $fs1 = FsEntryRemoveTrailingDirSep $fsEntryFrom;
+                                                [String] $fs2 = FsEntryRemoveTrailingDirSep $fsEntryTo;
                                                 Rename-Item -Path $fs1 -newName $fs2 -force; }
 function FsEntryCreateSymLink                 ( [String] $newSymLink, [String] $fsEntryOrigin ){
                                                 # (junctions (=~symlinksToDirs) do not) (https://superuser.com/questions/104845/permission-to-make-symbolic-links-in-windows-7/105381).
@@ -1216,7 +1215,7 @@ function FsEntryCopyByPatternByOverwrite      ( [String] $fsEntryPattern, [Strin
                                                 if( -not $? ){ if( -not $continueOnErr ){ AssertRcIsOk; }
                                                 else{ OutWarning "Warning: CopyFiles `"$fsEntryPattern`" to `"$targetDir`" failed, will continue"; } } }
 function FsEntryFindNotExistingVersionedName  ( [String] $fsEntry, [String] $ext = ".bck", [Int32] $maxNr = 9999 ){ # Example return: "C:\Dir\MyName.001.bck"
-                                                $fsEntry = FsEntryRemoveTrailingDirSep (FsEntryGetAbsolutePath $fsEntry);
+                                                $fsEntry = FsEntryRemoveTrailingDirSep $fsEntry;
                                                 if( $fsEntry.Length -gt (260-4-$ext.Length) ){
                                                   throw [Exception] "$(ScriptGetCurrentFunc)($fsEntry,$ext) not available because fullpath longer than 260-4-extLength"; }
                                                 [Int32] $n = 1; do{

@@ -558,11 +558,11 @@ function TaskList                             (){
                                                   Sort-Object Name; }
                                                 # alternative: schtasks.exe /query /NH /FO CSV
 function TaskIsDisabled                       ( [String] $taskPathAndName ){
-                                                [String] $taskPath = (FsEntryMakeTrailingDirSep (FsEntryRemoveTrailingDirSep (Split-Path -Parent $taskPathAndName)));
+                                                [String] $taskPath = FsEntryMakeTrailingDirSep (FsEntryRemoveTrailingDirSep (Split-Path -Parent $taskPathAndName));
                                                 [String] $taskName = Split-Path -Leaf $taskPathAndName;
                                                 return [Boolean] ((Get-ScheduledTask -TaskPath $taskPath -TaskName $taskName).State -eq "Disabled"); }
 function TaskDisable                          ( [String] $taskPathAndName ){
-                                                [String] $taskPath = (FsEntryMakeTrailingDirSep (FsEntryRemoveTrailingDirSep (Split-Path -Parent $taskPathAndName)));
+                                                [String] $taskPath = FsEntryMakeTrailingDirSep (FsEntryRemoveTrailingDirSep (Split-Path -Parent $taskPathAndName));
                                                 [String] $taskName = Split-Path -Leaf $taskPathAndName;
                                                 if( -not (TaskIsDisabled $taskPathAndName) ){
                                                   OutProgress "TaskDisable $taskPathAndName"; ProcessRestartInElevatedAdminMode;
@@ -1347,7 +1347,7 @@ function ToolManuallyDownloadAndInstallProg   ( [String] $programName, [String] 
                                                 [Boolean] $isDir = (FsEntryHasTrailingDirSep $tar);
                                                 [DateTime] $mainTargetFileMinDate = DateTimeFromStringIso $mainTargetFileMinIsoDate;
                                                 function TargetReached(){
-                                                  return [String] ($programExecutableOrDir | Where-Object{ "" -ne "$_" } | 
+                                                  return [String] ($programExecutableOrDir | Where-Object{ "" -ne "$_" } |
                                                     Where-Object{
                                                       if( $isDir ){ return (DirExists $_); }
                                                       [String] $exe = ProcessFindExecutableInPath $_;
@@ -1375,9 +1375,12 @@ function MnCommonPsToolLibSelfUpdate          (){
                                                 [String]  $moduleName = "MnCommonPsToolLib";
                                                 [String]  $tarRootDir = FsEntryGetAbsolutePath "$Env:ProgramW6432/WindowsPowerShell/Modules/"; # more see: https://msdn.microsoft.com/en-us/library/dd878350(v=vs.85).aspx
                                                 [String]  $moduleFile = FsEntryGetAbsolutePath "$tarRootDir/$moduleName/${moduleName}.psm1";
+                                                [String]  $scrRootModDir = FsEntryGetAbsolutePath "$PSScriptRoot/../";
                                                 if( (FileNotExists $moduleFile) ){
                                                   OutProgress "MnCommonPsToolLibSelfUpdate: Nothing done because is not installed in standard mode under `"$tarRootDir`". ";
-                                                  if( (OsPsModulePathContains $PSScriptRoot) ){ OutProgress "  Current script is in PsModulePath so it is Installed-for-Developers! "; }else{ ProcessSleepSec 5; }
+                                                  if( (OsPsModulePathContains $scrRootModDir) ){
+                                                    OutProgress "  It is Installed-for-Developers by having in PsModulePath the current script root: `"$scrRootModDir`"";
+                                                  }else{ ProcessSleepSec 5; }
                                                   return;
                                                 }
                                                 #
