@@ -1,4 +1,4 @@
-# MnCommonPsToolLib - Common Powershell Tool Library for PS5 and PS7 and multiplatforms (Windows, Linux and OSX)
+﻿# MnCommonPsToolLib - Common Powershell Tool Library for PS5 and PS7 and multiplatforms (Windows, Linux and OSX)
 # --------------------------------------------------------------------------------------------------------------
 # Published at: https://github.com/mniederw/MnCommonPsToolLib
 # Licensed under GPL3. This is freeware.
@@ -154,7 +154,8 @@ function ForEachParallel {
   # Example: $x = "abc"; (0..9) | ForEach-Object{ [System.Tuple]::Create($_,$x) } | ForEachParallel{ "$($_.Item1) $($_.Item2)" };
   param( [Parameter(Mandatory=$true,position=0)]              [System.Management.Automation.ScriptBlock] $ScriptBlock,
          [Parameter(Mandatory=$true,ValueFromPipeline=$true)] [PSObject]                                 $InputObject,
-            # PSScriptAnalyzer: On PS7 we get PSUseProcessBlockForPipelineCommand Command accepts pipeline input but has not defined a process block.
+            # PSScriptAnalyzer: On PS7 we get "PSUseProcessBlockForPipelineCommand warning: Command accepts pipeline input but has not defined a process block."
+            #   There is an unknown reason why we need to declare the parameter $InputObject, but we do not use it. Maybe later try to remove it.
          [Parameter(Mandatory=$false)]                        [Int32]                                    $MaxThreads=8 )
   if( $PSVersionTable.PSVersion.Major -gt 5 ){
     # Avoid PSScriptAnalyzer: On PS7 we get PSReviewUnusedParameter The parameter 'InputObject' has been declared but not used.
