@@ -128,4 +128,4 @@ ExampleUseEnvironmentVarsOfDifferentScopes;
 ExampleUseNetDownloadToString;
 ExampleUseNetDownloadIsSuccessful;
 ExampleUseListFirstFivePublicReposOfGithubOrg;
-StdInReadLine "Press enter to exit.";
+StdInReadLine "Press Enter to exit.";

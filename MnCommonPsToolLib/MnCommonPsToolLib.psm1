@@ -55,7 +55,7 @@
 #      Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; } $ErrorActionPreference = "Stop";
 #      OutInfo "Hello world";
 #      OutProgress "Working";
-#      StdInReadLine "Press enter to exit.";
+#      StdInReadLine "Press Enter to exit.";
 # More examples see: https://github.com/mniederw/MnCommonPsToolLib/tree/main/Examples
 
 
@@ -520,12 +520,12 @@ function StdInAssertAllowInteractions         (){ if( $global:ModeDisallowIntera
                                                 throw [Exception] "Cannot read for input because all interactions are disallowed, either caller should make sure variable ModeDisallowInteractions is false or he should not call an input method."; } }
 function StdInReadLine                        ( [String] $line ){ OutStringInColor "Cyan" $line; StdInAssertAllowInteractions; return [String] (Read-Host); }
 function StdInReadLinePw                      ( [String] $line ){ OutStringInColor "Cyan" $line; StdInAssertAllowInteractions; return [System.Security.SecureString] (Read-Host -AsSecureString); }
-function StdInAskForEnter                     ( [String] $msg = "Press Enter to Exit" ){ [String] $dummyLine = StdInReadLine $msg; }
+function StdInAskForEnter                     ( [String] $msg = "Press Enter to continue" ){ [String] $dummyLine = StdInReadLine $msg; }
 function StdInAskForBoolean                   ( [String] $msg = "Enter Yes or No (y/n)?", [String] $strForYes = "y", [String] $strForNo = "n" ){
                                                  while($true){ OutStringInColor "Magenta" $msg;
                                                  [String] $answer = StdInReadLine ""; if( $answer -eq $strForYes ){ return [Boolean] $true ; }
                                                  if( $answer -eq $strForNo  ){ return [Boolean] $false; } } }
-function StdInWaitForAKey                     (){ StdInAssertAllowInteractions; $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") | Out-Null; } # does not work in powershell-ise, so in general do not use it, use StdInReadLine()
+function StdInWaitForAKey                     (){ StdInAssertAllowInteractions; $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") | Out-Null; } # does not work in powershell-ise, so in general do not use it, use StdInReadLine
 function StdOutLine                           ( [String] $line ){ $Host.UI.WriteLine($line); } # Writes an stdout line in default color, normally not used, rather use OutInfo because it classifies kind of output.
 function StdOutRedLineAndPerformExit          ( [String] $line, [Int32] $delayInSec = 1 ){ #
                                                 OutError $line; if( $global:ModeDisallowInteractions ){ ProcessSleepSec $delayInSec; }else{ StdInReadLine "Press Enter to Exit"; }; Exit 1; }
@@ -535,7 +535,7 @@ function StdErrHandleExc                      ( [System.Management.Automation.Er
                                                 [String] $msg = "$(StringFromErrorRecord $er)";
                                                 OutError $msg;
                                                 if( -not $global:ModeDisallowInteractions ){
-                                                  OutError "Press enter to exit";
+                                                  OutError "Press Enter to exit.";
                                                   try{
                                                     Read-Host; return;
                                                   }catch{ # exc: PSInvalidOperationException:  Read-Host : Windows PowerShell is in NonInteractive mode. Read and Prompt functionality is not available.
@@ -564,7 +564,7 @@ function StdInAskAndAssertExpectedAnswer      ( [String] $line = "Are you sure (
 function StdOutEndMsgCareInteractiveMode      ( [Int32] $delayInSec = 1 ){
                                                 if( $global:ModeDisallowInteractions -or $global:ModeNoWaitForEnterAtEnd ){
                                                   OutSuccess "Ok, done. Ending in $delayInSec second(s)."; ProcessSleepSec $delayInSec;
-                                                }else{ OutSuccess "Ok, done. Press Enter to Exit;"; StdInReadLine; } }
+                                                }else{ OutSuccess "Ok, done. Press Enter to Exit;"; StdInReadLine ""; } }
 function Assert                               ( [Boolean] $cond, [String] $failReason = "condition is false." ){
                                                 if( -not $cond ){ throw [Exception] "Assertion failed because $failReason"; } }
 function AssertIsFalse                        ( [Boolean] $cond, [String] $failReason = "" ){
@@ -876,7 +876,7 @@ function ProcessEnvVarList                    (){
                                                 $envVarUser.Keys | Sort-Object | ForEach-Object{ OutProgress "`"USER   `",`"$($_.PadRight(32))`",`"$($envVarUser[$_])`""; }
                                                 $envVarMach.Keys | Sort-Object | ForEach-Object{ OutProgress "`"MACHINE`",`"$($_.PadRight(32))`",`"$($envVarMach[$_])`""; } }
 function ProcessPathVarStringToUnifiedArray   ( [String] $pathVarString ){
-                                                return [String[]] (@()+(StringSplitToArray (OsPathSeparator) $pathVarString $true | 
+                                                return [String[]] (@()+(StringSplitToArray (OsPathSeparator) $pathVarString $true |
                                                   Where-Object{$null -ne $_} | ForEach-Object{ FsEntryMakeTrailingDirSep (FsEntryGetAbsolutePath $_) })); }
 function ProcessRefreshEnvVars                ( [Boolean] $traceCmd = $true ){ # Use this after an installer did change environment variables for example by extending the PATH.
                                                 if( $traceCmd ){ OutProgress "ProcessRefreshEnvVars"; }
@@ -895,10 +895,10 @@ function ProcessRefreshEnvVars                ( [Boolean] $traceCmd = $true ){ #
                                                 [String] $sep = OsPathSeparator;
                                                 [String[]] $p = ProcessPathVarStringToUnifiedArray $envVarProc["PATH"];
                                                 [String[]] $mAndU = ProcessPathVarStringToUnifiedArray ($envVarMach["PATH"] + $sep + $envVarUser["PATH"]);
-                                                $mAndU | ForEach-Object{ 
+                                                $mAndU | ForEach-Object{
                                                   if( "" -ne "$_" -and $p -notcontains $_ ){ $p += $_;
                                                     OutProgress "Extended PATH of scope process by: `"$_`"";
-                                                    $envVarNewP["PATH"] = $envVarNewP["PATH"] + $(switch("$($envVarNewP["PATH"])".EndsWith($sep)){($true){""}($false){$sep}}) + $_; # append 
+                                                    $envVarNewP["PATH"] = $envVarNewP["PATH"] + $(switch("$($envVarNewP["PATH"])".EndsWith($sep)){($true){""}($false){$sep}}) + $_; # append
                                                   }
                                                 };
                                                 # Note: Powershell preceeds the PSModulePath env var on Windows of process scope with
@@ -906,10 +906,10 @@ function ProcessRefreshEnvVars                ( [Boolean] $traceCmd = $true ){ #
                                                 #   and so we only check for new parts of user and machine scope and do not touch current order of process scope but append new ones.
                                                 [String[]] $p = ProcessPathVarStringToUnifiedArray $envVarProc["PSModulePath"];
                                                 [String[]] $mAndU = ProcessPathVarStringToUnifiedArray ($envVarMach["PSModulePath"] + $sep + $envVarUser["PSModulePath"]);
-                                                $mAndU | ForEach-Object{ 
+                                                $mAndU | ForEach-Object{
                                                   if( "" -ne "$_" -and $p -notcontains $_ ){ $p += $_;
                                                     OutProgress "Extended PSModulePath of scope process by: `"$_`"";
-                                                    $envVarNewP["PSModulePath"] = $envVarNewP["PSModulePath"] + $(switch("$($envVarNewP["PSModulePath"])".EndsWith($sep)){($true){""}($false){$sep}}) + $_; # append 
+                                                    $envVarNewP["PSModulePath"] = $envVarNewP["PSModulePath"] + $(switch("$($envVarNewP["PSModulePath"])".EndsWith($sep)){($true){""}($false){$sep}}) + $_; # append
                                                   }
                                                 };
                                                 $envVarNewP.Keys | ForEach-Object{ [String] $val = $envVarNewP[$_];

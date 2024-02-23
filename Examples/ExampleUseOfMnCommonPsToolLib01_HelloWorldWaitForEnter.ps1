@@ -6,4 +6,4 @@ OutInfo "$($MyInvocation.MyCommand)";
 OutProgress "Hello world example with request for pressing enter key before exit";
 StdInAskAndAssertExpectedAnswer; # Are you sure (y/n)?
 OutProgress "Working";
-StdInAskForEnter; # Press Enter to Exit
+StdInReadLine "Press Enter to exit.";

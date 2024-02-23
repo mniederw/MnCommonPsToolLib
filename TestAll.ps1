@@ -95,4 +95,4 @@ Push-Location $PSScriptRoot;
 
 Pop-Location;
 
-StdInAskForEnter;
+StdInReadLine "Press Enter to exit.";

@@ -1222,7 +1222,7 @@ function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $
                                                 }catch{
                                                   OutWarning "Warning: Update failed because $($_.Exception.Message)";
                                                   if( $doWaitIfFailed ){
-                                                    StdInReadLine "Press enter to continue.";
+                                                    StdInReadLine "Press Enter to continue.";
                                                   }
                                                   return [Boolean] $false;
                                                 } }
@@ -1356,7 +1356,7 @@ function ToolManuallyDownloadAndInstallProg   ( [String] $programName, [String] 
                                                   OutInfo "Please download and install `"$programName`" ";
                                                   OutProgress "Follow the configurations: `"$programConfigurations`" ";
                                                   ProcessOpenAssocFile $programDownloadUrl;
-                                                  StdInAskForEnterContinue;
+                                                  StdInReadLine "Press Enter to continue.";
                                                   ProcessRefreshEnvVars;
                                                   if( $programExecutableOrDir -eq "" ){ return; } # if exec not specified then we open url only once!
                                                 } }

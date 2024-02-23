@@ -19,4 +19,4 @@ function TestElevated(){
 
 if( ! (OsIsWindows) ){ OutProgress "Not running on windows, so bypass test."; return; }
 TestElevated;
-StdInAskForEnter;
+StdInReadLine "Press Enter to exit.";
