@@ -1334,31 +1334,36 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){
                                                 #     And Update-Module : Das Modul 'Pester' wurde nicht mithilfe von 'Install-Module' installiert und kann folglich nicht aktualisiert werden.
                                                 # - Example: Uninstall-Module -MaximumVersion "0.9.99" -Name SqlServer;
                                                 }
-function ToolManuallyDownloadAndInstallProg   ( [String] $programName, [String] $programDownloadUrl, [String] $mainTargetFileMinIsoDate = "0001-01-01", [String] $programExecutableOrDir = "", [String] $programConfigurations = "" ){
+function ToolManuallyDownloadAndInstallProg   ( [String] $programName, [String] $programDownloadUrl, [String] $mainTargetFileMinIsoDate = "0001-01-01", [String[]] $programExecutableOrDir = "", [String] $programConfigurations = "" ){
+                                                # programExecutableOrDir: one or alternative targets can be specified.
                                                 # Example: ToolManuallyDownloadAndInstallProg "Powershell-V7"     "https://learn.microsoft.com/de-de/powershell/scripting/install/installing-powershell-on-windows" "0001-01-01" "pwsh.exe" "";
                                                 # Example: ToolManuallyDownloadAndInstallProg "TortoiseGit 64bit" "https://tortoisegit.org/download/" "0001-01-01" "C:/Program Files/TortoiseGit/bin/TortoiseGit.dll" "";
-                                                OutInfo "Check `"$programName`" by existance of executable or dir `"$programExecutableOrDir`" and $mainTargetFileMinIsoDate ";
-                                                [Boolean] $isDir = (FsEntryHasTrailingDirSep $programExecutableOrDir);
+                                                for( [Int32] $i = 0; $i -lt $programExecutableOrDir.Count; $i++ ){ $programExecutableOrDir[$i] = FsEntryUnifyDirSep $programExecutableOrDir[$i]; }
+                                                OutInfo ("Check "+ "`"$programName`"".PadRight(40));
+                                                OutProgress "Expecting newer existance than minimum $mainTargetFileMinIsoDate of one of the target executables or dirs ";
+                                                OutProgress ("[" + (($programExecutableOrDir|ForEach-Object{"`"$_`""}) -join ",") + "] ");
+                                                [Boolean] $noExecSoReturnAfterOneRun = $programExecutableOrDir[0] -eq "" -and $programExecutableOrDir.Count -le 1;
+                                                [String] $tar = $programExecutableOrDir[0];
+                                                [Boolean] $isDir = (FsEntryHasTrailingDirSep $tar);
                                                 [DateTime] $mainTargetFileMinDate = DateTimeFromStringIso $mainTargetFileMinIsoDate;
+                                                function TargetReached(){
+                                                  return [String] ($programExecutableOrDir | Where-Object{ "" -ne "$_" } | 
+                                                    Where-Object{
+                                                      if( $isDir ){ return (DirExists $_); }
+                                                      [String] $exe = ProcessFindExecutableInPath $_;
+                                                      if( $exe -eq "" ){ return $false; }
+                                                      return $mainTargetFileMinDate -eq [DateTime]::MinValue -or (FsEntryGetLastModified $exe) -ge $mainTargetFileMinDate; } |
+                                                    Select-Object -First 1);
+                                                }
                                                 while($true){
-                                                  if( $programExecutableOrDir -ne "" ){
-                                                    [String] $exe = (ProcessFindExecutableInPath $programExecutableOrDir);
-                                                    if( $isDir ){
-                                                      if( (DirExists $programExecutableOrDir) ){ return; }
-                                                    }else{
-                                                      if( $exe -ne "" ){
-                                                        if( $mainTargetFileMinDate -eq [DateTime]::MinValue ){ return; }
-                                                        [DateTime] $mainTargetFileDate = FsEntryGetLastModified $exe;
-                                                        if( $mainTargetFileDate -ge $mainTargetFileMinDate ){ return; }
-                                                      }
-                                                    }
-                                                  }
-                                                  OutInfo "Please download and install `"$programName`" ";
+                                                  [String] $tar = TargetReached;
+                                                  if( -not $noExecSoReturnAfterOneRun -and $tar -ne "" ){ OutProgress "Found installed: `"$tar`""; return; }
+                                                  OutProgress "No target found so please download and install `"$programName`" ";
                                                   OutProgress "Follow the configurations: `"$programConfigurations`" ";
                                                   ProcessOpenAssocFile $programDownloadUrl;
                                                   StdInReadLine "Press Enter to continue.";
                                                   ProcessRefreshEnvVars;
-                                                  if( $programExecutableOrDir -eq "" ){ return; } # if exec not specified then we open url only once!
+                                                  if( $noExecSoReturnAfterOneRun ){ return; }
                                                 } }
 function MnCommonPsToolLibSelfUpdate          (){
                                                 # If installed in standard mode (saved under c:/Program Files/WindowsPowerShell/Modules/...)
