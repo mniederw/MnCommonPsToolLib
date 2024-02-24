@@ -4,9 +4,9 @@ ECHO Enable execution mode Bypass for powershell scripts on this machine on PS7 
 ECHO.
 ECHO Usually you set mode to Bypass if you trust yourself, that you won't click by accident on unknown ps script files.
 ECHO.
-ECHO Current mode on ps7       environment: 
+ECHO Current mode on ps7       environment:
   IF     EXIST "%SystemDrive%\Program Files\PowerShell\7\pwsh.EXE" ( "%SystemDrive%\Program Files\PowerShell\7\pwsh.EXE" -Command Get-Executionpolicy ) ELSE ( ECHO "'%SystemDrive%\Program Files\PowerShell\7\pwsh.EXE' not found" )
-ECHO Current mode on ps5-64bit environment: 
+ECHO Current mode on ps5-64bit environment:
   %SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe -Command Get-Executionpolicy
 ECHO Current mode on ps5-32bit environment:
   %SystemRoot%\SysWOW64\WindowsPowerShell\v1.0\powershell.exe -Command Get-Executionpolicy
@@ -36,7 +36,7 @@ ECHO.
 ECHO Modes can be reconfigured by continue below or by calling within ps the command (default scope is LocalMachine): Set-ExecutionPolicy
 ECHO.
 
-SET /p answer=Are you sure to enable powershell execution mode Bypass and did you run this batch as administrator [y/n]? 
+SET /p answer=Are you sure to enable powershell execution mode Bypass and did you run this batch as administrator [y/n]?
 IF /I "%answer%" NEQ "y" ( ECHO Aborted & PAUSE & EXIT /B 1 )
 ECHO.
 
@@ -55,5 +55,5 @@ IF EXIST "%SystemDrive%\Program Files\PowerShell\7\pwsh.EXE" (
                                     IF %ERRORLEVEL% NEQ 0 ( ECHO Error: rc=%ERRORLEVEL% & PAUSE & EXIT /b 1 )
 
 ECHO.
-ECHO OK, done. Press enter to exit.
+ECHO OK, done. Press Enter to exit.
 PAUSE

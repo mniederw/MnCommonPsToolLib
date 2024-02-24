@@ -35,4 +35,4 @@ Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibScriptAnalyser.ps1";
 Write-Output ("-"*86);
 
 OutSuccess "Ok, done.";
-StdInAskForEnter;
+StdInReadLine "Press Enter to exit.";

@@ -236,4 +236,4 @@ if( (OsIsWindows) ){
   if( $sel -eq "I" ){ InstallStandardMode; }
   if( $sel -eq "Q" ){ OutProgress "Quit."; }
 }
-OutQuestion "Finished. Press enter to exit. "; Read-Host;
+OutQuestion "Finished. Press Enter to exit. "; Read-Host;

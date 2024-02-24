@@ -33,4 +33,4 @@ $nrOfWarnings = $issues.Where({$_.Severity -eq 'Warning'}).Count;
 if( $nrOfErrors -eq 0 ){ Write-Output $msg; }else{ Write-Error $msg -ErrorAction Stop; }
 
 Write-Output "Ok, done.";
-Read-Host "Press enter to exit";
+Read-Host "Press Enter to exit.";

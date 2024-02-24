@@ -44,7 +44,7 @@ Example usages of this module in a .ps1 script:
      Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
      OutInfo "Hello world";
      OutProgress "Working";
-     StdInReadLine "Press enter to exit.";
+     StdInReadLine "Press Enter to exit.";
      # More examples see: https://github.com/mniederw/MnCommonPsToolLib/tree/main/Examples
 
 Files of this repository:
@@ -53,7 +53,7 @@ Files of this repository:
 - InstallEnablePowerShellToUnrestrictedRequiresAdminRights.bat :
   If you never enabled powershell to run without warning dialogs then run this script,
   which sets execution mode to run unrestricted (=Bypass) and so without any security warning.
-  This is recommended if you can trust yourself, that you won't click by accident on unknown 
+  This is recommended if you can trust yourself, that you won't click by accident on unknown
   powershell script files. If your powershell is already configured so that you can run scripts,
   then you can perform these actions also with the Install.ps1.
 

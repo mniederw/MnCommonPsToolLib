@@ -1,4 +1,4 @@
-# MnCommonPsToolLib - Common Powershell Tool Library for PS5 and PS7 and multiplatforms (Windows, Linux and OSX)
+﻿# MnCommonPsToolLib - Common Powershell Tool Library for PS5 and PS7 and multiplatforms (Windows, Linux and OSX)
 # --------------------------------------------------------------------------------------------------------------
 # Published at: https://github.com/mniederw/MnCommonPsToolLib
 # Licensed under GPL3. This is freeware.
@@ -55,7 +55,7 @@
 #      Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; } $ErrorActionPreference = "Stop";
 #      OutInfo "Hello world";
 #      OutProgress "Working";
-#      StdInReadLine "Press enter to exit.";
+#      StdInReadLine "Press Enter to exit.";
 # More examples see: https://github.com/mniederw/MnCommonPsToolLib/tree/main/Examples
 
 
@@ -154,7 +154,8 @@ function ForEachParallel {
   # Example: $x = "abc"; (0..9) | ForEach-Object{ [System.Tuple]::Create($_,$x) } | ForEachParallel{ "$($_.Item1) $($_.Item2)" };
   param( [Parameter(Mandatory=$true,position=0)]              [System.Management.Automation.ScriptBlock] $ScriptBlock,
          [Parameter(Mandatory=$true,ValueFromPipeline=$true)] [PSObject]                                 $InputObject,
-            # PSScriptAnalyzer: On PS7 we get PSUseProcessBlockForPipelineCommand Command accepts pipeline input but has not defined a process block.
+            # PSScriptAnalyzer: On PS7 we get "PSUseProcessBlockForPipelineCommand warning: Command accepts pipeline input but has not defined a process block."
+            #   There is an unknown reason why we need to declare the parameter $InputObject, but we do not use it. Maybe later try to remove it.
          [Parameter(Mandatory=$false)]                        [Int32]                                    $MaxThreads=8 )
   if( $PSVersionTable.PSVersion.Major -gt 5 ){
     # Avoid PSScriptAnalyzer: On PS7 we get PSReviewUnusedParameter The parameter 'InputObject' has been declared but not used.
@@ -520,12 +521,12 @@ function StdInAssertAllowInteractions         (){ if( $global:ModeDisallowIntera
                                                 throw [Exception] "Cannot read for input because all interactions are disallowed, either caller should make sure variable ModeDisallowInteractions is false or he should not call an input method."; } }
 function StdInReadLine                        ( [String] $line ){ OutStringInColor "Cyan" $line; StdInAssertAllowInteractions; return [String] (Read-Host); }
 function StdInReadLinePw                      ( [String] $line ){ OutStringInColor "Cyan" $line; StdInAssertAllowInteractions; return [System.Security.SecureString] (Read-Host -AsSecureString); }
-function StdInAskForEnter                     ( [String] $msg = "Press Enter to Exit" ){ [String] $dummyLine = StdInReadLine $msg; }
+function StdInAskForEnter                     ( [String] $msg = "Press Enter to continue" ){ [String] $dummyLine = StdInReadLine $msg; }
 function StdInAskForBoolean                   ( [String] $msg = "Enter Yes or No (y/n)?", [String] $strForYes = "y", [String] $strForNo = "n" ){
                                                  while($true){ OutStringInColor "Magenta" $msg;
                                                  [String] $answer = StdInReadLine ""; if( $answer -eq $strForYes ){ return [Boolean] $true ; }
                                                  if( $answer -eq $strForNo  ){ return [Boolean] $false; } } }
-function StdInWaitForAKey                     (){ StdInAssertAllowInteractions; $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") | Out-Null; } # does not work in powershell-ise, so in general do not use it, use StdInReadLine()
+function StdInWaitForAKey                     (){ StdInAssertAllowInteractions; $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") | Out-Null; } # does not work in powershell-ise, so in general do not use it, use StdInReadLine
 function StdOutLine                           ( [String] $line ){ $Host.UI.WriteLine($line); } # Writes an stdout line in default color, normally not used, rather use OutInfo because it classifies kind of output.
 function StdOutRedLineAndPerformExit          ( [String] $line, [Int32] $delayInSec = 1 ){ #
                                                 OutError $line; if( $global:ModeDisallowInteractions ){ ProcessSleepSec $delayInSec; }else{ StdInReadLine "Press Enter to Exit"; }; Exit 1; }
@@ -535,7 +536,7 @@ function StdErrHandleExc                      ( [System.Management.Automation.Er
                                                 [String] $msg = "$(StringFromErrorRecord $er)";
                                                 OutError $msg;
                                                 if( -not $global:ModeDisallowInteractions ){
-                                                  OutError "Press enter to exit";
+                                                  OutError "Press Enter to exit.";
                                                   try{
                                                     Read-Host; return;
                                                   }catch{ # exc: PSInvalidOperationException:  Read-Host : Windows PowerShell is in NonInteractive mode. Read and Prompt functionality is not available.
@@ -564,7 +565,7 @@ function StdInAskAndAssertExpectedAnswer      ( [String] $line = "Are you sure (
 function StdOutEndMsgCareInteractiveMode      ( [Int32] $delayInSec = 1 ){
                                                 if( $global:ModeDisallowInteractions -or $global:ModeNoWaitForEnterAtEnd ){
                                                   OutSuccess "Ok, done. Ending in $delayInSec second(s)."; ProcessSleepSec $delayInSec;
-                                                }else{ OutSuccess "Ok, done. Press Enter to Exit;"; StdInReadLine; } }
+                                                }else{ OutSuccess "Ok, done. Press Enter to Exit;"; StdInReadLine ""; } }
 function Assert                               ( [Boolean] $cond, [String] $failReason = "condition is false." ){
                                                 if( -not $cond ){ throw [Exception] "Assertion failed because $failReason"; } }
 function AssertIsFalse                        ( [Boolean] $cond, [String] $failReason = "" ){
@@ -859,43 +860,59 @@ function ProcessEnvVarSet                     ( [String] $name, [String] $val, [
                                                 [Environment]::SetEnvironmentVariable($name,$val,$scope); }
 function ProcessEnvVarPathAdd                 ( [String] $dir = "", [String] $scope = "User" ){ # add dir to path if it not yet contains it
                                                 if( $dir -eq "" ){ return; }
-                                                $dir = FsEntryMakeTrailingDirSep (FsEntryGetAbsolutePath $dir);
+                                                $dir = FsEntryMakeTrailingDirSep $dir;
                                                 [String[]] $pathUser =  (@()+((ProcessEnvVarGet "PATH" $scope).Split((OsPathSeparator),[System.StringSplitOptions]::RemoveEmptyEntries)) |
-                                                  Where-Object{$null -ne $_} | ForEach-Object{ FsEntryMakeTrailingDirSep (FsEntryGetAbsolutePath $_) });
+                                                  Where-Object{$null -ne $_} | ForEach-Object{ FsEntryMakeTrailingDirSep $_ });
                                                 if( (@()+($pathUser | Where-Object{$null -ne $_} | Where-Object{ FsEntryPathIsEqual $_ $dir })).Count -gt 0 ){ return; }
                                                 OutProgress "ProcessEnvVarPathAdd-User `"$dir`" ";
                                                 $pathUser += $dir;
-                                                ProcessEnvVarSet "PATH" ($pathUser -join (OsPathSeparator)) "User" -traceCmd:$false;
-                                              }
+                                                ProcessEnvVarSet "PATH" ($pathUser -join (OsPathSeparator)) "User" -traceCmd:$false; }
+function ProcessEnvVarList                    (){
+                                                [Hashtable] $envVarProc = [Hashtable]::new([System.Environment]::GetEnvironmentVariables([System.EnvironmentVariableTarget]::Process),[StringComparer]::InvariantCultureIgnoreCase);
+                                                [Hashtable] $envVarUser = [Hashtable]::new([System.Environment]::GetEnvironmentVariables([System.EnvironmentVariableTarget]::User   ),[StringComparer]::InvariantCultureIgnoreCase);
+                                                [Hashtable] $envVarMach = [Hashtable]::new([System.Environment]::GetEnvironmentVariables([System.EnvironmentVariableTarget]::Machine),[StringComparer]::InvariantCultureIgnoreCase);
+                                                OutInfo "List all environment variables with scopes process, user and machine:";
+                                                OutProgress "`"Scope  `",`"$("Name".PadRight(32))`",`"Value`"";
+                                                $envVarProc.Keys | Sort-Object | ForEach-Object{ OutProgress "`"PROCESS`",`"$($_.PadRight(32))`",`"$($envVarProc[$_])`""; }
+                                                $envVarUser.Keys | Sort-Object | ForEach-Object{ OutProgress "`"USER   `",`"$($_.PadRight(32))`",`"$($envVarUser[$_])`""; }
+                                                $envVarMach.Keys | Sort-Object | ForEach-Object{ OutProgress "`"MACHINE`",`"$($_.PadRight(32))`",`"$($envVarMach[$_])`""; } }
+function ProcessPathVarStringToUnifiedArray   ( [String] $pathVarString ){
+                                                return [String[]] (@()+(StringSplitToArray (OsPathSeparator) $pathVarString $true |
+                                                  Where-Object{$null -ne $_} | ForEach-Object{ FsEntryMakeTrailingDirSep $_ })); }
 function ProcessRefreshEnvVars                ( [Boolean] $traceCmd = $true ){ # Use this after an installer did change environment variables for example by extending the PATH.
                                                 if( $traceCmd ){ OutProgress "ProcessRefreshEnvVars"; }
-                                                [Hashtable] $envVarUser = [Hashtable]::new([System.Environment]::GetEnvironmentVariables([System.EnvironmentVariableTarget]::User),[StringComparer]::InvariantCultureIgnoreCase);
+                                                [Hashtable] $envVarUser = [Hashtable]::new([System.Environment]::GetEnvironmentVariables([System.EnvironmentVariableTarget]::User   ),[StringComparer]::InvariantCultureIgnoreCase);
                                                 [Hashtable] $envVarMach = [Hashtable]::new([System.Environment]::GetEnvironmentVariables([System.EnvironmentVariableTarget]::Machine),[StringComparer]::InvariantCultureIgnoreCase);
                                                 [Hashtable] $envVarProc = [Hashtable]::new([System.Environment]::GetEnvironmentVariables([System.EnvironmentVariableTarget]::Process),[StringComparer]::InvariantCultureIgnoreCase);
                                                 [Hashtable] $envVarNewP = [Hashtable]::new(@{},[StringComparer]::InvariantCultureIgnoreCase);
+                                                # On a default Windows 10 the path variable has the name "Path" but on linux and osx it has the name "PATH".
                                                 # Note: On Windows ps5/7 does automatically append ".CPL" to PATHEXT env var in process scope.
                                                 if( (OsIsWindows) -and -not $envVarMach["PATHEXT"].Contains(".CPL") ){ $envVarMach["PATHEXT"] = "$($envVarMach["PATHEXT"]);.CPL"; }
-                                                # On a default Windows 10 the Path variable is not in uppercase, but we want this for compatibility to linux and osx.
-                                                $envVarMach.Keys | ForEach-Object{ if( $_ -eq "PATH" ){ $_ = $_.ToUpper(); } $envVarNewP[$_] = $envVarMach[$_]; }
-                                                $envVarUser.Keys | ForEach-Object{ if( $_ -eq "PATH" ){ $_ = $_.ToUpper(); } $envVarNewP[$_] = $envVarUser[$_]; }
-                                                # Note: Powershell preceeds the PATH env var on Windows with
+                                                $envVarMach.Keys | ForEach-Object{ $envVarNewP[$_] = $envVarMach[$_]; }
+                                                $envVarUser.Keys | ForEach-Object{ $envVarNewP[$_] = $envVarUser[$_]; }
+                                                $envVarNewP["PATH"        ] = $envVarProc["PATH"        ];
+                                                $envVarNewP["PSModulePath"] = $envVarProc["PSModulePath"];
+                                                # Note: For PATH we do not touch current order of process scope but append new ones.
+                                                [String] $sep = OsPathSeparator;
+                                                [String[]] $p = ProcessPathVarStringToUnifiedArray $envVarProc["PATH"];
+                                                [String[]] $mAndU = ProcessPathVarStringToUnifiedArray ($envVarMach["PATH"] + $sep + $envVarUser["PATH"]);
+                                                $mAndU | ForEach-Object{
+                                                  if( "" -ne "$_" -and $p -notcontains $_ ){ $p += $_;
+                                                    OutProgress "Extended PATH of scope process by: `"$_`"";
+                                                    $envVarNewP["PATH"] = $envVarNewP["PATH"] + $(switch("$($envVarNewP["PATH"])".EndsWith($sep)){($true){""}($false){$sep}}) + $_; # append
+                                                  }
+                                                };
+                                                # Note: Powershell preceeds the PSModulePath env var on Windows of process scope with
                                                 #   "$HOME\Documents\PowerShell\Modules;C:\Program Files\PowerShell\Modules;c:\program files\powershell\7\Modules;"
-                                                #   and so we only add new parts.
-                                                [String] $sep = (OsPathSeparator);
-                                                [String[]] $p = (StringSplitToArray $sep $envVarProc["PATH"] $true);
-                                                [String[]] $n = (StringSplitToArray $sep ([System.Environment]::GetEnvironmentVariable("PATH","Machine")+$sep+
-                                                                                          [System.Environment]::GetEnvironmentVariable("PATH","User")) $true);
-                                                $n | Where-Object{ "" -ne "$_" -and $p -notcontains $_ } | ForEach-Object{ OutProgress "Extended PATH by: `"$_`""; $p += $_; };
-                                                $envVarNewP["PATH"] = (StringArrayConcat $p $sep)+$(switch("$($envVarProc["PATH"])".EndsWith($sep)){($true){$sep}($false){""}});
-                                                # Note: Powershell preceeds the PSModulePath env var on Windows with
-                                                #   "C:\Users\u4\Documents\PowerShell\Modules;C:\Program Files\PowerShell\Modules;c:\program files\powershell\7\Modules;"
-                                                #   and so we only add new parts.
-                                                [String[]] $p = (StringSplitToArray $sep $envVarProc["PSModulePath"] $true);
-                                                [String[]] $n = (StringSplitToArray $sep ([System.Environment]::GetEnvironmentVariable("PSModulePath","Machine")+$sep+
-                                                                                          [System.Environment]::GetEnvironmentVariable("PSModulePath","User")) $true);
-                                                $n | Where-Object{ "" -ne "$_" -and $p -notcontains $_ } | ForEach-Object{ OutProgress "Extended PSModulePath by: `"$_`""; $p += $_; };
-                                                $envVarNewP["PSModulePath"] = (StringArrayConcat $p $sep)+$(switch("$($envVarProc["PSModulePath"])".EndsWith($sep)){($true){$sep}($false){""}});
-                                                #
+                                                #   and so we only check for new parts of user and machine scope and do not touch current order of process scope but append new ones.
+                                                [String[]] $p = ProcessPathVarStringToUnifiedArray $envVarProc["PSModulePath"];
+                                                [String[]] $mAndU = ProcessPathVarStringToUnifiedArray ($envVarMach["PSModulePath"] + $sep + $envVarUser["PSModulePath"]);
+                                                $mAndU | ForEach-Object{
+                                                  if( "" -ne "$_" -and $p -notcontains $_ ){ $p += $_;
+                                                    OutProgress "Extended PSModulePath of scope process by: `"$_`"";
+                                                    $envVarNewP["PSModulePath"] = $envVarNewP["PSModulePath"] + $(switch("$($envVarNewP["PSModulePath"])".EndsWith($sep)){($true){""}($false){$sep}}) + $_; # append
+                                                  }
+                                                };
                                                 $envVarNewP.Keys | ForEach-Object{ [String] $val = $envVarNewP[$_];
                                                   if( $_ -ne "USERNAME" -and # we not set USERNAME because from machine scope we got SYSTEM.
                                                     "$($envVarProc[$_])" -ne "$val" ){
@@ -937,29 +954,28 @@ function OsIsWindows                          (){ return [Boolean] ([System.Envi
 function OsPathSeparator                      (){ return [String] $(switch(OsIsWindows){$true{";"}default{":"}}); } # separator for PATH environment variable
 function OsPsModulePathList                   (){ # return content of $env:PSModulePath as string-array with os dependent dir separators.
                                                 # Usual entries: On Windows, PS5/PS7, scope MACHINE:
-                                                #   C:\Windows\system32\WindowsPowerShell\v1.0\Modules   (strongly recommended as long as ps7 not contains all of ps5)
-                                                #   C:\Program Files\WindowsPowerShell\Modules
-                                                #   C:\Prg\Network\VersionControl\VisualSvn VisualSvn Server\PowerShellModules
-                                                #   D:\MyDevelopDir\mniederw\MnCommonPsToolLib#trunk
+                                                #   C:\Windows\system32\WindowsPowerShell\v1.0\Modules\   (strongly recommended as long as ps7 not contains all of ps5)
+                                                #   C:\Program Files\WindowsPowerShell\Modules\
+                                                #   D:\MyDevelopDir\mniederw\MnCommonPsToolLib#trunk\
                                                 # Usual additonal entries: On Windows PS5, scope PROCESS:
-                                                #   $HOME\Documents\WindowsPowerShell\Modules
+                                                #   $HOME\Documents\WindowsPowerShell\Modules\
                                                 # Usual additonal entries: On Windows PS7, scope PROCESS:
-                                                #   $HOME\Documents\PowerShell\Modules
-                                                #   C:\Program Files\PowerShell\Modules
-                                                #   c:\program files\powershell\7\Modules
+                                                #   $HOME\Documents\PowerShell\Modules\
+                                                #   C:\Program Files\PowerShell\Modules\
+                                                #   c:\program files\powershell\7\Modules\
                                                 # Note: If a single backslash is part of the PSModulePath then autocompletion is very slow (2017-08).
                                                 return [String[]] (@()+(([Environment]::GetEnvironmentVariable("PSModulePath","Machine").
                                                   Split((OsPathSeparator),[System.StringSplitOptions]::RemoveEmptyEntries)) | Where-Object{$null -ne $_} |
-                                                  ForEach-Object{ FsEntryRemoveTrailingDirSep (FsEntryGetAbsolutePath $_) })); }
+                                                  ForEach-Object{ FsEntryMakeTrailingDirSep $_ })); }
 function OsPsModulePathContains               ( [String] $dir ){ # Example: "D:\MyGitRoot\MyGitAccount\MyPsLibRepoName"
                                                 [String[]] $a = OsPsModulePathList;
-                                                return [Boolean] ($a -contains (FsEntryRemoveTrailingDirSep (FsEntryGetAbsolutePath $dir))); }
-function OsPsModulePathAdd                    ( [String] $dir ){ if( OsPsModulePathContains $dir ){ return; }
+                                                return [Boolean] ($a -contains (FsEntryMakeTrailingDirSep $dir)); }
+function OsPsModulePathAdd                    ( [String] $dir ){ $dir = FsEntryMakeTrailingDirSep $dir; if( (OsPsModulePathContains $dir) ){ return; }
                                                 OsPsModulePathSet ((OsPsModulePathList)+@($dir)); }
-function OsPsModulePathDel                    ( [String] $dir ){ OsPsModulePathSet (@()+(OsPsModulePathList | Where-Object{$null -ne $_} |
-                                                Where-Object{ -not (FsEntryPathIsEqual $_ $dir) })); }
+function OsPsModulePathDel                    ( [String] $dir ){ $dir = FsEntryMakeTrailingDirSep $dir; OsPsModulePathSet (@()+(OsPsModulePathList |
+                                                Where-Object{$null -ne $_} | Where-Object{ -not (FsEntryPathIsEqual $_ $dir) })); }
 function OsPsModulePathSet                    ( [String[]] $pathList ){ [String] $s = ((@()+($pathList | Where-Object{$null -ne $_} |
-                                                  ForEach-Object{ FsEntryRemoveTrailingDirSep (FsEntryGetAbsolutePath $_) })) -join (OsPathSeparator))+(OsPathSeparator);
+                                                  ForEach-Object{ FsEntryRemoveTrailingDirSep $_ })) -join (OsPathSeparator))+(OsPathSeparator);
                                                 [Environment]::SetEnvironmentVariable("PSModulePath",$s,"Machine"); }
 function PrivAclRegRightsToString             ( [System.Security.AccessControl.RegistryRights] $r ){
                                                 [String] $result = "";
@@ -1015,7 +1031,7 @@ function FsEntryMakeRelative                  ( [String] $fsEntry, [String] $bel
                                                 # trailing backslashes for belowDir are not nessessary.
                                                 # Example: "Dir1/Dir2" -eq (FsEntryMakeRelative "$HOME/Dir1/Dir2" "$HOME");
                                                 AssertNotEmpty $belowDir "belowDir";
-                                                $belowDir = FsEntryMakeTrailingDirSep (FsEntryGetAbsolutePath $belowDir);
+                                                $belowDir = FsEntryMakeTrailingDirSep $belowDir;
                                                 $fsEntry = FsEntryGetAbsolutePath $fsEntry;
                                                 if( (FsEntryMakeTrailingDirSep $fsEntry) -eq $belowDir ){ $fsEntry += "$(DirSep)."; }
                                                 Assert ($fsEntry.StartsWith($belowDir,"CurrentCultureIgnoreCase")) "expected `"$fsEntry`" is below `"$belowDir`"";
@@ -1040,8 +1056,8 @@ function FsEntryJoinRelativePatterns          ( [String] $rootDir, [String[]] $r
                                                   ForEach-Object{ $a += (StringSplitToArray ";" $_); };
                                                 return [String[]] (@()+($a | ForEach-Object{ FsEntryGetAbsolutePath "$rootDir/$_"; })); }
 function FsEntryPathIsEqual                   ( [String] $fs1, [String] $fs2 ){ # compare independent on trailing dir separators. Case sensitivity depends on OS.
-                                                $fs1 = FsEntryRemoveTrailingDirSep (FsEntryGetAbsolutePath $fs1);
-                                                $fs2 = FsEntryRemoveTrailingDirSep (FsEntryGetAbsolutePath $fs2);
+                                                $fs1 = FsEntryRemoveTrailingDirSep $fs1;
+                                                $fs2 = FsEntryRemoveTrailingDirSep $fs2;
                                                 return [Boolean] $(switch((OsIsWindows)){($true){$fs1 -eq $fs2} ($false){$fs1 -ceq $fs2}}); }
 function FsEntryGetFileNameWithoutExt         ( [String] $fsEntry ){
                                                 return [String] [System.IO.Path]::GetFileNameWithoutExtension((FsEntryRemoveTrailingDirSep $fsEntry)); }
@@ -1148,8 +1164,8 @@ function FsEntryRename                        ( [String] $fsEntryFrom, [String] 
                                                 $fsEntryTo   = FsEntryGetAbsolutePath $fsEntryTo;
                                                 OutProgress "FsEntryRename `"$fsEntryFrom`" `"$fsEntryTo`"";
                                                 FsEntryAssertExists $fsEntryFrom; FsEntryAssertNotExists $fsEntryTo;
-                                                [String] $fs1 = (FsEntryGetAbsolutePath (FsEntryRemoveTrailingDirSep $fsEntryFrom));
-                                                [String] $fs2 = (FsEntryGetAbsolutePath (FsEntryRemoveTrailingDirSep $fsEntryTo));
+                                                [String] $fs1 = FsEntryRemoveTrailingDirSep $fsEntryFrom;
+                                                [String] $fs2 = FsEntryRemoveTrailingDirSep $fsEntryTo;
                                                 Rename-Item -Path $fs1 -newName $fs2 -force; }
 function FsEntryCreateSymLink                 ( [String] $newSymLink, [String] $fsEntryOrigin ){
                                                 # (junctions (=~symlinksToDirs) do not) (https://superuser.com/questions/104845/permission-to-make-symbolic-links-in-windows-7/105381).
@@ -1199,7 +1215,7 @@ function FsEntryCopyByPatternByOverwrite      ( [String] $fsEntryPattern, [Strin
                                                 if( -not $? ){ if( -not $continueOnErr ){ AssertRcIsOk; }
                                                 else{ OutWarning "Warning: CopyFiles `"$fsEntryPattern`" to `"$targetDir`" failed, will continue"; } } }
 function FsEntryFindNotExistingVersionedName  ( [String] $fsEntry, [String] $ext = ".bck", [Int32] $maxNr = 9999 ){ # Example return: "C:\Dir\MyName.001.bck"
-                                                $fsEntry = FsEntryRemoveTrailingDirSep (FsEntryGetAbsolutePath $fsEntry);
+                                                $fsEntry = FsEntryRemoveTrailingDirSep $fsEntry;
                                                 if( $fsEntry.Length -gt (260-4-$ext.Length) ){
                                                   throw [Exception] "$(ScriptGetCurrentFunc)($fsEntry,$ext) not available because fullpath longer than 260-4-extLength"; }
                                                 [Int32] $n = 1; do{
@@ -1400,7 +1416,7 @@ function FileExists                           ( [String] $file ){ AssertNotEmpty
 function FileNotExists                        ( [String] $file ){
                                                 return [Boolean] -not (FileExists $file); }
 function FileAssertExists                     ( [String] $file ){
-                                                if( (FileNotExists $file) ){ throw [Exception] "File not exists: `"$file`"."; } }
+                                                if( (FsEntryHasTrailingDirSep $file) ){ throw [Exception] "File has not allowed trailing dir sep: `"$file`"."; }; if( (FileNotExists $file) ){ throw [Exception] "File not exists: `"$file`"."; } }
 function FileExistsAndIsNewer                 ( [String] $ftar, [String] $fsrc ){
                                                 FileAssertExists $fsrc; return [Boolean] ((FileExists $ftar) -and ((FsEntryGetLastModified $ftar) -ge (FsEntryGetLastModified $fsrc))); }
 function FileNotExistsOrIsOlder               ( [String] $ftar, [String] $fsrc ){
