@@ -1366,12 +1366,13 @@ function ToolManuallyDownloadAndInstallProg   ( [String] $programName, [String] 
                                                   if( $noExecSoReturnAfterOneRun ){ return; }
                                                 } }
 function MnCommonPsToolLibSelfUpdate          (){
-                                                # If installed in standard mode (saved under c:/Program Files/WindowsPowerShell/Modules/...)
+                                                # If installed in standard mode (saved under c:/Program Files/WindowsPowerShell/Modules/)
                                                 # then it performs a self update to the newest version from github otherwise output a note.
                                                 [String]  $additionalOkUpdMsg = "`n  Please restart all processes which currently loaded this module before using changed functions of this library.";
                                                 [Boolean] $requireElevatedAdminMode = $true;
                                                 [Boolean] $assertFilePreviouslyExists = $true;
                                                 [Boolean] $performPing = $true;
+                                                [Boolean] $doWaitIfFailed = $false;
                                                 [String]  $moduleName = "MnCommonPsToolLib";
                                                 [String]  $tarRootDir = FsEntryGetAbsolutePath "$Env:ProgramW6432/WindowsPowerShell/Modules/"; # more see: https://msdn.microsoft.com/en-us/library/dd878350(v=vs.85).aspx
                                                 [String]  $moduleFile = FsEntryGetAbsolutePath "$tarRootDir/$moduleName/${moduleName}.psm1";
@@ -1386,9 +1387,9 @@ function MnCommonPsToolLibSelfUpdate          (){
                                                 #
                                                 [String]  $modFile     = "$tarRootDir/$moduleName/${moduleName}.psm1";
                                                 [String]  $url         = "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/master/$moduleName/${moduleName}.psm1";
-                                                [Boolean] $dummyResult = ToolPerformFileUpdateAndIsActualized $modFile $url $requireElevatedAdminMode $doWaitForEnterKeyIfFailed $additionalOkUpdMsg $assertFilePreviouslyExists $performPing;
+                                                [Boolean] $dummyResult = ToolPerformFileUpdateAndIsActualized $modFile $url $requireElevatedAdminMode $doWaitIfFailed $additionalOkUpdMsg $assertFilePreviouslyExists $performPing;
                                                 #
                                                 [String]  $modFile     = "$tarRootDir/$moduleName/${moduleName}_Windows.ps1";
                                                 [String]  $url         = "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/master/$moduleName/${moduleName}_Windows.ps1";
-                                                [Boolean] $dummyResult = ToolPerformFileUpdateAndIsActualized $modFile $url $requireElevatedAdminMode $doWaitForEnterKeyIfFailed $additionalOkUpdMsg $assertFilePreviouslyExists $performPing;
+                                                [Boolean] $dummyResult = ToolPerformFileUpdateAndIsActualized $modFile $url $requireElevatedAdminMode $doWaitIfFailed $additionalOkUpdMsg $assertFilePreviouslyExists $performPing;
                                                 }
