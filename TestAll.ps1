@@ -1,8 +1,6 @@
 ﻿#!/usr/bin/env pwsh
 
-Set-StrictMode -Version Latest;
-trap [Exception] { $Host.UI.WriteErrorLine("Trap: $_"); Read-Host; break; }
-$ErrorActionPreference = "Stop";
+Set-StrictMode -Version Latest; trap [Exception] { $Host.UI.WriteErrorLine("Error: $_"); Read-Host "Press Enter to Exit"; break; } $ErrorActionPreference = "Stop";
 
 Write-Output "Test all - run all examples, the script analyser and the unit tests with pwsh (powershell)";
 Write-Output "  It is compatible for PS5/PS7, elevated, win/linux/macos!";
@@ -56,7 +54,7 @@ $($env:PSModulePath).Split(";:") | Where-Object{ $null -ne $_ } | ForEach-Object
   #                 ":/opt/microsoft/powershell/7/Modules"
 
 # disabled because it would not find for example Write-Output anymore:
-#   Write-Output "Set disable autoloading modules."; $PSModuleAutoLoadingPreference = "none";
+#   Write-Output "Set disable autoloading modules."; $PSModuleAutoLoadingPreference = "none"; # disable autoloading modules
 
 Write-Output "Install from PSGallery some modules as PSScriptAnalyzer, SqlServer and ThreadJob";
 Set-PSRepository PSGallery -InstallationPolicy Trusted; # uses 7 sec
@@ -73,17 +71,14 @@ Push-Location $PSScriptRoot;
 
   Write-Output "Load our library";
   Import-Module "MnCommonPsToolLib.psm1";
-  Write-Output "Show MnCommonPsToolLibVersion: $Global:MnCommonPsToolLibVersion"; # Example: "7.01"
+  Write-Output "Show MnCommonPsToolLibVersion: $Global:MnCommonPsToolLibVersion"; # Example: "7.45"
+  Write-Output "Show OsPsVersion: $(OsPsVersion)"; # "7.4"
 
   Write-Output "Remove all aliases except (cd,cat,clear,echo,dir,cp,mv,popd,pushd,rm,rmdir);";
   ProcessRemoveAllAlias @("cd","cat","clear","echo","dir","cp","mv","popd","pushd","rm","rmdir");
 
-  Write-Output "Show OsPsVersion: $(OsPsVersion)"; # "7.3"
-
-  Write-Output "";
   Write-Output "Running all examples and unit tests, input requests are aborted when called non-interactive by github action.";
   Write-Output "If it is running elevated then it performs additionally tests. ";
-
   Write-Output ("-"*86); & "Examples/ExampleUseOfMnCommonPsToolLib01_HelloWorldWaitForEnter.ps1"; # waiting is aborted
   Write-Output ("-"*86); & "Examples/ExampleUseOfMnCommonPsToolLib02_StdBegAndEndInteractiveModeStmts.ps1"; # waiting is aborted
   Write-Output ("-"*86); & "Examples/ExampleUseOfMnCommonPsToolLib03_NoWaitAtEnd.ps1";

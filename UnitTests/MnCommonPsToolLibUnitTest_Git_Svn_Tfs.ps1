@@ -36,7 +36,7 @@ function Test_Git_Svn_Tfs(){
   #                                          # return current branch (example: "master").
   #   GitShowChanges                       ( [String] $repoDir ){
   #                                          # return changed, deleted and new files or dirs. Per entry one line prefixed with a change code.
-  #   GitTortoiseCommit                    ( [String] $workDir, [String] $commitMessage = "" ){
+  #   windows: ToolGitTortoiseCommit                    ( [String] $workDir, [String] $commitMessage = "" ){
   #   GitListCommitComments                ( [String] $tarDir, [String] $localRepoDir, [String] $fileExtension = ".tmp",
   #                                            [String] $prefix = "Log.", [Int32] $doOnlyIfOlderThanAgeInDays = 14 ){
   #                                          # Reads commit messages and changed files info from localRepoDir

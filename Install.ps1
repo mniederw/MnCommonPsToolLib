@@ -1,22 +1,20 @@
 ﻿#!/usr/bin/env pwsh
-# Do not change the following line, it is a powershell statement and not a comment!
-#Requires -Version 3.0
-param( [String] $sel ) # if $sel = "Install" then reinstall in standard mode and exit.
-Set-StrictMode -Version Latest; # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
+
+Param( [String] $sel ) # if $sel = "Install" then reinstall in standard mode and exit.
 $PSModuleAutoLoadingPreference = "none"; # disable autoloading modules
-trap [Exception] { $Host.UI.WriteErrorLine($_); $HOST.UI.RawUI.ReadKey()|Out-Null; break; } $ErrorActionPreference = "Stop";
+Set-StrictMode -Version Latest; trap [Exception] { $Host.UI.WriteErrorLine("Error: $_"); Read-Host "Press Enter to Exit"; break; } $ErrorActionPreference = "Stop";
 Import-Module Microsoft.PowerShell.Management; # load: Get-ChildItem
-Import-Module Microsoft.PowerShell.Utility   ; # load: Write-Host
+Import-Module Microsoft.PowerShell.Utility   ; # load: Write-Host,Write-Output
 Import-Module Microsoft.PowerShell.Security  ; # load: Get-Executionpolicy
 [String] $ps5WinModuleDir = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\Modules\";
 [String] $ps5ModuleDir    = "$env:ProgramFiles\WindowsPowerShell\Modules\";
 
 function OutStringInColor                     ( [String] $color, [String] $line, [Boolean] $noNewLine = $true ){ Write-Host -ForegroundColor $color -NoNewline:$noNewLine $line; }
-function OutInfo                              ( [String] $line ){ OutStringInColor "White"  $line $false; }
-function OutWarning                           ( [String] $line ){ OutStringInColor "Yellow" $line $false; }
+function OutInfo                              ( [String] $line ){ OutStringInColor "White"     $line  $false; }
+function OutWarning                           ( [String] $line ){ OutStringInColor "Yellow"    $line  $false; }
 function OutProgress                          ( [String] $line ){ OutStringInColor "Gray"   "  $line" $false; }
 function OutProgressText                      ( [String] $line ){ OutStringInColor "Gray"   "  $line" $true ; }
-function OutQuestion                          ( [String] $line ){ OutStringInColor "Cyan"   $line $true ; }
+function OutQuestion                          ( [String] $line ){ OutStringInColor "Cyan"      $line  $true ; }
 function DirSep                               (){ return [Char] [IO.Path]::DirectorySeparatorChar; }
 function FsEntryHasTrailingDirSep             ( [String] $fsEntry ){ return [Boolean] ($fsEntry.EndsWith("\") -or $fsEntry.EndsWith("/")); }
 function FsEntryRemoveTrailingDirSep          ( [String] $fsEntry ){ [String] $r = $fsEntry;

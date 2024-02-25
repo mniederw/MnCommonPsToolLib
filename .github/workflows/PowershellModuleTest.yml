@@ -42,16 +42,16 @@ jobs:
 
       - name: Checkout repository current branch
         if: github.event_name != 'schedule'
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Checkout repository main branch when started by a specific schedule
         if: github.event_name == 'schedule' && github.event.schedule == '1 0 * * 0'
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with: { ref: main }
 
       - name: Checkout repository trunk branch when started by a specific schedule
         if: github.event_name == 'schedule' && github.event.schedule != '1 0 * * 0'
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with: { ref: trunk }
 
       - name: Install tools
@@ -79,7 +79,7 @@ jobs:
             # example: "OS=macOS; /usr/local/microsoft/powershell/7/pwsh; PowerShell 7.2.9"
             # example: "OS=Windows; /c/Program Files/PowerShell/7/pwsh; PowerShell 7.2.10"
           echo "List all environment variables in pwsh"; Get-Variable;
-          echo "List all aliases in pwsh"; Get-Alias;
+          echo "List all aliases in pwsh"; Get-Alias | Select-Object DisplayName;
           & "./TestAll.ps1";
           echo "Test ok.";
 
@@ -97,7 +97,7 @@ jobs:
 
       # Checks-out your repository under $GITHUB_WORKSPACE, see https://github.com/actions/checkout
       - name: Checkout repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Show environment variables of bash
         shell: bash

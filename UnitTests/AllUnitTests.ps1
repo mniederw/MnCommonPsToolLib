@@ -34,5 +34,5 @@ Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTestElevated.ps1";
 Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibScriptAnalyser.ps1";
 Write-Output ("-"*86);
 
-OutSuccess "Ok, done.";
-StdInReadLine "Press Enter to exit.";
+OutSuccess "Ok, done. Exit after 5 seconds. ";
+ProcessSleepSec 5;
