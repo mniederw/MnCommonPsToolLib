@@ -88,8 +88,10 @@ Write-Output "List alias curl: ": alias | grep curl;
 
 
 
-if( (ProcessFindExecutableInPath "curl") -eq "" ){
 OutInfo "Test curl";
+OutInfo "Find curl";ProcessFindExecutableInPath "curl";
+OutInfo "Get curl";Get-Command "curl";
+
 $tmp = FileGetTempFile;
 if( OsIsWindows ){
   & "C:\Windows\system32\curl.exe" "--show-error" "--fail" "--output" $tmp "--silent" "--create-dirs" "--connect-timeout" "70" "--retry" "2" "--retry-delay" "5" "--tlsv1.2" "--remote-time" "--location" "--max-redirs" "50" "--stderr" "-" "--user-agent" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:68.0) Gecko/20100101 Firefox/68.0" "--url" "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/main/Readme.txt";
