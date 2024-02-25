@@ -7,9 +7,10 @@ Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version
 function Test_FsEntry_Dir_File_Drive_Share_Mount_PsDrive(){
   OutProgress (ScriptGetCurrentFuncName);
   Assert         ((FsEntryGetAbsolutePath "") -eq "" );
-  Assert         ((FsEntryMakeRelative "$HOME/MyDir/Dir1/Dir2" "$HOME/MyDir"      ).Replace("\","/") -eq   "Dir1/Dir2");
-  Assert         ((FsEntryMakeRelative "$HOME/MyDir/Dir1/Dir2" "$HOME/MyDir" $true).Replace("\","/") -eq "./Dir1/Dir2");
-  Assert         ((FsEntryMakeRelative "$HOME/MyDir"           "$HOME/MyDir/"     ) -eq ".");
+  Assert         ((FsEntryMakeRelative "$HOME/MyDir/Dir1/File" "$HOME/MyDir/"      ).Replace("\","/") -eq   "Dir1/File");
+  Assert         ((FsEntryMakeRelative "$HOME/MyDir/Dir1/File" "$HOME/MyDir/" $true).Replace("\","/") -eq "./Dir1/File");
+  Assert         ((FsEntryMakeRelative "$HOME/MyDir/File"      "$HOME/MyDir/"      ).Replace("\","/") -eq "File");
+  Assert         ((FsEntryMakeRelative "$HOME/MyDir/"          "$HOME/MyDir/"      ).Replace("\","/") -eq "./");
   # TODO:
   #   DirSep                               ()
   #   FsEntryEsc                           ( [String] $fsentry )

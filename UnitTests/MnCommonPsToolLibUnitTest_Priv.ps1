@@ -43,7 +43,7 @@ function Test_Priv(){
   #                                          #   or http://www.leeholmes.com/blog/2010/09/24/adjusting-token-privileges-in-powershell/
   #                                          #   or https://social.technet.microsoft.com/forums/windowsserver/en-US/e718a560-2908-4b91-ad42-d392e7f8f1ad/take-ownership-of-a-registry-key-and-change-permissions
   #                                          # Alternative: https://www.powershellgallery.com/packages/PoshPrivilege/0.3.0.0/Content/Scripts%5CEnable-Privilege.ps1
-  #                                          param(
+  #                                          Param(
   #                                            # The privilege to adjust. This set is taken from http://msdn.microsoft.com/en-us/library/bb530716(VS.85).aspx
   #                                            [ValidateSet(
   #                                              "SeAssignPrimaryTokenPrivilege", "SeAuditPrivilege", "SeBackupPrivilege", "SeChangeNotifyPrivilege", "SeCreateGlobalPrivilege",

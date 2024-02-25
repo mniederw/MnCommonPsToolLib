@@ -38,7 +38,7 @@ function ExampleUseParallelStatementsHavingOneSecondWaiting {
   OutInfo "$($MyInvocation.MyCommand)";
   [DateTime] $startedAt = Get-Date;
   # Note about statement blocks: No functions or variables of the script where it is embedded can be used.
-  (0..4) | ForEachParallel { Write-Host "Running script nr: $_ and wait one second."; Start-Sleep -Seconds 1; }
+  (0..4) | ForEachParallel { Write-Output "Running script nr: $_ and wait one second."; Start-Sleep -Seconds 1; }
   OutProgress "Total used time: $((New-Timespan -Start $startedAt -End (Get-Date)).ToString('d\ hh\:mm\:ss\.fff'))";
   OutSuccess "Ok, done.";
 }
@@ -48,7 +48,7 @@ function ExampleUseParallelStatementsHavingRandomWaitBetween1and2Seconds {
   [DateTime] $startedAt = Get-Date;
   # Note about statement blocks: No functions or variables of the script where it is embedded can be used.
   (0..4) | ForEachParallel -MaxThreads 2 { $t = 1.0 + ((Get-Random -Minimum 1 -Maximum 9) / 10);
-    Write-Host "Running script nr: $_ and wait $t seconds."; Start-Sleep -Seconds $t; };
+    Write-Output "Running script nr: $_ and wait $t seconds."; Start-Sleep -Seconds $t; };
   OutProgress "Total used time: $((New-Timespan -Start $startedAt -End (Get-Date)).ToString('d\ hh\:mm\:ss\.fff'))";
   OutSuccess "Ok, done.";
 }
@@ -56,7 +56,7 @@ function ExampleUseParallelStatementsHavingRandomWaitBetween1and2Seconds {
 function ExampleUseAsynchronousJob {
   OutInfo "$($MyInvocation.MyCommand)";
   if( ! (OsIsWindows) ){ OutProgress "Not running on windows, so bypass test."; return; }
-  $job = JobStart { param( $s ); Import-Module "MnCommonPsToolLib.psm1"; OutProgress "Running job and returning a string."; return [String] $s; } "my argument";
+  $job = JobStart { Param( $s ); Import-Module "MnCommonPsToolLib.psm1"; OutProgress "Running job and returning a string."; return [String] $s; } "my argument";
   Start-Sleep -Seconds 1;
   [String] $res = JobWaitForEnd $job.Id;
   OutProgress "Result text of job is: '$res'";

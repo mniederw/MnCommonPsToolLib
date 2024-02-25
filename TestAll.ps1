@@ -1,8 +1,6 @@
 ﻿#!/usr/bin/env pwsh
 
-Set-StrictMode -Version Latest;
-trap [Exception] { $Host.UI.WriteErrorLine("Trap: $_"); Read-Host; break; }
-$ErrorActionPreference = "Stop";
+Set-StrictMode -Version Latest; trap [Exception] { $Host.UI.WriteErrorLine("Error: $_"); Read-Host "Press Enter to Exit"; break; } $ErrorActionPreference = "Stop";
 
 Write-Output "Test all - run all examples, the script analyser and the unit tests with pwsh (powershell)";
 Write-Output "  It is compatible for PS5/PS7, elevated, win/linux/macos!";
@@ -56,7 +54,7 @@ $($env:PSModulePath).Split(";:") | Where-Object{ $null -ne $_ } | ForEach-Object
   #                 ":/opt/microsoft/powershell/7/Modules"
 
 # disabled because it would not find for example Write-Output anymore:
-#   Write-Output "Set disable autoloading modules."; $PSModuleAutoLoadingPreference = "none";
+#   Write-Output "Set disable autoloading modules."; $PSModuleAutoLoadingPreference = "none"; # disable autoloading modules
 
 Write-Output "Install from PSGallery some modules as PSScriptAnalyzer, SqlServer and ThreadJob";
 Set-PSRepository PSGallery -InstallationPolicy Trusted; # uses 7 sec
