@@ -72,44 +72,13 @@ Push-Location $PSScriptRoot;
   Write-Output "Load our library";
   Import-Module "MnCommonPsToolLib.psm1";
   Write-Output "Show MnCommonPsToolLibVersion: $Global:MnCommonPsToolLibVersion"; # Example: "7.45"
-
-
-
-Write-Output "List alias curl: ": alias | grep curl;
-
-
+  Write-Output "Show OsPsVersion: $(OsPsVersion)"; # "7.4"
 
   Write-Output "Remove all aliases except (cd,cat,clear,echo,dir,cp,mv,popd,pushd,rm,rmdir);";
   ProcessRemoveAllAlias @("cd","cat","clear","echo","dir","cp","mv","popd","pushd","rm","rmdir");
 
-  Write-Output "Show OsPsVersion: $(OsPsVersion)"; # "7.3"
-
-
-
-
-
-OutInfo "Test curl";
-OutInfo "Find curl";ProcessFindExecutableInPath "curl";
-OutInfo "Get curl";Get-Command "curl";
-
-$tmp = FileGetTempFile;
-if( OsIsWindows ){
-  & "C:\Windows\system32\curl.exe" "--show-error" "--fail" "--output" $tmp "--silent" "--create-dirs" "--connect-timeout" "70" "--retry" "2" "--retry-delay" "5" "--tlsv1.2" "--remote-time" "--location" "--max-redirs" "50" "--stderr" "-" "--user-agent" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:68.0) Gecko/20100101 Firefox/68.0" "--url" "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/main/Readme.txt";
-}else{
-  & (ProcessFindExecutableInPath "curl") "--show-error" "--fail" "--output" $tmp "--silent" "--create-dirs" "--connect-timeout" "70" "--retry" "2" "--retry-delay" "5" "--tlsv1.2" "--remote-time" "--location" "--max-redirs" "50" "--stderr" "-" "--user-agent" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:68.0) Gecko/20100101 Firefox/68.0" "--url" "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/main/Readme.txt";
-}
-FileDelete $tmp;
-OutInfo "Ok, done.";
-return;
-
-
-
-
-
-  Write-Output "";
   Write-Output "Running all examples and unit tests, input requests are aborted when called non-interactive by github action.";
   Write-Output "If it is running elevated then it performs additionally tests. ";
-
   Write-Output ("-"*86); & "Examples/ExampleUseOfMnCommonPsToolLib01_HelloWorldWaitForEnter.ps1"; # waiting is aborted
   Write-Output ("-"*86); & "Examples/ExampleUseOfMnCommonPsToolLib02_StdBegAndEndInteractiveModeStmts.ps1"; # waiting is aborted
   Write-Output ("-"*86); & "Examples/ExampleUseOfMnCommonPsToolLib03_NoWaitAtEnd.ps1";
