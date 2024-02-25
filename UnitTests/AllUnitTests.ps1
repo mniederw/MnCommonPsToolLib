@@ -8,6 +8,17 @@ Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version
 OutInfo "MnCommonPsToolLibUnitTest - running powershell V$($Host.Version.ToString())";
 OutInfo "MnCommonPsToolLibUnitTest - perform some tests which do not require elevated admin mode";
 
+    OutInfo "Test curl";
+    $tmp = FileGetTempFile;
+    if( OsIsWindows ){
+      & "C:\Windows\system32\curl.exe" "--show-error" "--fail" "--output" $tmp "--silent" "--create-dirs" "--connect-timeout" "70" "--retry" "2" "--retry-delay" "5" "--tlsv1.2" "--remote-time" "--location" "--max-redirs" "50" "--stderr" "-" "--user-agent" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:68.0) Gecko/20100101 Firefox/68.0" "--url" "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/main/Readme.txt";
+    }else{
+      & "/usr/local/opt/curl/bin/curl" "--show-error" "--fail" "--output" $tmp "--silent" "--create-dirs" "--connect-timeout" "70" "--retry" "2" "--retry-delay" "5" "--tlsv1.2" "--remote-time" "--location" "--max-redirs" "50" "--stderr" "-" "--user-agent" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:68.0) Gecko/20100101 Firefox/68.0" "--url" "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/main/Readme.txt";
+    }
+    FileDelete $tmp;
+    OutInfo "Ok, done.";
+    return;
+
 Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Array.ps1";
 Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Credential.ps1";
 Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTest_FsEntry_Dir_File_Drive_Share_Mount.ps1";
