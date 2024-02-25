@@ -546,16 +546,6 @@ function StdErrHandleExc                      ( [System.Management.Automation.Er
                                                 if( $delayInSec -gt 0 ){ StdOutLine "Waiting for $delayInSec seconds."; }
                                                 ProcessSleepSec $delayInSec; }
 function StdPipelineErrorWriteMsg             ( [String] $msg ){ Write-Error $msg; } # does not work in powershell-ise, so in general do not use it, use throw
-function StdOutBegMsgCareInteractiveMode      ( [String] $mode = "" ){ # Available mode: ""="DoRequestAtBegin", "NoRequestAtBegin", "MinimizeConsole".
-                                                # Usually this is the first statement in a script after an info line. So you can give your scripts a standard styling.
-                                                if( $mode -eq "" ){ $mode = "DoRequestAtBegin"; }
-                                                ScriptResetRc; [String[]] $modes = @()+($mode -split ",",0 |
-                                                  Where-Object{$null -ne $_} | ForEach-Object{ $_.Trim() });
-                                                [String[]] $availableModes = @( "DoRequestAtBegin", "NoRequestAtBegin", "MinimizeConsole" );
-                                                [Boolean] $modesAreValid = ((@()+($modes | Where-Object{$null -ne $_} | Where-Object{ $availableModes -notcontains $_})).Count -eq 0 );
-                                                Assert $modesAreValid "StdOutBegMsgCareInteractiveMode was called with unknown mode=`"$mode`", expected one of ($availableModes).";
-                                                if( -not $global:ModeDisallowInteractions -and $modes -notcontains "NoRequestAtBegin" ){ StdInAskForAnswerWhenInInteractMode; }
-                                                if( $modes -contains "MinimizeConsole" ){ OutProgress "Minimize console"; ProcessSleepSec 0; ConsoleMinimize; } }
 function StdInAskForAnswerWhenInInteractMode  ( [String] $line = "Are you sure (y/n)? ", [String] $expectedAnswer = "y" ){
                                                 # works case insensitive; is ignored if interactions are suppressed by global var ModeDisallowInteractions; will abort if not expected answer.
                                                 if( -not $global:ModeDisallowInteractions ){ [String] $answer = StdInReadLine $line; if( $answer -ne $expectedAnswer ){ StdOutRedLineAndPerformExit "Aborted"; } } }
@@ -2754,7 +2744,8 @@ function ToolEvalVsCodeExec                   (){ [String] $result = (ProcessFin
 
 function GetSetGlobalVar( [String] $var, [String] $val){ OutWarning "GetSetGlobalVar is DEPRECATED, replace it now by GitSetGlobalVar.";  GitSetGlobalVar $var $val; }
 function FsEntryIsEqual ( [String] $fs1, [String] $fs2, [Boolean] $caseSensitive = $false ){ OutWarning "FsEntryIsEqual is DEPRECATED, replace it now by FsEntryPathIsEqual."; return (FsEntryPathIsEqual $fs1 $fs2); }
-function StdOutEndMsgCareInteractiveMode ( [Int32] $delayInSec = 1 ){ OutWarning "StdOutEndMsgCareInteractiveMode is DEPRECATED; replace it now by OutSuccess `"Ok, done. Press Enter to Exit / Ending in .. seconds.`", StdInReadLine and or ProcessSleepSec; if you used StdOutBegMsgCareInteractiveMode then remove option NoWaitAtEnd!"; }
+function StdOutBegMsgCareInteractiveMode ( [String] $mode = "" ){ OutWarning "StdOutBegMsgCareInteractiveMode is DEPRECATED; replace it now by one or more of: StdInAskForAnswerWhenInInteractMode; OutProgress `"Minimize console`"; ConsoleMinimize;"; StdInAskForAnswerWhenInInteractMode; }
+function StdOutEndMsgCareInteractiveMode ( [Int32] $delayInSec = 1 ){ OutWarning "StdOutEndMsgCareInteractiveMode is DEPRECATED; replace it now by one or more of: OutSuccess `"Ok, done. Press Enter to Exit / Ending in .. seconds.`", StdInReadLine `"Press Enter to exit.`", ProcessSleepSec!"; StdInReadLine "Press Enter to exit."; }
 
 # ----------------------------------------------------------------------------------------------------
 

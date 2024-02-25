@@ -40,11 +40,8 @@ function Test_IO_Console_StdIn_StdOut_StdErr(){
   #   StdErrHandleExc                      ( [System.Management.Automation.ErrorRecord] $er, [Int32] $delayInSec = 1 ){
   #                                          # Output full error information in red lines and then either wait for pressing enter or otherwise if interactions are globally disallowed then wait specified delay
   #   StdPipelineErrorWriteMsg             ( [String] $msg ){ Write-Error $msg; } # does not work in powershell-ise, so in general do not use it, use throw
-  #   StdOutBegMsgCareInteractiveMode      ( [String] $mode = "" ){ # Available mode: ""="DoRequestAtBegin", "NoRequestAtBegin", "NoWaitAtEnd", "MinimizeConsole".
-  #                                          # Usually this is the first statement in a script after an info line. So you can give your scripts a standard styling.
   #   StdInAskForAnswerWhenInInteractMode  ( [String] $line = "Are you sure (y/n)? ", [String] $expectedAnswer = "y" ){
   #                                          # works case insensitive; is ignored if interactions are suppressed by global var ModeDisallowInteractions; will abort if not expected answer.
   #   StdInAskAndAssertExpectedAnswer      ( [String] $line = "Are you sure (y/n)? ", [String] $expectedAnswer = "y" ){ # works case insensitive
-  #   StdOutEndMsgCareInteractiveMode      ( [Int32] $delayInSec = 1 ){
 }
 Test_IO_Console_StdIn_StdOut_StdErr;
