@@ -972,11 +972,11 @@ function ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [Strin
                                                     [String] $argLine = $arguments; # array to string
                                                     if( $workDir -eq "" ){ if( $isDir ){ $workDir = $srcFsEntry; }else{ $workDir = FsEntryGetParentDir $srcFsEntry; } }
                                                     [String] $iconFile = (StringRemoveRight (FsEntryRemoveTrailingDirSep $srcFsEntry) (FsEntryGetFileExtension $srcFsEntry)) + ".ico";
-                                                    [String] $ico = $(switch((FileNotExists $iconFile)){($true){$iconFile}($false){",0"}});
+                                                    [String] $ico = $(switch((FileExists $iconFile)){($true){$iconFile}($false){",0"}});
                                                     OutProgress "CreateShortcut `"$lnkFile`"";
                                                     try{
                                                       [Object] $wshShell = New-Object -comObject WScript.Shell;
-                                                      [Object] $s   = $wshShell.CreateShortcut($lnkFile); # do not use FsEntryEsc otherwise [ will be created as `[
+                                                      [Object] $s = $wshShell.CreateShortcut($lnkFile); # do not use FsEntryEsc otherwise [ will be created as `[
                                                       $s.TargetPath       = FsEntryEsc $srcFsEntry;
                                                       $s.Arguments        = $argLine;
                                                       $s.WorkingDirectory = FsEntryEsc $workDir;
