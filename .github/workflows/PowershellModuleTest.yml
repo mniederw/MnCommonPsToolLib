@@ -60,24 +60,24 @@ jobs:
           # More about PS: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-powershell#powershell-module-locations
         run: |
           echo "Running on OS=${{runner.os}}; $(which pwsh); $(pwsh --version)";
-            # 2024-02: example: "OS=Linux  ; /opt/microsoft/powershell/7/pwsh      ; Powershell 7.4.1"
-            # 2024-02: example: "OS=macOS  ; /usr/local/microsoft/powershell/7/pwsh; PowerShell 7.4.1"
-            # 2024-02: example: "OS=Windows; /c/Program Files/PowerShell/7/pwsh    ; PowerShell 7.4.1"
+            # 2024-02: OS=Linux  ; /opt/microsoft/powershell/7/pwsh      ; Powershell 7.4.1"
+            # 2024-02: OS=macOS  ; /usr/local/microsoft/powershell/7/pwsh; PowerShell 7.4.1"
+            # 2024-02: OS=Windows; /c/Program Files/PowerShell/7/pwsh    ; PowerShell 7.4.1"
           # Assert installed tools: curl.
           if    ( "${{runner.os}}" -eq "Linux"   ){}
           elseif( "${{runner.os}}" -eq "macOS"   ){}
           elseif( "${{runner.os}}" -eq "Windows" ){}
           echo "Using curl: `"$((Get-Command "curl").Source)`" Version: $(curl --version) ";
-            # 2024-02: Linux(Ubuntu): /usr/bin/curl                 # 7.81.0-1ubuntu1.8  sudo apt install -y curl;
-            # 2024-02: macOS        : /usr/local/opt/curl/bin/curl  # V7.88.1            brew install curl;
-            # 2024-02: Windows      : C:\Windows\system32\curl.exe  # V8.4
+            # 2024-02: Ubuntu  : /usr/bin/curl                 # V7.81.0(x86_64-pc-linux-gnu)        sudo apt install -y curl;
+            # 2024-02: MacOS   : /usr/local/opt/curl/bin/curl  # V8.6.0 (x86_64-apple-darwin21.6.0)  brew install curl;
+            # 2024-02: Windows : C:\Windows\system32\curl.exe  # V8.4
           echo "github.event.schedule=${{github.event.schedule}} ";
 
       - name: Test all
         shell: pwsh
         run: |
           echo "List all environment variables in pwsh"; Get-Variable;
-          echo "List all aliases in pwsh"; Get-Alias | Select-Object DisplayName;
+          echo "List all aliases in pwsh"; Get-Alias | ForEach-Object{ echo "  $($_.DisplayName)"; };
           & "./TestAll.ps1";
           echo "Test ok.";
 
