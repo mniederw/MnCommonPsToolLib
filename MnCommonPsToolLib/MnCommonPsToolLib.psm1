@@ -4,7 +4,7 @@
 # Licensed under GPL3. This is freeware.
 # 2013-2024 produced by Marc Niederwieser, Switzerland.
 
-[String] $global:MnCommonPsToolLibVersion = "7.46";
+[String] $global:MnCommonPsToolLibVersion = "7.47";
   # Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
   # Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
   # more see Releasenotes.txt

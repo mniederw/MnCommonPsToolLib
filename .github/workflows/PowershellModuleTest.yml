@@ -65,7 +65,7 @@ jobs:
             # 2024-02: example: "OS=Windows; /c/Program Files/PowerShell/7/pwsh    ; PowerShell 7.4.1"
           # Assert installed tools: curl.
           if    ( "${{runner.os}}" -eq "Linux"   ){}
-          elseif( "${{runner.os}}" -eq "macOS"   )}}
+          elseif( "${{runner.os}}" -eq "macOS"   ){}
           elseif( "${{runner.os}}" -eq "Windows" ){}
           echo "Using curl: `"$((Get-Command "curl").Source)`" Version: $(curl --version) ";
             # 2024-02: Linux(Ubuntu): /usr/bin/curl                 # 7.81.0-1ubuntu1.8  sudo apt install -y curl;
