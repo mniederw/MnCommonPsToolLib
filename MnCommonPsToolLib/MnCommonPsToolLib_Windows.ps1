@@ -1778,8 +1778,10 @@ function SqlRunScriptFile                     ( [String] $sqlserver, [String] $s
                                                 OutProgress "SqlRunScriptFile sqlserver=$sqlserver sqlfile=`"$sqlfile`" out=`"$outfile`" contOnErr=$continueOnErr";
                                                 FsEntryCreateParentDir $outfile;
                                                 & (SqlGetCmdExe) "-b" "-S" $sqlserver "-i" $sqlfile "-o" $outfile;
-                                                if( -not $? ){ if( -not $continueOnErr ){ AssertRcIsOk; }
-                                                else{ OutWarning "Warning: Ignore SqlRunScriptFile `"$sqlfile`" on `"$sqlserver`" failed with rc=$(ScriptGetAndClearLastRc), more see outfile, will continue"; } }
+                                                if( -not $? ){
+                                                  [String] $trace = "SqlRunScriptFile `"$sqlfile`" on `"$sqlserver`" failed with rc=$(ScriptGetAndClearLastRc), more see outfile";
+                                                  if( -not $continueOnErr ){ throw [Exception] "$trace"; } else{ OutWarning "Warning: $trace, will continue."; }
+                                                }
                                                 FileAssertExists $outfile; }
 function SqlPerformFile                       ( [String] $connectionString, [String] $sqlFile, [String] $logFileToAppend = "", [Int32] $queryTimeoutInSec = 0, [Boolean] $showPrint = $true, [Boolean] $showRows = $true){
                                                 # Print are given out in yellow by internal verbose option; rows are currently given out only in a simple csv style without headers.

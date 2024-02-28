@@ -62,16 +62,21 @@
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
 
-# Assert that the following executed statements from here to end of this script (not the functions) are not ignored.
-# The functions which are called by a caller are not affected by this trap statement.
+# Check last-exit-code status
+if( ((test-path "variable:LASTEXITCODE") -and $null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) ){
+  Write-Host "Note: `"$PSCommandPath`" was imported by environment with LastExitCode=$LASTEXITCODE LastStatement=`"$^ ... $$`", so reset LastExitCode.";
+  $global:LASTEXITCODE = 0; $error.clear();
+}
+
+# Assert that the following executed statements from here to the end of this script are not ignored.
+# The functions which are later called by a caller of this script are not affected by this trap statement.
 # Trap statement are not cared if a catch block is used!
-# It is strongly recommended that caller places after the import-module statement the following set and trap statement
-#   for unhandeled exceptions:   Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
-# It is also strongy recommended for client code to use catch blocks for handling exceptions.
+# It is strongly recommended that callers of this script perform after the import-module statement the following set and trap statements for unhandled exceptions:
+#   Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
+# It is also strongy recommended for client code when it wants to handle exceptions that it uses catch blocks!
 trap [Exception] { $Host.UI.WriteErrorLine($_); break; }
 
 # Define global variables if they are not yet defined; caller of this script can anytime set or change these variables to control the specified behaviour.
-
 function GlobalVariablesInit(){
   if( -not [Boolean] (Get-Variable ModeHideOutProgress               -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeHideOutProgress               -value $false; }
                                                                       # If true then OutProgress does nothing.
@@ -123,7 +128,7 @@ GlobalVariablesInit;
 #   Install-Module SqlServer       ; # used by SqlPerformFile, SqlPerformCmd.
 # Import-Module "SqlServer"; # not always used so we dont load it here.
 
-# types
+# Import type and function definitions
 Add-Type -Name Window -Namespace Console -MemberDefinition '[DllImport("Kernel32.dll")] public static extern IntPtr GetConsoleWindow(); [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, Int32 nCmdShow);';
 Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class Window { [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect); [DllImport("User32.dll")] public extern static bool MoveWindow(IntPtr handle, int x, int y, int width, int height, bool redraw); } public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }';
 Add-Type -WarningAction SilentlyContinue -TypeDefinition "using System; public class ExcMsg : Exception { public ExcMsg(String s):base(s){} } ";
@@ -247,7 +252,7 @@ function ForEachParallelPS5 {
   }
 }
 
-# ----- exported tools and types -----
+# ----- Exported tools and types -----
 
 function GlobalSetModeVerboseEnable           ( [Boolean] $val = $true ){ $global:VerbosePreference             = $(switch($val){($true){"Continue"}default{"SilentlyContinue"}}); }
 function GlobalSetModeEnableAutoLoadingPref   ( [Boolean] $val = $true ){ $global:PSModuleAutoLoadingPreference = $(switch($val){($true){$null}default{"none"}}); } # enable or disable autoloading modules, available internal values: All (=default), ModuleQualified, None.
@@ -557,35 +562,44 @@ function AssertIsFalse                        ( [Boolean] $cond, [String] $failR
                                                 if( $cond ){ throw [Exception] "Assertion-Is-False failed because $failReason"; } }
 function AssertNotEmpty                       ( [String] $s, [String] $varName ){
                                                 Assert ($s -ne "") "not allowed empty string for $varName."; }
-function AssertRcIsOk                         ( [String[]] $linesToOutProgress = $null, [Boolean] $useLinesAsExcMessage = $false,
-                                                [String] $logFileToOutProgressIfFailed = "", [String] $encodingIfNoBom = "Default" ){
-                                                # Can also be called with a single string; only nonempty progress lines are given out.
-                                                [Int32] $rc = ScriptGetAndClearLastRc;
-                                                if( $rc -ne 0 ){
-                                                  if( -not $useLinesAsExcMessage ){ $linesToOutProgress | Where-Object{ StringIsFilled $_ } | ForEach-Object{ OutProgress $_ }; }
-                                                  [String] $msg = "Last operation failed [rc=$rc]. ";
-                                                  if( $useLinesAsExcMessage ){
-                                                    $msg = $(switch($rc -eq 1 -and $linesToOutProgress -ne ""){($true){""}default{$msg}}) + ([String]$linesToOutProgress).Trim();
-                                                  }
+function AssertRcIsOk                         ( [String[]] $linesToOutProgress = "", [Boolean] $useLinesAsExcMessage = $false,
+                                                [String] $logFileToOutProgress = "", [String] $encodingIfNoBom = "Default" ){
+                                                # Asserts success status of last statement and wether code of last exit or native command was zero.
+                                                # In case it was not ok it optionally outputs given progress information and throws.
+                                                # Only nonempty progress lines are given out.
+                                                # Argument linesToOutProgress can also be called with a single string;
+                                                # if logFileToOutProgress is given than the lines are given out.
+                                                [String] $saveLastCmdInfo = "$?,$^ ... $$"; [Int32] $rc = ScriptGetAndClearLastRc;
+                                                [Boolean] $lastCmdIsSucc = ($saveLastCmdInfo -split ",",2)[0] -eq "True";
+                                                if( $lastCmdIsSucc -and $rc -eq 0 ){ return; }
+                                                if( -not $useLinesAsExcMessage ){ $linesToOutProgress | Where-Object{ StringIsFilled $_ } | ForEach-Object{ OutProgress $_ }; }
+                                                [String] $msg = $(switch($lastCmdIsSucc){($true){"Last statement `"$(($saveLastCmdInfo -split ",",2)[1])`" failed. "}})+
+                                                  $(switch($rc -ne 0){($true){"Last operation failed [ExitCode=$rc]. "}})+
+                                                  "For the reason see the previous output. ";
+                                                $msg = $(switch( $useLinesAsExcMessage -and $linesToOutProgress -ne "" ){($true){""}default{$msg}}) + ([String]$linesToOutProgress).Trim();
+                                                if( $logFileToOutProgress -ne "" ){
                                                   try{
-                                                    OutProgress "Dump of logfile=$($logFileToOutProgressIfFailed):";
-                                                    Get-Content -Encoding $encodingIfNoBom -LiteralPath $logFileToOutProgressIfFailed |
+                                                    OutProgress "Dump of logfile=$($logFileToOutProgress): ";
+                                                    Get-Content -Encoding $encodingIfNoBom -LiteralPath $logFileToOutProgress |
                                                       Where-Object{$null -ne $_} | ForEach-Object{ OutProgress "  $_"; }
                                                   }catch{
-                                                    OutVerbose "Ignoring problems on reading $logFileToOutProgressIfFailed failed because $($_.Exception.Message)";
+                                                    OutVerbose "Ignoring problems on reading $logFileToOutProgress failed because $($_.Exception.Message)";
                                                   }
-                                                  throw [Exception] $msg;
-                                                } }
+                                                }
+                                                throw [Exception] $msg; }
 function ScriptImportModuleIfNotDone          ( [String] $moduleName ){ if( -not (Get-Module $moduleName) ){
                                                 OutProgress "Import module $moduleName (can take some seconds on first call)";
                                                 Import-Module -NoClobber $moduleName -DisableNameChecking; } }
 function ScriptGetCurrentFunc                 (){ return [String] ((Get-Variable MyInvocation -Scope 1).Value.MyCommand.Name); }
 function ScriptGetCurrentFuncName             (){ return [String] ((Get-PSCallStack)[2].Position); }
-function ScriptGetAndClearLastRc              (){ [Int32] $rc = 0;
-                                                  # if no windows command was done then $LASTEXITCODE is null
-                                                  if( ((test-path "variable:LASTEXITCODE") -and $null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) -or -not $? ){
-                                                    $rc = $LASTEXITCODE; ScriptResetRc; }
-                                                  return [Int32] $rc; }
+function ScriptGetAndClearLastRc              ( [Int32] $rcForLastStmtFailure = 255 ){
+                                                # return    lastExitCode when last exit or native call was not zero
+                                                # or return rcForLastStmtFailure when lastExitCode was zero but last statement failed
+                                                # or return zero when all was ok.
+                                                [Int32] $rc = $(switch($?){($true){0}($false){$rcForLastStmtFailure}});
+                                                # if no native or exit command was done then $LASTEXITCODE is null.
+                                                if( (test-path "variable:LASTEXITCODE") -and $null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0 ){ $rc = $LASTEXITCODE; ScriptResetRc; }
+                                                return [Int32] $rc; }
 function ScriptResetRc                        (){ # reset $LASTEXITCODE (ERRORLEVEL to 0); non-portable alternative: & "cmd.exe" "/C" "EXIT 0"
                                                   $error.clear(); $global:LASTEXITCODE = 0; $error.clear(); AssertRcIsOk; }
 function ScriptNrOfScopes                     (){ [Int32] $i = 1; while($true){
@@ -1203,8 +1217,9 @@ function FsEntryCopyByPatternByOverwrite      ( [String] $fsEntryPattern, [Strin
                                                 FsEntryAssertHasTrailingDirSep $targetDir;
                                                 DirCreate $targetDir;
                                                 Copy-Item -ErrorAction SilentlyContinue -Recurse -Force -Path $fsEntryPattern -Destination (FsEntryEsc $targetDir);
-                                                if( -not $? ){ if( -not $continueOnErr ){ AssertRcIsOk; }
-                                                else{ OutWarning "Warning: CopyFiles `"$fsEntryPattern`" to `"$targetDir`" failed, will continue"; } } }
+                                                if( -not $? ){
+                                                  [String] $trace = "CopyFiles `"$fsEntryPattern`" to `"$targetDir`" failed.";
+                                                  if( -not $continueOnErr ){ throw [Exception] "$trace"; } else{ OutWarning "Warning: $trace, will continue."; } } }
 function FsEntryFindNotExistingVersionedName  ( [String] $fsEntry, [String] $ext = ".bck", [Int32] $maxNr = 9999 ){ # Example return: "C:\Dir\MyName.001.bck"
                                                 $fsEntry = FsEntryRemoveTrailingDirSep $fsEntry;
                                                 if( $fsEntry.Length -gt (260-4-$ext.Length) ){
@@ -2759,6 +2774,7 @@ if( (OsIsWindows) ){ # running under windows
 }else{
   OutVerbose "$PSScriptRoot : Running not on windows";
 }
+AssertRcIsOk;
 
 Export-ModuleMember -function *; # Export all functions from this script which are above this line (types are implicit usable).
 
@@ -2804,7 +2820,7 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #   @( "a1", "a2" ) -contains "a2", -notcontains, "abcdef" -match "b[CD]", -notmatch, "abcdef" -cmatch "b[cd]", -notcmatch, -not
 # - Automatic variables see: http://technet.microsoft.com/en-us/library/dd347675.aspx
 #   $?            : Contains True if last operation succeeded and False otherwise.
-#   $LASTEXITCODE : Contains the exit code of the last Win32 executable execution, 0 is ok.
+#   $LASTEXITCODE : Contains the exit code of the last native executable execution, 0 is ok, is init with $null.
 #                   Can be null if not windows command was called. Should not manually set, but if yes then as: $global:LASTEXITCODE = $null;
 # - Available colors for console -foregroundcolor and -backgroundcolor:
 #   Black DarkBlue DarkGreen DarkCyan DarkRed DarkMagenta DarkYellow Gray DarkGray Blue Green Cyan Red Magenta Yellow White

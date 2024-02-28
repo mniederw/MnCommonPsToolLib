@@ -5,7 +5,7 @@ Major version will reflect breaking changes, minor identifies extensions and thi
 Breaking changes are usually removed deprecated functions or changed behaviours.
 Current version can be requested by: $MnCommonPsToolLibVersion
 
-2024-02-27  V7.47  Improve Unittest. Change yml.
+2024-02-27  V7.47  Improve AssertRcIsOk, Unittests. Change yml.
 2024-02-25  V7.46  Fix ProcessStart. Fix some script analyser warnings. Deprecated ModeNoWaitForEnterAtEnd, StdOutBegMsgCareInteractiveMode, StdOutEndMsgCareInteractiveMode. Improve script analyser. Replace some Write-Host. Move some functions to windows part.
 2024-02-22  V7.45  Add FsEntryUnifyDirSep, StringExistsInStringArray, ProcessEnvVarPathAdd, ProcessEnvVarList, ToolManuallyDownloadAndInstallProg. Fix ProcessRefreshEnvVars. Improve ToolCreateLnkIfNotExists, MnCommonPsToolLibSelfUpdate.
 2024-02-16  V7.44  Expects always a dir separator for specifying dirs (currently only a warning, later it throws), Update FsEntryMakeTrailingDirSep, FsEntryGetParentDir. Deprecated FsEntryIsEqual (use FsEntryPathIsEqual).

@@ -2,9 +2,7 @@
 
 # Test module MnCommonPsToolLib
 
-Write-Host "  CurrentResult=$?   LASTEXITCODE=$LASTEXITCODE";
 Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
-Write-Host "  CurrentResult=$?   LASTEXITCODE=$LASTEXITCODE";
 
 [String[]] $ps1Files = @(
    "$PSScriptRoot/MnCommonPsToolLibUnitTest_Array.ps1"
