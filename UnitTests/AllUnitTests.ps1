@@ -44,7 +44,7 @@ for( [Int32] $i = 0; $i -lt $ps1Files.Count; $i++ ){
     [Int32] $rc = ScriptGetAndClearLastRc;
     if( $rc -ne 0 ){ throw [ExcMsg] "End of was reached, but the last operation failed [rc=$rc] because it did call a program but it did not handle or reset the rc."; }
   }catch{
-    ScriptResetRc; $hasErrors = $true; $errorPs1Files += $ps1Files[$i]; StdErrHandleExc $_;
+    ScriptResetRc; $errorPs1Files += $ps1Files[$i]; StdErrHandleExc $_;
     OutProgress "Continue but will throw at the end of processing all items.";
   }
 }
