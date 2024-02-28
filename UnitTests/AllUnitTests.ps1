@@ -2,7 +2,9 @@
 
 # Test module MnCommonPsToolLib
 
+Write-Host "  CurrentResult=$?   LASTEXITCODE=$LASTEXITCODE";
 Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
+Write-Host "  CurrentResult=$?   LASTEXITCODE=$LASTEXITCODE";
 
 [String[]] $ps1Files = @(
    "$PSScriptRoot/MnCommonPsToolLibUnitTest_Array.ps1"
@@ -34,6 +36,7 @@ Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version
 #GlobalSetModeVerboseEnable;
 OutInfo "MnCommonPsToolLibUnitTest - running powershell V$($Host.Version.ToString())";
 OutInfo "MnCommonPsToolLibUnitTest - perform some tests which do not require elevated admin mode";
+AssertRcIsOk;
 [String] $horizontalLine = ("-"*86);
 [String[]] $errorPs1Files = @();
 for( [Int32] $i = 0; $i -lt $ps1Files.Count; $i++ ){
