@@ -52,5 +52,6 @@ for( [Int32] $i = 0; $i -lt $ps1Files.Count; $i++ ){
 Write-Output $horizontalLine;
 if( $errorPs1Files.Count -gt 0 ){ throw [ExcMsg] "Failed for the $($errorPs1Files.Count) files: $errorPs1Files"; }
 
+AssertRcIsOk;
 OutSuccess "Ok, done. Exit after 5 seconds. ";
 ProcessSleepSec 5;

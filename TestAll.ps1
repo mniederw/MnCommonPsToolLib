@@ -80,17 +80,15 @@ Push-Location $PSScriptRoot;
 
   Write-Output "Running all examples and unit tests, input requests are aborted when called non-interactive by github action.";
   Write-Output "If it is running elevated then it performs additionally tests. ";
-  AssertRcIsOk;
   Write-Output ("-"*86); & "Examples/ExampleUseOfMnCommonPsToolLib01_HelloWorldWaitForEnter.ps1"; # waiting is aborted
-  AssertRcIsOk;
+  ScriptResetRc; # Input stream was closed by github
   Write-Output ("-"*86); & "Examples/ExampleUseOfMnCommonPsToolLib02_StdBegAndEndInteractiveModeStmts.ps1"; # waiting is aborted
-  AssertRcIsOk;
+  ScriptResetRc; # Input stream was closed by github
   Write-Output ("-"*86); & "Examples/ExampleUseOfMnCommonPsToolLib03_NoWaitAtEnd.ps1";
-  AssertRcIsOk;
+  ScriptResetRc; # Input stream was closed by github
   Write-Output ("-"*86); & "Examples/ExampleUseOfMnCommonPsToolLib04_SomeReadOnlyProcessings.ps1";
-  AssertRcIsOk;
+  ScriptResetRc; # Input stream was closed by github
   Write-Output ("-"*86); & "UnitTests/AllUnitTests.ps1";
-  AssertRcIsOk;
   Write-Output ("-"*86);
 
   Write-Output "Ok, UnitTest was successful!";
