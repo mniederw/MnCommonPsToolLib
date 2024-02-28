@@ -679,7 +679,9 @@ function ProcessRestartInElevatedAdminMode    (){ if( (ProcessIsRunningInElevate
                                                   [Environment]::Exit("0"); # Note: 'Exit 0;' would only leave the last '. mycommand' statement.
                                                   throw [Exception] "Exit done, but it did not work, so it throws now an exception.";
                                                 } }
-function ProcessFindExecutableInPath          ( [String] $exec ){ # Return full path or empty if not found.
+function ProcessFindExecutableInPath          ( [String] $exec ){
+                                                # Return full path or empty if not found. Note:
+                                                # if an alias with the same name is defined then it Get-Command returns the alias.
                                                 if( $exec -eq "" ){ return [String] ""; }
                                                 [Object] $p = (Get-Command $exec -ErrorAction SilentlyContinue);
                                                 if( $null -eq $p ){ return [String] ""; } return [String] $p.Source; }
@@ -717,7 +719,7 @@ function ProcessListInstalledAppx             (){ if( -not (OsIsWindows) ){ retu
                                                     ForEach-Object{ "$($_.PackageFullName)" } | Sort-Object)); }
 function ProcessGetCommandInEnvPathOrAltPaths ( [String] $commandNameOptionalWithExtension, [String[]] $alternativePaths = @(), [String] $downloadHintMsg = ""){
                                                 [System.Management.Automation.CommandInfo] $cmd = Get-Command -CommandType Application -Name $commandNameOptionalWithExtension -ErrorAction SilentlyContinue | Select-Object -First 1;
-                                                if( $null -ne $cmd ){ return [String] $cmd.Path; }
+                                                if( $null -ne $cmd ){ return [String] $cmd.Source; }
                                                 foreach( $d in $alternativePaths ){
                                                   [String] $f = (Join-Path $d $commandNameOptionalWithExtension);
                                                   if( (FileExists $f) ){ return [String] $f; } }
@@ -769,7 +771,7 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 #   The double quote mark is interpreted as an escape sequence by the remaining backslash,
                                                 #   causing a literal double quote mark (") to be placed in argv.
                                                 AssertRcIsOk;
-                                                [String] $exec = (Get-Command $cmd).Path;
+                                                [String] $exec = (Get-Command $cmd).Source;
                                                 [Boolean] $isPs = $exec.EndsWith(".ps1");
                                                 [String] $traceInfo = "`"$cmd`" $(StringArrayDblQuoteItems $cmdArgs)";
                                                 if( $isPs ){
@@ -778,7 +780,7 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                   $traceInfo = "$((ProcessPsExecutable)) -File `"$cmd`" $(StringArrayDblQuoteItems $cmdArgs)";
                                                   $cmdArgs = @( "-NoLogo", "-NonInteractive", "-File", "`"$exec`"" ) + $cmdArgs;
                                                   # Note: maybe for future we require: pwsh -NoProfileLoadTime
-                                                  $exec = (Get-Command (ProcessPsExecutable)).Path;
+                                                  $exec = (Get-Command (ProcessPsExecutable)).Source;
                                                 }else{
                                                   $cmdArgs = @() + ($cmdArgs | Where-Object { $null -ne $_ } | ForEach-Object {
                                                     ($_ + $(switch($_.EndsWith("\")){($true){"\"}($false){""}})) });
@@ -912,6 +914,7 @@ function ProcessRemoveAllAlias                ( [String[]] $excludeAliasNames = 
                                                 # In powershell v5 (also v7) on windows there are a predefined list of about 180 aliases in each session which cannot be avoided.
                                                 # This is very bad because there are also aliases defined as curl->Invoke-WebRequest or wget->Invoke-WebRequest which are incompatible to their known tools.
                                                 # On linux there are 108 aliases and fortunately the curl and wget are not part of it.
+                                                # 2024-02 update: On windows ps7.4 the curl and wget alias seams to be finally gone!
                                                 # Also the Invoke-ScriptAnalyzer results with a warning as example:
                                                 #   PSAvoidUsingCmdletAliases 'cd' is an alias of 'Set-Location'. Alias can introduce possible problems and make scripts hard to maintain.
                                                 #   Please consider changing alias to its full content.
@@ -1733,7 +1736,7 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                 DirCreate $tarDir;
                                                 [System.Management.Automation.PSCredential] $cred = $(switch($us -eq ""){ ($true){$null} default{(CredentialCreate $us $pw)} });
                                                 try{
-                                                  [Boolean] $useWebclient = $false; # we currently use Invoke-WebRequest because its more comfortable
+                                                  [Boolean] $useWebclient = $false; # we currently use Invoke-WebRequest because its more comfortable than WebClient.DownloadFile
                                                   if( $useWebclient ){
                                                     OutVerbose "WebClient.DownloadFile(url=$url,us=$us,tar=`"$tarFile`")";
                                                     $webclient = new-object System.Net.WebClient;
@@ -1776,7 +1779,8 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                 } }
 function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false,
                                                 [Boolean] $onlyIfNewer = $false, [Boolean] $errorAsWarning = $false ){
-                                                # Download a single file by overwrite it (as NetDownloadFile), requires curl executable in path.
+                                                # Download a single file by overwrite it (as NetDownloadFile).
+                                                # It requires and uses curl executable in path and it ignores any curl alias as you would find it in PS5 because this would references not a curl program.
                                                 # Redirections are followed, timestamps are also fetched, logging info is stored in a global logfile,
                                                 # for user agent info a mozilla firefox is set,
                                                 # if file curl-ca-bundle.crt exists next to curl executable then this is taken.
@@ -1960,7 +1964,7 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                 #   then the first found curl-ca-bundle.crt file in path var is used for cacert option.
                                                 if( (FsEntryPathIsEqual $curlExe "$env:SystemRoot/System32/curl.exe") ){
                                                   [String] $s = StringMakeNonNull (Get-Command -CommandType Application -Name curl-ca-bundle.crt -ErrorAction SilentlyContinue |
-                                                    Select-Object -First 1 | Foreach-Object { $_.Path });
+                                                    Select-Object -First 1 | Foreach-Object { $_.Source });
                                                   if( $s -ne "" ){ $curlCaCert = $s; }
                                                 }
                                                 if( (FileExists $curlCaCert) ){ $opt += @( "--cacert", $curlCaCert); }
@@ -2004,12 +2008,12 @@ function NetDownloadToStringByCurl            ( [String] $url, [String] $us = ""
                                                 NetDownloadFileByCurl $url $tmp $us $pw $ignoreSslCheck $onlyIfNewer;
                                                 [String] $result = (FileReadContentAsString $tmp $encodingIfNoBom);
                                                 FileDelTempFile $tmp; return [String] $result; }
-function NetDownloadIsSuccessful              ( [String] $url ){ # test wether an url is downloadable or not
+function NetDownloadIsSuccessful              ( [String] $url ){ # test wether an url is downloadable or not;
                                                 [Boolean] $res = $false;
-                                                try{ GlobalSetModeHideOutProgress $true; [Boolean] $ignoreSslCheck = $true;
-                                                  NetDownloadToString $url "" "" $ignoreSslCheck | Out-Null; $res = $true;
-                                                }catch{ OutVerbose "Ignoring problems on NetDownloadToString $url failed because $($_.Exception.Message)"; ScriptResetRc; }
-                                                GlobalSetModeHideOutProgress $false; return [Boolean] $res; }
+                                                try{ [Boolean] $ignoreSslCheck = $true;
+                                                  NetDownloadToString $url "" "" $ignoreSslCheck *>&1 | Out-Null; $res = $true;
+                                                }catch{ OutVerbose "NetDownloadIsSuccessful: Ignoring expected behaviour that NetDownloadToString $url failed because $($_.Exception.Message)"; }
+                                                return [Boolean] $res; }
 function NetDownloadSite                      ( [String] $url, [String] $tarDir, [Int32] $level = 999,
                                                   [Int32] $maxBytes = 0, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false,
                                                   [Int32] $limitRateBytesPerSec = ([Int32]::MaxValue), [Boolean] $alsoRetrieveToParentOfUrl = $false ){
@@ -2892,7 +2896,13 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #     Recommendation: After creation of the list do iterate through it and assert non-null values
 #       or redo the expression within a ForEach-Object loop to get correct throwed message.
 #   - String without comparison as condition:  Assert ( "anystring" ); Assert ( "$false" );
-#   - PS is poisoning the current scope by its aliases. List all aliases by: alias; For example: Alias curl -> Invoke-WebRequest ; Alias wget -> Invoke-WebRequest ; Alias diff -> Compare-Object ;
+#   - PS 5/7 is poisoning the current scope by its aliases. See also comments on: ProcessRemoveAllAlias.
+#     List all aliases by: alias; For example: Alias curl -> Invoke-WebRequest ; Alias wget -> Invoke-WebRequest ; Alias diff -> Compare-Object ;
+#     If we really want to call the curl executable than this is a mess.
+#     We strongly recommend to add to your ps5 $profile ($HOME\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1) at least the line:
+#       Remove-Item -Force "Alias:curl" -ErrorAction SilentlyContinue; Remove-Item -Force "Alias:wget" -ErrorAction SilentlyContinue;
+#     If you have to bypass the curl alias you need to do the following:
+#     [String] $curlPath = "$(get-command -CommandType Application curl -ErrorAction SilentlyContinue | Select -First 1 | ForEach-Object{ $_.Source })";
 #   - Automatically added folders (2023-02):
 #     - ps7: %USERPROFILE%\Documents\PowerShell\Modules\         location for current users for any modules
 #     - ps5: %USERPROFILE%\Documents\WindowsPowerShell\Modules\  location for current users for any modules

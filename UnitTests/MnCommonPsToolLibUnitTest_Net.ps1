@@ -22,27 +22,29 @@ function Test_Net(){
   #
   [String] $url = "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/main/Readme.txt";
   OutProgress "NetDownloadIsSuccessful"  ; Assert (NetDownloadIsSuccessful $url);
-  [String] $tmp = FileGetTempFile; 
+  [String] $tmp = FileGetTempFile;
   OutProgress "NetDownloadFile"          ; NetDownloadFile       $url $tmp; Assert ((FileGetSize $tmp) -gt 0); FileDelete $tmp;
   OutProgress "NetDownloadToString"      ; Assert ((NetDownloadToString $url) -gt 0);
-  if( (ProcessFindExecutableInPath "curl") -eq "" ){
-    OutProgress "Curl is not in path, so cannot test methods using it.";
+  # Curl:
+  if( (ProcessGetCommandInEnvPathOrAltPaths "curl") -eq "" ){
+    OutWarning "Curl is not in path, so cannot test methods using it.";
   }else{
-    ScriptResetRc;
+    AssertRcIsOk;
     $tmp = FileGetTempFile;
     try{
       OutProgress "NetDownloadFileByCurl"    ; NetDownloadFileByCurl $url $tmp; Assert ((FileGetSize $tmp) -gt 0); FileDelete $tmp;
       OutProgress "NetDownloadToStringByCurl"; Assert ((NetDownloadToStringByCurl $url) -gt 0);
     }catch{
+      throw; # TODO clean this
       if( "$env:GITHUB_WORKSPACE" -eq "" ){ throw; } # is local not on github
       # on github we ignore this known behaviour
       ScriptResetRc;
       OutWarning "Running on github actions and we know curl does fail sometimes so we ignore it: $_";
     }
   }
-  OutProgress "Call curl native";  
-  $tmp = FileGetTempFile; # we not use: "--silent" 
-  & curl "--show-error" "--fail" "--output" $tmp "--create-dirs" "--connect-timeout" "70" "--retry" "2" "--retry-delay" "5" "--tlsv1.2" "--remote-time" "--location" "--max-redirs" "50" "--stderr" "-" "--user-agent" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:68.0) Gecko/20100101 Firefox/68.0" "--url" $url;
+  OutProgress "Call curl native";
+  $tmp = FileGetTempFile;
+  & (ProcessGetCommandInEnvPathOrAltPaths "curl") "--show-error" "--fail" "--output" $tmp "--silent" "--create-dirs" "--connect-timeout" "70" "--retry" "2" "--retry-delay" "5" "--tlsv1.2" "--remote-time" "--location" "--max-redirs" "50" "--stderr" "-" "--user-agent" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:68.0) Gecko/20100101 Firefox/68.0" "--url" $url;
   OutProgress "  Result-State-was-true=$?   LASTEXITCODE=$LASTEXITCODE";
   #
   #   NetDownloadSite                      ( [String] $url, [String] $tarDir, [Int32] $level = 999, [Int32] $maxBytes = ([Int32]::MaxValue), [String] $us = "",
