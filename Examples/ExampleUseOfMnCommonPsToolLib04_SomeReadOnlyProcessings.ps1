@@ -11,10 +11,10 @@ function ExampleUseAssertions{
 
 function ExampleUseCommon(){
   OutInfo "$($MyInvocation.MyCommand)";
-  [DateTime] $oldestDate = Get-Date -Date "0001-01-01 00:00:00.000";
+  [DateTime] $minimumDate = Get-Date -Date "0001-01-01 00:00:00.000";
   OutProgress "Today in ISO format      : $(DateTimeNowAsStringIsoDate)";
   OutProgress "Current ts in ISO format : $(DateTimeAsStringIso (Get-Date))";
-  OutProgress "Oldest date is           : $(DateTimeAsStringIso $oldestDate)"; # 0001-01-01 00:00:00
+  OutProgress "Minimum date is          : $(DateTimeAsStringIso $minimumDate)"; # 0001-01-01 00:00:00
   OutSuccess "Ok, done.";
 }
 
@@ -128,4 +128,5 @@ ExampleUseEnvironmentVarsOfDifferentScopes;
 ExampleUseNetDownloadToString;
 ExampleUseNetDownloadIsSuccessful;
 ExampleUseListFirstFivePublicReposOfGithubOrg;
+AssertRcIsOk;
 StdInReadLine "Press Enter to exit.";

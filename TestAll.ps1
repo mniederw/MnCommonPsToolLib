@@ -76,14 +76,21 @@ Push-Location $PSScriptRoot;
 
   Write-Output "Remove all aliases except (cd,cat,clear,echo,dir,cp,mv,popd,pushd,rm,rmdir);";
   ProcessRemoveAllAlias @("cd","cat","clear","echo","dir","cp","mv","popd","pushd","rm","rmdir");
+  echo "CurrentResult=$?   LASTEXITCODE=$LASTEXITCODE";
 
   Write-Output "Running all examples and unit tests, input requests are aborted when called non-interactive by github action.";
   Write-Output "If it is running elevated then it performs additionally tests. ";
+  echo "CurrentResult=$?   LASTEXITCODE=$LASTEXITCODE";
   Write-Output ("-"*86); & "Examples/ExampleUseOfMnCommonPsToolLib01_HelloWorldWaitForEnter.ps1"; # waiting is aborted
+  echo "CurrentResult=$?   LASTEXITCODE=$LASTEXITCODE";
   Write-Output ("-"*86); & "Examples/ExampleUseOfMnCommonPsToolLib02_StdBegAndEndInteractiveModeStmts.ps1"; # waiting is aborted
+  echo "CurrentResult=$?   LASTEXITCODE=$LASTEXITCODE";
   Write-Output ("-"*86); & "Examples/ExampleUseOfMnCommonPsToolLib03_NoWaitAtEnd.ps1";
+  echo "CurrentResult=$?   LASTEXITCODE=$LASTEXITCODE";
   Write-Output ("-"*86); & "Examples/ExampleUseOfMnCommonPsToolLib04_SomeReadOnlyProcessings.ps1";
+  echo "CurrentResult=$?   LASTEXITCODE=$LASTEXITCODE";
   Write-Output ("-"*86); & "UnitTests/AllUnitTests.ps1";
+  echo "CurrentResult=$?   LASTEXITCODE=$LASTEXITCODE";
   Write-Output ("-"*86);
 
   Write-Output "Ok, UnitTest was successful!";
