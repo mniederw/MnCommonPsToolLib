@@ -21,35 +21,13 @@ function Test_Net(){
   #   NetWebRequestLastModifiedFailSafe    ( [String] $url ){ # Requests metadata from a downloadable file. Return DateTime.MaxValue in case of any problem
   #
   [String] $url = "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/main/Readme.txt";
-  OutProgress "NetDownloadIsSuccessful"  ; Assert (NetDownloadIsSuccessful $url);
-  [String] $tmp = FileGetTempFile;
+  [String] $site = "https://github.com/mniederw/MnCommonPsToolLib/tree/main/Examples/";
+  OutProgress "NetDownloadIsSuccessful"  ; [String] $tmp = FileGetTempFile; Assert (NetDownloadIsSuccessful $url);
   OutProgress "NetDownloadFile"          ; NetDownloadFile       $url $tmp; Assert ((FileGetSize $tmp) -gt 0); FileDelete $tmp;
   OutProgress "NetDownloadToString"      ; Assert ((NetDownloadToString $url) -gt 0);
-  # Curl:
-  if( (ProcessGetCommandInEnvPathOrAltPaths "curl") -eq "" ){
-    OutWarning "Curl is not in path, so cannot test methods using it.";
-  }else{
-    AssertRcIsOk;
-    $tmp = FileGetTempFile;
-    try{
-      OutProgress "NetDownloadFileByCurl"    ; NetDownloadFileByCurl $url $tmp; Assert ((FileGetSize $tmp) -gt 0); FileDelete $tmp;
-      OutProgress "NetDownloadToStringByCurl"; Assert ((NetDownloadToStringByCurl $url) -gt 0);
-    }catch{
-      throw; # TODO clean this
-      if( "$env:GITHUB_WORKSPACE" -eq "" ){ throw; } # is local not on github
-      # on github we ignore this known behaviour
-      ScriptResetRc;
-      OutWarning "Running on github actions and we know curl does fail sometimes so we ignore it: $_";
-    }
-  }
-  OutProgress "Call curl native";
-  $tmp = FileGetTempFile;
-  & (ProcessGetCommandInEnvPathOrAltPaths "curl") "--show-error" "--fail" "--output" $tmp "--silent" "--create-dirs" "--connect-timeout" "70" "--retry" "2" "--retry-delay" "5" "--tlsv1.2" "--remote-time" "--location" "--max-redirs" "50" "--stderr" "-" "--user-agent" "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:68.0) Gecko/20100101 Firefox/68.0" "--url" $url;
-  AssertRcIsOk;
-  #
-  #   NetDownloadSite                      ( [String] $url, [String] $tarDir, [Int32] $level = 999, [Int32] $maxBytes = ([Int32]::MaxValue), [String] $us = "",
-  #                                            [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Int32] $limitRateBytesPerSec = ([Int32]::MaxValue),
-  #                                            [Boolean] $alsoRetrieveToParentOfUrl = $false ){
-  #                                          # Mirror site to dir; wget: HTTP, HTTPS, FTP. Logfile is written into target dir. Password is not logged.
+  OutProgress "NetDownloadFileByCurl"    ; $tmp = FileGetTempFile; NetDownloadFileByCurl $url $tmp; Assert ((FileGetSize $tmp) -gt 0); FileDelete $tmp;
+  OutProgress "NetDownloadToStringByCurl"; Assert ((NetDownloadToStringByCurl $url) -gt 0);
+  OutProgress "Call curl native"         ; $tmp = FileGetTempFile; & (ProcessGetCommandInEnvPathOrAltPaths "curl") "--show-error" "--fail" "--output" $tmp "--silent" "--create-dirs" "--connect-timeout" "70" "--retry" "2" "--retry-delay" "5" "--tlsv1.2" "--remote-time" "--location" "--max-redirs" "50" "--stderr" "-" "--user-agent" "Test" "--url" $url; AssertRcIsOk;
+  OutProgress "NetDownloadSite"          ; [String] $tmpDir = DirCreateTemp "MNNds"; NetDownloadSite $site $tmpDir -maxBytes 20000;
 }
 Test_Net;

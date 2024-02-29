@@ -31,14 +31,13 @@ Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version
   ,"$PSScriptRoot/MnCommonPsToolLibScriptAnalyser.ps1"
 );
 
-#GlobalSetModeVerboseEnable;
-OutInfo "MnCommonPsToolLibUnitTest - running powershell V$($Host.Version.ToString())";
-OutInfo "MnCommonPsToolLibUnitTest - perform some tests which do not require elevated admin mode";
-AssertRcIsOk;
-[String] $horizontalLine = ("-"*86);
+# for future use: GlobalSetModeVerboseEnable;
+OutInfo     "MnCommonPsToolLib - AllUnitTest - running powershell V$($Host.Version.ToString())";
+OutProgress "It is compatible for PS5/PS7, elevated, platforms Windows/Linux/MacOS!";
+OutProgress "If it is running elevated then it performs additional tests. ";
 [String[]] $errorPs1Files = @();
 for( [Int32] $i = 0; $i -lt $ps1Files.Count; $i++ ){
-  Write-Output $horizontalLine;
+  OutInfo ("----- "+(FsEntryGetFileName $ps1Files[$i])+" -----").PadRight(86,'-');
   try{
     AssertRcIsOk;
     & $ps1Files[$i];
@@ -49,9 +48,10 @@ for( [Int32] $i = 0; $i -lt $ps1Files.Count; $i++ ){
     OutProgress "Continue but will throw at the end of processing all items.";
   }
 }
-Write-Output $horizontalLine;
-if( $errorPs1Files.Count -gt 0 ){ throw [ExcMsg] "Failed for the $($errorPs1Files.Count) files: $errorPs1Files"; }
+OutInfo ("-"*86);
 
+if( $errorPs1Files.Count -gt 0 ){ throw [ExcMsg] "Failed for the $($errorPs1Files.Count) files: $errorPs1Files"; }
 AssertRcIsOk;
-OutSuccess "Ok, done. Exit after 5 seconds. ";
-ProcessSleepSec 5;
+
+OutSuccess "Ok, done. Exit after 2 seconds. ";
+ProcessSleepSec 2;

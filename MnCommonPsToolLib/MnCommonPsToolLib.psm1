@@ -593,15 +593,14 @@ function ScriptImportModuleIfNotDone          ( [String] $moduleName ){ if( -not
 function ScriptGetCurrentFunc                 (){ return [String] ((Get-Variable MyInvocation -Scope 1).Value.MyCommand.Name); }
 function ScriptGetCurrentFuncName             (){ return [String] ((Get-PSCallStack)[2].Position); }
 function ScriptGetAndClearLastRc              ( [Int32] $rcForLastStmtFailure = 255 ){
-                                                # return    lastExitCode when last exit or native call was not zero
+                                                #    return lastExitCode         when last exit or native call was not zero
                                                 # or return rcForLastStmtFailure when lastExitCode was zero but last statement failed
-                                                # or return zero when all was ok.
+                                                # or return zero                 when all was ok.
                                                 [Int32] $rc = $(switch($?){($true){0}($false){$rcForLastStmtFailure}});
                                                 # if no native or exit command was done then $LASTEXITCODE is null.
                                                 if( (test-path "variable:LASTEXITCODE") -and $null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0 ){ $rc = $LASTEXITCODE; ScriptResetRc; }
                                                 return [Int32] $rc; }
-function ScriptResetRc                        (){ # reset $LASTEXITCODE (ERRORLEVEL to 0); non-portable alternative: & "cmd.exe" "/C" "EXIT 0"
-                                                  $error.clear(); $global:LASTEXITCODE = 0; $error.clear(); AssertRcIsOk; }
+function ScriptResetRc                        (){ $global:LASTEXITCODE = 0; $error.clear(); } # reset last-exit-code to zero.
 function ScriptNrOfScopes                     (){ [Int32] $i = 1; while($true){
                                                 try{ Get-Variable null -Scope $i -ValueOnly -ErrorAction SilentlyContinue | Out-Null; $i++;
                                                 }catch{ # exc: System.Management.Automation.PSArgumentOutOfRangeException
