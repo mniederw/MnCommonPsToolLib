@@ -31,13 +31,13 @@ Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version
   ,"$PSScriptRoot/MnCommonPsToolLibScriptAnalyser.ps1"
 );
 
-# for future use: GlobalSetModeVerboseEnable;
 OutInfo     "MnCommonPsToolLib - AllUnitTest - running powershell V$($Host.Version.ToString())";
 OutProgress "It is compatible for PS5/PS7, elevated, platforms Windows/Linux/MacOS!";
 OutProgress "If it is running elevated then it performs additional tests. ";
 [String[]] $errorPs1Files = @();
 for( [Int32] $i = 0; $i -lt $ps1Files.Count; $i++ ){
-  OutInfo ("----- "+(FsEntryGetFileName $ps1Files[$i])+" -----").PadRight(86,'-');
+
+  OutInfo ("----- "+(FsEntryGetFileName $ps1Files[$i])+" -----").PadRight(120,'-');
   try{
     AssertRcIsOk;
     & $ps1Files[$i];
@@ -47,11 +47,11 @@ for( [Int32] $i = 0; $i -lt $ps1Files.Count; $i++ ){
     ScriptResetRc; $errorPs1Files += $ps1Files[$i]; StdErrHandleExc $_;
     OutProgress "Continue but will throw at the end of processing all items.";
   }
+
 }
-OutInfo ("-"*86);
-
-if( $errorPs1Files.Count -gt 0 ){ throw [ExcMsg] "Failed for the $($errorPs1Files.Count) files: $errorPs1Files"; }
+OutInfo ("----- AllUnitTests.ps1 ended -----").PadRight(120,'-');
+if( $errorPs1Files.Count -gt 0 ){ throw [ExcMsg] "AllUnitTests failed for the $($errorPs1Files.Count) files: $errorPs1Files"; }
 AssertRcIsOk;
-
-OutSuccess "Ok, done. Exit after 2 seconds. ";
+OutSuccess "Ok, done. All unit tests are successful. Exit after 2 seconds. ";
 ProcessSleepSec 2;
+# for future use: GlobalSetModeVerboseEnable;
