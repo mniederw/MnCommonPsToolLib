@@ -2,10 +2,10 @@
 
 Set-StrictMode -Version Latest; trap [Exception] { $Host.UI.WriteErrorLine("Error: $_"); Read-Host "Press Enter to Exit"; break; } $ErrorActionPreference = "Stop";
 
-[Boolean] $is_windows = (-not (Get-Variable -Name IsWindows -ErrorAction SilentlyContinue) -or $IsWindows);
+[Boolean] $is_windows = (-not (Get-Variable -Name IsWindows -ErrorAction SilentlyContinue) -or $IsWindows); # portable PS5/PS7
 [Boolean] $is_linux   = (-not $is_windows -and $IsLinux);
 [Boolean] $is_maxos   = (-not $is_windows -and $IsMacOS);
-[String]  $pathSep    = $(switch(OsIsWindows){$true{";"}default{":"}});
+[String]  $pathSep    = $(switch($is_windows){$true{";"}default{":"}});
 
 Write-Output "Test all - run all examples, the script analyser and the unit tests with pwsh (powershell)";
 Write-Output "  It is compatible for PS5/PS7, elevated, platforms Windows/Linux/MacOS!";
