@@ -56,32 +56,27 @@ jobs:
 
       - name: Install tools
         shell: pwsh
-        run: |
-          # Assert installed tools: curl.
-          if( "${{runner.os}}" -eq "Linux" ){
-            which curl; # /usr/bin/curl
-            # alternative: sudo apt install -y curl; # curl is already the newest version (7.81.0-1ubuntu1.8).
-          }elseif( "${{runner.os}}" -eq "macOS" ){
-            which curl; # /usr/local/opt/curl/bin/curl
-            # alternative: brew install curl; # Warning: curl 7.88.1 is already installed and up-to-date. To reinstall 7.88.1, run: brew reinstall curl
-          }elseif( "${{runner.os}}" -eq "Windows" ){
-            Get-Command "curl" -ErrorAction SilentlyContinue; # 7.83.1.0 C:\Windows\system32\curl.exe
-          }
-          echo "github.event.schedule=${{github.event.schedule}} ";
-
-      - name: Test all
-        shell: pwsh
           # Default runners have installed: PS7.2.5 and Pester.
           # More about PS: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-powershell#powershell-module-locations
         run: |
           echo "Running on OS=${{runner.os}}; $(which pwsh); $(pwsh --version)";
-            # example: "OS=Linux; /opt/microsoft/powershell/7/pwsh; Powershell V7.2.9"
-            # example: "OS=macOS; /usr/local/microsoft/powershell/7/pwsh; PowerShell 7.2.9"
-            # example: "OS=Windows; /c/Program Files/PowerShell/7/pwsh; PowerShell 7.2.10"
-          echo "List all environment variables in pwsh"; Get-Variable;
-          echo "List all aliases in pwsh"; Get-Alias | Select-Object DisplayName;
+            # OS=Linux  ; /opt/microsoft/powershell/7/pwsh      ; 2024-02: Powershell 7.4.1"
+            # OS=macOS  ; /usr/local/microsoft/powershell/7/pwsh; 2024-02: PowerShell 7.4.1"
+            # OS=Windows; /c/Program Files/PowerShell/7/pwsh    ; 2024-02: PowerShell 7.4.1"
+          # Assert installed tools: curl.
+          if    ( "${{runner.os}}" -eq "Linux"   ){}
+          elseif( "${{runner.os}}" -eq "macOS"   ){}
+          elseif( "${{runner.os}}" -eq "Windows" ){}
+          echo "Using curl: `"$((Get-Command "curl").Source)`" Version: $(curl --version) ";
+            # Ubuntu  : /usr/bin/curl                 # 2024-02: V7.81.0(x86_64-pc-linux-gnu)        sudo apt install -y curl;
+            # MacOS   : /usr/local/opt/curl/bin/curl  # 2024-02: V8.6.0 (x86_64-apple-darwin21.6.0)  brew install curl;
+            # Windows : C:\Windows\system32\curl.exe  # 2024-02: V8.4
+          echo "github.event.schedule=${{github.event.schedule}} ";
+
+      - name: Test all
+        shell: pwsh
+        run: |
           & "./TestAll.ps1";
-          echo "Test ok.";
 
   Merge:
     runs-on: ubuntu-latest  # must run on linux because tool for creating pr
@@ -131,17 +126,17 @@ jobs:
           #                               /home/runner/.cargo/bin:/home/runner/.config/composer/vendor/bin:/usr/local/.ghcup/bin:/home/runner/.dotnet/tools:/snap/bin:
           #                               /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/usr/games:/usr/local/games:/snap/bin
           #   PNPM_HOME               = /home/runner/setup-pnpm/node_modules/.bin
-          # Note: we do not run: echo "List github context as json:  ...toJson(github)...";
-          #   because sometimes fails after some json output with:
+          # Note: we do not run: echo "List github context as json: ...toJson(github)...";
+          #   because sometimes it fails after some json output for example with:
           #   2023-07: /home/runner/work/_temp/858ee69a-4952-4151-832b-4c9945ad8f90.sh: line 115: timestamp:: command not found
           #            Error: Process completed with exit code 127.
-          #     Note: The error also occurrs in comment, if the three dots would have replaced by github dollar and braces!
+          #     Note: The error would also occurre if we would put into a comment line the variable: dollar-openbrace-openbrace toJson(github) closebrace-closebrace
 
       - name: If tests on trunk of a push or workflow_dispatch was successful then create pull request to main
         if: ${{ success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/trunk' && runner.os == 'Linux' }}
         uses: repo-sync/pull-request@v2.12.1
           # for parameters see: https://github.com/repo-sync/pull-request
-          # works only on linux, see releases for updating version from time to time
+          # works only on linux, see releases for updating version from time to time (2023-01: v2.12.1; 2024-02: no newer;)
         with:
           pr_title:           "Merge ${{github.ref_name}} to main - Unittests are successful - ${{ github.event.commits[0].message }}"
           source_branch:      ""                           # If blank, default: triggered branch

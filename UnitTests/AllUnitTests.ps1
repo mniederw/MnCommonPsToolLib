@@ -4,35 +4,29 @@
 
 Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 
-#GlobalSetModeVerboseEnable;
-OutInfo "MnCommonPsToolLibUnitTest - running powershell V$($Host.Version.ToString())";
-OutInfo "MnCommonPsToolLibUnitTest - perform some tests which do not require elevated admin mode";
+[String[]] $ps1Files = FsEntryListAsStringArray "$PSScriptRoot/MnCommonPsToolLib*" -includeDirs $false;
 
-Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Array.ps1";
-Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Credential.ps1";
-Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTest_FsEntry_Dir_File_Drive_Share_Mount.ps1";
-Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Git_Svn_Tfs.ps1";
-Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Help_Os.ps1";
-Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Info.ps1";
-Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Int_DateTime_ByteArray.ps1";
-Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Juniper.ps1";
-Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Net.ps1";
-Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTest_KnownBugs.ps1";
-Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Priv.ps1";
-Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Process_Job.ps1";
-Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTest_PsCommon.ps1";
-Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTest_PsCommonWithLintWarnings.ps1";
-Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Registry.ps1";
-Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Script.ps1";
-Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Service_Task.ps1";
-Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Sql.ps1";
-Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Stream.ps1";
-Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTest_String.ps1";
-Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Test_IO_Console_StdIn_StdOut_StdErr.ps1";
-Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTest_Tool.ps1";
-Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibUnitTestElevated.ps1";
-Write-Output ("-"*86); & "$PSScriptRoot/MnCommonPsToolLibScriptAnalyser.ps1";
-Write-Output ("-"*86);
+OutInfo     "MnCommonPsToolLib - AllUnitTest - running powershell V$($Host.Version.ToString())";
+OutProgress "It is compatible for PS5/PS7, elevated, platforms Windows/Linux/MacOS!";
+OutProgress "If it is running elevated then it performs additional tests. ";
+[String[]] $errorPs1Files = @();
+for( [Int32] $i = 0; $i -lt $ps1Files.Count; $i++ ){
 
-OutSuccess "Ok, done. Exit after 5 seconds. ";
-ProcessSleepSec 5;
+  OutInfo ("----- "+(FsEntryGetFileName $ps1Files[$i])+" -----").PadRight(120,'-');
+  try{
+    AssertRcIsOk;
+    & $ps1Files[$i];
+    [Int32] $rc = ScriptGetAndClearLastRc;
+    if( $rc -ne 0 ){ throw [ExcMsg] "End of was reached, but the last operation failed [rc=$rc] because it did call a program but it did not handle or reset the rc."; }
+  }catch{
+    ScriptResetRc; $errorPs1Files += $ps1Files[$i]; StdErrHandleExc $_;
+    OutProgress "Continue but will throw at the end of processing all items.";
+  }
+
+}
+OutInfo ("----- AllUnitTests.ps1 ended -----").PadRight(120,'-');
+if( $errorPs1Files.Count -gt 0 ){ throw [ExcMsg] "AllUnitTests failed for the $($errorPs1Files.Count) files: $errorPs1Files"; }
+AssertRcIsOk;
+OutSuccess "Ok, done. All unit tests are successful. Exit after 2 seconds. ";
+ProcessSleepSec 2;
+# for future use: GlobalSetModeVerboseEnable;

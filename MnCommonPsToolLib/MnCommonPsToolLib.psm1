@@ -4,7 +4,7 @@
 # Licensed under GPL3. This is freeware.
 # 2013-2024 produced by Marc Niederwieser, Switzerland.
 
-[String] $global:MnCommonPsToolLibVersion = "7.46";
+[String] $global:MnCommonPsToolLibVersion = "7.47";
   # Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
   # Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
   # more see Releasenotes.txt
@@ -62,16 +62,21 @@
 # Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
 Set-StrictMode -Version Latest;
 
-# Assert that the following executed statements from here to end of this script (not the functions) are not ignored.
-# The functions which are called by a caller are not affected by this trap statement.
+# Check last-exit-code status
+if( ((test-path "variable:LASTEXITCODE") -and $null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) ){
+  Write-Host "Note: `"$PSCommandPath`" was imported by environment with LastExitCode=$LASTEXITCODE LastStatement=`"$^ ... $$`", so reset LastExitCode.";
+  $global:LASTEXITCODE = 0; $error.clear();
+}
+
+# Assert that the following executed statements from here to the end of this script are not ignored.
+# The functions which are later called by a caller of this script are not affected by this trap statement.
 # Trap statement are not cared if a catch block is used!
-# It is strongly recommended that caller places after the import-module statement the following set and trap statement
-#   for unhandeled exceptions:   Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
-# It is also strongy recommended for client code to use catch blocks for handling exceptions.
+# It is strongly recommended that callers of this script perform after the import-module statement the following set and trap statements for unhandled exceptions:
+#   Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
+# It is also strongy recommended for client code when it wants to handle exceptions that it uses catch blocks!
 trap [Exception] { $Host.UI.WriteErrorLine($_); break; }
 
 # Define global variables if they are not yet defined; caller of this script can anytime set or change these variables to control the specified behaviour.
-
 function GlobalVariablesInit(){
   if( -not [Boolean] (Get-Variable ModeHideOutProgress               -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeHideOutProgress               -value $false; }
                                                                       # If true then OutProgress does nothing.
@@ -123,7 +128,7 @@ GlobalVariablesInit;
 #   Install-Module SqlServer       ; # used by SqlPerformFile, SqlPerformCmd.
 # Import-Module "SqlServer"; # not always used so we dont load it here.
 
-# types
+# Import type and function definitions
 Add-Type -Name Window -Namespace Console -MemberDefinition '[DllImport("Kernel32.dll")] public static extern IntPtr GetConsoleWindow(); [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, Int32 nCmdShow);';
 Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class Window { [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect); [DllImport("User32.dll")] public extern static bool MoveWindow(IntPtr handle, int x, int y, int width, int height, bool redraw); } public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }';
 Add-Type -WarningAction SilentlyContinue -TypeDefinition "using System; public class ExcMsg : Exception { public ExcMsg(String s):base(s){} } ";
@@ -247,7 +252,7 @@ function ForEachParallelPS5 {
   }
 }
 
-# ----- exported tools and types -----
+# ----- Exported tools and types -----
 
 function GlobalSetModeVerboseEnable           ( [Boolean] $val = $true ){ $global:VerbosePreference             = $(switch($val){($true){"Continue"}default{"SilentlyContinue"}}); }
 function GlobalSetModeEnableAutoLoadingPref   ( [Boolean] $val = $true ){ $global:PSModuleAutoLoadingPreference = $(switch($val){($true){$null}default{"none"}}); } # enable or disable autoloading modules, available internal values: All (=default), ModuleQualified, None.
@@ -557,37 +562,45 @@ function AssertIsFalse                        ( [Boolean] $cond, [String] $failR
                                                 if( $cond ){ throw [Exception] "Assertion-Is-False failed because $failReason"; } }
 function AssertNotEmpty                       ( [String] $s, [String] $varName ){
                                                 Assert ($s -ne "") "not allowed empty string for $varName."; }
-function AssertRcIsOk                         ( [String[]] $linesToOutProgress = $null, [Boolean] $useLinesAsExcMessage = $false,
-                                                [String] $logFileToOutProgressIfFailed = "", [String] $encodingIfNoBom = "Default" ){
-                                                # Can also be called with a single string; only nonempty progress lines are given out.
-                                                [Int32] $rc = ScriptGetAndClearLastRc;
-                                                if( $rc -ne 0 ){
-                                                  if( -not $useLinesAsExcMessage ){ $linesToOutProgress | Where-Object{ StringIsFilled $_ } | ForEach-Object{ OutProgress $_ }; }
-                                                  [String] $msg = "Last operation failed [rc=$rc]. ";
-                                                  if( $useLinesAsExcMessage ){
-                                                    $msg = $(switch($rc -eq 1 -and $linesToOutProgress -ne ""){($true){""}default{$msg}}) + ([String]$linesToOutProgress).Trim();
-                                                  }
+function AssertRcIsOk                         ( [String[]] $linesToOutProgress = "", [Boolean] $useLinesAsExcMessage = $false,
+                                                [String] $logFileToOutProgress = "", [String] $encodingIfNoBom = "Default" ){
+                                                # Asserts success status of last statement and wether code of last exit or native command was zero.
+                                                # In case it was not ok it optionally outputs given progress information and throws.
+                                                # Only nonempty progress lines are given out.
+                                                # Argument linesToOutProgress can also be called with a single string;
+                                                # if logFileToOutProgress is given than the lines are given out.
+                                                [String] $saveLastCmdInfo = "$?,$^ ... $$"; [Int32] $rc = ScriptGetAndClearLastRc;
+                                                [Boolean] $lastCmdIsSucc = ($saveLastCmdInfo -split ",",2)[0] -eq "True";
+                                                if( $lastCmdIsSucc -and $rc -eq 0 ){ return; }
+                                                if( -not $useLinesAsExcMessage ){ $linesToOutProgress | Where-Object{ StringIsFilled $_ } | ForEach-Object{ OutProgress $_ }; }
+                                                [String] $msg = $(switch($lastCmdIsSucc){($true){"Last statement `"$(($saveLastCmdInfo -split ",",2)[1])`" failed. "}})+
+                                                  $(switch($rc -ne 0){($true){"Last operation failed [ExitCode=$rc]. "}})+
+                                                  "For the reason see the previous output. ";
+                                                $msg = $(switch( $useLinesAsExcMessage -and $linesToOutProgress -ne "" ){($true){""}default{$msg}}) + ([String]$linesToOutProgress).Trim();
+                                                if( $logFileToOutProgress -ne "" ){
                                                   try{
-                                                    OutProgress "Dump of logfile=$($logFileToOutProgressIfFailed):";
-                                                    Get-Content -Encoding $encodingIfNoBom -LiteralPath $logFileToOutProgressIfFailed |
+                                                    OutProgress "Dump of logfile=$($logFileToOutProgress): ";
+                                                    Get-Content -Encoding $encodingIfNoBom -LiteralPath $logFileToOutProgress |
                                                       Where-Object{$null -ne $_} | ForEach-Object{ OutProgress "  $_"; }
                                                   }catch{
-                                                    OutVerbose "Ignoring problems on reading $logFileToOutProgressIfFailed failed because $($_.Exception.Message)";
+                                                    OutVerbose "Ignoring problems on reading $logFileToOutProgress failed because $($_.Exception.Message)";
                                                   }
-                                                  throw [Exception] $msg;
-                                                } }
+                                                }
+                                                throw [Exception] $msg; }
 function ScriptImportModuleIfNotDone          ( [String] $moduleName ){ if( -not (Get-Module $moduleName) ){
                                                 OutProgress "Import module $moduleName (can take some seconds on first call)";
                                                 Import-Module -NoClobber $moduleName -DisableNameChecking; } }
 function ScriptGetCurrentFunc                 (){ return [String] ((Get-Variable MyInvocation -Scope 1).Value.MyCommand.Name); }
 function ScriptGetCurrentFuncName             (){ return [String] ((Get-PSCallStack)[2].Position); }
-function ScriptGetAndClearLastRc              (){ [Int32] $rc = 0;
-                                                  # if no windows command was done then $LASTEXITCODE is null
-                                                  if( ((test-path "variable:LASTEXITCODE") -and $null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) -or -not $? ){
-                                                    $rc = $LASTEXITCODE; ScriptResetRc; }
-                                                  return [Int32] $rc; }
-function ScriptResetRc                        (){ # reset $LASTEXITCODE (ERRORLEVEL to 0); non-portable alternative: & "cmd.exe" "/C" "EXIT 0"
-                                                  $error.clear(); $global:LASTEXITCODE = 0; $error.clear(); AssertRcIsOk; }
+function ScriptGetAndClearLastRc              ( [Int32] $rcForLastStmtFailure = 255 ){
+                                                #    return lastExitCode         when last exit or native call was not zero
+                                                # or return rcForLastStmtFailure when lastExitCode was zero but last statement failed
+                                                # or return zero                 when all was ok.
+                                                [Int32] $rc = $(switch($?){($true){0}($false){$rcForLastStmtFailure}});
+                                                # if no native or exit command was done then $LASTEXITCODE is null.
+                                                if( (test-path "variable:LASTEXITCODE") -and $null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0 ){ $rc = $LASTEXITCODE; ScriptResetRc; }
+                                                return [Int32] $rc; }
+function ScriptResetRc                        (){ $global:LASTEXITCODE = 0; $error.clear(); } # reset last-exit-code to zero.
 function ScriptNrOfScopes                     (){ [Int32] $i = 1; while($true){
                                                 try{ Get-Variable null -Scope $i -ValueOnly -ErrorAction SilentlyContinue | Out-Null; $i++;
                                                 }catch{ # exc: System.Management.Automation.PSArgumentOutOfRangeException
@@ -679,7 +692,9 @@ function ProcessRestartInElevatedAdminMode    (){ if( (ProcessIsRunningInElevate
                                                   [Environment]::Exit("0"); # Note: 'Exit 0;' would only leave the last '. mycommand' statement.
                                                   throw [Exception] "Exit done, but it did not work, so it throws now an exception.";
                                                 } }
-function ProcessFindExecutableInPath          ( [String] $exec ){ # Return full path or empty if not found.
+function ProcessFindExecutableInPath          ( [String] $exec ){
+                                                # Return full path or empty if not found. Note:
+                                                # if an alias with the same name is defined then it Get-Command returns the alias.
                                                 if( $exec -eq "" ){ return [String] ""; }
                                                 [Object] $p = (Get-Command $exec -ErrorAction SilentlyContinue);
                                                 if( $null -eq $p ){ return [String] ""; } return [String] $p.Source; }
@@ -717,7 +732,7 @@ function ProcessListInstalledAppx             (){ if( -not (OsIsWindows) ){ retu
                                                     ForEach-Object{ "$($_.PackageFullName)" } | Sort-Object)); }
 function ProcessGetCommandInEnvPathOrAltPaths ( [String] $commandNameOptionalWithExtension, [String[]] $alternativePaths = @(), [String] $downloadHintMsg = ""){
                                                 [System.Management.Automation.CommandInfo] $cmd = Get-Command -CommandType Application -Name $commandNameOptionalWithExtension -ErrorAction SilentlyContinue | Select-Object -First 1;
-                                                if( $null -ne $cmd ){ return [String] $cmd.Path; }
+                                                if( $null -ne $cmd ){ return [String] $cmd.Source; }
                                                 foreach( $d in $alternativePaths ){
                                                   [String] $f = (Join-Path $d $commandNameOptionalWithExtension);
                                                   if( (FileExists $f) ){ return [String] $f; } }
@@ -769,7 +784,7 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 #   The double quote mark is interpreted as an escape sequence by the remaining backslash,
                                                 #   causing a literal double quote mark (") to be placed in argv.
                                                 AssertRcIsOk;
-                                                [String] $exec = (Get-Command $cmd).Path;
+                                                [String] $exec = (Get-Command $cmd).Source;
                                                 [Boolean] $isPs = $exec.EndsWith(".ps1");
                                                 [String] $traceInfo = "`"$cmd`" $(StringArrayDblQuoteItems $cmdArgs)";
                                                 if( $isPs ){
@@ -778,7 +793,7 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                   $traceInfo = "$((ProcessPsExecutable)) -File `"$cmd`" $(StringArrayDblQuoteItems $cmdArgs)";
                                                   $cmdArgs = @( "-NoLogo", "-NonInteractive", "-File", "`"$exec`"" ) + $cmdArgs;
                                                   # Note: maybe for future we require: pwsh -NoProfileLoadTime
-                                                  $exec = (Get-Command (ProcessPsExecutable)).Path;
+                                                  $exec = (Get-Command (ProcessPsExecutable)).Source;
                                                 }else{
                                                   $cmdArgs = @() + ($cmdArgs | Where-Object { $null -ne $_ } | ForEach-Object {
                                                     ($_ + $(switch($_.EndsWith("\")){($true){"\"}($false){""}})) });
@@ -912,6 +927,7 @@ function ProcessRemoveAllAlias                ( [String[]] $excludeAliasNames = 
                                                 # In powershell v5 (also v7) on windows there are a predefined list of about 180 aliases in each session which cannot be avoided.
                                                 # This is very bad because there are also aliases defined as curl->Invoke-WebRequest or wget->Invoke-WebRequest which are incompatible to their known tools.
                                                 # On linux there are 108 aliases and fortunately the curl and wget are not part of it.
+                                                # 2024-02 update: On windows ps7.4 the curl and wget alias seams to be finally gone!
                                                 # Also the Invoke-ScriptAnalyzer results with a warning as example:
                                                 #   PSAvoidUsingCmdletAliases 'cd' is an alias of 'Set-Location'. Alias can introduce possible problems and make scripts hard to maintain.
                                                 #   Please consider changing alias to its full content.
@@ -1200,8 +1216,9 @@ function FsEntryCopyByPatternByOverwrite      ( [String] $fsEntryPattern, [Strin
                                                 FsEntryAssertHasTrailingDirSep $targetDir;
                                                 DirCreate $targetDir;
                                                 Copy-Item -ErrorAction SilentlyContinue -Recurse -Force -Path $fsEntryPattern -Destination (FsEntryEsc $targetDir);
-                                                if( -not $? ){ if( -not $continueOnErr ){ AssertRcIsOk; }
-                                                else{ OutWarning "Warning: CopyFiles `"$fsEntryPattern`" to `"$targetDir`" failed, will continue"; } } }
+                                                if( -not $? ){
+                                                  [String] $trace = "CopyFiles `"$fsEntryPattern`" to `"$targetDir`" failed.";
+                                                  if( -not $continueOnErr ){ throw [Exception] "$trace"; } else{ OutWarning "Warning: $trace, will continue."; } } }
 function FsEntryFindNotExistingVersionedName  ( [String] $fsEntry, [String] $ext = ".bck", [Int32] $maxNr = 9999 ){ # Example return: "C:\Dir\MyName.001.bck"
                                                 $fsEntry = FsEntryRemoveTrailingDirSep $fsEntry;
                                                 if( $fsEntry.Length -gt (260-4-$ext.Length) ){
@@ -1733,7 +1750,7 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                 DirCreate $tarDir;
                                                 [System.Management.Automation.PSCredential] $cred = $(switch($us -eq ""){ ($true){$null} default{(CredentialCreate $us $pw)} });
                                                 try{
-                                                  [Boolean] $useWebclient = $false; # we currently use Invoke-WebRequest because its more comfortable
+                                                  [Boolean] $useWebclient = $false; # we currently use Invoke-WebRequest because its more comfortable than WebClient.DownloadFile
                                                   if( $useWebclient ){
                                                     OutVerbose "WebClient.DownloadFile(url=$url,us=$us,tar=`"$tarFile`")";
                                                     $webclient = new-object System.Net.WebClient;
@@ -1776,7 +1793,8 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                 } }
 function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false,
                                                 [Boolean] $onlyIfNewer = $false, [Boolean] $errorAsWarning = $false ){
-                                                # Download a single file by overwrite it (as NetDownloadFile), requires curl executable in path.
+                                                # Download a single file by overwrite it (as NetDownloadFile).
+                                                # It requires and uses curl executable in path and it ignores any curl alias as you would find it in PS5 because this would references not a curl program.
                                                 # Redirections are followed, timestamps are also fetched, logging info is stored in a global logfile,
                                                 # for user agent info a mozilla firefox is set,
                                                 # if file curl-ca-bundle.crt exists next to curl executable then this is taken.
@@ -1960,7 +1978,7 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                 #   then the first found curl-ca-bundle.crt file in path var is used for cacert option.
                                                 if( (FsEntryPathIsEqual $curlExe "$env:SystemRoot/System32/curl.exe") ){
                                                   [String] $s = StringMakeNonNull (Get-Command -CommandType Application -Name curl-ca-bundle.crt -ErrorAction SilentlyContinue |
-                                                    Select-Object -First 1 | Foreach-Object { $_.Path });
+                                                    Select-Object -First 1 | Foreach-Object { $_.Source });
                                                   if( $s -ne "" ){ $curlCaCert = $s; }
                                                 }
                                                 if( (FileExists $curlCaCert) ){ $opt += @( "--cacert", $curlCaCert); }
@@ -2004,12 +2022,12 @@ function NetDownloadToStringByCurl            ( [String] $url, [String] $us = ""
                                                 NetDownloadFileByCurl $url $tmp $us $pw $ignoreSslCheck $onlyIfNewer;
                                                 [String] $result = (FileReadContentAsString $tmp $encodingIfNoBom);
                                                 FileDelTempFile $tmp; return [String] $result; }
-function NetDownloadIsSuccessful              ( [String] $url ){ # test wether an url is downloadable or not
+function NetDownloadIsSuccessful              ( [String] $url ){ # test wether an url is downloadable or not;
                                                 [Boolean] $res = $false;
-                                                try{ GlobalSetModeHideOutProgress $true; [Boolean] $ignoreSslCheck = $true;
-                                                  NetDownloadToString $url "" "" $ignoreSslCheck | Out-Null; $res = $true;
-                                                }catch{ OutVerbose "Ignoring problems on NetDownloadToString $url failed because $($_.Exception.Message)"; ScriptResetRc; }
-                                                GlobalSetModeHideOutProgress $false; return [Boolean] $res; }
+                                                try{ [Boolean] $ignoreSslCheck = $true;
+                                                  NetDownloadToString $url "" "" $ignoreSslCheck *>&1 | Out-Null; $res = $true;
+                                                }catch{ OutVerbose "NetDownloadIsSuccessful: Ignoring expected behaviour that NetDownloadToString $url failed because $($_.Exception.Message)"; }
+                                                return [Boolean] $res; }
 function NetDownloadSite                      ( [String] $url, [String] $tarDir, [Int32] $level = 999,
                                                   [Int32] $maxBytes = 0, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false,
                                                   [Int32] $limitRateBytesPerSec = ([Int32]::MaxValue), [Boolean] $alsoRetrieveToParentOfUrl = $false ){
@@ -2102,7 +2120,7 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                 [String] $stateBefore = FsEntryReportMeasureInfo $tarDir;
                                                 # alternative would be for wget: Invoke-WebRequest
                                                 [String] $wgetExe  = ProcessGetCommandInEnvPathOrAltPaths "wget" ; # Example: D:\Work\PortableProg\Tool\...
-                                                [String] $wgetExe2 = ProcessGetCommandInEnvPathOrAltPaths "wget2"; # Example: D:\Work\PortableProg\Tool\...
+                                                [String] $wgetExe2 = ProcessFindExecutableInPath "wget2"; # Example: D:\Work\PortableProg\Tool\...
                                                 if( $wgetExe2 -ne "" ){ $wgetExe = $wgetExe2; }
                                                 FileAppendLineWithTs $logf "Push-Location `"$tarDir`"; & `"$wgetExe`" `"$url`" $opt --password=*** ; Pop-Location; ";
                                                 #FileAppendLineWithTs $logf "  Note: Ignore the error messages: Failed to parse URI ''; No CAs were found in ''; Cannot resolve URI 'mailto:...'; Nothing to do - goodbye; ";
@@ -2755,6 +2773,7 @@ if( (OsIsWindows) ){ # running under windows
 }else{
   OutVerbose "$PSScriptRoot : Running not on windows";
 }
+AssertRcIsOk;
 
 Export-ModuleMember -function *; # Export all functions from this script which are above this line (types are implicit usable).
 
@@ -2800,7 +2819,7 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #   @( "a1", "a2" ) -contains "a2", -notcontains, "abcdef" -match "b[CD]", -notmatch, "abcdef" -cmatch "b[cd]", -notcmatch, -not
 # - Automatic variables see: http://technet.microsoft.com/en-us/library/dd347675.aspx
 #   $?            : Contains True if last operation succeeded and False otherwise.
-#   $LASTEXITCODE : Contains the exit code of the last Win32 executable execution, 0 is ok.
+#   $LASTEXITCODE : Contains the exit code of the last native executable execution, 0 is ok, is init with $null.
 #                   Can be null if not windows command was called. Should not manually set, but if yes then as: $global:LASTEXITCODE = $null;
 # - Available colors for console -foregroundcolor and -backgroundcolor:
 #   Black DarkBlue DarkGreen DarkCyan DarkRed DarkMagenta DarkYellow Gray DarkGray Blue Green Cyan Red Magenta Yellow White
@@ -2892,7 +2911,13 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #     Recommendation: After creation of the list do iterate through it and assert non-null values
 #       or redo the expression within a ForEach-Object loop to get correct throwed message.
 #   - String without comparison as condition:  Assert ( "anystring" ); Assert ( "$false" );
-#   - PS is poisoning the current scope by its aliases. List all aliases by: alias; For example: Alias curl -> Invoke-WebRequest ; Alias wget -> Invoke-WebRequest ; Alias diff -> Compare-Object ;
+#   - PS 5/7 is poisoning the current scope by its aliases. See also comments on: ProcessRemoveAllAlias.
+#     List all aliases by: alias; For example: Alias curl -> Invoke-WebRequest ; Alias wget -> Invoke-WebRequest ; Alias diff -> Compare-Object ;
+#     If we really want to call the curl executable than this is a mess.
+#     We strongly recommend to add to your ps5 $profile ($HOME\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1) at least the line:
+#       Remove-Item -Force "Alias:curl" -ErrorAction SilentlyContinue; Remove-Item -Force "Alias:wget" -ErrorAction SilentlyContinue;
+#     If you have to bypass the curl alias you need to do the following:
+#     [String] $curlPath = "$(get-command -CommandType Application curl -ErrorAction SilentlyContinue | Select -First 1 | ForEach-Object{ $_.Source })";
 #   - Automatically added folders (2023-02):
 #     - ps7: %USERPROFILE%\Documents\PowerShell\Modules\         location for current users for any modules
 #     - ps5: %USERPROFILE%\Documents\WindowsPowerShell\Modules\  location for current users for any modules
