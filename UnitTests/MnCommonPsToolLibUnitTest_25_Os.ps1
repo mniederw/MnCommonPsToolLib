@@ -8,13 +8,6 @@ function Test_Help_Os(){
   OutProgress (ScriptGetCurrentFuncName);
   if( ! (OsIsWindows) ){ OutProgress "Not running on windows, so bypass test."; return; }
   # TODO:
-  #   HelpHelp                             (){ Get-Help     | ForEach-Object{ OutInfo $_; } }
-  OutProgress "Call HelpListOfAllVariables which writes to console "; HelpListOfAllVariables;
-  #   HelpListOfAllAliases                 (){ Get-Alias    | Select-Object CommandType, Name, Version, Source | StreamToTableString | ForEach-Object{ OutInfo $_; } }
-  #   HelpListOfAllCommands                (){ Get-Command  | Select-Object CommandType, Name, Version, Source | StreamToTableString | ForEach-Object{ OutInfo $_; } }
-  #   HelpListOfAllModules                 (){ Get-Module -ListAvailable | Sort-Object Name | Select-Object Name, ModuleType, Version, ExportedCommands; }
-  #   HelpListOfAllExportedCommands        (){ (Get-Module -ListAvailable).ExportedCommands.Values | Sort-Object Name | Select-Object Name, ModuleName; }
-  #   HelpGetType                          ( [Object] $obj ){ return [String] $obj.GetType(); }
   #   OsPsVersion                          (){ return [String] (""+$Host.Version.Major+"."+$Host.Version.Minor); } # alternative: $PSVersionTable.PSVersion.Major
   #   OsIsWinVistaOrHigher                 (){ return [Boolean] ([Environment]::OSVersion.Version -ge (new-object "Version" 6,0)); }
   Assert (OsIsWin7OrHigher);

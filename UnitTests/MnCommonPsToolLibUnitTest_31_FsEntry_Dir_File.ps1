@@ -4,7 +4,7 @@
 
 Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 
-function Test_FsEntry_Dir_File_Drive_Share_Mount_PsDrive(){
+function Test_FsEntry_Dir_File_PsDrive(){
   OutProgress (ScriptGetCurrentFuncName);
   Assert         ((FsEntryGetAbsolutePath "") -eq "" );
   Assert         ((FsEntryMakeRelative "$HOME/MyDir/Dir1/File" "$HOME/MyDir/"      ).Replace("\","/") -eq   "Dir1/File");
@@ -60,7 +60,6 @@ function Test_FsEntry_Dir_File_Drive_Share_Mount_PsDrive(){
   #   FsEntryTryForceRenaming              ( [String] $fsEntry, [String] $extension ){
   #   FsEntryResetTs                       ( [String] $fsEntry, [Boolean] $recursive, [String] $tsInIsoFmt = "2000-01-01 00:00" ){
   #   FsEntryFindInParents                 ( [String] $fromFsEntry, [String] $searchFsEntryName ){
-  #   DriveFreeSpace                       ( [String] $drive ){
   #   DirExists                            ( [String] $dir ){
   #   DirNotExists                         ( [String] $dir ){ return [Boolean] -not (DirExists $dir); }
   #   DirAssertExists                      ( [String] $dir, [String] $text = "Assertion" ){
@@ -71,8 +70,7 @@ function Test_FsEntry_Dir_File_Drive_Share_Mount_PsDrive(){
   #   DirDeleteIfIsEmpty                   ( [String] $dir, [Boolean] $ignoreReadonly = $true ){
   #   DirCopyToParentDirByAddAndOverwrite  ( [String] $srcDir, [String] $tarParentDir ){
   #   FileGetSize                          ( [String] $file ){
-  #   FileExists                           ( [String] $file ){ AssertNotEmpty $file "$(ScriptGetCurrentFunc):filename";
-  #                                          [String] $f2 = FsEntryGetAbsolutePath $file; if( Test-Path -PathType Leaf -LiteralPath $f2 ){ return [Boolean] $true; }
+  #   FileExists                           ( [String] $file ){
   #   FileNotExists                        ( [String] $file ){
   #   FileAssertExists                     ( [String] $file ){
   #   FileExistsAndIsNewer                 ( [String] $ftar, [String] $fsrc ){
@@ -103,22 +101,5 @@ function Test_FsEntry_Dir_File_Drive_Share_Mount_PsDrive(){
   #   FileNtfsAlternativeDataStreamDel     ( [String] $srcFile, [String] $adsName ){
   #   FileAdsDownloadedFromInternetAdd     ( [String] $srcFile ){
   #   FileAdsDownloadedFromInternetDel     ( [String] $srcFile ){
-  #   DriveMapTypeToString                 ( [UInt32] $driveType ){
-  #   DriveList                            (){
-  #   ShareGetTypeName                     ( [UInt32] $typeNr ){
-  #   ShareGetTypeNr                       ( [String] $typeName ){
-  #   ShareExists                          ( [String] $shareName ){
-  #   ShareListAll                         ( [String] $selectShareName = "" ){
-  #   ShareLocksList                       ( [String] $path = "" ){
-  #   ShareLocksClose                      ( [String] $path = "" ){
-  #   ShareCreate                          ( [String] $shareName, [String] $dir, [String] $descr = "", [Int32] $nrOfAccessUsers = 25, [Boolean] $ignoreIfAlreadyExists = $true ){
-  #   ShareRemove                          ( [String] $shareName ){ # no action if it not exists
-  #   MountPointLocksListAll               (){
-  #   MountPointListAll                    (){ # we define mountpoint as a share mapped to a local path
-  #   MountPointGetByDrive                 ( [String] $drive ){ # return null if not found
-  #   MountPointRemove                     ( [String] $drive, [String] $mountPoint = "", [Boolean] $suppressProgress = $false ){
-  #   MountPointCreate                     ( [String] $drive, [String] $mountPoint, [System.Management.Automation.PSCredential] $cred = $null, [Boolean] $errorAsWarning = $false, [Boolean] $noPreLogMsg = $false ){
-  #   PsDriveListAll                       (){
-  #   PsDriveCreate                        ( [String] $drive, [String] $mountPoint, [System.Management.Automation.PSCredential] $cred = $null ){
 }
-Test_FsEntry_Dir_File_Drive_Share_Mount_PsDrive;
+Test_FsEntry_Dir_File_PsDrive;

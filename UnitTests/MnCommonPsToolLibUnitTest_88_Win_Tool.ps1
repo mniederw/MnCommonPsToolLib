@@ -4,19 +4,18 @@
 
 Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 
-function Test_Tool(){
+function Test_Win_Tool(){
   OutProgress (ScriptGetCurrentFuncName);
   if( ! (OsIsWindows) ){ OutProgress "Not running on windows, so bypass test."; return; }
   Assert         (((ToolVs2019UserFolderGetLatestUsed) -eq "") -or ((ToolVs2019UserFolderGetLatestUsed).Contains("\\AppData\\Local\\Microsoft\\VisualStudio\\16.0")));
   # TODO:
-  #   ToolTailFile                         ( [String] $file ){ OutProgress "Show tail of file until ctrl-c is entered"; Get-Content -Wait $file; }
+  #   windows: ToolGitTortoiseCommit                    ( [String] $workDir, [String] $commitMessage = "" ){
   #   ToolRdpConnect                       ( [String] $rdpfile, [String] $mstscOptions = "" ){
   #                                          # Some mstsc options: /edit /admin  (use /edit temporary to set password in .rdp file)
   #                                        }
   #   ToolHibernateModeEnable              (){
   #   ToolHibernateModeDisable             (){
   #   ToolActualizeHostsFileByMaster       ( [String] $srcHostsFile ){
-  #   ToolAddLineToConfigFile              ( [String] $file, [String] $line, [String] $existingFileEncodingIfNoBom = "Default" ){ # if file not exists or line not found case sensitive in file then the line is appended
   #   ToolCreate7zip                       ( [String] $srcDirOrFile, [String] $tar7zipFile ){ # target must end with 7z. uses 7z.exe in path or in "C:/Program Files/7-Zip/"
   #   ToolUnzip                            ( [String] $srcZipFile, [String] $tarDir ){ # tarDir is created if it not exists, no overwriting, requires DotNetFX4.5.
   #   ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [String] $workDir, [String] $lnkFile, [String] $srcFile, [String[]] $arguments = @(),
@@ -42,16 +41,6 @@ function Test_Tool(){
   #                                          # Example: ToolCreateMenuLinksByMenuItemRefFile "$env:APPDATA\Microsoft\Windows\Start Menu\Apps" "D:\MyApps" ".menulink.txt";
   #   ToolSignDotNetAssembly               ( [String] $keySnk, [String] $srcDllOrExe, [String] $tarDllOrExe, [Boolean] $overwrite = $false ){
   #                                          # Note: Generate a key: sn.exe -k mykey.snk
-  #   ToolGithubApiListOrgRepos            ( [String] $org, [System.Management.Automation.PSCredential] $cred = $null ){
-  #                                          # List all repos (ordered by archived and url) from an org on github.
-  #                                          # If user and its Personal-Access-Token PAT instead of password is specified then not only public
-  #                                          # but also private repos are listed.
-  #   ToolGithubApiAssertValidRepoUrl      ( [String] $repoUrl ){
-  #                                          # Example repoUrl="https://github.com/mniederw/MnCommonPsToolLib/"
-  #   ToolGithubApiDownloadLatestReleaseDir( [String] $repoUrl ){
-  #                                          # Creates a unique temp dir, downloads zip, return folder of extracted zip; You should remove dir after usage.
-  #                                          # Latest release is the most recent non-prerelease, non-draft release, sorted by its last commit-date.
-  #                                          # Example repoUrl="https://github.com/mniederw/MnCommonPsToolLib/"
   #   ToolSetAssocFileExtToCmd             ( [String[]] $fileExtensions, [String] $cmd, [String] $ftype = "", [Boolean] $assertPrgExists = $false ){
   #                                          # Sets the association of a file extension to a command by overwriting it.
   #                                          # FileExtensions: must begin with a dot, must not content blanks or commas,
@@ -87,4 +76,4 @@ function Test_Tool(){
   #                                          #   once to check for differences and once after switching to elevated admin mode.
   #                                          # Example: ToolPerformFileUpdateAndIsActualized "C:\Temp\a.psm1" "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/master/MnCommonPsToolLib/MnCommonPsToolLib.psm1" $true $true "Please restart" $false $true;
 }
-Test_Tool;
+Test_Win_Tool;

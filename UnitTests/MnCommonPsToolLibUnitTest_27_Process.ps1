@@ -4,7 +4,7 @@
 
 Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 
-function Test_Process_Job(){
+function Test_Process(){
   OutProgress (ScriptGetCurrentFuncName);
   if( ! (OsIsWindows) ){ OutProgress "Not running on windows, so bypass test."; return; }
   #
@@ -29,11 +29,5 @@ function Test_Process_Job(){
   #   ProcessEnvVarSet                     ( [String] $name, [String] $val, [System.EnvironmentVariableTarget] $scope = [System.EnvironmentVariableTarget]::Process )
   #   ProcessRemoveAllAlias                ( [String[]] $excludeAliasNames = @(), [Boolean] $doTrace = $false )
   #   ProcessOpenAssocFile                 ( [String] $fileOrUrl )
-  #   JobStart                             ( [ScriptBlock] $scr, [Object[]] $scrArgs = $null, [String] $name = "Job" )
-  #   JobGet                               ( [String] $id )
-  #   JobGetState                          ( [String] $id )
-  #   JobWaitForNotRunning                 ( [Int32] $id, [Int32] $timeoutInSec = -1 )
-  #   JobWaitForState                      ( [Int32] $id, [String] $state, [Int32] $timeoutInSec = -1 )
-  #   JobWaitForEnd                        ( [Int32] $id )
 }
-Test_Process_Job;
+Test_Process;

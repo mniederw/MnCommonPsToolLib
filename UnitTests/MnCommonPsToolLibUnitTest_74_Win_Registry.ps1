@@ -4,7 +4,7 @@
 
 Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 
-function Test_Registry(){
+function Test_Win_Registry(){
   OutProgress (ScriptGetCurrentFuncName);
   if( ! (OsIsWindows) ){ OutProgress "Not running on windows, so bypass test."; return; }
   # TODO:
@@ -44,4 +44,4 @@ function Test_Registry(){
   #   RegistryKeySetAclRule                ( [String] $key, [System.Security.AccessControl.RegistryAccessRule] $rule, [Boolean] $useAddNotSet = $false ){
   #                                          # Example: "HKLM:\Software\MyManufactor" (PrivGetGroupAdministrators) "FullControl";
 }
-Test_Registry;
+Test_Win_Registry;

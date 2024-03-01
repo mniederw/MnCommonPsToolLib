@@ -4,7 +4,7 @@
 # Licensed under GPL3. This is freeware.
 # 2013-2024 produced by Marc Niederwieser, Switzerland.
 
-[String] $global:MnCommonPsToolLibVersion = "7.47";
+[String] $global:MnCommonPsToolLibVersion = "7.48";
   # Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
   # Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
   # more see Releasenotes.txt
@@ -1572,6 +1572,28 @@ function FileUpdateItsHashSha2FileIfNessessary( [String] $srcFile ){
                                                   Out-File -Encoding "UTF8" -LiteralPath $hashTarFile -Inputobject $hashSrc;
                                                   OutProgress "Created `"$hashTarFile`".";
                                                 } }
+function PsDriveListAll                       (){
+                                                OutVerbose "List PsDrives";
+                                                return [Object[]] (@()+(Get-PSDrive -PSProvider FileSystem |
+                                                  Where-Object{$null -ne $_} |
+                                                  Select-Object Name,@{Name="ShareName";Expression={$_.DisplayRoot+""}},Description,CurrentLocation,Free,Used |
+                                                  Sort-Object Name)); }
+                                                # Not used: Root, Provider. PSDrive: Note are only for current session, even if persist.
+function PsDriveCreate                        ( [String] $drive, [String] $mountPoint, [System.Management.Automation.PSCredential] $cred = $null ){
+                                                if( -not $drive.EndsWith(":") ){ throw [Exception] "Expected drive=`"$drive`" with trailing colon"; }
+                                                $mountPoint = FsEntryGetAbsolutePath $mountPoint;
+                                                MountPointRemove $drive $mountPoint;
+                                                [String] $us = CredentialGetUsername $cred $true;
+                                                OutProgress "PsDriveCreate drive=$drive mountPoint=$mountPoint username=$us";
+                                                try{
+                                                  New-PSDrive -Name $drive.Replace(":","") -Root $mountPoint -PSProvider "FileSystem" -Scope Global -Persist -Description "$mountPoint($drive)" -Credential $cred | Out-Null;
+                                                }catch{
+                                                  # exc: System.ComponentModel.Win32Exception (0x80004005): Der lokale Gerätename wird bereits verwendet
+                                                  # exc: System.Exception: Mehrfache Verbindungen zu einem Server oder einer freigegebenen Ressource von demselben Benutzer unter Verwendung mehrerer Benutzernamen sind nicht zulässig.
+                                                  #      Trennen Sie alle früheren Verbindungen zu dem Server bzw. der freigegebenen Ressource, und versuchen Sie es erneut
+                                                  # exc: System.Exception: New-PSDrive(Z,\\mycomp\Transfer,) failed because Das angegebene Netzwerkkennwort ist falsch
+                                                  throw [Exception] "New-PSDrive($drive,$mountPoint,$us) failed because $($_.Exception.Message)";
+                                                } }
 function CredentialStandardizeUserWithDomain  ( [String] $username ){
                                                 # Allowed username as input: "", "u0", "u0@domain", "@domain\u0", "domain\u0"   used because for unknown reasons sometimes a username like user@domain does not work, it requires domain\user.
                                                 if( $username.Contains("\") -or $username.Contains("/") -or -not $username.Contains("@") ){
@@ -1643,28 +1665,6 @@ function CredentialGetAndStoreIfNotExists     ( [String] $secureCredentialFile, 
                                                   CredentialWriteToFile $cred $secureCredentialFile;
                                                 }
                                                 return [System.Management.Automation.PSCredential] $cred; }
-function PsDriveListAll                       (){
-                                                OutVerbose "List PsDrives";
-                                                return [Object[]] (@()+(Get-PSDrive -PSProvider FileSystem |
-                                                  Where-Object{$null -ne $_} |
-                                                  Select-Object Name,@{Name="ShareName";Expression={$_.DisplayRoot+""}},Description,CurrentLocation,Free,Used |
-                                                  Sort-Object Name)); }
-                                                # Not used: Root, Provider. PSDrive: Note are only for current session, even if persist.
-function PsDriveCreate                        ( [String] $drive, [String] $mountPoint, [System.Management.Automation.PSCredential] $cred = $null ){
-                                                if( -not $drive.EndsWith(":") ){ throw [Exception] "Expected drive=`"$drive`" with trailing colon"; }
-                                                $mountPoint = FsEntryGetAbsolutePath $mountPoint;
-                                                MountPointRemove $drive $mountPoint;
-                                                [String] $us = CredentialGetUsername $cred $true;
-                                                OutProgress "PsDriveCreate drive=$drive mountPoint=$mountPoint username=$us";
-                                                try{
-                                                  New-PSDrive -Name $drive.Replace(":","") -Root $mountPoint -PSProvider "FileSystem" -Scope Global -Persist -Description "$mountPoint($drive)" -Credential $cred | Out-Null;
-                                                }catch{
-                                                  # exc: System.ComponentModel.Win32Exception (0x80004005): Der lokale Gerätename wird bereits verwendet
-                                                  # exc: System.Exception: Mehrfache Verbindungen zu einem Server oder einer freigegebenen Ressource von demselben Benutzer unter Verwendung mehrerer Benutzernamen sind nicht zulässig.
-                                                  #      Trennen Sie alle früheren Verbindungen zu dem Server bzw. der freigegebenen Ressource, und versuchen Sie es erneut
-                                                  # exc: System.Exception: New-PSDrive(Z,\\mycomp\Transfer,) failed because Das angegebene Netzwerkkennwort ist falsch
-                                                  throw [Exception] "New-PSDrive($drive,$mountPoint,$us) failed because $($_.Exception.Message)";
-                                                } }
 function NetExtractHostName                   ( [String] $url ){ return [String] ([System.Uri]$url).Host; }
 function NetUrlUnescape                       ( [String] $url ){ return [String] [uri]::UnescapeDataString($url); } # convert for example %20 to blank.
 function NetAdapterGetConnectionStatusName    ( [Int32] $netConnectionStatusNr ){
@@ -2427,70 +2427,6 @@ function GitMerge                             ( [String] $repoDir, [String] $bra
                                                   if( -not $errorAsWarning ){ throw [Exception] "Merge failed, fix conflicts manually: $($_.Exception.Message)"; }
                                                   OutWarning "Warning: Merge of branch $branch into `"$repoDir`" failed, fix conflicts manually. ";
                                                 } }
-function GithubPrepareCommand                 (){ # otherwise we would get: "A new release of gh is available: 2.7.0 → v2.31.0\nhttps://github.com/cli/cli/releases/tag/v2.31.0"
-                                                 ProcessEnvVarSet "GH_NO_UPDATE_NOTIFIER" "1" -traceCmd:$false; }
-function GithubAuthStatus                     (){
-                                                GithubPrepareCommand;
-                                                [String] $out = (ProcessStart "gh" @("auth", "status") -careStdErrAsOut:$true -traceCmd:$true);
-                                                # Output:
-                                                #   github.com
-                                                #     Ô£ô Logged in to github.com as myowner ($HOME\AppData\Roaming\GitHub CLI\hosts.yml)
-                                                #     Ô£ô Git operations for github.com configured to use https protocol.
-                                                #     Ô£ô Token: *******************
-                                                OutProgress $out; }
-function GithubListPullRequests               ( [String] $repo, [String] $filterToBranch = "", [String] $filterFromBranch = "", [String] $filterState = "open" ){
-                                                # repo has format [HOST/]OWNER/REPO
-                                                AssertNotEmpty $repo "repo";
-                                                [String] $fields = "number,state,createdAt,title,labels,author,assignees,updatedAt,url,body,closedAt,repository,authorAssociation,commentsCount,isLocked,isPullRequest,id";
-                                                GithubPrepareCommand;
-                                                [String] $out = (ProcessStart "gh" @("search", "prs", "--repo", $repo, "--state", $filterState, "--base", $filterToBranch, "--head", $filterFromBranch, "--json", $fields) -traceCmd:$true);
-                                                return ($out | ConvertFrom-Json); }
-function GithubCreatePullRequest              ( [String] $repo, [String] $toBranch, [String] $fromBranch, [String] $title = "", [String] $repoDirForCred = "" ){
-                                                # repo           : has format [HOST/]OWNER/REPO .
-                                                # title          : default title is "Merge $fromBranch into $toBranch".
-                                                # repoDirForCred : Any folder under any git repository, from which the credentials will be taken, use empty for current dir.
-                                                # example: GithubCreatePullRequest "mniederw/MnCommonPsToolLib" "trunk" "main" "" $PSScriptRoot;
-                                                AssertNotEmpty $repo "repo";
-                                                OutProgress "Create a github-pull-request from branch $fromBranch to $toBranch in repo=$repo (repoDirForCred=$repoDirForCred)";
-                                                if( $title -eq "" ){ $title = "Merge $fromBranch to $toBranch"; }
-                                                [String[]] $prUrls = @()+(GithubListPullRequests $repo $toBranch $fromBranch |
-                                                  Where-Object{$null -ne $_} | ForEach-Object{ $_.url });
-                                                if( $prUrls.Count -gt 0 ){
-                                                  # if we would perform the gh command we would get: rc=1  https://github.com/myowner/myrepo/pull/1234 a pull request for branch "mybranch" into branch "main" already exists:
-                                                  OutProgress "A pull request for branch $fromBranch into $toBranch already exists: $($prUrls[0])";
-                                                  return;
-                                                }
-                                                Push-Location $repoDirForCred;
-                                                GithubPrepareCommand;
-                                                [String] $out = "";
-                                                try{
-                                                  $out = (ProcessStart "gh" @("pr", "create", "--repo", $repo, "--base", $toBranch, "--head", $fromBranch, "--title", $title, "--body", " ") -careStdErrAsOut:$true -traceCmd:$true);
-                                                }catch{
-                                                  # example: rc=1  pull request create failed: GraphQL: No commits between main and trunk (createPullRequest)
-                                                  if( $_.Exception.Message.Contains("pull request create failed: GraphQL: No commits between ") ){
-                                                    $error.clear();
-                                                    $out = "No pull request nessessary because no commit between branches `"$toBranch`" and `"$fromBranch`" .";
-                                                  }else{ throw; }
-                                                }
-                                                Pop-Location;
-                                                # Possible outputs, one of:
-                                                #   Warning: 2 uncommitted changes
-                                                #   Creating pull request for myfrombranch into main in myowner/myrepo
-                                                #   a pull request for branch "myfrombranch" into branch "main" already exists:
-                                                #   https://github.com/myowner/myrepo/pull/1234
-                                                OutProgress $out; }
-function GithubMergeOpenPr                    ( [String] $prUrl, [String] $repoDirForCred = "" ){
-                                                # prUrl          : Url to pr which has no pending merge conflict.
-                                                # repoDirForCred : Any folder under any git repository, from which the credentials will be taken, use empty for current dir.
-                                                # example: GithubMergeOpenPr "https://github.com/mniederw/MnCommonPsToolLib/pull/123" $PSScriptRoot;
-                                                FsEntryAssertHasTrailingDirSep $repoDirForCred;
-                                                OutProgress "GithubMergeOpenPr $prUrl (repoDirForCred=$repoDirForCred)";
-                                                Push-Location $repoDirForCred;
-                                                  GithubPrepareCommand;
-                                                  [String] $out = "";
-                                                  $out = (ProcessStart "gh" @("pr", "merge", "--repo", $repoDirForCred, "--merge", $prUrl) -traceCmd:$true);
-                                                Pop-Location;
-                                                OutProgress $out; }
 function ToolGetBranchCommit                 ( [String] $repo, [String] $branch, [String] $repoDirForCred = "", [Boolean] $traceCmd = $false ){ # TODO rename to GithubXY
                                                 # repo           : has format [HOST/]OWNER/REPO
                                                 # branch         : if branch is not uniquely defined it will throw.
@@ -2684,6 +2620,70 @@ function GitCloneOrPullUrls                   ( [String[]] $listOfRepoUrls, [Str
                                                 #   $errorLines += $threadSafeDict.Values;
                                                 #   if( $errorLines.Count ){ throw [ExcMsg] (StringArrayConcat $errorLines); } }
                                                 if( $errorLines.Count ){ throw [ExcMsg] (StringArrayConcat $errorLines); } }
+                                                function GithubPrepareCommand                 (){ # otherwise we would get: "A new release of gh is available: 2.7.0 → v2.31.0\nhttps://github.com/cli/cli/releases/tag/v2.31.0"
+                                                ProcessEnvVarSet "GH_NO_UPDATE_NOTIFIER" "1" -traceCmd:$false; }
+function GithubAuthStatus                     (){
+                                               GithubPrepareCommand;
+                                               [String] $out = (ProcessStart "gh" @("auth", "status") -careStdErrAsOut:$true -traceCmd:$true);
+                                               # Output:
+                                               #   github.com
+                                               #     Ô£ô Logged in to github.com as myowner ($HOME\AppData\Roaming\GitHub CLI\hosts.yml)
+                                               #     Ô£ô Git operations for github.com configured to use https protocol.
+                                               #     Ô£ô Token: *******************
+                                               OutProgress $out; }
+function GithubListPullRequests               ( [String] $repo, [String] $filterToBranch = "", [String] $filterFromBranch = "", [String] $filterState = "open" ){
+                                               # repo has format [HOST/]OWNER/REPO
+                                               AssertNotEmpty $repo "repo";
+                                               [String] $fields = "number,state,createdAt,title,labels,author,assignees,updatedAt,url,body,closedAt,repository,authorAssociation,commentsCount,isLocked,isPullRequest,id";
+                                               GithubPrepareCommand;
+                                               [String] $out = (ProcessStart "gh" @("search", "prs", "--repo", $repo, "--state", $filterState, "--base", $filterToBranch, "--head", $filterFromBranch, "--json", $fields) -traceCmd:$true);
+                                               return ($out | ConvertFrom-Json); }
+function GithubCreatePullRequest              ( [String] $repo, [String] $toBranch, [String] $fromBranch, [String] $title = "", [String] $repoDirForCred = "" ){
+                                               # repo           : has format [HOST/]OWNER/REPO .
+                                               # title          : default title is "Merge $fromBranch into $toBranch".
+                                               # repoDirForCred : Any folder under any git repository, from which the credentials will be taken, use empty for current dir.
+                                               # example: GithubCreatePullRequest "mniederw/MnCommonPsToolLib" "trunk" "main" "" $PSScriptRoot;
+                                               AssertNotEmpty $repo "repo";
+                                               OutProgress "Create a github-pull-request from branch $fromBranch to $toBranch in repo=$repo (repoDirForCred=$repoDirForCred)";
+                                               if( $title -eq "" ){ $title = "Merge $fromBranch to $toBranch"; }
+                                               [String[]] $prUrls = @()+(GithubListPullRequests $repo $toBranch $fromBranch |
+                                                 Where-Object{$null -ne $_} | ForEach-Object{ $_.url });
+                                               if( $prUrls.Count -gt 0 ){
+                                                 # if we would perform the gh command we would get: rc=1  https://github.com/myowner/myrepo/pull/1234 a pull request for branch "mybranch" into branch "main" already exists:
+                                                 OutProgress "A pull request for branch $fromBranch into $toBranch already exists: $($prUrls[0])";
+                                                 return;
+                                               }
+                                               Push-Location $repoDirForCred;
+                                               GithubPrepareCommand;
+                                               [String] $out = "";
+                                               try{
+                                                 $out = (ProcessStart "gh" @("pr", "create", "--repo", $repo, "--base", $toBranch, "--head", $fromBranch, "--title", $title, "--body", " ") -careStdErrAsOut:$true -traceCmd:$true);
+                                               }catch{
+                                                 # example: rc=1  pull request create failed: GraphQL: No commits between main and trunk (createPullRequest)
+                                                 if( $_.Exception.Message.Contains("pull request create failed: GraphQL: No commits between ") ){
+                                                   $error.clear();
+                                                   $out = "No pull request nessessary because no commit between branches `"$toBranch`" and `"$fromBranch`" .";
+                                                 }else{ throw; }
+                                               }
+                                               Pop-Location;
+                                               # Possible outputs, one of:
+                                               #   Warning: 2 uncommitted changes
+                                               #   Creating pull request for myfrombranch into main in myowner/myrepo
+                                               #   a pull request for branch "myfrombranch" into branch "main" already exists:
+                                               #   https://github.com/myowner/myrepo/pull/1234
+                                               OutProgress $out; }
+function GithubMergeOpenPr                    ( [String] $prUrl, [String] $repoDirForCred = "" ){
+                                               # prUrl          : Url to pr which has no pending merge conflict.
+                                               # repoDirForCred : Any folder under any git repository, from which the credentials will be taken, use empty for current dir.
+                                               # example: GithubMergeOpenPr "https://github.com/mniederw/MnCommonPsToolLib/pull/123" $PSScriptRoot;
+                                               FsEntryAssertHasTrailingDirSep $repoDirForCred;
+                                               OutProgress "GithubMergeOpenPr $prUrl (repoDirForCred=$repoDirForCred)";
+                                               Push-Location $repoDirForCred;
+                                                 GithubPrepareCommand;
+                                                 [String] $out = "";
+                                                 $out = (ProcessStart "gh" @("pr", "merge", "--repo", $repoDirForCred, "--merge", $prUrl) -traceCmd:$true);
+                                               Pop-Location;
+                                               OutProgress $out; }
 function ToolTailFile                         ( [String] $file ){ OutProgress "Show tail of file until ctrl-c is entered"; Get-Content -Wait $file; }
 function ToolAddLineToConfigFile              ( [String] $file, [String] $line, [String] $existingFileEncodingIfNoBom = "Default" ){
                                                 # if file not exists or line not found case sensitive in file then the line is appended.
@@ -2760,7 +2760,7 @@ function ToolEvalVsCodeExec                   (){ [String] $result = (ProcessFin
                                                   if( $result -eq "" ){ throw [ExcMsg] "VS Code executable was not found wether in path nor on windows at common locations for user or system programs."; }
                                                   return [String] $result; }
 
-function GetSetGlobalVar( [String] $var, [String] $val){ OutWarning "GetSetGlobalVar is DEPRECATED, replace it now by GitSetGlobalVar.";  GitSetGlobalVar $var $val; }
+function GetSetGlobalVar( [String] $var, [String] $val){ OutWarning "GetSetGlobalVar is DEPRECATED, replace it now by GitSetGlobalVar. ";  GitSetGlobalVar $var $val; }
 function FsEntryIsEqual ( [String] $fs1, [String] $fs2, [Boolean] $caseSensitive = $false ){ OutWarning "FsEntryIsEqual is DEPRECATED, replace it now by FsEntryPathIsEqual."; return (FsEntryPathIsEqual $fs1 $fs2); }
 function StdOutBegMsgCareInteractiveMode ( [String] $mode = "" ){ OutWarning "StdOutBegMsgCareInteractiveMode is DEPRECATED; replace it now by one or more of: StdInAskForAnswerWhenInInteractMode; OutProgress `"Minimize console`"; ConsoleMinimize;"; StdInAskForAnswerWhenInInteractMode; }
 function StdOutEndMsgCareInteractiveMode ( [Int32] $delayInSec = 1 ){ OutWarning "StdOutEndMsgCareInteractiveMode is DEPRECATED; replace it now by one or more of: OutSuccess `"Ok, done. Press Enter to Exit / Ending in .. seconds.`", StdInReadLine `"Press Enter to exit.`", ProcessSleepSec!"; StdInReadLine "Press Enter to exit."; }

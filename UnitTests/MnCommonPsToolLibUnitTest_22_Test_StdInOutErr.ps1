@@ -7,12 +7,6 @@ Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version
 function Test_IO_Console_StdIn_StdOut_StdErr(){
   OutProgress (ScriptGetCurrentFuncName);
   # TODO:
-  #   ConsoleHide
-  #   ConsoleShow
-  #   ConsoleRestore
-  #   ConsoleMinimize
-  #   ConsoleSetPos                        ( [Int32] $x, [Int32] $y ){
-  #   ConsoleSetGuiProperties
   #   OutGetTsPrefix                       ( [Boolean] $forceTsPrefix = $false ){
   #   OutStringInColor                     ( [String] $color, [String] $line, [Boolean] $noNewLine = $true ){
   #                                          # NoNewline is used because on multi threading usage, line text and newline can be interrupted between.
