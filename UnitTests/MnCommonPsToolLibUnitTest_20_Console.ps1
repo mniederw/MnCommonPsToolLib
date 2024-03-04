@@ -17,7 +17,7 @@ function UnitTest_Console(){
     ConsoleSetGuiProperties;
   }catch{
     # 2024-03 on github we get: Exception calling "GetWindowRect" with "2" argument(s): "Value cannot be null. (Parameter 'path1')"
-    OutWarning "Warning: We ignore exceptions for ConsoleSetPos and ConsoleSetGuiProperties because is probably running on machine without gui: $_"; }
+    OutWarning "Warning: We ignore exceptions for ConsoleSetPos and ConsoleSetGuiProperties because is probably running on machine without gui: $_";
   }
 }
 UnitTest_Console;
