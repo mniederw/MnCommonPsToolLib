@@ -125,13 +125,20 @@ function GlobalVariablesInit(){
 }
 GlobalVariablesInit;
 
-# Recommended installed modules: Some functions may use the following modules
-#   Import-Module  PowerShellGet   ; # Provides: Set-PSRepository, Install-Module
-#   Install-Module PowerShellGet   ; # Provides: Set-PSRepository, Install-Module
-#   Install-Module PSScriptAnalyzer; # used by testing files for analysing powershell code
-#   Install-Module ThreadJob       ; # used by GitCloneOrPullUrls
-#   Install-Module SqlServer       ; # used by SqlPerformFile, SqlPerformCmd.
-# Import-Module "SqlServer"; # not always used so we dont load it here.
+# Recommended installed modules: Some functions may use the following modules:
+#   Install-Module Microsoft.PowerShell.Core          ; # Std     : Where-Object
+#   Install-Module Microsoft.PowerShell.Utility       ; # Std     : Write-Output
+#   Install-Module Microsoft.PowerShell.Host          ; # Std     : Start-Transcript
+#   Install-Module Microsoft.PowerShell.Management    ; # Std     : Start-Process
+#   Install-Module Microsoft.PowerShell.Security      ; # Std     : Get-ExecutionPolicy, Set-ExecutionPolicy
+#   Install-Module Microsoft.PowerShell.Archive       ; # Provides: Compress-Archive, Expand-Archive
+#   Install-Module PSReadLine                         ; # Provides: Write-Output
+#   Install-Module PowerShellGet                      ; # Provides: Set-PSRepository, Install-Module
+#   Install-Module PackageManagement                  ; # Provides: Install-PackageProvider, Get-Package
+#   Install-Module PSScriptAnalyzer                   ; # UsedBy  : testing files for analysing powershell code
+#   Install-Module ThreadJob                          ; # UsedBy  : GitCloneOrPullUrls
+#   Install-Module SqlServer                          ; # UsedBy  : SqlPerformFile, SqlPerformCmd.
+#   Install-Module Pester                             ; # UsedBy  : Run ps tests
 
 # Import type and function definitions
 Add-Type -Name Window -Namespace Console -MemberDefinition '[DllImport("Kernel32.dll")] public static extern IntPtr GetConsoleWindow(); [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, Int32 nCmdShow);';
