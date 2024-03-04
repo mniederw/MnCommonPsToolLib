@@ -2164,7 +2164,7 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){
                                                 ProcessRestartInElevatedAdminMode;
                                                 OutProgress "Import-Module PowerShellGet:";
                                                 Import-Module -ErrorAction Stop PowerShellGet; # provides: Set-PSRepository, Install-Module
-                                                OutProgress "Set repository PSGallery:";
+                                                OutProgress "Set repository PSGallery to trusted: ";
                                                 Set-PSRepository PSGallery -InstallationPolicy Trusted; # uses 14 sec
                                                 OutProgress "List of installed package providers:";
                                                 Get-PackageProvider -ListAvailable | Where-Object{$null -ne $_} |
