@@ -14,8 +14,6 @@ function UnitTest_Win_Tool(){
   #   ToolHibernateModeEnable              (){
   #   ToolHibernateModeDisable             (){
   #   ToolActualizeHostsFileByMaster       ( [String] $srcHostsFile ){
-  #   ToolCreate7zip                       ( [String] $srcDirOrFile, [String] $tar7zipFile ){ # target must end with 7z. uses 7z.exe in path or in "C:/Program Files/7-Zip/"
-  #   ToolUnzip                            ( [String] $srcZipFile, [String] $tarDir ){ # tarDir is created if it not exists, no overwriting, requires DotNetFX4.5.
   #   ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [String] $workDir, [String] $lnkFile, [String] $srcFile, [String[]] $arguments = @(),
   #                                            [Boolean] $runElevated = $false, [Boolean] $ignoreIfSrcFileNotExists = $false ){
   #                                          # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\LinkToNotepad.lnk" "C:\Windows\notepad.exe";

@@ -1819,25 +1819,6 @@ function ToolActualizeHostsFileByMaster       ( [String] $srcHostsFile ){
                                                   OutProgress "Ok, content is already correct.";
                                                 }
                                               }
-function ToolCreate7zip                       ( [String] $srcDirOrFile, [String] $tar7zipFile ){ # target must end with 7z. uses 7z.exe in path or in "C:/Program Files/7-Zip/"
-                                                if( (FsEntryGetFileExtension $tar7zipFile) -ne ".7z" ){ throw [Exception] "Expected extension 7z for target file `"$tar7zipFile`"."; }
-                                                [String] $src = "";
-                                                [String] $recursiveOption = "";
-                                                if( (DirExists $srcDirOrFile) ){ $recursiveOption = "-r"; $src = "$(FsEntryMakeTrailingDirSep $srcDirOrFile)*";
-                                                }else{ FileAssertExists $srcDirOrFile; $recursiveOption = "-r-"; $src = $srcDirOrFile; }
-                                                [String] $Prog7ZipExe = ProcessGetCommandInEnvPathOrAltPaths "7z.exe" @("C:/Program Files/7-Zip/");
-                                                # Options: -t7z : use 7zip format; -mmt=4 : try use nr of threads; -w : use temp dir; -r : recursively; -r- : not-recursively;
-                                                [Array] $arguments = "-t7z", "-mx=9", "-mmt=4", "-w", $recursiveOption, "a", "$tar7zipFile", $src;
-                                                OutProgress "$Prog7ZipExe $arguments";
-                                                [String] $out = (& $Prog7ZipExe $arguments); AssertRcIsOk $out;
-                                              }
-function ToolUnzip                            ( [String] $srcZipFile, [String] $tarDir ){ # tarDir is created if it not exists, no overwriting, requires DotNetFX4.5.
-                                                Add-Type -AssemblyName "System.IO.Compression.FileSystem";
-                                                $srcZipFile = FsEntryGetAbsolutePath $srcZipFile; $tarDir = FsEntryGetAbsolutePath $tarDir;
-                                                OutProgress "Unzip `"$srcZipFile`" to `"$tarDir`"";
-                                                # alternative: in PS5 there is: Expand-Archive zipfile -DestinationPath tardir
-                                                [System.IO.Compression.ZipFile]::ExtractToDirectory($srcZipFile, $tarDir);
-                                              }
 function ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [String] $workDir, [String] $lnkFile, [String] $srcFsEntry, [String[]] $arguments = @(),
                                                   [Boolean] $runElevated = $false, [Boolean] $ignoreIfSrcNotExists = $false ){
                                                 # Creates links to files as programs or document files or to directories.

@@ -50,15 +50,18 @@ $($env:PSModulePath).Split($pathSep) | Where-Object{ $null -ne $_ } | ForEach-Ob
   # Github-ubuntu : ":/home/runner/.local/share/powershell/Modules"
   #                 ":/usr/local/share/powershell/Modules"
   #                 ":/opt/microsoft/powershell/7/Modules"
-Write-Output "List all environment variables: "; Get-Variable | Format-Table -AutoSize -Force -Wrap | Out-String -Stream | ForEach-Object{ "  $_" } | Select-Object -First 7;
-Write-Output "List all aliases: "; Get-Alias | ForEach-Object{ Write-Output "  $($_.DisplayName)"; } | Select-Object -First 4;
+Write-Output "List all environment variables: ";
+  Get-Variable | Format-Table -AutoSize -Force -Wrap | Out-String -Stream | ForEach-Object{ "  $_" } | Select-Object -First 999;
+Write-Output "List all aliases: ";
+  Get-Alias | ForEach-Object{ Write-Output "  $($_.DisplayName)"; } | Select-Object -First 4;
 
 Write-Output "List ps gallery repositories: "; Get-PSRepository;
 Write-Output "List installed ps modules "; 
   Get-Module -ListAvailable | Sort-Object ModuleType, Name, Version | Select-Object ModuleType, Name, Version | Format-Table -Wrap -Force -AutoSize;
 Write-Output "Set repository PSGallery to trusted: ";
   Set-PSRepository PSGallery -InstallationPolicy Trusted;
-Write-Output "Install and import from PSGallery used modules in user scope: ";
+  Write-Output "Install and import from PSGallery used modules in user scope: ";
+  Write-Output "  Microsoft.PowerShell.Archive, PSReadLine, PowerShellGet, PackageManagement, PSScriptAnalyzer, ThreadJob, SqlServer, Pester.";
   Install-Module Microsoft.PowerShell.Archive, PSReadLine, PowerShellGet, PackageManagement, PSScriptAnalyzer, ThreadJob, SqlServer, Pester;
   Import-Module Microsoft.PowerShell.Archive, PSReadLine, PowerShellGet, PackageManagement, PSScriptAnalyzer, ThreadJob, SqlServer, Pester;
 

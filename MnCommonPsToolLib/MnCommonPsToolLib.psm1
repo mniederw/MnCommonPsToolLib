@@ -151,7 +151,7 @@ Add-Type -WarningAction SilentlyContinue -TypeDefinition "using System; public c
 if( $null -eq (Get-Variable -Scope global -ErrorAction SilentlyContinue -Name ComputerName) -or $null -eq $global:InfoLineColor ){ # check wether last variable already exists because reload safe
   New-Variable -option Constant -scope global -name CurrentMonthAndWeekIsoString -value ([String]((Get-Date -format "yyyy-MM-")+(Get-Date -uformat "W%V")));
   New-Variable -option Constant -scope global -name InfoLineColor                -Value $(switch($Host.Name -eq "Windows PowerShell ISE Host"){($true){"Gray"}default{"White"}}); # ise is white so we need a contrast color
-  New-Variable -option Constant -scope global -name ComputerName                 -value ([String]"$env:computername".ToLower()); # set $ComputerName with unified lowercase $env:ComputerName
+  New-Variable -option Constant -scope global -name ComputerName                 -value ([String]$(switch("$env:computername" -ne ""){($true){"$env:computername"}($false){(& "hostname")}}).ToLower()); # provide unified lowercase ComputerName
 }
 
 # Statement extensions
@@ -2690,6 +2690,27 @@ function ToolGithubApiListOrgRepos            ( [String] $org, [System.Managemen
                                                   if( $a.Count -eq 0 ){ break; }
                                                   $result += $a;
                                                 } return [Array] $result | Sort-Object archived, Url; }
+function ToolCreate7zip                       ( [String] $srcDirOrFile, [String] $tar7zipFile ){
+                                                # If src has trailing dir separator then it specifies a dir otherwise a file. 
+                                                # The target must end with 7z. It uses 7z found in path or in "C:/Program Files/7-Zip/".
+                                                if( (FsEntryGetFileExtension $tar7zipFile) -ne ".7z" ){ throw [Exception] "Expected extension 7z for target file `"$tar7zipFile`"."; }
+                                                [String] $src = "";
+                                                [String] $recursiveOption = "";
+                                                if( (DirExists $srcDirOrFile) ){ $recursiveOption = "-r"; $src = "$(FsEntryMakeTrailingDirSep $srcDirOrFile)*";
+                                                }else{ FileAssertExists $srcDirOrFile; $recursiveOption = "-r-"; $src = $srcDirOrFile; }
+                                                [String] $Prog7ZipExe = ProcessGetCommandInEnvPathOrAltPaths "7z" @("C:/Program Files/7-Zip/");
+                                                # Options: -t7z : use 7zip format; -mmt=4 : try use nr of threads; -w : use temp dir; -r : recursively; -r- : not-recursively;
+                                                [Array] $arguments = "-t7z", "-mx=9", "-mmt=4", "-w", $recursiveOption, "a", "$tar7zipFile", $src;
+                                                OutProgress "$Prog7ZipExe $arguments";
+                                                [String] $out = (& $Prog7ZipExe $arguments); AssertRcIsOk $out;
+                                              }
+function ToolUnzip                            ( [String] $srcZipFile, [String] $tarDir ){ # tarDir is created if it not exists, no overwriting, requires System.IO.Compression.
+                                                Add-Type -AssemblyName "System.IO.Compression.FileSystem";
+                                                $srcZipFile = FsEntryGetAbsolutePath $srcZipFile; $tarDir = FsEntryGetAbsolutePath $tarDir;
+                                                OutProgress "Unzip `"$srcZipFile`" to `"$tarDir`"";
+                                                # alternative: in PS5 there is: Expand-Archive zipfile -DestinationPath tardir
+                                                [System.IO.Compression.ZipFile]::ExtractToDirectory($srcZipFile, $tarDir);
+                                              }
 function ToolGithubApiDownloadLatestReleaseDir( [String] $repoUrl ){
                                                 # Creates a unique temp dir, downloads zip, return folder of extracted zip; You should remove dir after usage.
                                                 # Latest release is the most recent non-prerelease, non-draft release, sorted by its last commit-date.
