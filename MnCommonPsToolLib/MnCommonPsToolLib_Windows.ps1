@@ -13,8 +13,15 @@ if( $null -ne (Import-Module -NoClobber -Name "CimCmdlets"     -ErrorAction Cont
 # Import-Module "SmbWitness"; # for later usage
 # Import-Module "ServerManager"; # Is not always available, requires windows-server-os or at least Win10Prof with installed RSAT. Because seldom used we do not try to load it here.
 
-function OsIsWinVistaOrHigher                 (){ return [Boolean] ([Environment]::OSVersion.Version -ge (new-object "Version" 6,0)); }
-function OsIsWin7OrHigher                     (){ return [Boolean] ([Environment]::OSVersion.Version -ge (new-object "Version" 6,1)); }
+# Set some self defined constant global variables
+if( $null -eq (Get-Variable -Scope global -ErrorAction SilentlyContinue -Name AllUsersMenuDir) ){ # check wether last variable already exists because reload safe
+  New-Variable -option Constant -scope global -name UserQuickLaunchDir           -value ([String]"$env:APPDATA\Microsoft\Internet Explorer\Quick Launch");
+  New-Variable -option Constant -scope global -name UserSendToDir                -value ([String]"$env:APPDATA\Microsoft\Windows\SendTo");
+  New-Variable -option Constant -scope global -name UserMenuDir                  -value ([String]"$env:APPDATA\Microsoft\Windows\Start Menu");
+  New-Variable -option Constant -scope global -name UserMenuStartupDir           -value ([String]"$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup");
+  New-Variable -option Constant -scope global -name AllUsersMenuDir              -value ([String]"$env:ALLUSERSPROFILE\Microsoft\Windows\Start Menu");
+}
+
 function OsIs64BitOs                          (){ return [Boolean] (Get-CimInstance -Class Win32_OperatingSystem -ErrorAction SilentlyContinue).OSArchitecture -eq "64-Bit"; }
 function OsIsWinScreenLocked                  (){ return [Boolean] ((@()+(Get-Process | Where-Object{ $_.ProcessName -eq "LogonUI"})).Count -gt 0); }
 function OsIsHibernateEnabled                 (){
@@ -70,7 +77,7 @@ function JobStart                             ( [ScriptBlock] $scr, [Object[]] $
 function JobGet                               ( [String] $id ){ return [System.Management.Automation.Job] (Get-Job -Id $id); } # Return job object.
 function JobGetState                          ( [String] $id ){ return [String] (JobGet $id).State; } # NotStarted, Running, Completed, Stopped, Failed, and Blocked.
 function JobWaitForNotRunning                 ( [Int32] $id, [Int32] $timeoutInSec = -1 ){ Wait-Job -Id $id -Timeout $timeoutInSec | Out-Null; }
-function JobWaitForState                      ( [Int32] $id, [String] $state, [Int32] $timeoutInSec = -1 ){ Wait-Job -Id $id -State $state -Force -Timeout $timeoutInSec | Out-Null; }
+function JobWaitForState                      ( [String] $state = "Completed", [Int32] $timeoutInSec = -1 ){ Wait-Job -State $state -Force -Timeout $timeoutInSec | Out-Null; }
 function JobWaitForEnd                        ( [Int32] $id ){ JobWaitForNotRunning $id; return [Object] (Receive-Job -Id $id); } # Return result object of script block, job is afterwards deleted.
 function PrivGetUserFromName                  ( [String] $username ){ # optionally as domain\username
                                                 return [System.Security.Principal.NTAccount] $username; }
@@ -2155,6 +2162,8 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){
                                                 OutProgress "  InstallModules: SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate. Update-Help. ";
                                                 OutProgress "  Needs about 1 min.";
                                                 ProcessRestartInElevatedAdminMode;
+                                                OutProgress "Import-Module PowerShellGet:";
+                                                Import-Module -ErrorAction Stop PowerShellGet; # provides: Set-PSRepository, Install-Module
                                                 OutProgress "Set repository PSGallery:";
                                                 Set-PSRepository PSGallery -InstallationPolicy Trusted; # uses 14 sec
                                                 OutProgress "List of installed package providers:";

@@ -2,8 +2,8 @@
 
 Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 
-function UnitTest_Int(){
+function UnitTest_Priv(){
   OutProgress (ScriptGetCurrentFuncName);
-  Assert         ((Int32Clip -5 0 9) -eq 0 -and (Int32Clip 5 0 9) -eq 5 -and (Int32Clip 15 0 9) -eq 9);
+  # TODO PrivAclRegRightsToString ( [System.Security.AccessControl.RegistryRights] $r )
 }
-UnitTest_Int;
+UnitTest_Priv;

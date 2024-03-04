@@ -1,13 +1,11 @@
 ﻿#!/usr/bin/env pwsh
 
-# Test module MnCommonPsToolLib
-
 Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 
-function Test_Win_Registry(){
+function UnitTest_Win_Registry(){
   OutProgress (ScriptGetCurrentFuncName);
   if( ! (OsIsWindows) ){ OutProgress "Not running on windows, so bypass test."; return; }
-  # TODO:
+  # TODO: if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){
   #   RegistryMapToShortKey                ( [String] $key ){ # Note: HKCU: will be replaced by HKLM:\SOFTWARE\Classes" otherwise it would not work
   #                                          return [String] $key -replace "HKEY_LOCAL_MACHINE:","HKLM:" -replace "HKEY_CURRENT_USER:","HKCU:" -replace "HKEY_CLASSES_ROOT:","HKCR:" -replace "HKCR:","HKLM:\SOFTWARE\Classes" -replace "HKEY_USERS:","HKU:" -replace "HKEY_CURRENT_CONFIG:","HKCC:"; }
   #   RegistryRequiresElevatedAdminMode    ( [String] $key ){
@@ -44,4 +42,4 @@ function Test_Win_Registry(){
   #   RegistryKeySetAclRule                ( [String] $key, [System.Security.AccessControl.RegistryAccessRule] $rule, [Boolean] $useAddNotSet = $false ){
   #                                          # Example: "HKLM:\Software\MyManufactor" (PrivGetGroupAdministrators) "FullControl";
 }
-Test_Win_Registry;
+UnitTest_Win_Registry;

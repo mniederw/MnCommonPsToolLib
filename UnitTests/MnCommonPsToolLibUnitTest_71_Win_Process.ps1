@@ -1,10 +1,10 @@
 ﻿#!/usr/bin/env pwsh
 
-# Test module MnCommonPsToolLib
-
 Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 
-function Test_Win_Process(){
+function UnitTest_Win_Process(){
   OutProgress (ScriptGetCurrentFuncName);
+  if( ! (OsIsWindows) ){ OutProgress "Not running on windows, so bypass test."; return; }
+  Assert ((ProcessGetNrOfCores) -gt 1);
 }
-Test_Win_Process;
+UnitTest_Win_Process;

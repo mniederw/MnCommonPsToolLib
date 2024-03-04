@@ -2,8 +2,11 @@
 
 Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 
-function UnitTest_Int(){
+function UnitTest_Assert(){
   OutProgress (ScriptGetCurrentFuncName);
-  Assert         ((Int32Clip -5 0 9) -eq 0 -and (Int32Clip 5 0 9) -eq 5 -and (Int32Clip 15 0 9) -eq 9);
+  Assert        $true  "Condition is not ok";
+  AssertIsFalse $false "Condition is not ok";
+  AssertNotEmpty "abc" "parm1";
+  AssertRcIsOk;
 }
-UnitTest_Int;
+UnitTest_Assert;

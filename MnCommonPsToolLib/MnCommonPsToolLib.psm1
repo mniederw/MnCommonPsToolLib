@@ -78,6 +78,7 @@ trap [Exception] { $Host.UI.WriteErrorLine($_); break; }
 
 # Define global variables if they are not yet defined; caller of this script can anytime set or change these variables to control the specified behaviour.
 function GlobalVariablesInit(){
+  Write-Verbose "GlobalVariablesInit begin.";
   if( -not [Boolean] (Get-Variable ModeHideOutProgress               -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeHideOutProgress               -value $false; }
                                                                       # If true then OutProgress does nothing.
   if( -not [Boolean] (Get-Variable ModeDisallowInteractions          -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeDisallowInteractions          -value $false; }
@@ -90,7 +91,8 @@ function GlobalVariablesInit(){
                                                                       # if restarted for entering elevated admin mode then it additionally adds these parameters.
   if( -not [String]  (Get-Variable ModeOutputWithTsPrefix            -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeOutputWithTsPrefix            -value $false; }
                                                                       # if true then it will add before each OutInfo, OutWarning, OutError, OutProgress a timestamp prefix.
-
+  if( -not [String]  (Get-Variable PSModuleAutoLoadingPreference     -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name PSModuleAutoLoadingPreference     -value "All"; }
+                                                                      # if true then it will add before each OutInfo, OutWarning, OutError, OutProgress a timestamp prefix.
   # Set some powershell predefined global variables, also in scope of caller of this module:
   $global:ErrorActionPreference         = "Stop"                    ; # abort if a called exe will write to stderr, default is 'Continue'. Can be overridden in each command by [-ErrorAction actionPreference]
   $global:ReportErrorShowExceptionClass = $true                     ; # on trap more detail exception info
@@ -119,10 +121,13 @@ function GlobalVariablesInit(){
   # We like english error messages
   [System.Threading.Thread]::CurrentThread.CurrentUICulture = [System.Globalization.CultureInfo]::GetCultureInfo('en-US');
     # alternatives: [System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::GetCultureInfo('en-US'); Set-Culture en-US;
+  Write-Verbose "GlobalVariablesInit end.";
 }
 GlobalVariablesInit;
 
 # Recommended installed modules: Some functions may use the following modules
+#   Import-Module  PowerShellGet   ; # Provides: Set-PSRepository, Install-Module
+#   Install-Module PowerShellGet   ; # Provides: Set-PSRepository, Install-Module
 #   Install-Module PSScriptAnalyzer; # used by testing files for analysing powershell code
 #   Install-Module ThreadJob       ; # used by GitCloneOrPullUrls
 #   Install-Module SqlServer       ; # used by SqlPerformFile, SqlPerformCmd.
@@ -138,11 +143,6 @@ Add-Type -WarningAction SilentlyContinue -TypeDefinition "using System; public c
 # Set some self defined constant global variables
 if( $null -eq (Get-Variable -Scope global -ErrorAction SilentlyContinue -Name ComputerName) -or $null -eq $global:InfoLineColor ){ # check wether last variable already exists because reload safe
   New-Variable -option Constant -scope global -name CurrentMonthAndWeekIsoString -value ([String]((Get-Date -format "yyyy-MM-")+(Get-Date -uformat "W%V")));
-  New-Variable -option Constant -scope global -name UserQuickLaunchDir           -value ([String]"$env:APPDATA\Microsoft\Internet Explorer\Quick Launch");
-  New-Variable -option Constant -scope global -name UserSendToDir                -value ([String]"$env:APPDATA\Microsoft\Windows\SendTo");
-  New-Variable -option Constant -scope global -name UserMenuDir                  -value ([String]"$env:APPDATA\Microsoft\Windows\Start Menu");
-  New-Variable -option Constant -scope global -name UserMenuStartupDir           -value ([String]"$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup");
-  New-Variable -option Constant -scope global -name AllUsersMenuDir              -value ([String]"$env:ALLUSERSPROFILE\Microsoft\Windows\Start Menu");
   New-Variable -option Constant -scope global -name InfoLineColor                -Value $(switch($Host.Name -eq "Windows PowerShell ISE Host"){($true){"Gray"}default{"White"}}); # ise is white so we need a contrast color
   New-Variable -option Constant -scope global -name ComputerName                 -value ([String]"$env:computername".ToLower()); # set $ComputerName with unified lowercase $env:ComputerName
 }
@@ -276,7 +276,7 @@ function StringPadRight                       ( [String] $s, [Int32] $len, [Bool
 function StringSplitIntoLines                 ( [String] $s ){ return [String[]] ($s.Replace("`r`n","`n").Replace("`r","`n") -split "`n"); } # for empty string it returns an array with one item.
 function StringReplaceNewlines                ( [String] $s, [String] $repl = " " ){ return [String] $s.Replace("`r`n","`n").Replace("`r","`n").Replace("`n",$repl); }
 function StringSplitToArray                   ( [String] $sep, [String] $s, [Boolean] $removeEmptyEntries = $true ){ # works case sensitive
-                                                # this not works correctly on PS5: return [String[]] $s.Split($sep,$(switch($removeEmptyEntries){($true){[System.StringSplitOptions]::RemoveEmptyEntries}default{[System.StringSplitOptions]::None}})); }
+                                                # this would not work correctly on PS5: return [String[]] $s.Split($sep,$(switch($removeEmptyEntries){($true){[System.StringSplitOptions]::RemoveEmptyEntries}default{[System.StringSplitOptions]::None}})); }
                                                 [String[]] $res = ($s -csplit $sep,0,"SimpleMatch");
                                                 $res = ($res | Where-Object{ (-not $removeEmptyEntries) -or $_ -ne "" });
                                                 return [String[]] (@()+$res); }
@@ -306,7 +306,19 @@ function StringArrayIsEqual                   ( [String[]] $a, [String[]] $b, [B
                                                 } return [Boolean] $true; }
 function StringArrayDblQuoteItems             ( [String[]] $a ){ # surround each item by double quotes
                                                 return [String[]] (@()+($a | Where-Object{$null -ne $_} | ForEach-Object { "`"$_`"" })); }
-function StringFromException                  ( [Exception] $exc ){
+                                                function StringNormalizeAsVersion             ( [String] $versionString ){
+                                                  # For comparison the first 4 dot separated parts are cared and the rest after a blank is ignored.
+                                                  # Each component which begins with a digit is filled with leading zeros to a length of 5
+                                                  # A leading "V" or "v" is optional and will be removed.
+                                                  # Example: "12.3.40" => "00012.00003.00040"; "12.20" => "00012.00002"; "12.3.beta.40.5 descrtext" => "00012.00003.beta.00040";
+                                                  #     "V12.3" => "00012.00003"; "v12.3" => "00012.00003"; "" => ""; "a" => "a"; " b" => "";
+                                                  return [String] ( ( (StringSplitToArray "." (@()+(StringSplitToArray " " (StringRemoveLeft $versionString "V") $false))[0]) |
+                                                    Select-Object -First 4 |
+                                                    ForEach-Object{ if( $_ -match "^[0-9].*$" ){ $_.PadLeft(5,'0') }else{ $_ } }) -join "."); }
+  function StringCompareVersionIsMinimum        ( [String] $version, [String] $minVersion ){
+                                                  # Return true if version is equal of higher than a given minimum version (also see StringNormalizeAsVersion).
+                                                  return [Boolean] ((StringNormalizeAsVersion $version) -ge (StringNormalizeAsVersion $minVersion)); }
+  function StringFromException                  ( [Exception] $exc ){
                                                 # Return full info of exception inclusive data and stacktrace, it can contain newlines.
                                                 # Use this if $_ which is equal to $_.Exception.Message is not enough.
                                                 # Usage: in catch block call it with $_.Exception
@@ -367,18 +379,6 @@ function StringCommandLineToArray             ( [String] $commandLine ){
                                                   while( $i -lt $line.Length -and ($line[$i] -eq ' ' -or $line[$i] -eq [Char]9) ){ $i++; }
                                                 }
                                                 return [String[]] $result; }
-function StringNormalizeAsVersion             ( [String] $versionString ){
-                                                # For comparison the first 4 dot separated parts are cared and the rest after a blank is ignored.
-                                                # Each component which begins with a digit is filled with leading zeros to a length of 5
-                                                # A leading "V" or "v" is optional and will be removed.
-                                                # Example: "12.3.40" => "00012.00003.00040"; "12.20" => "00012.00002"; "12.3.beta.40.5 descrtext" => "00012.00003.beta.00040";
-                                                #     "V12.3" => "00012.00003"; "v12.3" => "00012.00003"; "" => ""; "a" => "a"; " b" => "";
-                                                return [String] ( ( (StringSplitToArray "." (@()+(StringSplitToArray " " (StringRemoveLeft $versionString "V") $false))[0]) |
-                                                  Select-Object -First 4 |
-                                                  ForEach-Object{ if( $_ -match "^[0-9].*$" ){ $_.PadLeft(5,'0') }else{ $_ } }) -join "."); }
-function StringCompareVersionIsMinimum        ( [String] $version, [String] $minVersion ){
-                                                # Return true if version is equal of higher than a given minimum version (also see StringNormalizeAsVersion).
-                                                return [Boolean] ((StringNormalizeAsVersion $version) -ge (StringNormalizeAsVersion $minVersion)); }
 function Int32Clip                            ( [Int32] $i, [Int32] $lo, [Int32] $hi ){ if( $i -lt $lo ){
                                                 return [Int32] $lo; } elseif( $i -gt $hi ){ return [Int32] $hi; }else{ return [Int32] $i; } }
 function DateTimeAsStringIso                  ( [DateTime] $ts, [String] $fmt = "yyyy-MM-dd HH:mm:ss" ){
@@ -394,29 +394,33 @@ function DateTimeGetBeginOf                   ( [String] $beginOf, [DateTime] $t
                                                 if( $beginOf -eq "Minute"   ){ return [DateTime] (New-Object DateTime ($ts.Year),($ts.Month),($ts.Day),($ts.Hour),($ts.Minute),0); }
                                                 throw [Exception] "Unknown beginOf=`"$beginOf`", expected one of: [Year,Semester,Quarter,TwoMonth,Month,Week,Hour,Minute]."; }
 function DateTimeNowAsStringIso               ( [String] $fmt = "yyyy-MM-dd HH:mm:ss" ){ return [String] (Get-Date -format $fmt); }
+function DateTimeNowAsStringIsoMinutes        (){ return [String] (Get-Date -format "yyyy-MM-dd HH:mm"); }
 function DateTimeNowAsStringIsoDate           (){ return [String] (Get-Date -format "yyyy-MM-dd"); }
 function DateTimeNowAsStringIsoMonth          (){ return [String] (Get-Date -format "yyyy-MM"); }
 function DateTimeNowAsStringIsoYear           (){ return [String] (Get-Date -format "yyyy"); }
-function DateTimeNowAsStringIsoInMinutes      (){ return [String] (Get-Date -format "yyyy-MM-dd HH:mm"); }
 function DateTimeFromStringIso                ( [String] $s ){ # "yyyy-MM-dd HH:mm:ss.fff" or "yyyy-MM-ddTHH:mm:ss.fff" or "yyyy-MM-ddTHH:mm:ss.fffzzz".
                                                 [String] $fmt = "yyyy-MM-dd HH:mm:ss.fff";
-                                                if    ( $s.Length -le 10 ){ $fmt = "yyyy-MM-dd"; }
-                                                elseif( $s.Length -le 16 ){ $fmt = "yyyy-MM-dd HH:mm"; }
-                                                elseif( $s.Length -le 19 ){ $fmt = "yyyy-MM-dd HH:mm:ss"; }
-                                                elseif( $s.Length -le 20 ){ $fmt = "yyyy-MM-dd HH:mm:ss."; }
-                                                elseif( $s.Length -le 21 ){ $fmt = "yyyy-MM-dd HH:mm:ss.f"; }
-                                                elseif( $s.Length -le 22 ){ $fmt = "yyyy-MM-dd HH:mm:ss.ff"; }
-                                                elseif( $s.Length -le 23 ){ $fmt = "yyyy-MM-dd HH:mm:ss.fff"; }
-                                                elseif( $s.Length -le 28 ){ $fmt = "yyyy-MM-dd HH:mm:ss.fffzzz"; }
-                                                if( $s.Length -gt 10 -and $s[10] -ceq 'T' ){ $fmt = $fmt.remove(10,1).insert(10,'T'); }
+                                                [Int32] $l = $s.Length;
+                                                [Boolean] $hasZoneOffset = $l -gt 10 -and (StringRight $s 5) -match "^[-+]\d\d\d\d$";
+                                                if( $hasZoneOffset ){ $l = $s.Length - 5; }
+                                                if    ( $l -le 10 ){ $fmt = "yyyy-MM-dd"; }
+                                                elseif( $l -le 16 ){ $fmt = "yyyy-MM-dd HH:mm"; }
+                                                elseif( $l -le 19 ){ $fmt = "yyyy-MM-dd HH:mm:ss"; }
+                                                elseif( $l -le 20 ){ $fmt = "yyyy-MM-dd HH:mm:ss."; }
+                                                elseif( $l -le 21 ){ $fmt = "yyyy-MM-dd HH:mm:ss.f"; }
+                                                elseif( $l -le 22 ){ $fmt = "yyyy-MM-dd HH:mm:ss.ff"; }
+                                                elseif( $l -le 23 ){ $fmt = "yyyy-MM-dd HH:mm:ss.fff"; }
+                                                if( $hasZoneOffset ){ $fmt += "zzz"; }
+                                                if( $l -gt 10 -and $s[10] -ceq 'T' ){ $fmt = $fmt.remove(10,1).insert(10,'T'); }
                                                 try{ return [DateTime] [DateTime]::ParseExact($s,$fmt,[System.Globalization.CultureInfo]::InvariantCulture);
                                                 }catch{ # exc: Ausnahme beim Aufrufen von "ParseExact" mit 3 Argument(en): Die Zeichenfolge wurde nicht als gültiges DateTime erkannt.
                                                   throw [Exception] "DateTimeFromStringIso(`"$s`") is not a valid datetime in format `"$fmt`""; } }
 function DateTimeFromStringOrDateTimeValue    ( [Object] $v ){ # Used for example after ConvertFrom-Json for unifying a value to type DateTime because PS7 sets for example type=DateTime and PS5 the type=String.
                                                 # example input: "2023-06-30T23:59:59.123+0000"
+                                                # On PS5 with json data from github we got "2023-11-14T08:39:42Z", which we convert to "2023-11-14T08:39:42+0000"
                                                 return [DateTime] $(switch($v.GetType().FullName){
                                                   "System.DateTime" { $v; }
-                                                  "System.String"   { DateTimeFromStringIso $v; }
+                                                  "System.String"   { if( $v.EndsWith("Z") ){ $v = (StringRemoveRightNr $v 1)+"+0000"; } DateTimeFromStringIso $v; }
                                                   default           { throw [Exception] "Expected type String or DateTime instead of $($v.GetType().FullName) for value: $v"; }
                                                 }); }
 function ByteArraysAreEqual                   ( [Byte[]] $a1, [Byte[]] $a2 ){ if( $a1.LongLength -ne $a2.LongLength ){ return [Boolean] $false; }
@@ -522,6 +526,7 @@ function OutStartTranscriptInTempDir          ( [String] $name = "MnCommonPsTool
                                                 Start-Transcript -Path $f -Append -IncludeInvocationHeader | Out-Null;
                                                 return [String] $f; }
 function OutStopTranscript                    (){ Stop-Transcript | Out-Null; } # Writes to output: Transcript stopped, output file is C:\Temp\....txt
+function StdOutLine                           ( [String] $line ){ $Host.UI.WriteLine($line); } # Writes an stdout line in default color, normally not used, rather use OutInfo because it classifies kind of output.
 function StdInAssertAllowInteractions         (){ if( $global:ModeDisallowInteractions ){
                                                 throw [Exception] "Cannot read for input because all interactions are disallowed, either caller should make sure variable ModeDisallowInteractions is false or he should not call an input method."; } }
 function StdInReadLine                        ( [String] $line ){ OutStringInColor "Cyan" $line; StdInAssertAllowInteractions; return [String] (Read-Host); }
@@ -532,7 +537,6 @@ function StdInAskForBoolean                   ( [String] $msg = "Enter Yes or No
                                                  [String] $answer = StdInReadLine ""; if( $answer -eq $strForYes ){ return [Boolean] $true ; }
                                                  if( $answer -eq $strForNo  ){ return [Boolean] $false; } } }
 function StdInWaitForAKey                     (){ StdInAssertAllowInteractions; $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") | Out-Null; } # does not work in powershell-ise, so in general do not use it, use StdInReadLine
-function StdOutLine                           ( [String] $line ){ $Host.UI.WriteLine($line); } # Writes an stdout line in default color, normally not used, rather use OutInfo because it classifies kind of output.
 function StdOutRedLineAndPerformExit          ( [String] $line, [Int32] $delayInSec = 1 ){ #
                                                 OutError $line; if( $global:ModeDisallowInteractions ){ ProcessSleepSec $delayInSec; }else{ StdInReadLine "Press Enter to Exit"; }; Exit 1; }
 function StdErrHandleExc                      ( [System.Management.Automation.ErrorRecord] $er, [Int32] $delayInSec = 1 ){
@@ -587,6 +591,13 @@ function AssertRcIsOk                         ( [String[]] $linesToOutProgress =
                                                   }
                                                 }
                                                 throw [Exception] $msg; }
+function HelpHelp                             (){ Get-Help     | ForEach-Object{ OutInfo $_; } }
+function HelpListOfAllVariables               (){ Get-Variable | Sort-Object Name | ForEach-Object{ OutInfo "$($_.Name.PadRight(32)) $($_.Value)"; } } # Select-Object Name, Value | StreamToListString
+function HelpListOfAllAliases                 (){ Get-Alias    | Select-Object CommandType, Name, Version, Source | StreamToTableString | ForEach-Object{ OutInfo $_; } }
+function HelpListOfAllCommands                (){ Get-Command  | Select-Object CommandType, Name, Version, Source | StreamToTableString | ForEach-Object{ OutInfo $_; } }
+function HelpListOfAllModules                 (){ Get-Module -ListAvailable | Sort-Object Name | Select-Object Name, ModuleType, Version, ExportedCommands; } # depends on $env:PSModulePath
+function HelpListOfAllExportedCommands        (){ (Get-Module -ListAvailable).ExportedCommands.Values | Sort-Object Name | Select-Object Name, ModuleName; }
+function HelpGetType                          ( [Object] $obj ){ return [String] $obj.GetType(); }
 function ScriptImportModuleIfNotDone          ( [String] $moduleName ){ if( -not (Get-Module $moduleName) ){
                                                 OutProgress "Import module $moduleName (can take some seconds on first call)";
                                                 Import-Module -NoClobber $moduleName -DisableNameChecking; } }
@@ -638,6 +649,14 @@ function StreamToHtmlListStrings              (){ $input | ConvertTo-Html -Title
 function StreamToListString                   (){ $input | Format-List -ShowError | StreamToStringDelEmptyLeadAndTrLines; }
 function StreamToFirstPropMultiColumnString   (){ $input | Format-Wide -AutoSize -ShowError | StreamToStringDelEmptyLeadAndTrLines; }
 function StreamToStringIndented               ( [Int32] $nrOfChars = 4 ){ StringSplitIntoLines ($input | StreamToStringDelEmptyLeadAndTrLines) | ForEach-Object{ "$(" "*$nrOfChars)$_" }; }
+function StreamToDataRowsString               ( [String[]] $propertyNames = @() ){ # no header, only rows.
+                                                if( $propertyNames.Count -eq 0 ){ $propertyNames = @("*"); }
+                                                $input | Format-Table -Wrap -Force -autosize -HideTableHeaders $propertyNames | StreamToStringDelEmptyLeadAndTrLines; }
+function StreamToTableString                  ( [String[]] $propertyNames = @() ){
+                                                # Note: For a simple string array as example  @("one","two")|StreamToTableString  it results with 4 lines "Length","------","     3","     3".
+                                                if( $propertyNames.Count -eq 0 ){ $propertyNames = @("*"); }
+                                                $input | Format-Table -Wrap -Force -autosize $propertyNames | StreamToStringDelEmptyLeadAndTrLines; }
+function StreamFromCsvStrings                 ( [Char] $delimiter = ',' ){ $input | ConvertFrom-Csv -Delimiter $delimiter; }
 function StreamToCsvFile                      ( [String] $file, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM" ){
                                                 # If overwrite is false then nothing done if target already exists.
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
@@ -646,19 +665,62 @@ function StreamToXmlFile                      ( [String] $file, [Boolean] $overw
                                                 # If overwrite is false then nothing done if target already exists.
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
                                                 $input | Export-Clixml -Force:$overwrite -NoClobber:$(-not $overwrite) -Depth 999999999 -Encoding $encoding -Path (FsEntryEsc $file); }
-function StreamToDataRowsString               ( [String[]] $propertyNames = @() ){ # no header, only rows.
-                                                if( $propertyNames.Count -eq 0 ){ $propertyNames = @("*"); }
-                                                $input | Format-Table -Wrap -Force -autosize -HideTableHeaders $propertyNames | StreamToStringDelEmptyLeadAndTrLines; }
-function StreamToTableString                  ( [String[]] $propertyNames = @() ){
-                                                # Note: For a simple string array as example  @("one","two")|StreamToTableString  it results with 4 lines "Length","------","     3","     3".
-                                                if( $propertyNames.Count -eq 0 ){ $propertyNames = @("*"); }
-                                                $input | Format-Table -Wrap -Force -autosize $propertyNames | StreamToStringDelEmptyLeadAndTrLines; }
 function StreamToFile                         ( [String] $file, [Boolean] $overwrite = $true, [String] $encoding = "UTF8BOM" ){
                                                 # Will create path of file. overwrite does ignore readonly attribute.
                                                 OutProgress "WriteFile $file"; FsEntryCreateParentDir $file;
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
                                                 $input | Out-File -Force -NoClobber:$(-not $overwrite) -Encoding $encoding -LiteralPath $file; }
-function StreamFromCsvStrings                 ( [Char] $delimiter = ',' ){ $input | ConvertFrom-Csv -Delimiter $delimiter; }
+function OsPsVersion                          (){ return [String] (""+$Host.Version.Major+"."+$Host.Version.Minor); } # alternative: $PSVersionTable.PSVersion.Major
+function OsIsWindows                          (){ return [Boolean] ([System.Environment]::OSVersion.Platform -eq "Win32NT"); }
+                                                # Example: Win10Pro: Version="10.0.19044.0"
+                                                # Alternative: "$($env:WINDIR)" -ne ""; In PS6 and up you can use: $IsMacOS, $IsLinux, $IsWindows.
+                                                # for future: function OsIsLinux(){ return [Boolean] ([System.Environment]::OSVersion.Platform -eq "Unix"); } # example: Ubuntu22: Version="5.15.0.41"
+function OsIsWinVistaOrHigher                 (){ return [Boolean] ((OsIsWindows) -and [Environment]::OSVersion.Version -ge (new-object "Version" 6,0)); }
+function OsIsWin7OrHigher                     (){ return [Boolean] ((OsIsWindows) -and [Environment]::OSVersion.Version -ge (new-object "Version" 6,1)); }
+function OsPathSeparator                      (){ return [String] $(switch(OsIsWindows){$true{";"}default{":"}}); } # separator for PATH environment variable
+function OsPsModulePathList                   (){ # return content of $env:PSModulePath as string-array with os dependent dir separators.
+                                                # Usual entries: On Windows, PS5/PS7, scope MACHINE:
+                                                #   C:\Windows\system32\WindowsPowerShell\v1.0\Modules\   (strongly recommended as long as ps7 not contains all of ps5)
+                                                #   C:\Program Files\WindowsPowerShell\Modules\
+                                                #   D:\MyDevelopDir\mniederw\MnCommonPsToolLib#trunk\
+                                                # Usual additonal entries: On Windows PS5, scope PROCESS:
+                                                #   $HOME\Documents\WindowsPowerShell\Modules\
+                                                # Usual additonal entries: On Windows PS7, scope PROCESS:
+                                                #   $HOME\Documents\PowerShell\Modules\
+                                                #   C:\Program Files\PowerShell\Modules\
+                                                #   c:\program files\powershell\7\Modules\
+                                                # Note: If a single backslash is part of the PSModulePath then autocompletion is very slow (2017-08).
+                                                return [String[]] (@()+(([Environment]::GetEnvironmentVariable("PSModulePath","Machine").
+                                                  Split((OsPathSeparator),[System.StringSplitOptions]::RemoveEmptyEntries)) | Where-Object{$null -ne $_} |
+                                                  ForEach-Object{ FsEntryMakeTrailingDirSep $_ })); }
+function OsPsModulePathContains               ( [String] $dir ){ # Example: "D:\MyGitRoot\MyGitAccount\MyPsLibRepoName"
+                                                [String[]] $a = OsPsModulePathList;
+                                                return [Boolean] ($a -contains (FsEntryMakeTrailingDirSep $dir)); }
+function OsPsModulePathAdd                    ( [String] $dir ){ $dir = FsEntryMakeTrailingDirSep $dir; if( (OsPsModulePathContains $dir) ){ return; }
+                                                OsPsModulePathSet ((OsPsModulePathList)+@($dir)); }
+function OsPsModulePathDel                    ( [String] $dir ){ $dir = FsEntryMakeTrailingDirSep $dir; OsPsModulePathSet (@()+(OsPsModulePathList |
+                                                Where-Object{$null -ne $_} | Where-Object{ -not (FsEntryPathIsEqual $_ $dir) })); }
+function OsPsModulePathSet                    ( [String[]] $pathList ){ [String] $s = ((@()+($pathList | Where-Object{$null -ne $_} |
+                                                  ForEach-Object{ FsEntryRemoveTrailingDirSep $_ })) -join (OsPathSeparator))+(OsPathSeparator);
+                                                [Environment]::SetEnvironmentVariable("PSModulePath",$s,"Machine"); }
+function PrivAclRegRightsToString             ( [System.Security.AccessControl.RegistryRights] $rule ){
+                                                [String] $result = "";
+                                                # Ref: https://docs.microsoft.com/en-us/dotnet/api/system.security.accesscontrol.registryrights?view=netframework-4.8
+                                                if(   $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::FullControl         ){ $s += "F,"; } # exert full control over a registry key, and to modify its access rules and audit rules.
+                                                else{
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::ReadKey             ){ $s += "R,"; } # query the name/value pairs in a registry key, to request notification of changes, to enumerate its subkeys, and to read its access rules and audit rules.
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::WriteKey            ){ $s += "W,"; } # create, delete, and set the name/value pairs in a registry key, to create or delete subkeys, to request notification of changes, to enumerate its subkeys, and to read its access rules and audit rules.
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::CreateSubKey        ){ $s += "C,"; } # create subkeys of a registry key.
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::Delete              ){ $s += "D,"; } # delete a registry key.
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::TakeOwnership       ){ $s += "O,"; } # change the owner of a registry key.
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::EnumerateSubKeys    ){ $s += "L,"; } # list the subkeys of a registry key.
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::QueryValues         ){ $s += "r,"; } # query the name/value pairs in a registry key.
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::SetValue            ){ $s += "w,"; } # create, delete, or set name/value pairs in a registry key.
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::ReadPermissions     ){ $s += "p,"; } # open and copy the access rules and audit rules for a registry key.
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::ChangePermissions   ){ $s += "c,"; } # change the access rules and audit rules associated with a registry key.
+                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::Notify              ){ $s += "n,"; } # request notification of changes on a registry key.
+                                                  # Not used:  CreateLink=Reserved for system use. ExecuteKey=Same as ReadKey.
+                                                } return [String] $result; }
 function ProcessIsLesserEqualPs5              (){ return [Boolean] ($PSVersionTable.PSVersion.Major -le 5); }
 function ProcessPsExecutable                  (){ return [String] $(switch((ProcessIsLesserEqualPs5)){ $true{"powershell.exe"} default{"pwsh"}}); }
 function ProcessIsRunningInElevatedAdminMode  (){ if( (OsIsWindows) ){ return [Boolean] ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"); }
@@ -942,63 +1004,6 @@ function ProcessRemoveAllAlias                ( [String[]] $excludeAliasNames = 
                                                 $removedAliasNames = $removedAliasNames | Select-Object -Unique | Sort-Object;
                                                 if( $doTrace -and $removedAliasNames.Count -gt 0 ){
                                                   OutProgress "Removed all existing $($removedAliasNames.Count) alias except [$excludeAliasNames]."; } }
-function HelpHelp                             (){ Get-Help     | ForEach-Object{ OutInfo $_; } }
-function HelpListOfAllVariables               (){ Get-Variable | Sort-Object Name | ForEach-Object{ OutInfo "$($_.Name.PadRight(32)) $($_.Value)"; } } # Select-Object Name, Value | StreamToListString
-function HelpListOfAllAliases                 (){ Get-Alias    | Select-Object CommandType, Name, Version, Source | StreamToTableString | ForEach-Object{ OutInfo $_; } }
-function HelpListOfAllCommands                (){ Get-Command  | Select-Object CommandType, Name, Version, Source | StreamToTableString | ForEach-Object{ OutInfo $_; } }
-function HelpListOfAllModules                 (){ Get-Module -ListAvailable | Sort-Object Name | Select-Object Name, ModuleType, Version, ExportedCommands; } # depends on $env:PSModulePath
-function HelpListOfAllExportedCommands        (){ (Get-Module -ListAvailable).ExportedCommands.Values | Sort-Object Name | Select-Object Name, ModuleName; }
-function HelpGetType                          ( [Object] $obj ){ return [String] $obj.GetType(); }
-function OsPsVersion                          (){ return [String] (""+$Host.Version.Major+"."+$Host.Version.Minor); } # alternative: $PSVersionTable.PSVersion.Major
-function OsIsWindows                          (){ return [Boolean] ([System.Environment]::OSVersion.Platform -eq "Win32NT"); }
-                                                # Example: Win10Pro: Version="10.0.19044.0"
-                                                # Alternative: "$($env:WINDIR)" -ne ""; In PS6 and up you can use: $IsMacOS, $IsLinux, $IsWindows.
-                                                # for future: function OsIsLinux(){ return [Boolean] ([System.Environment]::OSVersion.Platform -eq "Unix"); } # example: Ubuntu22: Version="5.15.0.41"
-function OsPathSeparator                      (){ return [String] $(switch(OsIsWindows){$true{";"}default{":"}}); } # separator for PATH environment variable
-function OsPsModulePathList                   (){ # return content of $env:PSModulePath as string-array with os dependent dir separators.
-                                                # Usual entries: On Windows, PS5/PS7, scope MACHINE:
-                                                #   C:\Windows\system32\WindowsPowerShell\v1.0\Modules\   (strongly recommended as long as ps7 not contains all of ps5)
-                                                #   C:\Program Files\WindowsPowerShell\Modules\
-                                                #   D:\MyDevelopDir\mniederw\MnCommonPsToolLib#trunk\
-                                                # Usual additonal entries: On Windows PS5, scope PROCESS:
-                                                #   $HOME\Documents\WindowsPowerShell\Modules\
-                                                # Usual additonal entries: On Windows PS7, scope PROCESS:
-                                                #   $HOME\Documents\PowerShell\Modules\
-                                                #   C:\Program Files\PowerShell\Modules\
-                                                #   c:\program files\powershell\7\Modules\
-                                                # Note: If a single backslash is part of the PSModulePath then autocompletion is very slow (2017-08).
-                                                return [String[]] (@()+(([Environment]::GetEnvironmentVariable("PSModulePath","Machine").
-                                                  Split((OsPathSeparator),[System.StringSplitOptions]::RemoveEmptyEntries)) | Where-Object{$null -ne $_} |
-                                                  ForEach-Object{ FsEntryMakeTrailingDirSep $_ })); }
-function OsPsModulePathContains               ( [String] $dir ){ # Example: "D:\MyGitRoot\MyGitAccount\MyPsLibRepoName"
-                                                [String[]] $a = OsPsModulePathList;
-                                                return [Boolean] ($a -contains (FsEntryMakeTrailingDirSep $dir)); }
-function OsPsModulePathAdd                    ( [String] $dir ){ $dir = FsEntryMakeTrailingDirSep $dir; if( (OsPsModulePathContains $dir) ){ return; }
-                                                OsPsModulePathSet ((OsPsModulePathList)+@($dir)); }
-function OsPsModulePathDel                    ( [String] $dir ){ $dir = FsEntryMakeTrailingDirSep $dir; OsPsModulePathSet (@()+(OsPsModulePathList |
-                                                Where-Object{$null -ne $_} | Where-Object{ -not (FsEntryPathIsEqual $_ $dir) })); }
-function OsPsModulePathSet                    ( [String[]] $pathList ){ [String] $s = ((@()+($pathList | Where-Object{$null -ne $_} |
-                                                  ForEach-Object{ FsEntryRemoveTrailingDirSep $_ })) -join (OsPathSeparator))+(OsPathSeparator);
-                                                [Environment]::SetEnvironmentVariable("PSModulePath",$s,"Machine"); }
-function PrivAclRegRightsToString             ( [System.Security.AccessControl.RegistryRights] $r ){
-                                                [String] $result = "";
-                                                # Ref: https://docs.microsoft.com/en-us/dotnet/api/system.security.accesscontrol.registryrights?view=netframework-4.8
-                                                if(   $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::FullControl         ){ $s += "F,"; } # exert full control over a registry key, and to modify its access rules and audit rules.
-                                                else{
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::ReadKey             ){ $s += "R,"; } # query the name/value pairs in a registry key, to request notification of changes, to enumerate its subkeys, and to read its access rules and audit rules.
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::WriteKey            ){ $s += "W,"; } # create, delete, and set the name/value pairs in a registry key, to create or delete subkeys, to request notification of changes, to enumerate its subkeys, and to read its access rules and audit rules.
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::CreateSubKey        ){ $s += "C,"; } # create subkeys of a registry key.
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::Delete              ){ $s += "D,"; } # delete a registry key.
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::TakeOwnership       ){ $s += "O,"; } # change the owner of a registry key.
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::EnumerateSubKeys    ){ $s += "L,"; } # list the subkeys of a registry key.
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::QueryValues         ){ $s += "r,"; } # query the name/value pairs in a registry key.
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::SetValue            ){ $s += "w,"; } # create, delete, or set name/value pairs in a registry key.
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::ReadPermissions     ){ $s += "p,"; } # open and copy the access rules and audit rules for a registry key.
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::ChangePermissions   ){ $s += "c,"; } # change the access rules and audit rules associated with a registry key.
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::Notify              ){ $s += "n,"; } # request notification of changes on a registry key.
-                                                  # Not used:  CreateLink=Reserved for system use. ExecuteKey=Same as ReadKey.
-                                                } return [String] $result; }
-function DirSep                               (){ return [Char] [IO.Path]::DirectorySeparatorChar; }
 function FsEntryEsc                           ( [String] $fsentry ){ AssertNotEmpty $fsentry "file-system-entry"; # Escaping is not nessessary if a command supports -LiteralPath.
                                                 return [String] [Management.Automation.WildcardPattern]::Escape($fsentry); } # Important for chars as [,], etc.
 function FsEntryUnifyDirSep                   ( [String] $fsEntry ){ return [String] ($fsEntry -replace "[\\/]",(DirSep)); }
@@ -1369,6 +1374,7 @@ function FsEntryGetSize                       ( [String] $fsEntry ){ # Must exis
 function DriveFreeSpace                       ( [String] $drive ){
                                                 FsEntryAssertHasTrailingDirSep $drive;
                                                 return [Int64] (Get-PSDrive $drive | Select-Object -ExpandProperty Free); }
+function DirSep                               (){ return [Char] [IO.Path]::DirectorySeparatorChar; }
 function DirExists                            ( [String] $dir ){
                                                 FsEntryAssertHasTrailingDirSep $dir;
                                                 try{ return [Boolean] (Test-Path -PathType Container -LiteralPath $dir); }catch{ throw [Exception] "$(ScriptGetCurrentFunc)($dir) failed because $($_.Exception.Message)"; } }
@@ -2175,6 +2181,66 @@ function GitBuildLocalDirFromUrl              ( [String] $tarRootDir, [String] $
                                                 AssertNotEmpty $tarRootDir "tarRootDir";
                                                 FsEntryAssertHasTrailingDirSep $tarRootDir;
                                                 return [String] (FsEntryMakeTrailingDirSep (Join-Path $tarRootDir (([System.Uri]$urlAndOptionalBranch).AbsolutePath+([System.Uri]$urlAndOptionalBranch).Fragment))); }
+function GitShowUrl                           ( [String] $repoDir ){
+                                                # Example: return "https://github.com/mniederw/MnCommonPsToolLib"
+                                                AssertNotEmpty $repoDir "repoDir";
+                                                FsEntryAssertHasTrailingDirSep $repoDir;
+                                                [String] $out = (& "git" "--git-dir=$repoDir/.git" "config" "remote.origin.url"); AssertRcIsOk $out;
+                                                return [String] $out; }
+function GitShowRemoteName                    ( [String] $repoDir ){
+                                                # Example: return "origin"
+                                                AssertNotEmpty $repoDir "repoDir";
+                                                FsEntryAssertHasTrailingDirSep $repoDir;
+                                                [String] $out = (& "git" "--git-dir=$repoDir/.git" "remote"); AssertRcIsOk $out;
+                                                return [String] $out; }
+function GitShowRepo                          ( [String] $repoDir ){ # return owner and reponame separated with a slash.
+                                                # Example: return "mniederw/MnCommonPsToolLib"
+                                                AssertNotEmpty $repoDir "repoDir";
+                                                FsEntryAssertHasTrailingDirSep $repoDir;
+                                                [String] $url = (GitShowUrl $repoDir);
+                                                ToolGithubApiAssertValidRepoUrl $url;
+                                                [String] $githubUrl = "https://github.com/";
+                                                Assert ($url.StartsWith($githubUrl)) "Expected $url starts with $githubUrl";
+                                                return [String] (StringRemoveLeft $url $githubUrl); }
+function GitShowBranch                        ( [String] $repoDir, [Boolean] $getDefault = $false ){
+                                                # return current branch (example: "trunk"). Returns empty if branch is detached.
+                                                # If getDefault is specified then it returns in general main or master.
+                                                AssertNotEmpty $repoDir "repoDir";
+                                                FsEntryAssertHasTrailingDirSep $repoDir;
+                                                if( $getDefault ){
+                                                  # for future use: [String] $remote = (GitShowRemoteName $repoDir); # Example: "origin"
+                                                  # for future use: if( $remote -eq "" ){ throw [ExcMsg] "Cannot get default branch in repodir=`"$repoDir`" because GitShowRemoteName returned empty string."; }
+                                                  #[String[]] $out = (StringSplitIntoLines (ProcessStart "git" @("-C", (FsEntryRemoveTrailingDirSep $repoDir), "--git-dir=.git", "branch", "--remotes", "--no-color" ) -traceCmd:$false));
+                                                  [String[]] $out = (& "git" "-C" $repoDir "--git-dir=.git" "branch" "--remotes" "--no-color"); AssertRcIsOk;
+                                                  [String] $pattern = "  origin/HEAD -> origin/";
+                                                  [String[]] $defBranch = @()+($out | Where-Object{ $_.StartsWith($pattern) } | ForEach-Object{ StringRemoveLeft $_ $pattern; });
+                                                  if( $defBranch.Count -ne 1 ){ throw [ExcMsg] "GitShowBranch(`"$repoDir`",$getDefault) failed because for (git branch --remotes) we expected a line with leading pattern `"$pattern`" but we got: `"$out`"."; }
+                                                  return [String] $defBranch[0];
+                                                }
+                                                #[String] $out = (ProcessStart "git" @("-C", $repoDir, "--git-dir=.git", "branch", "--no-color", "--show-current" ) -traceCmd:$false);
+                                                [String] $out = (& "git" "-C" $repoDir "--git-dir=.git" "branch" "--no-color" "--show-current"); AssertRcIsOk;
+                                                # old: [String] $line = "$(StringSplitIntoLines $out | Where-Object { $_.StartsWith("* ") } | Select-Object -First 1)";
+                                                # old: Assert ($line.StartsWith("* ") -and $line.Length -ge 3) "GitShowBranch(`"$repoDir`") expected result of git branch begins with `"* `" but got `"$line`" and expected minimum length of 3.";
+                                                # old: return [String] (StringRemoveLeft $line "* ").Trim(); }
+                                                return [String] $out.Trim(); }
+function GitShowChanges                       ( [String] $repoDir ){
+                                                # return changed, deleted and new files or dirs. Per entry one line prefixed with a change code.
+                                                AssertNotEmpty $repoDir "repoDir";
+                                                FsEntryAssertHasTrailingDirSep $repoDir;
+                                                [String] $out = (ProcessStart "git" @("-C", $repoDir, "--git-dir=.git", "status", "--short") -traceCmd:$false);
+                                                return [String[]] (@()+(StringSplitIntoLines $out |
+                                                  Where-Object{$null -ne $_} |
+                                                  Where-Object{ StringIsFilled $_; })); }
+function GitBranchList                        ( [String] $repoDir, [Boolean] $remotesOnly = $false ){
+                                                # return sorted string list of all branches of a local repo dir
+                                                # example: @("main","origin/main","origin/trunk");
+                                                AssertNotEmpty $repoDir "repoDir";
+                                                FsEntryAssertHasTrailingDirSep $repoDir;
+                                                [String[]] $opt = @("-C", $repoDir, "branch", "--all" ); if( $remotesOnly ){ $opt += "--remotes"; }
+                                                [String[]] $result = (StringSplitIntoLines (ProcessStart "git" $opt)) | ForEach-Object{ StringRemoveLeftNr $_ 2 } |
+                                                  ForEach-Object{ if( $_.StartsWith("remotes/") ){ StringRemoveLeftNr $_ "remotes/".Length; }else{ $_; } } |
+                                                  Where-Object{ $_ -ne "" -and (-not $_.StartsWith("origin/HEAD ")) } | Sort-Object;
+                                                return [String[]] $result; }
 function GitCmd                               ( [String] $cmd, [String] $tarRootDir, [String] $urlAndOptionalBranch, [Boolean] $errorAsWarning = $false ){
                                                 # For commands:
                                                 #   "Clone"       : Creates a full local copy of specified repo. Target dir must not exist.
@@ -2198,8 +2264,8 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                 AssertNotEmpty $tarRootDir "tarRootDir";
                                                 FsEntryAssertHasTrailingDirSep $tarRootDir;
                                                 $tarRootDir = FsEntryGetAbsolutePath $tarRootDir;
-                                                if( @("Clone","Fetch","Pull","CloneOrPull","Revert") -notcontains $cmd ){
-                                                  throw [Exception] "Expected one of (Clone,Fetch,Pull,CloneOrPull,Revert) instead of: $cmd"; }
+                                                if( @("Clone","Fetch","Pull","CloneOrPull","CloneOrFetch","Revert") -notcontains $cmd ){
+                                                  throw [Exception] "Expected one of (Clone,Fetch,Pull,CloneOrPull,CloneOrFetch,Revert) instead of: $cmd"; }
                                                 if( ($urlAndOptionalBranch -split "/",0)[-1] -notmatch "^[A-Za-z0-9]+[A-Za-z0-9._-]*(#[A-Za-z0-9]+[A-Za-z0-9._-]*)?`$" ){
                                                   throw [Exception] "Expected only ident-chars as (letter,numbers,.,_,-) for last part of `"$urlAndOptionalBranch`"."; }
                                                 [String[]] $urlOpt = @()+(StringSplitToArray "#" $urlAndOptionalBranch); # Example: @( "https://github.com/mniederw/MnCommonPsToolLib", "MyBranch" )
@@ -2299,56 +2365,6 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   OutWarning "Warning: $msg";
                                                 } }
 
-function GitShowUrl                           ( [String] $repoDir ){
-                                                # Example: return "https://github.com/mniederw/MnCommonPsToolLib"
-                                                AssertNotEmpty $repoDir "repoDir";
-                                                FsEntryAssertHasTrailingDirSep $repoDir;
-                                                [String] $out = (& "git" "--git-dir=$repoDir/.git" "config" "remote.origin.url"); AssertRcIsOk $out;
-                                                return [String] $out; }
-function GitShowRemoteName                    ( [String] $repoDir ){
-                                                # Example: return "origin"
-                                                AssertNotEmpty $repoDir "repoDir";
-                                                FsEntryAssertHasTrailingDirSep $repoDir;
-                                                [String] $out = (& "git" "--git-dir=$repoDir/.git" "remote"); AssertRcIsOk $out;
-                                                return [String] $out; }
-function GitShowRepo                          ( [String] $repoDir ){ # return owner and reponame separated with a slash.
-                                                # Example: return "mniederw/MnCommonPsToolLib"
-                                                AssertNotEmpty $repoDir "repoDir";
-                                                FsEntryAssertHasTrailingDirSep $repoDir;
-                                                [String] $url = (GitShowUrl $repoDir);
-                                                ToolGithubApiAssertValidRepoUrl $url;
-                                                [String] $githubUrl = "https://github.com/";
-                                                Assert ($url.StartsWith($githubUrl)) "Expected $url starts with $githubUrl";
-                                                return [String] (StringRemoveLeft $url $githubUrl); }
-function GitShowBranch                        ( [String] $repoDir, [Boolean] $getDefault = $false ){
-                                                # return current branch (example: "trunk"). Returns empty if branch is detached.
-                                                # If getDefault is specified then it returns in general main or master.
-                                                AssertNotEmpty $repoDir "repoDir";
-                                                FsEntryAssertHasTrailingDirSep $repoDir;
-                                                if( $getDefault ){
-                                                  # for future use: [String] $remote = (GitShowRemoteName $repoDir); # Example: "origin"
-                                                  # for future use: if( $remote -eq "" ){ throw [ExcMsg] "Cannot get default branch in repodir=`"$repoDir`" because GitShowRemoteName returned empty string."; }
-                                                  #[String[]] $out = (StringSplitIntoLines (ProcessStart "git" @("-C", (FsEntryRemoveTrailingDirSep $repoDir), "--git-dir=.git", "branch", "--remotes", "--no-color" ) -traceCmd:$false));
-                                                  [String[]] $out = (& "git" "-C" $repoDir "--git-dir=.git" "branch" "--remotes" "--no-color"); AssertRcIsOk;
-                                                  [String] $pattern = "  origin/HEAD -> origin/";
-                                                  [String[]] $defBranch = @()+($out | Where-Object{ $_.StartsWith($pattern) } | ForEach-Object{ StringRemoveLeft $_ $pattern; });
-                                                  if( $defBranch.Count -ne 1 ){ throw [ExcMsg] "GitShowBranch(`"$repoDir`",$getDefault) failed because for (git branch --remotes) we expected a line with leading pattern `"$pattern`" but we got: `"$out`"."; }
-                                                  return [String] $defBranch[0];
-                                                }
-                                                #[String] $out = (ProcessStart "git" @("-C", $repoDir, "--git-dir=.git", "branch", "--no-color", "--show-current" ) -traceCmd:$false);
-                                                [String] $out = (& "git" "-C" $repoDir "--git-dir=.git" "branch" "--no-color" "--show-current"); AssertRcIsOk;
-                                                # old: [String] $line = "$(StringSplitIntoLines $out | Where-Object { $_.StartsWith("* ") } | Select-Object -First 1)";
-                                                # old: Assert ($line.StartsWith("* ") -and $line.Length -ge 3) "GitShowBranch(`"$repoDir`") expected result of git branch begins with `"* `" but got `"$line`" and expected minimum length of 3.";
-                                                # old: return [String] (StringRemoveLeft $line "* ").Trim(); }
-                                                return [String] $out.Trim(); }
-function GitShowChanges                       ( [String] $repoDir ){
-                                                # return changed, deleted and new files or dirs. Per entry one line prefixed with a change code.
-                                                AssertNotEmpty $repoDir "repoDir";
-                                                FsEntryAssertHasTrailingDirSep $repoDir;
-                                                [String] $out = (ProcessStart "git" @("-C", $repoDir, "--git-dir=.git", "status", "--short") -traceCmd:$false);
-                                                return [String[]] (@()+(StringSplitIntoLines $out |
-                                                  Where-Object{$null -ne $_} |
-                                                  Where-Object{ StringIsFilled $_; })); }
 function GitSwitch                            ( [String] $repoDir, [String] $branch ){
                                                 AssertNotEmpty $repoDir "repoDir";
                                                 FsEntryAssertHasTrailingDirSep $repoDir;
@@ -2357,57 +2373,6 @@ function GitAdd                               ( [String] $fsEntryToAdd ){
                                                 AssertNotEmpty $fsEntryToAdd "fsEntryToAdd";
                                                 [String] $repoDir = FsEntryGetAbsolutePath "$(FsEntryFindInParents $fsEntryToAdd ".git")/../"; # not trailing slash allowed
                                                 ProcessStart "git" @("-C", $repoDir, "add", $fsEntryToAdd) -traceCmd:$true | Out-Null; }
-function GitBranchList                        ( [String] $repoDir, [Boolean] $remotesOnly = $false ){
-                                                # return sorted string list of all branches of a local repo dir
-                                                # example: @("main","origin/main","origin/trunk");
-                                                AssertNotEmpty $repoDir "repoDir";
-                                                FsEntryAssertHasTrailingDirSep $repoDir;
-                                                [String[]] $opt = @("-C", $repoDir, "branch", "--all" ); if( $remotesOnly ){ $opt += "--remotes"; }
-                                                [String[]] $result = (StringSplitIntoLines (ProcessStart "git" $opt)) | ForEach-Object{ StringRemoveLeftNr $_ 2 } |
-                                                  ForEach-Object{ if( $_.StartsWith("remotes/") ){ StringRemoveLeftNr $_ "remotes/".Length; }else{ $_; } } |
-                                                  Where-Object{ $_ -ne "" -and (-not $_.StartsWith("origin/HEAD ")) } | Sort-Object;
-                                                return [String[]] $result; }
-<#
-function GitBranchRecreate                    ( [String] $repoUrlWithFromBranch, [String] $toBranch ){
-                                                # Clone a repo to temp dir, delete the toBranch if it exists, recreate it and delete the temp dir.
-                                                # repoUrlWithFromBranch: Repo url with a sharp-character separated fromBranch.
-                                                #   if no sharp-character and fromBranch are specified then the default branch (for example: main) is taken as fromBranch.
-                                                #   if a sharp-character is used then the fromBranch cannot be empty.
-                                                # toBranch: Target branch, must be different than current default branch (main).
-                                                # example: GitBranchRecreate https://github.com/mniederw/MnCommonPsToolLib#trunk "trunk2";
-                                                OutProgress "ToolBranchRecreate($repoUrlWithFromBranch,toBranch=$toBranch), clone to temp dir, delete and create branch";
-                                                AssertNotEmpty $repoUrlWithFromBranch "repoUrlWithFromBranch";
-                                                AssertNotEmpty $toBranch "toBranch";
-
-                                                # TODO evaluate the default branch of the repo and assert that this does not match the $toBranch
-                                                # assert that a from branch is specified
-                                                [String] $tmpDir = DirCreateTemp "TM/R"; # Tool Menu Repos
-                                                GitCmd "Clone" $tmpDir $repoUrlWithFromBranch;
-                                                [String] $repoDir = (GitBuildLocalDirFromUrl $tmpDir $repoUrlWithFromBranch);
-                                                OutProgress "RepoDir: $repoDir";
-                                                [String] $fromBranch = (GitShowBranch $repoDir);
-                                                OutProgress "FromBranch: $fromBranch";
-                                                [String] $defaultBranch = (GitShowBranch $repoDir $true);
-                                                OutProgress "DefaultBranch: $defaultBranch";
-                                                [String] $remoteName = (GitShowRemoteName $repoDir);
-                                                OutProgress "RemoteName: $remoteName";
-                                                Assert ($toBranch -ne $fromBranch) "ToolBranchRecreate($repoUrlWithFromBranch,toBranch=$toBranch) assertion failed because the from and to branch must be different";
-                                                [String] $remoteName = (GitShowRemoteName $repoDir); # example: "origin"
-                                                if( (GitBranchList $repoDir $true) -contains "$remoteName/$toBranch" ){
-                                                  OutProgress "Delete the remote branch: $toBranch";
-                                                  [String] $out = (ProcessStart "git" @("-C", $repoDir, "--git-dir=.git", "--delete", "push", $remoteName, $toBranch") -traceCmd:$true);
-                                                  OutProgress "Output: `"$out`"";
-                                                }
-
-                                                # TODO create branch and push it
-
-                                                OutProgress "List";
-                                                GitBranchList $repoDir
-
-                                                #DirDelete $tmpDir;
-
-                                                OutProgress "Ok, done. Recreated branch: $toBranch"; }
-#>
 function GitMerge                             ( [String] $repoDir, [String] $branch, [Boolean] $errorAsWarning = $false ){
                                                 # merge branch (remotes/origin) into current repodir, no-commit, no-fast-forward
                                                 AssertNotEmpty $repoDir "repoDir";
@@ -2427,32 +2392,6 @@ function GitMerge                             ( [String] $repoDir, [String] $bra
                                                   if( -not $errorAsWarning ){ throw [Exception] "Merge failed, fix conflicts manually: $($_.Exception.Message)"; }
                                                   OutWarning "Warning: Merge of branch $branch into `"$repoDir`" failed, fix conflicts manually. ";
                                                 } }
-function ToolGetBranchCommit                 ( [String] $repo, [String] $branch, [String] $repoDirForCred = "", [Boolean] $traceCmd = $false ){ # TODO rename to GithubXY
-                                                # repo           : has format [HOST/]OWNER/REPO
-                                                # branch         : if branch is not uniquely defined it will throw.
-                                                # repoDirForCred : Any folder under any git repository, from which the credentials will be taken, use empty for current dir.
-                                                # traceCmd       : Output progress messages instead only the result.
-                                                # example: ToolListBranchCommit "mniederw/MnCommonPsToolLib" "trunk" $PSScriptRoot;
-                                                FsEntryAssertHasTrailingDirSep $repoDirForCred;
-                                                if( $traceCmd ){ OutProgress "List github-branch-commit from branch $branch in repo $repo (repoDirForCred=$repoDirForCred)"; }
-                                                AssertNotEmpty $repo "repo";
-                                                Push-Location $repoDirForCred;
-                                                GithubPrepareCommand;
-                                                [String] $out = "";
-                                                try{
-                                                  # example: gh api repos/local-ch/ITZielbild/git/refs/heads/Develop --jq '.object.sha'
-                                                  $out = (ProcessStart "gh" @("api", "repos/$repo/git/refs/heads/$branch", "--jq", ".object.sha" ) -careStdErrAsOut:$false -traceCmd:$traceCmd).Trim();
-                                                }catch{
-                                                  # exc: "rc=1  gh: Not Found (HTTP 404)"
-                                                  # exc: "rc=1  expected an object but got: array ([{"node_id":"MDM6UmVmMTQ0 ...])""
-                                                  if( $_.Exception.Message.Contains("gh: Not Found (HTTP 404)") -or
-                                                      $_.Exception.Message.Contains("expected an object but got: array ") ){
-                                                    $error.clear();
-                                                    throw [ExcMsg] "ToolListBranchCommit: In github repo $repo no branch exists with name `"$branch`".";
-                                                  }else{ throw; }
-                                                }
-                                                Pop-Location;
-                                                if( $traceCmd ){ OutProgress $out; }else{ return [String] $out; } }
 function GitListCommitComments                ( [String] $tarDir, [String] $localRepoDir, [String] $fileExtension = ".tmp",
                                                   [String] $prefix = "Log.", [Int32] $doOnlyIfOlderThanAgeInDays = 14 ){
                                                 # Reads commit messages and changed files info from localRepoDir
@@ -2631,6 +2570,32 @@ function GithubAuthStatus                     (){
                                                #     Ô£ô Git operations for github.com configured to use https protocol.
                                                #     Ô£ô Token: *******************
                                                OutProgress $out; }
+function GithubGetBranchCommitId             ( [String] $repo, [String] $branch, [String] $repoDirForCred = "", [Boolean] $traceCmd = $false ){
+                                                # repo           : has format [HOST/]OWNER/REPO
+                                                # branch         : if branch is not uniquely defined it will throw.
+                                                # repoDirForCred : Any folder under any git repository, from which the credentials will be taken, use empty for current dir.
+                                                # traceCmd       : Output progress messages instead only the result.
+                                                # example: GithubGetBranchCommitId "mniederw/MnCommonPsToolLib" "trunk"; # returns "62ea808a029fa645fcb0c62332ca2698d1b783a1"
+                                                FsEntryAssertHasTrailingDirSep $repoDirForCred;
+                                                if( $traceCmd ){ OutProgress "List github-branch-commit from branch $branch in repo $repo (repoDirForCred=$repoDirForCred)"; }
+                                                AssertNotEmpty $repo "repo";
+                                                Push-Location $repoDirForCred;
+                                                GithubPrepareCommand;
+                                                [String] $out = "";
+                                                try{
+                                                  # example: gh api repos/mniederw/MnCommonPsToolLib/git/refs/heads/trunk --jq '.object.sha'
+                                                  $out = (ProcessStart "gh" @("api", "repos/$repo/git/refs/heads/$branch", "--jq", ".object.sha" ) -careStdErrAsOut:$false -traceCmd:$traceCmd).Trim();
+                                                }catch{
+                                                  # exc: "rc=1  gh: Not Found (HTTP 404)"
+                                                  # exc: "rc=1  expected an object but got: array ([{"node_id":"MDM6UmVmMTQ0 ...])""
+                                                  if( $_.Exception.Message.Contains("gh: Not Found (HTTP 404)") -or
+                                                      $_.Exception.Message.Contains("expected an object but got: array ") ){
+                                                    $error.clear();
+                                                    throw [ExcMsg] "ToolListBranchCommit: In github repo $repo no branch exists with name `"$branch`".";
+                                                  }else{ throw; }
+                                                }
+                                                Pop-Location;
+                                                if( $traceCmd ){ OutProgress $out; }else{ return [String] $out; } }
 function GithubListPullRequests               ( [String] $repo, [String] $filterToBranch = "", [String] $filterFromBranch = "", [String] $filterState = "open" ){
                                                # repo has format [HOST/]OWNER/REPO
                                                AssertNotEmpty $repo "repo";
@@ -2689,6 +2654,12 @@ function ToolAddLineToConfigFile              ( [String] $file, [String] $line, 
                                                 # if file not exists or line not found case sensitive in file then the line is appended.
                                                 if( FileNotExists $file ){ FileWriteFromLines $file $line; }
                                                 elseif( -not (StringArrayContains (FileReadContentAsLines $file $existingFileEncodingIfNoBom) $line) ){ FileAppendLines $file $line; } }
+function ToolGithubApiAssertValidRepoUrl      ( [String] $repoUrl ){
+                                                # Example repoUrl="https://github.com/mniederw/MnCommonPsToolLib/"
+                                                [String] $githubUrl = "https://github.com/";
+                                                Assert $repoUrl.StartsWith($githubUrl) "expected url begins with $githubUrl but got: $repoUrl";
+                                                [String[]] $a = @()+(StringSplitToArray "/" (StringRemoveLeft (StringRemoveRight $repoUrl "/") $githubUrl $false));
+                                                Assert ($a.Count -eq 2 -and $a[0].Length -ge 2 -and $a[1].Length -ge 2) "expected url contains user/reponame but got: $repoUrl"; }
 function ToolGithubApiListOrgRepos            ( [String] $org, [System.Management.Automation.PSCredential] $cred = $null ){
                                                 # List all repos (ordered by archived and url) from an org on github.
                                                 # If user and its Personal-Access-Token PAT instead of password is specified then not only public
@@ -2712,12 +2683,6 @@ function ToolGithubApiListOrgRepos            ( [String] $org, [System.Managemen
                                                   if( $a.Count -eq 0 ){ break; }
                                                   $result += $a;
                                                 } return [Array] $result | Sort-Object archived, Url; }
-function ToolGithubApiAssertValidRepoUrl      ( [String] $repoUrl ){
-                                                # Example repoUrl="https://github.com/mniederw/MnCommonPsToolLib/"
-                                                [String] $githubUrl = "https://github.com/";
-                                                Assert $repoUrl.StartsWith($githubUrl) "expected url begins with $githubUrl but got: $repoUrl";
-                                                [String[]] $a = @()+(StringSplitToArray "/" (StringRemoveLeft (StringRemoveRight $repoUrl "/") $githubUrl $false));
-                                                Assert ($a.Count -eq 2 -and $a[0].Length -ge 2 -and $a[1].Length -ge 2) "expected url contains user/reponame but got: $repoUrl"; }
 function ToolGithubApiDownloadLatestReleaseDir( [String] $repoUrl ){
                                                 # Creates a unique temp dir, downloads zip, return folder of extracted zip; You should remove dir after usage.
                                                 # Latest release is the most recent non-prerelease, non-draft release, sorted by its last commit-date.
@@ -2764,6 +2729,7 @@ function GetSetGlobalVar( [String] $var, [String] $val){ OutWarning "GetSetGloba
 function FsEntryIsEqual ( [String] $fs1, [String] $fs2, [Boolean] $caseSensitive = $false ){ OutWarning "FsEntryIsEqual is DEPRECATED, replace it now by FsEntryPathIsEqual."; return (FsEntryPathIsEqual $fs1 $fs2); }
 function StdOutBegMsgCareInteractiveMode ( [String] $mode = "" ){ OutWarning "StdOutBegMsgCareInteractiveMode is DEPRECATED; replace it now by one or more of: StdInAskForAnswerWhenInInteractMode; OutProgress `"Minimize console`"; ConsoleMinimize;"; StdInAskForAnswerWhenInInteractMode; }
 function StdOutEndMsgCareInteractiveMode ( [Int32] $delayInSec = 1 ){ OutWarning "StdOutEndMsgCareInteractiveMode is DEPRECATED; replace it now by one or more of: OutSuccess `"Ok, done. Press Enter to Exit / Ending in .. seconds.`", StdInReadLine `"Press Enter to exit.`", ProcessSleepSec!"; StdInReadLine "Press Enter to exit."; }
+function ToolGetBranchCommit ( [String] $repo, [String] $branch, [String] $repoDirForCred = "", [Boolean] $traceCmd = $false ){ OutWarning "ToolGetBranchCommit is DEPRECATED; replace it now by GithubGetBranchCommitId."; GithubGetBranchCommitId $repo $branch $repoDirForCred $traceCmd; }
 
 # ----------------------------------------------------------------------------------------------------
 
@@ -2929,6 +2895,8 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #   - Not automatically added but currently strongly recommended additional folder:
 #     - %SystemRoot%\System32\WindowsPowerShell\v1.0\Modules\    location for windows modules for all users (ps5 and up)
 #       In future if ps7 can completely replace ps5 then we can remove this folder.
+#   - Type Mismatch: A function returns a string array: If it returns a single element (=string) then it does not return a string array but the string:
+#     function ReturnStringArrayWithOneString(){ return [String[]] @("abc"); } Assert (ReturnStringArrayWithOneString)[0] -eq "a";
 # - Scopes for variables, aliases, functions and psdrives:
 #   - Local           : Current scope, is one of the other scopes: global, script, private, numbered scopes.
 #   - Global          : Active after first script start, includes automatic variables (http://ss64.com/ps/syntax-automatic-variables.html),

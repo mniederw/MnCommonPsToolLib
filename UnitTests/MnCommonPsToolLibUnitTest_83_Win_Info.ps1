@@ -1,12 +1,9 @@
 ﻿#!/usr/bin/env pwsh
 
-# Test module MnCommonPsToolLib
-
 Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 
-function Test_Info(){
+function UnitTest_Win_Info(){
   OutProgress (ScriptGetCurrentFuncName);
-  #
   if( ! (OsIsWindows) ){ OutProgress "Not running on windows, so bypass test."; return; }
   #
   OutInfo "InfoAboutComputerOverview:";
@@ -71,5 +68,6 @@ function Test_Info(){
       # 4.7.2 or later (533325)
   }
   #
+  # if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){
 }
-Test_Info;
+UnitTest_Win_Info;

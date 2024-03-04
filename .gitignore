@@ -8,7 +8,8 @@
 .textClipping
 
 # dirs
-.vs
+.vs/
+.vscode/
 
 # OS generated files
 .DS_Store

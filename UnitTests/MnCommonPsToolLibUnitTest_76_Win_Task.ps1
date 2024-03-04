@@ -1,14 +1,12 @@
 ﻿#!/usr/bin/env pwsh
 
-# Test module MnCommonPsToolLib
-
 Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 
-function Test_Win_Task(){
+function UnitTest_Win_Task(){
   OutProgress (ScriptGetCurrentFuncName);
   if( ! (OsIsWindows) ){ OutProgress "Not running on windows, so bypass test."; return; }
-  # TODO: TaskList                             (){
-  # TODO: TaskIsDisabled                       ( [String] $taskPathAndName ){
-  # TODO: TaskDisable                          ( [String] $taskPathAndName ){
+  Assert ((TaskList).Count -gt 9);
+  if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){ TaskIsDisabled "\Microsoft\Windows\Task Manager\Interactive"; }
+  if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){ TaskDisable    "\Microsoft\Windows\Task Manager\Interactive"; }
 }
-Test_Win_Task;
+UnitTest_Win_Task;

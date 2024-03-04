@@ -1,10 +1,20 @@
 ﻿#!/usr/bin/env pwsh
 
-# Test module MnCommonPsToolLib
-
 Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 
-function Test_Win_Net(){
+function UnitTest_Win_Net(){
   OutProgress (ScriptGetCurrentFuncName);
+  if( ! (OsIsWindows) ){ OutProgress "Not running on windows, so bypass test."; return; }
+  Assert ((NetAdapterListAll).Count -gt 9);
+  Assert ((NetGetIpConfig).Count -gt 9);
+  Assert ((NetGetNetView).Count -gt 9);
+  Assert ((NetGetNetStat).Count -gt 9);
+  Assert ((NetGetRoute).Count -gt 9);
+  Assert ((NetGetNbtStat).Count -gt 9);
+  Assert ((NetGetIpConfig).Count -gt 9);
+  Assert ((NetGetIpConfig).Count -gt 9);
+  Assert ((NetGetIpConfig).Count -gt 9);
+  Assert ((NetGetIpConfig).Count -gt 9);
+  if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){ [ServerCertificateValidationCallback]::Ignore(); }
 }
-Test_Win_Net;
+UnitTest_Win_Net;

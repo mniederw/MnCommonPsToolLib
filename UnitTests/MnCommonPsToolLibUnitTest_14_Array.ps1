@@ -1,10 +1,8 @@
 ﻿#!/usr/bin/env pwsh
 
-# Test module MnCommonPsToolLib
-
 Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 
-function Test_Array(){
+function UnitTest_Array(){
   OutProgress (ScriptGetCurrentFuncName);
   function TestReturnEmptyArray1(){ return [String[]] @()                                       ; }
   function TestReturnEmptyArray2(){ return [String[]] (@()+($null | Where-Object{$null -ne $_})); }
@@ -44,4 +42,4 @@ function Test_Array(){
   # empty array has expected type
   [String[]] $a = @(); Assert ($a -is [String[]]);
 }
-Test_Array;
+UnitTest_Array;

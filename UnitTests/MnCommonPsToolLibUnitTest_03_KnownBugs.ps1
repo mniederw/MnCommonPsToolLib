@@ -1,14 +1,11 @@
 ﻿#!/usr/bin/env pwsh
 
-# Test module MnCommonPsToolLib
-
 Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 
-function Test_KnowBugs(){
+function UnitTest_KnowBugs(){
   OutProgress (ScriptGetCurrentFuncName);
   # Known bugs are descripted at the bottom of MnCommonPsToolLib.psm1 file in comments.
   # Some of them are showed here in pure powershell without requiring any library.
-  # If this runs without
   #
   [Boolean] $processIsLesserEqualPs5 = ($PSVersionTable.PSVersion.Major -le 5); Write-Output "Current-PS-Version: $($PSVersionTable.PSVersion.Major)";
   #
@@ -19,4 +16,4 @@ function Test_KnowBugs(){
     Write-Output "Works as expected (in PS5 wrong, in PS7 correct).";
   }else{ throw [Exception] "Unexpected"; }
 }
-Test_KnowBugs;
+UnitTest_KnowBugs;

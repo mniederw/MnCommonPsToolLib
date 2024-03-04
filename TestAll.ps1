@@ -51,16 +51,17 @@ $($env:PSModulePath).Split($pathSep) | Where-Object{ $null -ne $_ } | ForEach-Ob
   #                 ":/usr/local/share/powershell/Modules"
   #                 ":/opt/microsoft/powershell/7/Modules"
 Write-Output "List all environment variables:";
-  Get-Variable | Format-Table -AutoSize -Force -Wrap | Out-String -Stream | ForEach-Object{ "  $_" };
-Write-Output "List all aliases";
-  Get-Alias | ForEach-Object{ Write-Output "  $($_.DisplayName)"; };
+  Get-Variable | Format-Table -AutoSize -Force -Wrap | Out-String -Stream | ForEach-Object{ "  $_" } | Select-Object -First 5;
+Write-Output "List all aliases"; Get-Alias | ForEach-Object{ Write-Output "  $($_.DisplayName)"; } | Select-Object -First 5;
 
 # disabled because it would not find for example Write-Output anymore:
 #   Write-Output "Set disable autoloading modules."; $PSModuleAutoLoadingPreference = "none"; # disable autoloading modules
 
 Write-Output "Install from PSGallery some modules as PSScriptAnalyzer, SqlServer and ThreadJob";
+Import-Module PowerShellGet; # provides: Set-PSRepository, Install-Module
 Set-PSRepository PSGallery -InstallationPolicy Trusted; # uses 7 sec
-Install-Module -ErrorAction Stop PSScriptAnalyzer, SqlServer, ThreadJob;
+Import-Module PSScriptAnalyzer, SqlServer, ThreadJob;
+# not used, remove later: Install-Module -ErrorAction Stop PSScriptAnalyzer, SqlServer, ThreadJob;
 
 Write-Output "Assert powershell module library MnCommonPsToolLib.psm1 exists near this running script.";
 Push-Location $PSScriptRoot; Pop-Location;

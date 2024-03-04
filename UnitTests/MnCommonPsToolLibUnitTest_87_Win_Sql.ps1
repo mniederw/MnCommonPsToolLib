@@ -1,11 +1,10 @@
 ﻿#!/usr/bin/env pwsh
 
-# Test module MnCommonPsToolLib
-
 Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 
-function Test_Sql(){
+function UnitTest_Win_Sql(){
   OutProgress (ScriptGetCurrentFuncName);
+  if( ! (OsIsWindows) ){ OutProgress "Not running on windows, so bypass test."; return; }
   # TODO: SqlGetCmdExe                 ()
   # TODO: SqlRunScriptFile             ( [String] $sqlserver, [String] $sqlfile, [String] $outFile, [Boolean] $continueOnErr )
   # TODO: SqlPerformFile               ( [String] $connectionString, [String] $sqlFile, [String] $logFileToAppend = "", [Int32] $queryTimeoutInSec = 0, [Boolean] $showPrint = $true, [Boolean] $showRows = $true)
@@ -13,5 +12,6 @@ function Test_Sql(){
   # TODO: SqlGenerateFullDbSchemaFiles ( [String] $logicalEnv, [String] $dbInstanceServerName, [String] $dbName, [String] $targetRootDir,
   #                                    [Boolean] $errorAsWarning = $false, [Boolean] $inclIfNotExists = $false,
   #                                    [Boolean] $inclDropStmts = $false, [Boolean] $inclDataAsInsertStmts = $false )
+  # if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){
 }
-Test_Sql;
+UnitTest_Win_Sql;

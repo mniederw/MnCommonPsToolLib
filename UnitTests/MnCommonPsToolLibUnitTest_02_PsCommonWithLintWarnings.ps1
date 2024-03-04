@@ -1,10 +1,8 @@
 ﻿#!/usr/bin/env pwsh
 
-# Test module MnCommonPsToolLib
-
 Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 
-function Test_PsCommonWithLintWarnings(){
+function UnitTest_PsCommonWithLintWarnings(){
   OutProgress (ScriptGetCurrentFuncName);
   # compare non-null array with null must be done by putting null to the left side of the comparison operator
   #   Note: The github Lint-with-PSScriptAnalyser will output warning: PSPossibleIncorrectComparisonWithNull
@@ -35,4 +33,4 @@ function Test_PsCommonWithLintWarnings(){
     OutVerbose "  IsInteractive=$(ScriptIsProbablyInteractive); Trap=Enabled; Note: Exception was not throwed and catch block not reached. We found out this happens in batch only for unknown reason. If runing interactive then works ok. Analyse it later.";
   }
 }
-Test_PsCommonWithLintWarnings;
+UnitTest_PsCommonWithLintWarnings;

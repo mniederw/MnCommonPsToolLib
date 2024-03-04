@@ -1,15 +1,13 @@
 ﻿#!/usr/bin/env pwsh
 
-# Test module MnCommonPsToolLib
-
 Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 
-function Test_Win_Tool(){
+function UnitTest_Win_Tool(){
   OutProgress (ScriptGetCurrentFuncName);
   if( ! (OsIsWindows) ){ OutProgress "Not running on windows, so bypass test."; return; }
-  Assert         (((ToolVs2019UserFolderGetLatestUsed) -eq "") -or ((ToolVs2019UserFolderGetLatestUsed).Contains("\\AppData\\Local\\Microsoft\\VisualStudio\\16.0")));
+    # if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){
   # TODO:
-  #   windows: ToolGitTortoiseCommit                    ( [String] $workDir, [String] $commitMessage = "" ){
+#   windows: ToolGitTortoiseCommit                    ( [String] $workDir, [String] $commitMessage = "" ){
   #   ToolRdpConnect                       ( [String] $rdpfile, [String] $mstscOptions = "" ){
   #                                          # Some mstsc options: /edit /admin  (use /edit temporary to set password in .rdp file)
   #                                        }
@@ -58,12 +56,7 @@ function Test_Win_Tool(){
   #                                          # Example: ToolSetAssocFileExtToCmd ".log"           "%SystemRoot%\System32\notepad.exe" "txtfile";
   #                                          # Example: ToolSetAssocFileExtToCmd ".out"           "`"C:\Any.exe`" `"%1`" -xy";
   #                                          # Example: ToolSetAssocFileExtToCmd ".out" "";
-  #   ToolVs2019UserFolderGetLatestUsed    (){
-  #                                          # return the current visual studio 2019 config folder or empty string if it not exits.
-  #                                          # example: "$env:LOCALAPPDATA\Microsoft\VisualStudio\16.0_d70392ef\"
-  #   ToolWin10PackageGetState             ( [String] $packageName ){ # Example: for "OpenSSH.Client" return "Installed","NotPresent".
-  #   ToolWin10PackageInstall              ( [String] $packageName ){ # Example: "OpenSSH.Client"
-  #   ToolWin10PackageDeinstall            ( [String] $packageName ){
+  Assert         (((ToolVs2019UserFolderGetLatestUsed) -eq "") -or ((ToolVs2019UserFolderGetLatestUsed).Contains("\\AppData\\Local\\Microsoft\\VisualStudio\\16.0")));
   #   ToolOsWindowsResetSystemFileIntegrity(){ # uses about 4 min
   #   ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $url, [Boolean] $requireElevatedAdminMode = $false,
   #                                            [Boolean] $doWaitIfFailed = $false, [String] $additionalOkUpdMsg = "",
@@ -75,5 +68,10 @@ function Test_Win_Tool(){
   #                                          # Note: if not in elevated admin mode and if it is required then it will download file twice,
   #                                          #   once to check for differences and once after switching to elevated admin mode.
   #                                          # Example: ToolPerformFileUpdateAndIsActualized "C:\Temp\a.psm1" "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/master/MnCommonPsToolLib/MnCommonPsToolLib.psm1" $true $true "Please restart" $false $true;
+
+  if( -not (ProcessIsRunningInElevatedAdminMode) ){ OutProgress "Not running in elevated mode, so bypass test."; return; }
+  OutProgress "ToolWin10PackageGetState of OpenSSH.Client: $(ToolWin10PackageGetState "OpenSSH.Client") ";
+  if( "TEST_DISCARDED_BECAUSE_CHANGES_SYSTEM" -eq "" ){ ToolWin10PackageInstall   "OpenSSH.Client"; }
+  if( "TEST_DISCARDED_BECAUSE_CHANGES_SYSTEM" -eq "" ){ ToolWin10PackageDeinstall "OpenSSH.Client"; }
 }
-Test_Win_Tool;
+UnitTest_Win_Tool;
