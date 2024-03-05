@@ -20,7 +20,7 @@ function UnitTest_Tool(){
   FileDelete $tar7zipFile1; 
   FileDelete $tar7zipFile2;
   FileDelete $srcFile;
-  DirDelete $tmpDir;
+  DirDelete  $srcDir;
   #
   # ToolUnzip ( [String] $srcZipFile, [String] $tarDir ){ # tarDir is created if it not exists, no overwriting,.  Is currently tested in: ToolGithubApiDownloadLatestReleaseDir
   #
