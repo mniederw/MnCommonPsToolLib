@@ -8,6 +8,7 @@ function UnitTest_Git(){
   [String] $repoDir = (FsEntryGetAbsolutePath "$d/mniederw/MnCommonPsToolLib#main/");
   Assert ((GitBuildLocalDirFromUrl $d "https://github.com/mniederw/MnCommonPsToolLib") -eq (FsEntryGetAbsolutePath "$d/mniederw/MnCommonPsToolLib/"));
   Assert ((GitBuildLocalDirFromUrl $d "https://github.com/mniederw/MnCommonPsToolLib#main") -eq $repoDir);
+  if( (OsIsWindows) ){ GitDisableAutoCrLf; } # on github initial settings are systemwide AutoCrLf.
   GitCmd "Clone"        $d "https://github.com/mniederw/MnCommonPsToolLib#main";
   GitCmd "Fetch"        $d "https://github.com/mniederw/MnCommonPsToolLib#main";
   GitCmd "Pull"         $d "https://github.com/mniederw/MnCommonPsToolLib#main";

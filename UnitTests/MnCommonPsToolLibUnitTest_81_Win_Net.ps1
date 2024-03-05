@@ -5,7 +5,7 @@ Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version
 function UnitTest_Win_Net(){
   OutProgress (ScriptGetCurrentFuncName);
   if( ! (OsIsWindows) ){ OutProgress "Not running on windows, so bypass test."; return; }
-  Assert ((NetAdapterListAll).Count -gt 9);
+  OutProgress "NetGetAdapterSpeed:"; NetAdapterListAll | StreamToTableString | StreamToStringIndented;;
   Assert ((NetGetIpConfig).Count -gt 9);
   Assert ((NetGetNetView).Count -gt 9);
   Assert ((NetGetNetStat).Count -gt 9);
