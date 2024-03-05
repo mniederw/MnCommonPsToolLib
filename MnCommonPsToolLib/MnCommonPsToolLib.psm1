@@ -2493,7 +2493,7 @@ function GitSetGlobalVar                      ( [String] $var, [String] $val, [B
                                                 [String] $confFile  = $(switch($useSystemNotGlobal){($true){"/etc/gitconfig"}($false){"$HOME/.gitconfig"}});
                                                 [String] $a = "";
                                                 # we must assume on windows the system config file always exists; find out with: git config --system --list --show-origin
-                                                if( (OsIsWindows -and ($useSystemNotGlobal -or (FileExists $confFile))) -or
+                                                if( ((OsIsWindows) -and ($useSystemNotGlobal -or (FileExists $confFile))) -or
                                                     (-not (OsIsWindows) -and (FileExists $confFile)) ){
                                                   # if conf file was never created then we would get for example
                                                   # on linux         : fatal: unable to read config file '/etc/gitconfig': No such file or directory

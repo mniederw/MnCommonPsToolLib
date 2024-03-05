@@ -18,30 +18,10 @@ function UnitTest_Win_Net(){
   }catch{
     OutWarning "Warning: Ignoring (known on github): $_ ";
   }
-  try{
-    OutProgress "NetGetNetView: "; NetGetNetView;
-    Assert ((NetGetNetView).Count -gt 2);
-  }catch{
-    OutWarning "Warning: Ignoring (known on github): $_ ";
-  }
-  try{
-    OutProgress "NetGetNetStat: "; NetGetNetStat;
-    Assert ((NetGetNetStat).Count -gt 2);
-  }catch{
-    OutWarning "Warning: Ignoring (known on github): $_ ";
-  }
-  try{
-    OutProgress "NetGetRoute: "; NetGetRoute;
-    Assert ((NetGetRoute).Count -gt 2);
-  }catch{
-    OutWarning "Warning: Ignoring (known on github): $_ ";
-  }
-  try{
-    OutProgress "NetGetNbtStat: "; NetGetNbtStat;
-    Assert ((NetGetNbtStat).Count -gt 2);
-  }catch{
-    OutWarning "Warning: Ignoring (known on github): $_ ";
-  }
+  OutProgress "NetGetNetView: "; NetGetNetView;
+  OutProgress "NetGetNetStat: "; Assert ((NetGetNetStat).Count -gt 2);
+  OutProgress "NetGetRoute: "  ; NetGetRoute;
+  OutProgress "NetGetNbtStat: "; NetGetNbtStat;
   if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){ [ServerCertificateValidationCallback]::Ignore(); }
 }
 UnitTest_Win_Net;
