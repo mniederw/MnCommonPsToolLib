@@ -655,7 +655,7 @@ function StreamToHtmlTableStrings             (){ $input | ConvertTo-Html -Title
 function StreamToHtmlListStrings              (){ $input | ConvertTo-Html -Title "TableData" -Body $null -As List; }
 function StreamToListString                   (){ $input | Format-List -ShowError | StreamToStringDelEmptyLeadAndTrLines; }
 function StreamToFirstPropMultiColumnString   (){ $input | Format-Wide -AutoSize -ShowError | StreamToStringDelEmptyLeadAndTrLines; }
-function StreamToStringIndented               ( [Int32] $nrOfChars = 4 ){ StringSplitIntoLines ($input | StreamToStringDelEmptyLeadAndTrLines) | ForEach-Object{ "$(" "*$nrOfChars)$_" }; }
+function StreamToStringIndented               ( [Int32] $nrOfChars = 2 ){ StringSplitIntoLines ($input | StreamToStringDelEmptyLeadAndTrLines) | ForEach-Object{ "$(" "*$nrOfChars)$_" }; }
 function StreamToDataRowsString               ( [String[]] $propertyNames = @() ){ # no header, only rows.
                                                 if( $propertyNames.Count -eq 0 ){ $propertyNames = @("*"); }
                                                 $input | Format-Table -Wrap -Force -autosize -HideTableHeaders $propertyNames | StreamToStringDelEmptyLeadAndTrLines; }
@@ -2489,11 +2489,15 @@ function GitSetGlobalVar                      ( [String] $var, [String] $val, [B
                                                 # The order of priority for configuration levels is: local, global, system.
                                                 AssertNotEmpty $var;
                                                 # check if defined
-                                                [String] $confScope     = $(switch($useSystemNotGlobal){($true){"--system"      }($false){"--global"        }});
-                                                [String] $confFileLinux = $(switch($useSystemNotGlobal){($true){"/etc/gitconfig"}($false){"$HOME/.gitconfig"}});
+                                                [String] $confScope = $(switch($useSystemNotGlobal){($true){"--system"      }($false){"--global"        }});
+                                                [String] $confFile  = $(switch($useSystemNotGlobal){($true){"/etc/gitconfig"}($false){"$HOME/.gitconfig"}});
                                                 [String] $a = "";
-                                                if( (OsIsWindows) -or (-not (OsIsWindows) -and (FileExists $confFileLinux)) ){
-                                                  # if conf file was never created then we would get for example: fatal: unable to read config file '/etc/gitconfig': No such file or directory
+                                                # we must assume on windows the system config file always exists; find out with: git config --system --list --show-origin
+                                                if( (OsIsWindows -and ($useSystemNotGlobal -or (FileExists $confFile))) -or
+                                                    (-not (OsIsWindows) -and (FileExists $confFile)) ){
+                                                  # if conf file was never created then we would get for example
+                                                  # on linux         : fatal: unable to read config file '/etc/gitconfig': No such file or directory
+                                                  # on github windows: fatal: unable to read config file 'C:/Users/runneradmin/.gitconfig': No such file or directory
                                                   $a = "$(& "git" "config" "--list" $confScope | Where-Object{ $_ -like "$var=*" })"; AssertRcIsOk;
                                                 }
                                                 # if defined then we can get value; this statement would throw if var would not be defined
@@ -2691,7 +2695,7 @@ function ToolGithubApiListOrgRepos            ( [String] $org, [System.Managemen
                                                   $result += $a;
                                                 } return [Array] $result | Sort-Object archived, Url; }
 function ToolCreate7zip                       ( [String] $srcDirOrFile, [String] $tar7zipFile ){
-                                                # If src has trailing dir separator then it specifies a dir otherwise a file. 
+                                                # If src has trailing dir separator then it specifies a dir otherwise a file.
                                                 # The target must end with 7z. It uses 7z found in path or in "C:/Program Files/7-Zip/".
                                                 if( (FsEntryGetFileExtension $tar7zipFile) -ne ".7z" ){ throw [Exception] "Expected extension 7z for target file `"$tar7zipFile`"."; }
                                                 [String] $src = "";

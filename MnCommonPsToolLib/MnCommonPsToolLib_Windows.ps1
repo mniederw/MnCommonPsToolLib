@@ -718,11 +718,26 @@ function MountPointCreate                     ( [String] $drive, [String] $mount
                                                   OutProgress "$($traceInfo)$msg";
                                                 } }
 function NetAdapterListAll                    (){
-                                                return [Object[]] (@()+(Get-CimInstance -Class win32_networkadapter |
-                                                  Where-Object{$null -ne $_} |
-                                                  Select-Object Name,NetConnectionID,MACAddress,Speed,@{Name="Status";Expression={(NetAdapterGetConnectionStatusName $_.NetConnectionStatus)}})); }
-function NetGetIpConfig                       (){ [String[]] $out = @()+(& "IPCONFIG.EXE" "/ALL"          ); AssertRcIsOk $out; return [String[]] $out; }
-function NetGetNetView                        (){ [String[]] $out = @()+(& "NET.EXE" "VIEW" $ComputerName ); AssertRcIsOk $out; return [String[]] $out; }
+                                                return [Object[]] (@()+(Get-CimInstance -Class win32_networkadapter | Where-Object{$null -ne $_} |
+                                                Select-Object Name,NetConnectionID,MACAddress,Speed,@{Name="Status";Expression={(NetAdapterGetConnectionStatusName $_.NetConnectionStatus)}})); }
+function NetGetIpConfig                       (){ # as "IPCONFIG.EXE" "/ALL"
+                                                return [Object[]] (Get-NetIPConfiguration -Detailed -All | Where-Object{$null -ne $_} | Sort-Object InterfaceAlias |
+                                                # unused: ComputerName, InterfaceIndex, NetCompartment.CompartmentId, NetCompartment.CompartmentDescription,@{Name="NetIPv6InterfNlMTU";Expression={$_.NetIPv6Interface.NlMTU}},@{Name="NetIPv4InterfNlMTU";Expression={$_.NetIPv4Interface.NlMTU}},
+                                                Select-Object InterfaceAlias,InterfaceDescription,@{Name="NetAdSt";Expression={$_.NetAdapter.Status}},IPv4Address,
+                                                IPv6LinkLocalAddress,@{Name="NetAdapterLLAdr";Expression={$_.NetAdapter.LinkLayerAddress}},
+                                                @{Name="IPv6InDhcp";Expression={$_.NetIPv6Interface.DHCP}},
+                                                @{Name="IPv4InDhcp";Expression={$_.NetIPv4Interface.DHCP}},
+                                                @{Name="NetProfilName";Expression={$_.NetProfile.Name}},
+                                                @{Name="ProfilCat";Expression={$_.NetProfile.NetworkCategory}},
+                                                @{Name="NetProfilIPv6Co";Expression={$_.NetProfile.IPv6Connectivity}},
+                                                @{Name="NetProfilIPv4Co";Expression={$_.NetProfile.IPv4Connectivity}},
+                                                IPv6DefaultGateway,IPv4DefaultGateway,
+                                                @{Name="DNSServer";Expression={$_.DNSServer}} ); }
+function NetGetIpAddress                      (){ # IP V4 and V6 address configuration and interfaces with which addresses are associated
+                                                return [Object[]] (Get-NetIPAddress | Where-Object{$null -ne $_} | Sort-Object AddressFamily, InterfaceAlias, IPAddress | # unused: InterfaceIndex, SkipAsSource,PolicyStore
+                                                Select-Object @{Name="Fam";Expression={$_.AddressFamily}}, InterfaceAlias, IPAddress, Type,PrefixLength,PrefixOrigin,SuffixOrigin,AddressState,ValidLifetime,PreferredLifetime); }
+function NetGetNetView                        (){ # List provided shares (later for portability list mounts)
+                                                [String[]] $out = @()+(& "NET.EXE" "VIEW" $ComputerName ); AssertRcIsOk $out; return [String[]] $out; }
 function NetGetNetStat                        (){ [String[]] $out = @()+(& "NETSTAT.EXE" "/A"             ); AssertRcIsOk $out; return [String[]] $out; }
 function NetGetRoute                          (){ [String[]] $out = @()+(& "ROUTE.EXE" "PRINT"            ); AssertRcIsOk $out; return [String[]] $out; }
 function NetGetNbtStat                        (){ [String[]] $out = @()+(& "NBTSTAT.EXE" "-N"             ); AssertRcIsOk $out; return [String[]] $out; }
