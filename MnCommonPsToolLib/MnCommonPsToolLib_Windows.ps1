@@ -13,17 +13,15 @@ if( $null -ne (Import-Module -NoClobber -Name "CimCmdlets"     -ErrorAction Cont
 # Import-Module "SmbWitness"; # for later usage
 # Import-Module "ServerManager"; # Is not always available, requires windows-server-os or at least Win10Prof with installed RSAT. Because seldom used we do not try to load it here.
 
-function ProcessGetNrOfCores                  (){ return [Int32] (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors; }
-function ProcessOpenAssocFile                 ( [String] $fileOrUrl ){ & "rundll32" "url.dll,FileProtocolHandler" $fileOrUrl; AssertRcIsOk; }
-function JobStart                             ( [ScriptBlock] $scr, [Object[]] $scrArgs = $null, [String] $name = "Job" ){ # Return job object of type PSRemotingJob, the returned object of the script block can later be requested.
-                                                return [System.Management.Automation.Job] (Start-Job -name $name -ScriptBlock $scr -ArgumentList $scrArgs); }
-function JobGet                               ( [String] $id ){ return [System.Management.Automation.Job] (Get-Job -Id $id); } # Return job object.
-function JobGetState                          ( [String] $id ){ return [String] (JobGet $id).State; } # NotStarted, Running, Completed, Stopped, Failed, and Blocked.
-function JobWaitForNotRunning                 ( [Int32] $id, [Int32] $timeoutInSec = -1 ){ Wait-Job -Id $id -Timeout $timeoutInSec | Out-Null; }
-function JobWaitForState                      ( [Int32] $id, [String] $state, [Int32] $timeoutInSec = -1 ){ Wait-Job -Id $id -State $state -Force -Timeout $timeoutInSec | Out-Null; }
-function JobWaitForEnd                        ( [Int32] $id ){ JobWaitForNotRunning $id; return [Object] (Receive-Job -Id $id); } # Return result object of script block, job is afterwards deleted.
-function OsIsWinVistaOrHigher                 (){ return [Boolean] ([Environment]::OSVersion.Version -ge (new-object "Version" 6,0)); }
-function OsIsWin7OrHigher                     (){ return [Boolean] ([Environment]::OSVersion.Version -ge (new-object "Version" 6,1)); }
+# Set some self defined constant global variables
+if( $null -eq (Get-Variable -Scope global -ErrorAction SilentlyContinue -Name AllUsersMenuDir) ){ # check wether last variable already exists because reload safe
+  New-Variable -option Constant -scope global -name UserQuickLaunchDir           -value ([String]"$env:APPDATA\Microsoft\Internet Explorer\Quick Launch");
+  New-Variable -option Constant -scope global -name UserSendToDir                -value ([String]"$env:APPDATA\Microsoft\Windows\SendTo");
+  New-Variable -option Constant -scope global -name UserMenuDir                  -value ([String]"$env:APPDATA\Microsoft\Windows\Start Menu");
+  New-Variable -option Constant -scope global -name UserMenuStartupDir           -value ([String]"$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup");
+  New-Variable -option Constant -scope global -name AllUsersMenuDir              -value ([String]"$env:ALLUSERSPROFILE\Microsoft\Windows\Start Menu");
+}
+
 function OsIs64BitOs                          (){ return [Boolean] (Get-CimInstance -Class Win32_OperatingSystem -ErrorAction SilentlyContinue).OSArchitecture -eq "64-Bit"; }
 function OsIsWinScreenLocked                  (){ return [Boolean] ((@()+(Get-Process | Where-Object{ $_.ProcessName -eq "LogonUI"})).Count -gt 0); }
 function OsIsHibernateEnabled                 (){
@@ -72,6 +70,15 @@ function OsWinPowerOff                        ( [Int32] $waitSec = 60, [Boolean]
                                                 OutWarning "Warning: In $waitSec seconds calling Power-Off (forceIfScreenLocked=$forceIfScreenLocked) (use ctrl-c to abort)!";
                                                 ProcessSleepSec "$waitSec";
                                                 if( $forceIfScreenLocked -and (OsIsWinScreenLocked) ){ Stop-Computer -Force; }else{ Stop-Computer; } }
+function ProcessGetNrOfCores                  (){ return [Int32] (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors; }
+function ProcessOpenAssocFile                 ( [String] $fileOrUrl ){ & "rundll32" "url.dll,FileProtocolHandler" $fileOrUrl; AssertRcIsOk; }
+function JobStart                             ( [ScriptBlock] $scr, [Object[]] $scrArgs = $null, [String] $name = "Job" ){ # Return job object of type PSRemotingJob, the returned object of the script block can later be requested.
+                                                return [System.Management.Automation.Job] (Start-Job -name $name -ScriptBlock $scr -ArgumentList $scrArgs); }
+function JobGet                               ( [String] $id ){ return [System.Management.Automation.Job] (Get-Job -Id $id); } # Return job object.
+function JobGetState                          ( [String] $id ){ return [String] (JobGet $id).State; } # NotStarted, Running, Completed, Stopped, Failed, and Blocked.
+function JobWaitForNotRunning                 ( [Int32] $id, [Int32] $timeoutInSec = -1 ){ Wait-Job -Id $id -Timeout $timeoutInSec | Out-Null; }
+function JobWaitForState                      ( [String] $state = "Completed", [Int32] $timeoutInSec = -1 ){ Wait-Job -State $state -Force -Timeout $timeoutInSec | Out-Null; }
+function JobWaitForEnd                        ( [Int32] $id ){ JobWaitForNotRunning $id; return [Object] (Receive-Job -Id $id); } # Return result object of script block, job is afterwards deleted.
 function PrivGetUserFromName                  ( [String] $username ){ # optionally as domain\username
                                                 return [System.Security.Principal.NTAccount] $username; }
 function PrivGetUserCurrent                   (){ return [System.Security.Principal.IdentityReference] ([System.Security.Principal.WindowsIdentity]::GetCurrent().User); } # alternative: PrivGetUserFromName "$env:userdomain\$env:username"
@@ -582,15 +589,6 @@ function DriveList                            (){
                                                 return [Object[]] (@()+(Get-CimInstance "Win32_LogicalDisk" |
                                                   Where-Object{$null -ne $_} |
                                                   Select-Object DeviceID, FileSystem, Size, FreeSpace, VolumeName, DriveType, @{Name="DriveTypeName";Expression={(DriveMapTypeToString $_.DriveType)}}, ProviderName)); }
-function NetAdapterListAll                    (){
-                                                return [Object[]] (@()+(Get-CimInstance -Class win32_networkadapter |
-                                                  Where-Object{$null -ne $_} |
-                                                  Select-Object Name,NetConnectionID,MACAddress,Speed,@{Name="Status";Expression={(NetAdapterGetConnectionStatusName $_.NetConnectionStatus)}})); }
-function NetGetIpConfig                       (){ [String[]] $out = @()+(& "IPCONFIG.EXE" "/ALL"          ); AssertRcIsOk $out; return [String[]] $out; }
-function NetGetNetView                        (){ [String[]] $out = @()+(& "NET.EXE" "VIEW" $ComputerName ); AssertRcIsOk $out; return [String[]] $out; }
-function NetGetNetStat                        (){ [String[]] $out = @()+(& "NETSTAT.EXE" "/A"             ); AssertRcIsOk $out; return [String[]] $out; }
-function NetGetRoute                          (){ [String[]] $out = @()+(& "ROUTE.EXE" "PRINT"            ); AssertRcIsOk $out; return [String[]] $out; }
-function NetGetNbtStat                        (){ [String[]] $out = @()+(& "NBTSTAT.EXE" "-N"             ); AssertRcIsOk $out; return [String[]] $out; }
 function ShareGetTypeName                     ( [UInt32] $typeNr ){
                                                 return [String] $(switch($typeNr){ 0{"DiskDrive"} 1 {"PrintQueue"} 2{"Device"} 3{"IPC"}
                                                 2147483648{"DiskDriveAdmin"} 2147483649{"PrintQueueAdmin"} 2147483650{"DeviceAdmin"} 2147483651{"IPCAdmin"} default{"unknownNr=$typeNr"} }); }
@@ -719,6 +717,34 @@ function MountPointCreate                     ( [String] $drive, [String] $mount
                                                   else {}
                                                   OutProgress "$($traceInfo)$msg";
                                                 } }
+function NetAdapterListAll                    (){
+                                                return [Object[]] (@()+(Get-CimInstance -Class win32_networkadapter | Where-Object{$null -ne $_} |
+                                                Select-Object Name,NetConnectionID,MACAddress,Speed,@{Name="Status";Expression={(NetAdapterGetConnectionStatusName $_.NetConnectionStatus)}})); }
+function NetGetIpConfig                       (){ # as "IPCONFIG.EXE" "/ALL"
+                                                return [Object[]] (Get-NetIPConfiguration -Detailed -All | Where-Object{$null -ne $_} | Sort-Object InterfaceAlias |
+                                                # unused: ComputerName, InterfaceIndex, NetCompartment.CompartmentId, NetCompartment.CompartmentDescription,
+                                                #   @{Name="NetIPv6InterfNlMTU";Expression={$_.NetIPv6Interface.NlMTU}},@{Name="NetIPv4InterfNlMTU";Expression={$_.NetIPv4Interface.NlMTU}},
+                                                Select-Object InterfaceAlias,InterfaceDescription,@{Name="NetAdSt";Expression={$_.NetAdapter.Status}},
+                                                @{Name="IPv4Address";Expression={$_.IPv4Address.IPAddress}},
+                                                @{Name="IPv6LinkLocalAddress";Expression={$_.IPv6LinkLocalAddress.IPAddress}},
+                                                @{Name="NetAdapterLLAdr";Expression={$_.NetAdapter.LinkLayerAddress}},
+                                                @{Name="IPv4InDhcp";Expression={$_.NetIPv4Interface.DHCP}},
+                                                @{Name="IPv6InDhcp";Expression={$_.NetIPv6Interface.DHCP}},
+                                                @{Name="NetProfilName";Expression={$_.NetProfile.Name}},
+                                                @{Name="ProfilCat";Expression={$_.NetProfile.NetworkCategory}},
+                                                @{Name="NetProfilIPv4Co";Expression={$_.NetProfile.IPv4Connectivity}},
+                                                @{Name="NetProfilIPv6Co";Expression={$_.NetProfile.IPv6Connectivity}},
+                                                @{Name="IPv4DefaultGateway";Expression={$_.IPv4DefaultGateway.NextHop}},
+                                                @{Name="IPv6DefaultGateway";Expression={$_.IPv6DefaultGateway.NextHop}},
+                                                @{Name="DNSServer";Expression={$_.DNSServer.ServerAddresses -join "; "}} ); }
+function NetGetIpAddress                      (){ # IP V4 and V6 address configuration and interfaces with which addresses are associated
+                                                return [Object[]] (Get-NetIPAddress | Where-Object{$null -ne $_} | Sort-Object AddressFamily, InterfaceAlias, IPAddress | # unused: InterfaceIndex, SkipAsSource,PolicyStore
+                                                Select-Object @{Name="Fam";Expression={$_.AddressFamily}}, InterfaceAlias, IPAddress, Type,PrefixLength,PrefixOrigin,SuffixOrigin,AddressState,ValidLifetime,PreferredLifetime); }
+function NetGetNetView                        (){ # List provided shares (later for portability list mounts)
+                                                [String[]] $out = @()+(& "NET.EXE" "VIEW" $ComputerName ); AssertRcIsOk $out; return [String[]] $out; }
+function NetGetNetStat                        (){ [String[]] $out = @()+(& "NETSTAT.EXE" "/A"             ); AssertRcIsOk $out; return [String[]] $out; }
+function NetGetRoute                          (){ [String[]] $out = @()+(& "ROUTE.EXE" "PRINT"            ); AssertRcIsOk $out; return [String[]] $out; }
+function NetGetNbtStat                        (){ [String[]] $out = @()+(& "NBTSTAT.EXE" "-N"             ); AssertRcIsOk $out; return [String[]] $out; }
 function JuniperNcEstablishVpnConn            ( [String] $secureCredentialFile, [String] $url, [String] $realm ){
                                                 [String] $serviceName = "DsNcService";
                                                 [String] $vpnProg = "${env:ProgramFiles(x86)}/Juniper Networks/Network Connect 8.0/nclauncher.exe";
@@ -875,268 +901,6 @@ function InfoGetInstalledDotNetVersion        ( [Boolean] $alsoOutInstalledClrAn
                                                 elseif( $relKey -ge 378675 ){ $relStr = "4.5.1"; }
                                                 elseif( $relKey -ge 378389 ){ $relStr = "4.5"  ; }
                                                 return [String] $relStr; }
-function ToolRdpConnect                       ( [String] $rdpfile, [String] $mstscOptions = "" ){
-                                                # Run RDP gui program with some mstsc options: /edit /admin  (use /edit temporary to set password in .rdp file)
-                                                OutProgress "ToolRdpConnect: `"$rdpfile`" $mstscOptions";
-                                                & "$env:SystemRoot/System32/mstsc.exe" $mstscOptions $rdpfile; AssertRcIsOk;
-                                              }
-function ToolHibernateModeEnable              (){
-                                                OutInfo "Enable hibernate mode";
-                                                if( (OsIsHibernateEnabled) ){
-                                                  OutProgress "Ok, is enabled.";
-                                                }elseif( (DriveFreeSpace 'C') -le ((OsInfoMainboardPhysicalMemorySum) * 1.3) ){
-                                                  OutWarning "Warning: Cannot enable hibernate because has not enought hd-space (RAM=$(OsInfoMainboardPhysicalMemorySum),DriveC-Free=$(DriveFreeSpace 'C'); ignored.";
-                                                }else{
-                                                  ProcessRestartInElevatedAdminMode;
-                                                  & "$env:SystemRoot/System32/powercfg.exe" "-HIBERNATE" "ON"; AssertRcIsOk;
-                                                }
-                                              }
-function ToolHibernateModeDisable             (){
-                                                OutInfo "Disable hibernate mode";
-                                                if( -not (OsIsHibernateEnabled) ){
-                                                  OutProgress "Ok, is disabled.";
-                                                }else{
-                                                  ProcessRestartInElevatedAdminMode;
-                                                  & "$env:SystemRoot/System32/powercfg.exe" "-HIBERNATE" "OFF"; AssertRcIsOk;
-                                                }
-                                              }
-function ToolActualizeHostsFileByMaster       ( [String] $srcHostsFile ){
-                                                OutInfo "Actualize hosts file by a master file";
-                                                # regular manually way: run notepad.exe with admin rights, open the file, edit, save.
-                                                [String] $tarHostsFile = FsEntryGetAbsolutePath "$env:SystemRoot/System32/drivers/etc/hosts";
-                                                [String] $tardir = FsEntryMakeTrailingDirSep (RegistryGetValueAsString "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "DataBasePath");
-                                                if( $tardir -ne (FsEntryGetParentDir $tarHostsFile) ){
-                                                  throw [Exception] "Expected HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters:DataBasePath=`"$tardir`" equal to dir of: `"$tarHostsFile`"";
-                                                }
-                                                if( -not (FileContentsAreEqual $srcHostsFile $tarHostsFile $true) ){
-                                                  ProcessRestartInElevatedAdminMode;
-                                                  [String] $tmp = "";
-                                                  if( (FsEntryGetFileName $srcHostsFile) -eq "hosts" ){
-                                                     # Note: Its unbelievable but the name cannot be `"hosts`" because MS-Defender, so we need to copy it first to a temp file";
-                                                     # https://www.microsoft.com/en-us/wdsi/threats/malware-encyclopedia-description?name=SettingsModifier%3aWin32%2fHostsFileHijack&threatid=265754
-                                                     $tmp = (FileGetTempFile);
-                                                     FileCopy $srcHostsFile $tmp $true;
-                                                     FsEntrySetAttributeReadOnly $tmp $false;
-                                                     $srcHostsFile = $tmp;
-                                                  }
-                                                  FileCopy $srcHostsFile $tarHostsFile $true;
-                                                  if( $tmp -ne "" ){ FileDelete $tmp; }
-                                                }else{
-                                                  OutProgress "Ok, content is already correct.";
-                                                }
-                                              }
-function ToolCreate7zip                       ( [String] $srcDirOrFile, [String] $tar7zipFile ){ # target must end with 7z. uses 7z.exe in path or in "C:/Program Files/7-Zip/"
-                                                if( (FsEntryGetFileExtension $tar7zipFile) -ne ".7z" ){ throw [Exception] "Expected extension 7z for target file `"$tar7zipFile`"."; }
-                                                [String] $src = "";
-                                                [String] $recursiveOption = "";
-                                                if( (DirExists $srcDirOrFile) ){ $recursiveOption = "-r"; $src = "$(FsEntryMakeTrailingDirSep $srcDirOrFile)*";
-                                                }else{ FileAssertExists $srcDirOrFile; $recursiveOption = "-r-"; $src = $srcDirOrFile; }
-                                                [String] $Prog7ZipExe = ProcessGetCommandInEnvPathOrAltPaths "7z.exe" @("C:/Program Files/7-Zip/");
-                                                # Options: -t7z : use 7zip format; -mmt=4 : try use nr of threads; -w : use temp dir; -r : recursively; -r- : not-recursively;
-                                                [Array] $arguments = "-t7z", "-mx=9", "-mmt=4", "-w", $recursiveOption, "a", "$tar7zipFile", $src;
-                                                OutProgress "$Prog7ZipExe $arguments";
-                                                [String] $out = (& $Prog7ZipExe $arguments); AssertRcIsOk $out;
-                                              }
-function ToolUnzip                            ( [String] $srcZipFile, [String] $tarDir ){ # tarDir is created if it not exists, no overwriting, requires DotNetFX4.5.
-                                                Add-Type -AssemblyName "System.IO.Compression.FileSystem";
-                                                $srcZipFile = FsEntryGetAbsolutePath $srcZipFile; $tarDir = FsEntryGetAbsolutePath $tarDir;
-                                                OutProgress "Unzip `"$srcZipFile`" to `"$tarDir`"";
-                                                # alternative: in PS5 there is: Expand-Archive zipfile -DestinationPath tardir
-                                                [System.IO.Compression.ZipFile]::ExtractToDirectory($srcZipFile, $tarDir);
-                                              }
-function ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [String] $workDir, [String] $lnkFile, [String] $srcFsEntry, [String[]] $arguments = @(),
-                                                  [Boolean] $runElevated = $false, [Boolean] $ignoreIfSrcNotExists = $false ){
-                                                # Creates links to files as programs or document files or to directories.
-                                                # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA/Microsoft/Windows/Start Menu/Programs/LinkToNotepad.lnk" "C:/Windows/notepad.exe";
-                                                # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA/Microsoft/Internet Explorer/Quick Launch/LinkToNotepad.lnk" "C:/Windows/notepad.exe";
-                                                # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA/Microsoft/Windows/Start Menu/- Folders/C - SendTo.lnk" "$HOME/AppData/Roaming/Microsoft/Windows/SendTo/";
-                                                # forceRecreate: if is false and target lnkfile already exists then it does nothing.
-                                                # workDir             : can be empty string. Internally it then takes the parent of the file.
-                                                # srcFsEntry          : file or dir. A dir must be specified by a trailing dir separator!
-                                                # runElevated         : the link is marked to request for run in elevated mode.
-                                                # ignoreIfSrcNotExists: if source not exists it will be silently ignored, but then the lnk file cannot be created.
-                                                # Icon: If next to the srcFile an ico file with the same filename exists then this will be taken.
-                                                $workDir    = FsEntryGetAbsolutePath $workDir;
-                                                $lnkFile    = FsEntryGetAbsolutePath $lnkFile;
-                                                $srcFsEntry = FsEntryGetAbsolutePath $srcFsEntry;
-                                                [String] $descr = $srcFsEntry;
-                                                [Boolean] $isDir = FsEntryHasTrailingDirSep $srcFsEntry;
-                                                if( $ignoreIfSrcNotExists -and (($isDir -and (DirNotExists $srcFsEntry)) -or (-not $isDir -and (FileNotExists $srcFsEntry))) ){
-                                                  OutVerbose "NotCreatedBecauseSourceFileNotExists: $lnkFile"; return;
-                                                }
-                                                if( $isDir ){ DirAssertExists $srcFsEntry; }else{ FileAssertExists $srcFsEntry; }
-                                                if( $forceRecreate ){ FileDelete $lnkFile; }
-                                                if( (FileExists $lnkFile) ){
-                                                  OutVerbose "Unchanged: $lnkFile";
-                                                }else{
-                                                    [String] $argLine = $arguments; # array to string
-                                                    if( $workDir -eq "" ){ if( $isDir ){ $workDir = $srcFsEntry; }else{ $workDir = FsEntryGetParentDir $srcFsEntry; } }
-                                                    [String] $iconFile = (StringRemoveRight (FsEntryRemoveTrailingDirSep $srcFsEntry) (FsEntryGetFileExtension $srcFsEntry)) + ".ico";
-                                                    [String] $ico = $(switch((FileExists $iconFile)){($true){$iconFile}($false){",0"}});
-                                                    OutProgress "CreateShortcut `"$lnkFile`"";
-                                                    try{
-                                                      [Object] $wshShell = New-Object -comObject WScript.Shell;
-                                                      [Object] $s = $wshShell.CreateShortcut($lnkFile); # do not use FsEntryEsc otherwise [ will be created as `[
-                                                      $s.TargetPath       = FsEntryEsc $srcFsEntry;
-                                                      $s.Arguments        = $argLine;
-                                                      $s.WorkingDirectory = FsEntryEsc $workDir;
-                                                      $s.Description      = $descr;
-                                                      $s.IconLocation     = $ico; # one of: ",0" "myprog.exe, 0" "myprog.ico";
-                                                      OutVerbose "WScript.Shell.CreateShortcut workDir=`"$workDir`" lnk=`"$lnkFile`" src=`"$srcFsEntry`" arg=`"$argLine`" descr=`"$descr`" ico==`"$ico`"";
-                                                      FsEntryCreateParentDir $lnkFile;
-                                                      # $s.WindowStyle = 1; 1=Normal; 3=Maximized; 7=Minimized;
-                                                      # $s.Hotkey = "CTRL+SHIFT+F"; # requires restart explorer
-                                                      # $s.RelativePath = ...
-                                                      $s.Save(); # does overwrite
-                                                    }catch{
-                                                      throw [ExcMsg] "$(ScriptGetCurrentFunc)(`"$workDir`",`"$lnkFile`",`"$srcFsEntry`",`"$argLine`",`"$descr`") failed because $($_.Exception.Message)";
-                                                    }
-                                                  if( $runElevated ){
-                                                    [Byte[]] $bytes = [IO.File]::ReadAllBytes($lnkFile); $bytes[0x15] = $bytes[0x15] -bor 0x20; [IO.File]::WriteAllBytes($lnkFile,$bytes);  # set bit 6 of byte nr 21
-                                                  } } }
-function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [String] $sourceDir,
-                                                [String] $srcFileExtMenuLink    = ".menulink.txt",
-                                                [String] $srcFileExtMenuLinkOpt = ".menulinkoptional.txt" ){
-                                                # Create menu entries based on menu-item-linkfiles below a dir.
-                                                # - targetMenuRootDir      : target start menu folder, example: "$env:APPDATA\Microsoft\Windows\Start Menu\Apps"
-                                                # - sourceDir              : Used to finds all files below sourceDir with the extension (example: ".menulink.txt").
-                                                #                            For each of these files it will create a menu item below the target menu root dir.
-                                                # - srcFileExtMenuLink     : Extension for mandatory menu linkfiles. The containing referenced command (in general an executable) must exist.
-                                                # - $srcFileExtMenuLinkOpt : Extension for optional  menu linkfiles. Menu item is created only if the containing referenced executable will exist.
-                                                # The name of the target menu item (example: "Manufactor ProgramName V1") will be taken from the name
-                                                #   of the menu-item-linkfile (example: ...\Manufactor ProgramName V1.menulink.txt) without the extension (example: ".menulink.txt")
-                                                #   and the sub menu folder will be taken from the relative location of the menu-item-linkfile below the sourceDir.
-                                                # The command for the target menu will be taken from the first line (example: "D:\MyApps\Manufactor ProgramName\AnyProgram.exe")
-                                                #   of the content of the menu-item-linkfile.
-                                                # If target lnkfile already exists it does nothing.
-                                                # Example: ToolCreateMenuLinksByMenuItemRefFile "$env:APPDATA\Microsoft\Windows\Start Menu\Apps" "D:\MyApps" ".menulink.txt";
-                                                FsEntryAssertHasTrailingDirSep $targetMenuRootDir;
-                                                FsEntryAssertHasTrailingDirSep $sourceDir;
-                                                [String] $m    = FsEntryGetAbsolutePath $targetMenuRootDir; # Example: "$env:APPDATA\Microsoft\Windows\Start Menu\MyPortableProg\"
-                                                [String] $sdir = FsEntryGetAbsolutePath $sourceDir; # Example: "D:\MyPortableProgs"
-                                                OutProgress "Create menu links to `"$m`" from files below `"$sdir`" with extension `"$srcFileExtMenuLink`" or `"$srcFileExtMenuLinkOpt`" files";
-                                                Assert ($srcFileExtMenuLink    -ne "" -or (-not (FsEntryHasTrailingDirSep $srcFileExtMenuLink   ))) "srcMenuLinkFileExt=`"$srcFileExtMenuLink`" is empty or has trailing backslash";
-                                                Assert ($srcFileExtMenuLinkOpt -ne "" -or (-not (FsEntryHasTrailingDirSep $srcFileExtMenuLinkOpt))) "srcMenuLinkOptFileExt=`"$srcFileExtMenuLinkOpt`" is empty or has trailing backslash";
-                                                if( -not (DirExists $sdir) ){ OutWarning "Warning: Ignoring dir not exists: `"$sdir`""; }
-                                                [String[]] $menuLinkFiles =  (@()+(FsEntryListAsStringArray "$sdir$(DirSep)*$srcFileExtMenuLink"    $true $false));
-                                                           $menuLinkFiles += (FsEntryListAsStringArray "$sdir$(DirSep)*$srcFileExtMenuLinkOpt" $true $false);
-                                                           $menuLinkFiles =  (@()+($menuLinkFiles | Where-Object{$null -ne $_} | Sort-Object));
-                                                foreach( $f in $menuLinkFiles ){ # Example: "...\MyProg .menulinkoptional.txt"
-                                                  [String] $d = FsEntryGetParentDir $f; # Example: "D:\MyPortableProgs\Appl\Graphic\"
-                                                  [String] $relBelowSrcDir = FsEntryMakeRelative $d $sdir; # Example: "Appl\Graphic\" or ".\"
-                                                  [String] $workDir = "";
-                                                  # Example: "$env:APPDATA\Microsoft\Windows\Start Menu\MyPortableProg\Appl\Graphic\Manufactor ProgramName V1 en 2016.lnk"
-                                                  [String] $fn = FsEntryGetFileName $f; $fn = StringRemoveRight $fn $srcFileExtMenuLink; $fn = StringRemoveRight $fn $srcFileExtMenuLinkOpt; $fn = $fn.TrimEnd();
-                                                  [String] $lnkFile = FsEntryGetAbsolutePath "$m/$relBelowSrcDir/$fn.lnk";
-                                                  [String] $encodingIfNoBom = "Default"; # Encoding Default is ANSI on windows and UTF8 on other platforms.
-                                                  [String] $cmdLine = FileReadContentAsLines $f $encodingIfNoBom | Select-Object -First 1;
-                                                  [String] $addTraceInfo = "";
-                                                  [Boolean] $forceRecreate = FileNotExistsOrIsOlder $lnkFile $f;
-                                                  [Boolean] $ignoreIfSrcNotExists = $f.EndsWith($srcFileExtMenuLinkOpt);
-                                                  try{
-                                                    [String[]] $ar = @()+(StringCommandLineToArray $cmdLine); # can throw: Expected blank or tab char or end of string but got char ...
-                                                    if( $ar.Length -eq 0 ){ throw [Exception] "Missing a command line at first line in file=`"$f`" cmdline=`"$cmdLine`""; }
-                                                    if( ($ar.Length-1) -gt 999 ){
-                                                      throw [Exception] "Command line has more than the allowed 999 arguments at first line infile=`"$f`" nrOfArgs=$($ar.Length) cmdline=`"$cmdLine`""; }
-                                                    # Example: "D:\MyPortableProgs\Manufactor ProgramName\AnyProgram.exe"
-                                                    [String] $srcFile = FsEntryGetAbsolutePath ([System.IO.Path]::Combine($d,$ar[0]));
-                                                    [String[]] $arguments = @()+($ar | Select-Object -Skip 1);
-                                                    $addTraceInfo = "and calling (ToolCreateLnkIfNotExists $forceRecreate `"$workDir`" `"$lnkFile`" `"$srcFile`" `"$arguments`" $false $ignoreIfSrcNotExists) ";
-                                                    ToolCreateLnkIfNotExists $forceRecreate $workDir $lnkFile $srcFile $arguments $false $ignoreIfSrcNotExists;
-                                                  }catch{
-                                                    [String] $msg = "$($_.Exception.Message).$(switch(-not $cmdLine.StartsWith('`"')){($true){' Maybe first file of content in menulink file should be quoted.'}default{' Maybe if first file not exists you may use file extension `".menulinkoptional`" instead of `".menulink`".'}})";
-                                                    OutWarning "Warning: Create menulink by reading file `"$f`", taking first line as cmdLine ($cmdLine) $addTraceInfo failed because $msg";
-                                                  } } }
-function ToolSignDotNetAssembly               ( [String] $keySnk, [String] $srcDllOrExe, [String] $tarDllOrExe, [Boolean] $overwrite = $false ){
-                                                # Sign (apply strong name) a given source executable with a given key and write it to a target file.
-                                                # If the sourcefile has an correspondig xml file with the same name then this is also copied to target.
-                                                # If the input file was already signed then it creates a target file with the same name and the extension ".originalWasAlsoSigned.txt".
-                                                # Note: Generate your own key with: sn.exe -k mykey.snk
-                                                OutInfo "Sign dot-net assembly: keySnk=`"$keySnk`" srcDllOrExe=`"$srcDllOrExe`" tarDllOrExe=`"$tarDllOrExe`" overwrite=$overwrite ";
-                                                [Boolean] $execHasStrongName = ([String](& sn -vf $srcDllOrExe | Select-Object -Skip 4 )) -like "Assembly '*' is valid";
-                                                [Boolean] $isDllNotExe = $srcDllOrExe.ToLower().EndsWith(".dll");
-                                                if( -not $isDllNotExe -and -not $srcDllOrExe.ToLower().EndsWith(".exe") ){
-                                                  throw [Exception] "Expected ends with .dll or .exe, srcDllOrExe=`"$srcDllOrExe`""; }
-                                                if( -not $overwrite -and (FileExists $tarDllOrExe) ){
-                                                  OutProgress "Ok, nothing done because target already exists: $tarDllOrExe"; return; }
-                                                FsEntryCreateParentDir  $tarDllOrExe;
-                                                [String] $n = FsEntryGetFileName $tarDllOrExe;
-                                                [String] $d = DirCreateTemp "SignAssembly_";
-                                                OutProgress "ildasm.exe -NOBAR -all `"$srcDllOrExe`" `"-out=$d$(DirSep)$n.il`"";
-                                                & "ildasm.exe" -TEXT -all $srcDllOrExe "-out=$d$(DirSep)$n.il"; AssertRcIsOk;
-                                                OutProgress "ilasm.exe -QUIET -DLL -PDB `"-KEY=$keySnk`" `"$d$(DirSep)$n.il`" `"-RESOURCE=$d$(DirSep)$n.res`" `"-OUTPUT=$tarDllOrExe`"";
-                                                & "ilasm.exe" -QUIET -DLL -PDB "-KEY=$keySnk" "$d$(DirSep)$n.il" "-RESOURCE=$d$(DirSep)$n.res" "-OUTPUT=$tarDllOrExe"; AssertRcIsOk;
-                                                DirDelete $d;
-                                                # Note: We do not take the pdb of original unsigned assembly because ilmerge would fail because pdb is outdated. But we created a new pdb if it is available.
-                                                [String] $srcXml = (StringRemoveRightNr $srcDllOrExe 4) + ".xml";
-                                                [String] $tarXml = (StringRemoveRightNr $tarDllOrExe 4) + ".xml";
-                                                [String] $tarOri = (StringRemoveRightNr $tarDllOrExe 4) + ".originalWasAlsoSigned.txt";
-                                                if( $execHasStrongName ){ FileWriteFromString $tarOri "Original executable has also a strong name: $srcDllOrExe" $true; }
-                                                if( FileExists $srcXml ){ FileCopy $srcXml $tarXml $true; } }
-function ToolSetAssocFileExtToCmd             ( [String[]] $fileExtensions, [String] $cmd, [String] $ftype = "", [Boolean] $assertPrgExists = $false ){ # Works only on Windows
-                                                # Sets the association of a file extension to a command by overwriting it.
-                                                # FileExtensions: must begin with a dot, must not content blanks or commas,
-                                                #   if it is only a dot then it is used for files without a file ext.
-                                                # Cmd: if it is empty then association is deleted.
-                                                #  Can contain variables as %SystemRoot% which will be replaced at runtime.
-                                                #   If cmd does not begin with embedded double quotes then it is interpreted as a full path to an executable
-                                                #   otherwise it uses the cmd as it is.
-                                                # Ftype: Is a group of file extensions. If it not yet exists then a default will be created
-                                                #   in the style {extWithoutDot}file (example: ps1file).
-                                                # AssertPrgExists: You can assert that the program in the command must exist but note that
-                                                #   variables enclosed in % char cannot be expanded because these are not powershell variables.
-                                                # Example: ToolSetAssocFileExtToCmd @(".log",".out") "$env:SystemRoot\System32\notepad.exe" "" $true;
-                                                # Example: ToolSetAssocFileExtToCmd ".log"           "$env:SystemRoot\System32\notepad.exe";
-                                                # Example: ToolSetAssocFileExtToCmd ".log"           "%SystemRoot%\System32\notepad.exe" "txtfile";
-                                                # Example: ToolSetAssocFileExtToCmd ".out"           "`"C:\Any.exe`" `"%1`" -xy";
-                                                # Example: ToolSetAssocFileExtToCmd ".out" "";
-                                                [String] $prg = $cmd; if( $cmd.StartsWith("`"") ){ $prg = ($prg -split "`"",0)[1]; }
-                                                [String] $exec = $cmd; if( -not $cmd.StartsWith("`"") ){ $exec = "`"$cmd`" `"%1`""; }
-                                                [String] $traceInfo = "ToolSetAssocFileExtToCmd($fileExtensions,`"$cmd`",$ftype,$assertPrgExists)";
-                                                if( $assertPrgExists -and $cmd -ne "" -and (FileNotExists $prg) ){
-                                                  throw [ExcMsg] "$traceInfo failed because not exists: `"$prg`""; }
-                                                $fileExtensions | Where-Object{$null -ne $_} | ForEach-Object{
-                                                  if( -not $_.StartsWith(".") ){ throw [ExcMsg] "$traceInfo failed because file ext not starts with dot: `"$_`""; };
-                                                  if( $_.Contains(" ") ){ throw [ExcMsg] "$traceInfo failed because file ext contains blank: `"$_`""; };
-                                                  if( $_.Contains(",") ){ throw [ExcMsg] "$traceInfo failed because file ext contains blank: `"$_`""; };
-                                                };
-                                                $fileExtensions | Where-Object{$null -ne $_} | ForEach-Object{
-                                                  [String] $ext = $_; # Example: ".ps1"
-                                                  if( $cmd -eq "" ){
-                                                    OutProgress "DelFileAssociation ext=$ext :  cmd /c assoc $ext=";
-                                                    [String] $out = (& cmd.exe /c "assoc $ext=" *>&1); AssertRcIsOk; # Example: ""
-                                                  }else{
-                                                    [String] $ft = $ftype;
-                                                    if( $ftype -eq "" ){
-                                                      try{
-                                                        $ft = (& cmd.exe /c "assoc $ext" *>&1); AssertRcIsOk; # Example: ".ps1=Microsoft.PowerShellScript.1"
-                                                      }catch{ # Example: "Dateizuordnung für die Erweiterung .ps9 nicht gefunden."
-                                                        $ft = (& cmd.exe /c "assoc $ext=$($ext.Substring(1))file" *>&1); AssertRcIsOk; # Example: ".ps1=ps1file"
-                                                      }
-                                                      $ft = $ft.Split("=")[-1]; # "Microsoft.PowerShellScript.1" or "ps1file"
-                                                    }
-                                                     # Example: Microsoft.PowerShellScript.1="C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe" "%1"
-                                                    [String] $out = (& cmd.exe /c "ftype $ft=$exec"); AssertRcIsOk;
-                                                    OutProgress "SetFileAssociation ext=$($ext.PadRight(6)) ftype=$($ft.PadRight(20)) cmd=$exec";
-                                                  }
-                                                }; }
-function ToolVs2019UserFolderGetLatestUsed    (){
-                                                # return the current visual studio 2019 config folder or empty string if it not exits.
-                                                # example: "$env:LOCALAPPDATA\Microsoft\VisualStudio\16.0_d70392ef\"
-                                                [String] $result = "";
-                                                # we internally locate the private registry file used by vs2019, later maybe we use https://github.com/microsoft/vswhere
-                                                [String[]] $a = (@()+(FsEntryListAsStringArray "$env:LOCALAPPDATA\Microsoft\VisualStudio\16.0_*\privateregistry.bin" $false $false));
-                                                if( $a.Count -gt 0 ){
-                                                  $result = $a[0];
-                                                  $a | Select-Object -Skip 1 | ForEach-Object { if( FileExistsAndIsNewer $_ $result ){ $result = $_; } }
-                                                  $result = FsEntryGetParentDir $result;
-                                                }
-                                                return [String] $result; }
-function ToolGitTortoiseCommit                ( [String] $workDir, [String] $commitMessage = "" ){
-                                                $workDir = FsEntryGetAbsolutePath $workDir;
-                                                FsEntryAssertHasTrailingDirSep $workDir;
-                                                [String] $tortoiseExe = (RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseGit" "ProcPath"); # Example: "C:\Program Files\TortoiseGit\bin\TortoiseGitProc.exe"
-                                                Start-Process -NoNewWindow -Wait -FilePath "$tortoiseExe" -ArgumentList @("/command:commit","/path:`"$workDir`"", "/logmsg:$commitMessage"); AssertRcIsOk; }
 # Type: SvnEnvInfo
 Add-Type -TypeDefinition "public struct SvnEnvInfo {public string Url; public string Path; public string RealmPattern; public string CachedAuthorizationFile; public string CachedAuthorizationUser; public string Revision; }";
                                                 # Example: Url="https://myhost/svn/Work"; Path="D:\Work"; RealmPattern="https://myhost:443";
@@ -2024,6 +1788,249 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                   OutWarning "Warning: Ignore failing of $msg `nCreated `"$tarDir/DbInfo.$dbName.err`".";
                                                 }
                                               }
+function ToolRdpConnect                       ( [String] $rdpfile, [String] $mstscOptions = "" ){
+                                                # Run RDP gui program with some mstsc options: /edit /admin  (use /edit temporary to set password in .rdp file)
+                                                OutProgress "ToolRdpConnect: `"$rdpfile`" $mstscOptions";
+                                                & "$env:SystemRoot/System32/mstsc.exe" $mstscOptions $rdpfile; AssertRcIsOk;
+                                              }
+function ToolHibernateModeEnable              (){
+                                                OutInfo "Enable hibernate mode";
+                                                if( (OsIsHibernateEnabled) ){
+                                                  OutProgress "Ok, is enabled.";
+                                                }elseif( (DriveFreeSpace 'C') -le ((OsInfoMainboardPhysicalMemorySum) * 1.3) ){
+                                                  OutWarning "Warning: Cannot enable hibernate because has not enought hd-space (RAM=$(OsInfoMainboardPhysicalMemorySum),DriveC-Free=$(DriveFreeSpace 'C'); ignored.";
+                                                }else{
+                                                  ProcessRestartInElevatedAdminMode;
+                                                  & "$env:SystemRoot/System32/powercfg.exe" "-HIBERNATE" "ON"; AssertRcIsOk;
+                                                }
+                                              }
+function ToolHibernateModeDisable             (){
+                                                OutInfo "Disable hibernate mode";
+                                                if( -not (OsIsHibernateEnabled) ){
+                                                  OutProgress "Ok, is disabled.";
+                                                }else{
+                                                  ProcessRestartInElevatedAdminMode;
+                                                  & "$env:SystemRoot/System32/powercfg.exe" "-HIBERNATE" "OFF"; AssertRcIsOk;
+                                                }
+                                              }
+function ToolActualizeHostsFileByMaster       ( [String] $srcHostsFile ){
+                                                OutInfo "Actualize hosts file by a master file";
+                                                # regular manually way: run notepad.exe with admin rights, open the file, edit, save.
+                                                [String] $tarHostsFile = FsEntryGetAbsolutePath "$env:SystemRoot/System32/drivers/etc/hosts";
+                                                [String] $tardir = FsEntryMakeTrailingDirSep (RegistryGetValueAsString "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "DataBasePath");
+                                                if( $tardir -ne (FsEntryGetParentDir $tarHostsFile) ){
+                                                  throw [Exception] "Expected HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters:DataBasePath=`"$tardir`" equal to dir of: `"$tarHostsFile`"";
+                                                }
+                                                if( -not (FileContentsAreEqual $srcHostsFile $tarHostsFile $true) ){
+                                                  ProcessRestartInElevatedAdminMode;
+                                                  [String] $tmp = "";
+                                                  if( (FsEntryGetFileName $srcHostsFile) -eq "hosts" ){
+                                                     # Note: Its unbelievable but the name cannot be `"hosts`" because MS-Defender, so we need to copy it first to a temp file";
+                                                     # https://www.microsoft.com/en-us/wdsi/threats/malware-encyclopedia-description?name=SettingsModifier%3aWin32%2fHostsFileHijack&threatid=265754
+                                                     $tmp = (FileGetTempFile);
+                                                     FileCopy $srcHostsFile $tmp $true;
+                                                     FsEntrySetAttributeReadOnly $tmp $false;
+                                                     $srcHostsFile = $tmp;
+                                                  }
+                                                  FileCopy $srcHostsFile $tarHostsFile $true;
+                                                  if( $tmp -ne "" ){ FileDelete $tmp; }
+                                                }else{
+                                                  OutProgress "Ok, content is already correct.";
+                                                }
+                                              }
+function ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [String] $workDir, [String] $lnkFile, [String] $srcFsEntry, [String[]] $arguments = @(),
+                                                  [Boolean] $runElevated = $false, [Boolean] $ignoreIfSrcNotExists = $false ){
+                                                # Creates links to files as programs or document files or to directories.
+                                                # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA/Microsoft/Windows/Start Menu/Programs/LinkToNotepad.lnk" "C:/Windows/notepad.exe";
+                                                # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA/Microsoft/Internet Explorer/Quick Launch/LinkToNotepad.lnk" "C:/Windows/notepad.exe";
+                                                # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA/Microsoft/Windows/Start Menu/- Folders/C - SendTo.lnk" "$HOME/AppData/Roaming/Microsoft/Windows/SendTo/";
+                                                # forceRecreate: if is false and target lnkfile already exists then it does nothing.
+                                                # workDir             : can be empty string. Internally it then takes the parent of the file.
+                                                # srcFsEntry          : file or dir. A dir must be specified by a trailing dir separator!
+                                                # runElevated         : the link is marked to request for run in elevated mode.
+                                                # ignoreIfSrcNotExists: if source not exists it will be silently ignored, but then the lnk file cannot be created.
+                                                # Icon: If next to the srcFile an ico file with the same filename exists then this will be taken.
+                                                $workDir    = FsEntryGetAbsolutePath $workDir;
+                                                $lnkFile    = FsEntryGetAbsolutePath $lnkFile;
+                                                $srcFsEntry = FsEntryGetAbsolutePath $srcFsEntry;
+                                                [String] $descr = $srcFsEntry;
+                                                [Boolean] $isDir = FsEntryHasTrailingDirSep $srcFsEntry;
+                                                if( $ignoreIfSrcNotExists -and (($isDir -and (DirNotExists $srcFsEntry)) -or (-not $isDir -and (FileNotExists $srcFsEntry))) ){
+                                                  OutVerbose "NotCreatedBecauseSourceFileNotExists: $lnkFile"; return;
+                                                }
+                                                if( $isDir ){ DirAssertExists $srcFsEntry; }else{ FileAssertExists $srcFsEntry; }
+                                                if( $forceRecreate ){ FileDelete $lnkFile; }
+                                                if( (FileExists $lnkFile) ){
+                                                  OutVerbose "Unchanged: $lnkFile";
+                                                }else{
+                                                    [String] $argLine = $arguments; # array to string
+                                                    if( $workDir -eq "" ){ if( $isDir ){ $workDir = $srcFsEntry; }else{ $workDir = FsEntryGetParentDir $srcFsEntry; } }
+                                                    [String] $iconFile = (StringRemoveRight (FsEntryRemoveTrailingDirSep $srcFsEntry) (FsEntryGetFileExtension $srcFsEntry)) + ".ico";
+                                                    [String] $ico = $(switch((FileExists $iconFile)){($true){$iconFile}($false){",0"}});
+                                                    OutProgress "CreateShortcut `"$lnkFile`"";
+                                                    try{
+                                                      [Object] $wshShell = New-Object -comObject WScript.Shell;
+                                                      [Object] $s = $wshShell.CreateShortcut($lnkFile); # do not use FsEntryEsc otherwise [ will be created as `[
+                                                      $s.TargetPath       = FsEntryEsc $srcFsEntry;
+                                                      $s.Arguments        = $argLine;
+                                                      $s.WorkingDirectory = FsEntryEsc $workDir;
+                                                      $s.Description      = $descr;
+                                                      $s.IconLocation     = $ico; # one of: ",0" "myprog.exe, 0" "myprog.ico";
+                                                      OutVerbose "WScript.Shell.CreateShortcut workDir=`"$workDir`" lnk=`"$lnkFile`" src=`"$srcFsEntry`" arg=`"$argLine`" descr=`"$descr`" ico==`"$ico`"";
+                                                      FsEntryCreateParentDir $lnkFile;
+                                                      # $s.WindowStyle = 1; 1=Normal; 3=Maximized; 7=Minimized;
+                                                      # $s.Hotkey = "CTRL+SHIFT+F"; # requires restart explorer
+                                                      # $s.RelativePath = ...
+                                                      $s.Save(); # does overwrite
+                                                    }catch{
+                                                      throw [ExcMsg] "$(ScriptGetCurrentFunc)(`"$workDir`",`"$lnkFile`",`"$srcFsEntry`",`"$argLine`",`"$descr`") failed because $($_.Exception.Message)";
+                                                    }
+                                                  if( $runElevated ){
+                                                    [Byte[]] $bytes = [IO.File]::ReadAllBytes($lnkFile); $bytes[0x15] = $bytes[0x15] -bor 0x20; [IO.File]::WriteAllBytes($lnkFile,$bytes);  # set bit 6 of byte nr 21
+                                                  } } }
+function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [String] $sourceDir,
+                                                [String] $srcFileExtMenuLink    = ".menulink.txt",
+                                                [String] $srcFileExtMenuLinkOpt = ".menulinkoptional.txt" ){
+                                                # Create menu entries based on menu-item-linkfiles below a dir.
+                                                # - targetMenuRootDir      : target start menu folder, example: "$env:APPDATA\Microsoft\Windows\Start Menu\Apps"
+                                                # - sourceDir              : Used to finds all files below sourceDir with the extension (example: ".menulink.txt").
+                                                #                            For each of these files it will create a menu item below the target menu root dir.
+                                                # - srcFileExtMenuLink     : Extension for mandatory menu linkfiles. The containing referenced command (in general an executable) must exist.
+                                                # - $srcFileExtMenuLinkOpt : Extension for optional  menu linkfiles. Menu item is created only if the containing referenced executable will exist.
+                                                # The name of the target menu item (example: "Manufactor ProgramName V1") will be taken from the name
+                                                #   of the menu-item-linkfile (example: ...\Manufactor ProgramName V1.menulink.txt) without the extension (example: ".menulink.txt")
+                                                #   and the sub menu folder will be taken from the relative location of the menu-item-linkfile below the sourceDir.
+                                                # The command for the target menu will be taken from the first line (example: "D:\MyApps\Manufactor ProgramName\AnyProgram.exe")
+                                                #   of the content of the menu-item-linkfile.
+                                                # If target lnkfile already exists it does nothing.
+                                                # Example: ToolCreateMenuLinksByMenuItemRefFile "$env:APPDATA\Microsoft\Windows\Start Menu\Apps" "D:\MyApps" ".menulink.txt";
+                                                FsEntryAssertHasTrailingDirSep $targetMenuRootDir;
+                                                FsEntryAssertHasTrailingDirSep $sourceDir;
+                                                [String] $m    = FsEntryGetAbsolutePath $targetMenuRootDir; # Example: "$env:APPDATA\Microsoft\Windows\Start Menu\MyPortableProg\"
+                                                [String] $sdir = FsEntryGetAbsolutePath $sourceDir; # Example: "D:\MyPortableProgs"
+                                                OutProgress "Create menu links to `"$m`" from files below `"$sdir`" with extension `"$srcFileExtMenuLink`" or `"$srcFileExtMenuLinkOpt`" files";
+                                                Assert ($srcFileExtMenuLink    -ne "" -or (-not (FsEntryHasTrailingDirSep $srcFileExtMenuLink   ))) "srcMenuLinkFileExt=`"$srcFileExtMenuLink`" is empty or has trailing backslash";
+                                                Assert ($srcFileExtMenuLinkOpt -ne "" -or (-not (FsEntryHasTrailingDirSep $srcFileExtMenuLinkOpt))) "srcMenuLinkOptFileExt=`"$srcFileExtMenuLinkOpt`" is empty or has trailing backslash";
+                                                if( -not (DirExists $sdir) ){ OutWarning "Warning: Ignoring dir not exists: `"$sdir`""; }
+                                                [String[]] $menuLinkFiles =  (@()+(FsEntryListAsStringArray "$sdir$(DirSep)*$srcFileExtMenuLink"    $true $false));
+                                                           $menuLinkFiles += (FsEntryListAsStringArray "$sdir$(DirSep)*$srcFileExtMenuLinkOpt" $true $false);
+                                                           $menuLinkFiles =  (@()+($menuLinkFiles | Where-Object{$null -ne $_} | Sort-Object));
+                                                foreach( $f in $menuLinkFiles ){ # Example: "...\MyProg .menulinkoptional.txt"
+                                                  [String] $d = FsEntryGetParentDir $f; # Example: "D:\MyPortableProgs\Appl\Graphic\"
+                                                  [String] $relBelowSrcDir = FsEntryMakeRelative $d $sdir; # Example: "Appl\Graphic\" or ".\"
+                                                  [String] $workDir = "";
+                                                  # Example: "$env:APPDATA\Microsoft\Windows\Start Menu\MyPortableProg\Appl\Graphic\Manufactor ProgramName V1 en 2016.lnk"
+                                                  [String] $fn = FsEntryGetFileName $f; $fn = StringRemoveRight $fn $srcFileExtMenuLink; $fn = StringRemoveRight $fn $srcFileExtMenuLinkOpt; $fn = $fn.TrimEnd();
+                                                  [String] $lnkFile = FsEntryGetAbsolutePath "$m/$relBelowSrcDir/$fn.lnk";
+                                                  [String] $encodingIfNoBom = "Default"; # Encoding Default is ANSI on windows and UTF8 on other platforms.
+                                                  [String] $cmdLine = FileReadContentAsLines $f $encodingIfNoBom | Select-Object -First 1;
+                                                  [String] $addTraceInfo = "";
+                                                  [Boolean] $forceRecreate = FileNotExistsOrIsOlder $lnkFile $f;
+                                                  [Boolean] $ignoreIfSrcNotExists = $f.EndsWith($srcFileExtMenuLinkOpt);
+                                                  try{
+                                                    [String[]] $ar = @()+(StringCommandLineToArray $cmdLine); # can throw: Expected blank or tab char or end of string but got char ...
+                                                    if( $ar.Length -eq 0 ){ throw [Exception] "Missing a command line at first line in file=`"$f`" cmdline=`"$cmdLine`""; }
+                                                    if( ($ar.Length-1) -gt 999 ){
+                                                      throw [Exception] "Command line has more than the allowed 999 arguments at first line infile=`"$f`" nrOfArgs=$($ar.Length) cmdline=`"$cmdLine`""; }
+                                                    # Example: "D:\MyPortableProgs\Manufactor ProgramName\AnyProgram.exe"
+                                                    [String] $srcFile = FsEntryGetAbsolutePath ([System.IO.Path]::Combine($d,$ar[0]));
+                                                    [String[]] $arguments = @()+($ar | Select-Object -Skip 1);
+                                                    $addTraceInfo = "and calling (ToolCreateLnkIfNotExists $forceRecreate `"$workDir`" `"$lnkFile`" `"$srcFile`" `"$arguments`" $false $ignoreIfSrcNotExists) ";
+                                                    ToolCreateLnkIfNotExists $forceRecreate $workDir $lnkFile $srcFile $arguments $false $ignoreIfSrcNotExists;
+                                                  }catch{
+                                                    [String] $msg = "$($_.Exception.Message).$(switch(-not $cmdLine.StartsWith('`"')){($true){' Maybe first file of content in menulink file should be quoted.'}default{' Maybe if first file not exists you may use file extension `".menulinkoptional`" instead of `".menulink`".'}})";
+                                                    OutWarning "Warning: Create menulink by reading file `"$f`", taking first line as cmdLine ($cmdLine) $addTraceInfo failed because $msg";
+                                                  } } }
+function ToolSignDotNetAssembly               ( [String] $keySnk, [String] $srcDllOrExe, [String] $tarDllOrExe, [Boolean] $overwrite = $false ){
+                                                # Sign (apply strong name) a given source executable with a given key and write it to a target file.
+                                                # If the sourcefile has an correspondig xml file with the same name then this is also copied to target.
+                                                # If the input file was already signed then it creates a target file with the same name and the extension ".originalWasAlsoSigned.txt".
+                                                # Note: Generate your own key with: sn.exe -k mykey.snk
+                                                OutInfo "Sign dot-net assembly: keySnk=`"$keySnk`" srcDllOrExe=`"$srcDllOrExe`" tarDllOrExe=`"$tarDllOrExe`" overwrite=$overwrite ";
+                                                [Boolean] $execHasStrongName = ([String](& sn -vf $srcDllOrExe | Select-Object -Skip 4 )) -like "Assembly '*' is valid";
+                                                [Boolean] $isDllNotExe = $srcDllOrExe.ToLower().EndsWith(".dll");
+                                                if( -not $isDllNotExe -and -not $srcDllOrExe.ToLower().EndsWith(".exe") ){
+                                                  throw [Exception] "Expected ends with .dll or .exe, srcDllOrExe=`"$srcDllOrExe`""; }
+                                                if( -not $overwrite -and (FileExists $tarDllOrExe) ){
+                                                  OutProgress "Ok, nothing done because target already exists: $tarDllOrExe"; return; }
+                                                FsEntryCreateParentDir  $tarDllOrExe;
+                                                [String] $n = FsEntryGetFileName $tarDllOrExe;
+                                                [String] $d = DirCreateTemp "SignAssembly_";
+                                                OutProgress "ildasm.exe -NOBAR -all `"$srcDllOrExe`" `"-out=$d$(DirSep)$n.il`"";
+                                                & "ildasm.exe" -TEXT -all $srcDllOrExe "-out=$d$(DirSep)$n.il"; AssertRcIsOk;
+                                                OutProgress "ilasm.exe -QUIET -DLL -PDB `"-KEY=$keySnk`" `"$d$(DirSep)$n.il`" `"-RESOURCE=$d$(DirSep)$n.res`" `"-OUTPUT=$tarDllOrExe`"";
+                                                & "ilasm.exe" -QUIET -DLL -PDB "-KEY=$keySnk" "$d$(DirSep)$n.il" "-RESOURCE=$d$(DirSep)$n.res" "-OUTPUT=$tarDllOrExe"; AssertRcIsOk;
+                                                DirDelete $d;
+                                                # Note: We do not take the pdb of original unsigned assembly because ilmerge would fail because pdb is outdated. But we created a new pdb if it is available.
+                                                [String] $srcXml = (StringRemoveRightNr $srcDllOrExe 4) + ".xml";
+                                                [String] $tarXml = (StringRemoveRightNr $tarDllOrExe 4) + ".xml";
+                                                [String] $tarOri = (StringRemoveRightNr $tarDllOrExe 4) + ".originalWasAlsoSigned.txt";
+                                                if( $execHasStrongName ){ FileWriteFromString $tarOri "Original executable has also a strong name: $srcDllOrExe" $true; }
+                                                if( FileExists $srcXml ){ FileCopy $srcXml $tarXml $true; } }
+function ToolSetAssocFileExtToCmd             ( [String[]] $fileExtensions, [String] $cmd, [String] $ftype = "", [Boolean] $assertPrgExists = $false ){ # Works only on Windows
+                                                # Sets the association of a file extension to a command by overwriting it.
+                                                # FileExtensions: must begin with a dot, must not content blanks or commas,
+                                                #   if it is only a dot then it is used for files without a file ext.
+                                                # Cmd: if it is empty then association is deleted.
+                                                #  Can contain variables as %SystemRoot% which will be replaced at runtime.
+                                                #   If cmd does not begin with embedded double quotes then it is interpreted as a full path to an executable
+                                                #   otherwise it uses the cmd as it is.
+                                                # Ftype: Is a group of file extensions. If it not yet exists then a default will be created
+                                                #   in the style {extWithoutDot}file (example: ps1file).
+                                                # AssertPrgExists: You can assert that the program in the command must exist but note that
+                                                #   variables enclosed in % char cannot be expanded because these are not powershell variables.
+                                                # Example: ToolSetAssocFileExtToCmd @(".log",".out") "$env:SystemRoot\System32\notepad.exe" "" $true;
+                                                # Example: ToolSetAssocFileExtToCmd ".log"           "$env:SystemRoot\System32\notepad.exe";
+                                                # Example: ToolSetAssocFileExtToCmd ".log"           "%SystemRoot%\System32\notepad.exe" "txtfile";
+                                                # Example: ToolSetAssocFileExtToCmd ".out"           "`"C:\Any.exe`" `"%1`" -xy";
+                                                # Example: ToolSetAssocFileExtToCmd ".out" "";
+                                                [String] $prg = $cmd; if( $cmd.StartsWith("`"") ){ $prg = ($prg -split "`"",0)[1]; }
+                                                [String] $exec = $cmd; if( -not $cmd.StartsWith("`"") ){ $exec = "`"$cmd`" `"%1`""; }
+                                                [String] $traceInfo = "ToolSetAssocFileExtToCmd($fileExtensions,`"$cmd`",$ftype,$assertPrgExists)";
+                                                if( $assertPrgExists -and $cmd -ne "" -and (FileNotExists $prg) ){
+                                                  throw [ExcMsg] "$traceInfo failed because not exists: `"$prg`""; }
+                                                $fileExtensions | Where-Object{$null -ne $_} | ForEach-Object{
+                                                  if( -not $_.StartsWith(".") ){ throw [ExcMsg] "$traceInfo failed because file ext not starts with dot: `"$_`""; };
+                                                  if( $_.Contains(" ") ){ throw [ExcMsg] "$traceInfo failed because file ext contains blank: `"$_`""; };
+                                                  if( $_.Contains(",") ){ throw [ExcMsg] "$traceInfo failed because file ext contains blank: `"$_`""; };
+                                                };
+                                                $fileExtensions | Where-Object{$null -ne $_} | ForEach-Object{
+                                                  [String] $ext = $_; # Example: ".ps1"
+                                                  if( $cmd -eq "" ){
+                                                    OutProgress "DelFileAssociation ext=$ext :  cmd /c assoc $ext=";
+                                                    [String] $out = (& cmd.exe /c "assoc $ext=" *>&1); AssertRcIsOk; # Example: ""
+                                                  }else{
+                                                    [String] $ft = $ftype;
+                                                    if( $ftype -eq "" ){
+                                                      try{
+                                                        $ft = (& cmd.exe /c "assoc $ext" *>&1); AssertRcIsOk; # Example: ".ps1=Microsoft.PowerShellScript.1"
+                                                      }catch{ # Example: "Dateizuordnung für die Erweiterung .ps9 nicht gefunden."
+                                                        $ft = (& cmd.exe /c "assoc $ext=$($ext.Substring(1))file" *>&1); AssertRcIsOk; # Example: ".ps1=ps1file"
+                                                      }
+                                                      $ft = $ft.Split("=")[-1]; # "Microsoft.PowerShellScript.1" or "ps1file"
+                                                    }
+                                                     # Example: Microsoft.PowerShellScript.1="C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe" "%1"
+                                                    [String] $out = (& cmd.exe /c "ftype $ft=$exec"); AssertRcIsOk;
+                                                    OutProgress "SetFileAssociation ext=$($ext.PadRight(6)) ftype=$($ft.PadRight(20)) cmd=$exec";
+                                                  }
+                                                }; }
+function ToolVs2019UserFolderGetLatestUsed    (){
+                                                # return the current visual studio 2019 config folder or empty string if it not exits.
+                                                # example: "$env:LOCALAPPDATA\Microsoft\VisualStudio\16.0_d70392ef\"
+                                                [String] $result = "";
+                                                # we internally locate the private registry file used by vs2019, later maybe we use https://github.com/microsoft/vswhere
+                                                [String[]] $a = (@()+(FsEntryListAsStringArray "$env:LOCALAPPDATA\Microsoft\VisualStudio\16.0_*\privateregistry.bin" $false $false));
+                                                if( $a.Count -gt 0 ){
+                                                  $result = $a[0];
+                                                  $a | Select-Object -Skip 1 | ForEach-Object { if( FileExistsAndIsNewer $_ $result ){ $result = $_; } }
+                                                  $result = FsEntryGetParentDir $result;
+                                                }
+                                                return [String] $result; }
+function ToolGitTortoiseCommit                ( [String] $workDir, [String] $commitMessage = "" ){
+                                                $workDir = FsEntryGetAbsolutePath $workDir;
+                                                FsEntryAssertHasTrailingDirSep $workDir;
+                                                [String] $tortoiseExe = (RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseGit" "ProcPath"); # Example: "C:\Program Files\TortoiseGit\bin\TortoiseGitProc.exe"
+                                                Start-Process -NoNewWindow -Wait -FilePath "$tortoiseExe" -ArgumentList @("/command:commit","/path:`"$workDir`"", "/logmsg:$commitMessage"); AssertRcIsOk; }
 function ToolWin10PackageGetState             ( [String] $packageName ){ # Example: for "OpenSSH.Client" return "Installed","NotPresent".
                                                 ProcessRestartInElevatedAdminMode;
                                                 if( $packageName -eq "" ){ throw [Exception] "Missing packageName"; }
@@ -2155,7 +2162,9 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){
                                                 OutProgress "  InstallModules: SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate. Update-Help. ";
                                                 OutProgress "  Needs about 1 min.";
                                                 ProcessRestartInElevatedAdminMode;
-                                                OutProgress "Set repository PSGallery:";
+                                                OutProgress "Import-Module PowerShellGet:";
+                                                Import-Module -ErrorAction Stop PowerShellGet; # provides: Set-PSRepository, Install-Module
+                                                OutProgress "Set repository PSGallery to trusted: ";
                                                 Set-PSRepository PSGallery -InstallationPolicy Trusted; # uses 14 sec
                                                 OutProgress "List of installed package providers:";
                                                 Get-PackageProvider -ListAvailable | Where-Object{$null -ne $_} |

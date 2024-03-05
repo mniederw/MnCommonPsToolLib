@@ -50,17 +50,23 @@ $($env:PSModulePath).Split($pathSep) | Where-Object{ $null -ne $_ } | ForEach-Ob
   # Github-ubuntu : ":/home/runner/.local/share/powershell/Modules"
   #                 ":/usr/local/share/powershell/Modules"
   #                 ":/opt/microsoft/powershell/7/Modules"
-Write-Output "List all environment variables:";
-  Get-Variable | Format-Table -AutoSize -Force -Wrap | Out-String -Stream | ForEach-Object{ "  $_" };
-Write-Output "List all aliases";
-  Get-Alias | ForEach-Object{ Write-Output "  $($_.DisplayName)"; };
+Write-Output "List all environment variables: ";
+  Get-Variable | Format-Table -AutoSize -Force -Wrap | Out-String -Stream | ForEach-Object{ "  $_" } | Select-Object -First 999;
+Write-Output "List all aliases: ";
+  Get-Alias | ForEach-Object{ Write-Output "  $($_.DisplayName)"; } | Select-Object -First 4;
+
+Write-Output "List ps gallery repositories: "; Get-PSRepository;
+Write-Output "List installed ps modules "; 
+  Get-Module -ListAvailable | Sort-Object ModuleType, Name, Version | Select-Object ModuleType, Name, Version | Format-Table -Wrap -Force -AutoSize;
+Write-Output "Set repository PSGallery to trusted: ";
+  Set-PSRepository PSGallery -InstallationPolicy Trusted;
+  Write-Output "Install and import from PSGallery used modules in user scope: ";
+  Write-Output "  Microsoft.PowerShell.Archive, PSReadLine, PowerShellGet, PackageManagement, PSScriptAnalyzer, ThreadJob, SqlServer, Pester.";
+  Install-Module Microsoft.PowerShell.Archive, PSReadLine, PowerShellGet, PackageManagement, PSScriptAnalyzer, ThreadJob, SqlServer, Pester;
+  Import-Module Microsoft.PowerShell.Archive, PSReadLine, PowerShellGet, PackageManagement, PSScriptAnalyzer, ThreadJob, SqlServer, Pester;
 
 # disabled because it would not find for example Write-Output anymore:
 #   Write-Output "Set disable autoloading modules."; $PSModuleAutoLoadingPreference = "none"; # disable autoloading modules
-
-Write-Output "Install from PSGallery some modules as PSScriptAnalyzer, SqlServer and ThreadJob";
-Set-PSRepository PSGallery -InstallationPolicy Trusted; # uses 7 sec
-Install-Module -ErrorAction Stop PSScriptAnalyzer, SqlServer, ThreadJob;
 
 Write-Output "Assert powershell module library MnCommonPsToolLib.psm1 exists near this running script.";
 Push-Location $PSScriptRoot; Pop-Location;
@@ -69,10 +75,13 @@ Test-Path -Path "$PSScriptRoot/MnCommonPsToolLib/MnCommonPsToolLib.psm1" | Shoul
 Write-Output "Extend PSModulePath by PSScriptRoot";
 [Environment]::SetEnvironmentVariable("PSModulePath","${env:PSModulePath}$pathSep$PSScriptRoot","Process"); # add ps module to path
 
-
-
 Write-Output "Load our library: MnCommonPsToolLib.psm1";
 Import-Module "MnCommonPsToolLib.psm1";
+
+
+
+
+
 OutProgress "Show MnCommonPsToolLibVersion: $Global:MnCommonPsToolLibVersion"; # Example: "7.47"
 OutProgress "Show OsPsVersion             : $(OsPsVersion)";                   # Example: "7.4"
 OutProgress "Show Powershell Version      : $($Host.Version.ToString())";      # Example: "7.4.1"
