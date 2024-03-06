@@ -4,7 +4,7 @@
 # Licensed under GPL3. This is freeware.
 # 2013-2024 produced by Marc Niederwieser, Switzerland.
 
-[String] $global:MnCommonPsToolLibVersion = "7.48";
+[String] $global:MnCommonPsToolLibVersion = "7.49";
   # Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
   # Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
   # more see Releasenotes.txt
@@ -571,7 +571,9 @@ function Assert                               ( [Boolean] $cond, [String] $failR
                                                 if( -not $cond ){ throw [Exception] "Assertion failed because $failReason"; } }
 function AssertIsFalse                        ( [Boolean] $cond, [String] $failReason = "" ){
                                                 if( $cond ){ throw [Exception] "Assertion-Is-False failed because $failReason"; } }
-function AssertNotEmpty                       ( [String] $s, [String] $varName ){
+function AssertIsEmpty                        ( [String] $s, [String] $varName = "given value"){
+                                                Assert ($s -eq "") "Assertion-is-Empty failed for $varName."; }
+function AssertNotEmpty                       ( [String] $s, [String] $varName = "given value"){
                                                 Assert ($s -ne "") "not allowed empty string for $varName."; }
 function AssertRcIsOk                         ( [String[]] $linesToOutProgress = "", [Boolean] $useLinesAsExcMessage = $false,
                                                 [String] $logFileToOutProgress = "", [String] $encodingIfNoBom = "Default" ){
@@ -2746,6 +2748,40 @@ function ToolGithubApiDownloadLatestReleaseDir( [String] $repoUrl ){
                                                 FsEntryMoveByPatternToDir "$dir0/*" $tarDir;
                                                 DirDelete $dir0;
                                                 return [String] $tarDir; }
+function ToolNpmFilterIgnorableInstallMessages( [String[]] $out ){
+                                                # Process the output of a call as: npm --no-update-notifier --global --no-fund install ... ;
+                                                # and return the string without the filtered known lines.
+                                                # Example: "added 4 packages in 2s";
+                                                # Example: "changed 108 packages in 9s";
+                                                # Example: "added 1 package, and changed 113 packages in 11s"
+                                                # Example: "removed 1 package, and changed 113 packages in 11s"
+                                                # Example: "found 0 vulnerabilities"
+                                                # Example: "up to date, audited 5 packages in 913ms"
+                                                # Example: "up to date, audited 6 packages in 1s"
+                                                # Example: "1 package is looking for funding"
+                                                # Example: "6 packages are looking for funding"
+                                                # Example: "run `npm fund` for details"
+                                                # Example: "Run `npm audit` for details."
+                                                # Example: "3 critical severity vulnerabilities"
+                                                # Example: "To address issues that do not require attention, run:"
+                                                # Example: "npm audit fix"
+                                                # Example: "Some issues need review, and may require choosing"
+                                                # Example: "a different dependency."
+                                                [String[]] $ignoreLinesRegex = @(
+                                                  "(changed|added|removed) \d.* packages in \d+m?s"
+                                                  ,"found \d+ vulnerabilities"
+                                                  ,"up to date\, audited \d+ packages in \d+m?s"
+                                                  ,"\d+ package.* looking for funding"
+                                                  ,"[rR]un .* details\.?"
+                                                  ,"\d+ critical severity vulnerabilities"
+                                                  ,"To address issues .* run:"
+                                                  ,"npm audit fix"
+                                                  ,"Some issues .* choosing"
+                                                  ,"a different dependency."
+                                                );
+                                                return [String] ($out | Where-Object{$null -ne $_} | ForEach-Object{$_.Trim()} | Where-Object{ $_ -ne "" } |
+                                                Where-Object{
+                                                  -not (($_ -match ('^('+($ignoreLinesRegex -join "|")+')$')) -and $_.Length -lt 110) }); }
 function ToolEvalVsCodeExec                   (){ [String] $result = (ProcessFindExecutableInPath "code");
                                                   if( $result -eq "" -and (OsIsWindows) ){
                                                     if( (FileExists "$env:LOCALAPPDATA\Programs\Microsoft VS Code\bin\Code.cmd") ){ # user
