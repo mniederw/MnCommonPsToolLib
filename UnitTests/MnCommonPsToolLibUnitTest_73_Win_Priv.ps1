@@ -16,17 +16,11 @@ function UnitTest_Win_Priv(){
   #   PrivAclAsString                      ( [System.Security.AccessControl.FileSystemSecurity] $acl ){
   #   PrivAclSetProtection                 ( [System.Security.AccessControl.ObjectSecurity] $acl, [Boolean] $isProtectedFromInheritance, [Boolean] $preserveInheritance ){
   #                                          # set preserveInheritance to false to remove inherited access rules, param is ignored if $isProtectedFromInheritance is false.
-  #   PrivFsRuleCreate                     ( [System.Security.Principal.IdentityReference] $account, [System.Security.AccessControl.FileSystemRights] $rights,
-  #                                          [System.Security.AccessControl.InheritanceFlags] $inherit, [System.Security.AccessControl.PropagationFlags] $propagation, [System.Security.AccessControl.AccessControlType] $access ){
-  #                                          # usually account is (PrivGetGroupAdministrators)
-  #                                          # combinations see: https://msdn.microsoft.com/en-us/library/ms229747(v=vs.100).aspx
-  #                                          # https://technet.microsoft.com/en-us/library/ff730951.aspx  Rights=(AppendData,ChangePermissions,CreateDirectories,CreateFiles,Delete,DeleteSubdirectoriesAndFiles,ExecuteFile,FullControl,ListDirectory,Modify,Read,ReadAndExecute,ReadAttributes,ReadData,ReadExtendedAttributes,ReadPermissions,Synchronize,TakeOwnership,Traverse,Write,WriteAttributes,WriteData,WriteExtendedAttributes) Inherit=(ContainerInherit,ObjectInherit,None) Propagation=(InheritOnly,NoPropagateInherit,None) Access=(Allow,Deny)
   #   PrivFsRuleCreateFullControl          ( [System.Security.Principal.IdentityReference] $account, [Boolean] $useInherit ){ # for dirs usually inherit is used
   #   PrivFsRuleCreateByString             ( [System.Security.Principal.IdentityReference] $account, [String] $s ){
   #                                          # format:  access inherit rights ; access = ('+'|'-') ; rights = ('F' | { ('R'|'M'|'W'|'X'|...) [','] } ) ; inherit = ('/'|'') ;
   #                                          # examples: "+F", "+F/", "-M", "+RM", "+RW"
   #   PrivDirSecurityCreateFullControl     ( [System.Security.Principal.IdentityReference] $account ){
-  #   PrivDirSecurityCreateOwner           ( [System.Security.Principal.IdentityReference] $account ){
   #   PrivFileSecurityCreateOwner          ( [System.Security.Principal.IdentityReference] $account ){
   #   PrivAclHasFullControl                ( [System.Security.AccessControl.FileSystemSecurity] $acl, [System.Security.Principal.IdentityReference] $account, [Boolean] $isDir ){
   #   PrivShowTokenPrivileges              (){
