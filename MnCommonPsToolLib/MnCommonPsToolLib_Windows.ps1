@@ -88,7 +88,7 @@ function PrivGetGroupAuthenticatedUsers       (){ return [System.Security.Princi
 function PrivGetGroupEveryone                 (){ return [System.Security.Principal.IdentityReference] (New-Object System.Security.Principal.SecurityIdentifier("S-1-1-0"                                                       )).Translate([System.Security.Principal.NTAccount]); } # Jeder
 function PrivGetUserTrustedInstaller          (){ return [System.Security.Principal.IdentityReference] (New-Object System.Security.Principal.SecurityIdentifier("S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464")).Translate([System.Security.Principal.NTAccount]); } # NT SERVICE\TrustedInstaller
 function PrivFsRuleAsString                   ( [System.Security.AccessControl.FileSystemAccessRule] $rule ){
-                                                return [String] "($($rule.IdentityReference);$(($rule.FileSystemRights).Replace(' ',''));$($rule.InheritanceFlags.Replace(' ',''));$($rule.PropagationFlags.Replace(' ',''));$($rule.AccessControlType);IsInherited=$($rule.IsInherited))";
+                                                return [String] "($($rule.IdentityReference);$(($rule.FileSystemRights).ToString().Replace(' ',''));$($rule.InheritanceFlags.ToString().Replace(' ',''));$($rule.PropagationFlags.ToString().Replace(' ',''));$($rule.AccessControlType);IsInherited=$($rule.IsInherited))";
                                                 } # for later: CentralAccessPolicyId, CentralAccessPolicyName, Sddl="O:BAG:SYD:PAI(A;OICI;FA;;;SY)(A;;FA;;;BA)"
 function PrivAclAsString                      ( [System.Security.AccessControl.FileSystemSecurity] $acl ){
                                                 [String] $s = "Owner=$($acl.Owner);Group=$($acl.Group);Acls=";
