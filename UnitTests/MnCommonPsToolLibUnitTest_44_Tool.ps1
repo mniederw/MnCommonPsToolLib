@@ -33,6 +33,24 @@ function UnitTest_Tool(){
     OutWarning "Warning: Ignored: $_.Exception.Message";
   }
   #
+  AssertIsEmpty (ToolNpmFilterIgnorableInstallMessages @(""
+    ,"added 4 packages in 2s";
+    ,"added 1 package, and changed 113 packages in 11s"
+    ,"changed 108 packages in 9s";
+    ,"removed 1 package, and changed 113 packages in 11s"
+    ,"found 0 vulnerabilities"
+    ,"up to date, audited 5 packages in 913ms"
+    ,"up to date, audited 6 packages in 1s"
+    ,"1 package is looking for funding"
+    ,"6 packages are looking for funding"
+    ,'run `npm fund` for details'
+    ,'Run `npm audit` for details.'
+    ,"3 critical severity vulnerabilities"
+    ,"To address issues that do not require attention, run:"
+    ,"npm audit fix"
+    ,"Some issues need review, and may require choosing"
+    ,"a different dependency."
+  ) );
   if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){ Assert (FileExists (ToolEvalVsCodeExec)); }
 }
 UnitTest_Tool;

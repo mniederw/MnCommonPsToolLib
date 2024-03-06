@@ -4,7 +4,7 @@
 # Licensed under GPL3. This is freeware.
 # 2013-2024 produced by Marc Niederwieser, Switzerland.
 
-[String] $global:MnCommonPsToolLibVersion = "7.48";
+[String] $global:MnCommonPsToolLibVersion = "7.49";
   # Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
   # Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
   # more see Releasenotes.txt
@@ -571,7 +571,9 @@ function Assert                               ( [Boolean] $cond, [String] $failR
                                                 if( -not $cond ){ throw [Exception] "Assertion failed because $failReason"; } }
 function AssertIsFalse                        ( [Boolean] $cond, [String] $failReason = "" ){
                                                 if( $cond ){ throw [Exception] "Assertion-Is-False failed because $failReason"; } }
-function AssertNotEmpty                       ( [String] $s, [String] $varName ){
+function AssertIsEmpty                        ( [String] $s, [String] $varName = "given value"){
+                                                Assert ($s -eq "") "Assertion-is-Empty failed for $varName."; }
+function AssertNotEmpty                       ( [String] $s, [String] $varName = "given value"){
                                                 Assert ($s -ne "") "not allowed empty string for $varName."; }
 function AssertRcIsOk                         ( [String[]] $linesToOutProgress = "", [Boolean] $useLinesAsExcMessage = $false,
                                                 [String] $logFileToOutProgress = "", [String] $encodingIfNoBom = "Default" ){
@@ -710,24 +712,28 @@ function OsPsModulePathDel                    ( [String] $dir ){ $dir = FsEntryM
 function OsPsModulePathSet                    ( [String[]] $pathList ){ [String] $s = ((@()+($pathList | Where-Object{$null -ne $_} |
                                                   ForEach-Object{ FsEntryRemoveTrailingDirSep $_ })) -join (OsPathSeparator))+(OsPathSeparator);
                                                 [Environment]::SetEnvironmentVariable("PSModulePath",$s,"Machine"); }
-function PrivAclRegRightsToString             ( [System.Security.AccessControl.RegistryRights] $rule ){
-                                                [String] $result = "";
+function PrivAclRegRightsToString             ( [System.Security.AccessControl.RegistryRights] $ri ){ # Example: "F,", "ORW", "R", "RW", "Wl"
+                                                function HasFlagEnum( [System.Security.AccessControl.RegistryRights] $r, [System.Security.AccessControl.RegistryRights] $flagEnum ){
+                                                  return [Boolean] ((([UInt32]$r) -band ([UInt32]$flagEnum)) -eq ([UInt32]$flagEnum));
+                                                }
+                                                [String] $s = "";
                                                 # Ref: https://docs.microsoft.com/en-us/dotnet/api/system.security.accesscontrol.registryrights?view=netframework-4.8
-                                                if(   $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::FullControl         ){ $s += "F,"; } # exert full control over a registry key, and to modify its access rules and audit rules.
-                                                else{
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::ReadKey             ){ $s += "R,"; } # query the name/value pairs in a registry key, to request notification of changes, to enumerate its subkeys, and to read its access rules and audit rules.
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::WriteKey            ){ $s += "W,"; } # create, delete, and set the name/value pairs in a registry key, to create or delete subkeys, to request notification of changes, to enumerate its subkeys, and to read its access rules and audit rules.
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::CreateSubKey        ){ $s += "C,"; } # create subkeys of a registry key.
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::Delete              ){ $s += "D,"; } # delete a registry key.
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::TakeOwnership       ){ $s += "O,"; } # change the owner of a registry key.
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::EnumerateSubKeys    ){ $s += "L,"; } # list the subkeys of a registry key.
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::QueryValues         ){ $s += "r,"; } # query the name/value pairs in a registry key.
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::SetValue            ){ $s += "w,"; } # create, delete, or set name/value pairs in a registry key.
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::ReadPermissions     ){ $s += "p,"; } # open and copy the access rules and audit rules for a registry key.
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::ChangePermissions   ){ $s += "c,"; } # change the access rules and audit rules associated with a registry key.
-                                                  if( $rule.RegistryRights -band [System.Security.AccessControl.RegistryRights]::Notify              ){ $s += "n,"; } # request notification of changes on a registry key.
+                                                if(       HasFlagEnum $ri ([System.Security.AccessControl.RegistryRights]::FullControl       -as [System.Security.AccessControl.RegistryRights]) ){ $s += "F,"; } # 11110000000000111111 full control over a registry key, and to modify its access rules and audit rules.
+                                                else{ if( HasFlagEnum $ri ([System.Security.AccessControl.RegistryRights]::TakeOwnership     -as [System.Security.AccessControl.RegistryRights]) ){ $s += "O,"; } # 10000000000000000000 change the owner of a registry key.
+                                                      if( HasFlagEnum $ri ([System.Security.AccessControl.RegistryRights]::ChangePermissions -as [System.Security.AccessControl.RegistryRights]) ){ $s += "C,"; } #  1000000000000000000 change the access rules and audit rules associated with a registry key.
+                                                      if( HasFlagEnum $ri ([System.Security.AccessControl.RegistryRights]::ReadKey           -as [System.Security.AccessControl.RegistryRights]) ){ $s += "R,"; } #   100000000000011001 query the name/value pairs in a registry key, to request notification of changes, to enumerate its subkeys, and to read its access rules and audit rules.
+                                                      if( HasFlagEnum $ri ([System.Security.AccessControl.RegistryRights]::WriteKey          -as [System.Security.AccessControl.RegistryRights]) ){ $s += "W,"; } #   100000000000000110 create/delete/set the name/value pairs in a reg key, to create or delete subkeys, to request notification of changes, to enumerate its subkeys, and to read its access rules and audit rules.
+                                                      if( HasFlagEnum $ri ([System.Security.AccessControl.RegistryRights]::Delete            -as [System.Security.AccessControl.RegistryRights]) ){ $s += "D,"; } #    10000000000000000 delete a registry key.
+                                                      if( HasFlagEnum $ri ([System.Security.AccessControl.RegistryRights]::ReadPermissions   -as [System.Security.AccessControl.RegistryRights]) ){ $s += "p,"; } #   100000000000000000 open and copy the access rules and audit rules for a registry key.
+                                                      if( HasFlagEnum $ri ([System.Security.AccessControl.RegistryRights]::Notify            -as [System.Security.AccessControl.RegistryRights]) ){ $s += "n,"; } #                10000 request notification of changes on a registry key.
+                                                      if( HasFlagEnum $ri ([System.Security.AccessControl.RegistryRights]::EnumerateSubKeys  -as [System.Security.AccessControl.RegistryRights]) ){ $s += "l,"; } #                 1000 list the subkeys of a registry key.
+                                                      if( HasFlagEnum $ri ([System.Security.AccessControl.RegistryRights]::CreateSubKey      -as [System.Security.AccessControl.RegistryRights]) ){ $s += "c,"; } #                  100 create subkeys of a registry key.
+                                                      if( HasFlagEnum $ri ([System.Security.AccessControl.RegistryRights]::SetValue          -as [System.Security.AccessControl.RegistryRights]) ){ $s += "w,"; } #                   10 create, delete, or set name/value pairs in a registry key.
+                                                      if( HasFlagEnum $ri ([System.Security.AccessControl.RegistryRights]::QueryValues       -as [System.Security.AccessControl.RegistryRights]) ){ $s += "r,"; } #                    1 query the name/value pairs in a registry key.
                                                   # Not used:  CreateLink=Reserved for system use. ExecuteKey=Same as ReadKey.
-                                                } return [String] $result; }
+                                                  if( $s.Contains("R") ){ $s = $s.Replace("p,","").Replace("n,","").Replace("l,","").Replace("r,",""); }
+                                                  if( $s.Contains("W") ){ $s = $s.Replace("p,","").Replace("c,","").Replace("w,",""); }
+                                                } return [String] $s; }
 function ProcessIsLesserEqualPs5              (){ return [Boolean] ($PSVersionTable.PSVersion.Major -le 5); }
 function ProcessPsExecutable                  (){ return [String] $(switch((ProcessIsLesserEqualPs5)){ $true{"powershell.exe"} default{"pwsh"}}); }
 function ProcessIsRunningInElevatedAdminMode  (){ if( (OsIsWindows) ){ return [Boolean] ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"); }
@@ -767,6 +773,11 @@ function ProcessFindExecutableInPath          ( [String] $exec ){
                                                 if( $exec -eq "" ){ return [String] ""; }
                                                 [Object] $p = (Get-Command $exec -ErrorAction SilentlyContinue);
                                                 if( $null -eq $p ){ return [String] ""; } return [String] $p.Source; }
+function ProcessGetApplInEnvPath              ( [String] $commandNameOptionalWithExtension, [String] $downloadHintMsg = ""){
+                                                [System.Management.Automation.CommandInfo] $cmd =
+                                                  Get-Command -CommandType Application -Name $commandNameOptionalWithExtension -ErrorAction SilentlyContinue | Select-Object -First 1;
+                                                if( $null -ne $cmd ){ return [String] $cmd.Source; }
+                                                throw [Exception] "$(ScriptGetCurrentFunc): commandName=`"$commandNameOptionalWithExtension`" was not found in env-path=`"$env:PATH`". $downloadHintMsg"; }
 function ProcessGetCurrentThreadId            (){ return [Int32] [Threading.Thread]::CurrentThread.ManagedThreadId; }
 function ProcessListRunnings                  (){ return [Object[]] (@()+(Get-Process * | Where-Object{$null -ne $_} |
                                                     Where-Object{ $_.Id -ne 0 } | Sort-Object ProcessName)); }
@@ -799,13 +810,6 @@ function ProcessListInstalledAppx             (){ if( -not (OsIsWindows) ){ retu
                                                   }
                                                   return [String[]] (@()+(Get-AppxPackage | Where-Object{$null -ne $_} |
                                                     ForEach-Object{ "$($_.PackageFullName)" } | Sort-Object)); }
-function ProcessGetCommandInEnvPathOrAltPaths ( [String] $commandNameOptionalWithExtension, [String[]] $alternativePaths = @(), [String] $downloadHintMsg = ""){
-                                                [System.Management.Automation.CommandInfo] $cmd = Get-Command -CommandType Application -Name $commandNameOptionalWithExtension -ErrorAction SilentlyContinue | Select-Object -First 1;
-                                                if( $null -ne $cmd ){ return [String] $cmd.Source; }
-                                                foreach( $d in $alternativePaths ){
-                                                  [String] $f = (Join-Path $d $commandNameOptionalWithExtension);
-                                                  if( (FileExists $f) ){ return [String] $f; } }
-                                                throw [Exception] "$(ScriptGetCurrentFunc): commandName=`"$commandNameOptionalWithExtension`" was wether found in env-path=`"$env:PATH`" nor in alternativePaths=`"$alternativePaths`". $downloadHintMsg"; }
 function ProcessStart                         ( [String] $cmd, [String[]] $cmdArgs = @(), [Boolean] $careStdErrAsOut = $false, [Boolean] $traceCmd = $false ){
                                                 # Start any gui or console command including ps scripts in path and provide arguments in an array, waits for output
                                                 # and returns output as a single string. You can use StringSplitIntoLines on output to get it as lines.
@@ -1983,7 +1987,7 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                 if( $us -ne "" ){ $opt += @( "--user", "$($us):$pw" ); }
                                                 if( $ignoreSslCheck ){ $opt += "--insecure"; }
                                                 if( $onlyIfNewer -and (FileExists $tarFile) ){ $opt += @( "--time-cond", $tarFile); }
-                                                [String] $curlExe = ProcessGetCommandInEnvPathOrAltPaths "curl" @() "Please download it from http://curl.haxx.se/download.html and install it and add dir to path env var.";
+                                                [String] $curlExe = ProcessGetApplInEnvPath "curl" "Please download it from http://curl.haxx.se/download.html and install it and add dir to path env var.";
                                                 [String] $curlCaCert = Join-Path (FsEntryGetParentDir $curlExe) "curl-ca-bundle.crt";
                                                 # 2021-10: Because windows has its own curl executable in windows-system32 folder and it does not care the search rule
                                                 #   for the curl-ca-bundle.crt file as it is descripted in https://curl.se/docs/sslcerts.html
@@ -2132,7 +2136,7 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                 Push-Location $tarDir;
                                                 [String] $stateBefore = FsEntryReportMeasureInfo $tarDir;
                                                 # alternative would be for wget: Invoke-WebRequest
-                                                [String] $wgetExe  = ProcessGetCommandInEnvPathOrAltPaths "wget" ; # Example: D:\Work\PortableProg\Tool\...
+                                                [String] $wgetExe  = ProcessGetApplInEnvPath     "wget" ; # Example: D:\Work\PortableProg\Tool\...
                                                 [String] $wgetExe2 = ProcessFindExecutableInPath "wget2"; # Example: D:\Work\PortableProg\Tool\...
                                                 if( $wgetExe2 -ne "" ){ $wgetExe = $wgetExe2; }
                                                 FileAppendLineWithTs $logf "Push-Location `"$tarDir`"; & `"$wgetExe`" `"$url`" $opt --password=*** ; Pop-Location; ";
@@ -2697,12 +2701,14 @@ function ToolGithubApiListOrgRepos            ( [String] $org, [System.Managemen
 function ToolCreate7zip                       ( [String] $srcDirOrFile, [String] $tar7zipFile ){
                                                 # If src has trailing dir separator then it specifies a dir otherwise a file.
                                                 # The target must end with 7z. It uses 7z found in path or in "C:/Program Files/7-Zip/".
+                                                $srcDirOrFile = FsEntryGetAbsolutePath $srcDirOrFile;
+                                                $tar7zipFile = FsEntryGetAbsolutePath  $tar7zipFile;
                                                 if( (FsEntryGetFileExtension $tar7zipFile) -ne ".7z" ){ throw [Exception] "Expected extension 7z for target file `"$tar7zipFile`"."; }
                                                 [String] $src = "";
                                                 [String] $recursiveOption = "";
-                                                if( (DirExists $srcDirOrFile) ){ $recursiveOption = "-r"; $src = "$(FsEntryMakeTrailingDirSep $srcDirOrFile)*";
+                                                if( (FsEntryHasTrailingDirSep $srcDirOrFile) ){ DirAssertExists $srcDirOrFile; $recursiveOption = "-r"; $src = FsEntryGetAbsolutePath "$srcDirOrFile/*";
                                                 }else{ FileAssertExists $srcDirOrFile; $recursiveOption = "-r-"; $src = $srcDirOrFile; }
-                                                [String] $Prog7ZipExe = ProcessGetCommandInEnvPathOrAltPaths "7z" @("C:/Program Files/7-Zip/");
+                                                [String] $Prog7ZipExe = ProcessGetApplInEnvPath "7z"; # Example: "C:/Program Files/7-Zip/7z.exe"
                                                 # Options: -t7z : use 7zip format; -mmt=4 : try use nr of threads; -w : use temp dir; -r : recursively; -r- : not-recursively;
                                                 [Array] $arguments = "-t7z", "-mx=9", "-mmt=4", "-w", $recursiveOption, "a", "$tar7zipFile", $src;
                                                 OutProgress "$Prog7ZipExe $arguments";
@@ -2746,6 +2752,40 @@ function ToolGithubApiDownloadLatestReleaseDir( [String] $repoUrl ){
                                                 FsEntryMoveByPatternToDir "$dir0/*" $tarDir;
                                                 DirDelete $dir0;
                                                 return [String] $tarDir; }
+function ToolNpmFilterIgnorableInstallMessages( [String[]] $out ){
+                                                # Process the output of a call as: npm --no-update-notifier --global --no-fund install ... ;
+                                                # and return the string without the filtered known lines.
+                                                # Example: "added 4 packages in 2s";
+                                                # Example: "changed 108 packages in 9s";
+                                                # Example: "added 1 package, and changed 113 packages in 11s"
+                                                # Example: "removed 1 package, and changed 113 packages in 11s"
+                                                # Example: "found 0 vulnerabilities"
+                                                # Example: "up to date, audited 5 packages in 913ms"
+                                                # Example: "up to date, audited 6 packages in 1s"
+                                                # Example: "1 package is looking for funding"
+                                                # Example: "6 packages are looking for funding"
+                                                # Example: "run `npm fund` for details"
+                                                # Example: "Run `npm audit` for details."
+                                                # Example: "3 critical severity vulnerabilities"
+                                                # Example: "To address issues that do not require attention, run:"
+                                                # Example: "npm audit fix"
+                                                # Example: "Some issues need review, and may require choosing"
+                                                # Example: "a different dependency."
+                                                [String[]] $ignoreLinesRegex = @(
+                                                  "(changed|added|removed) \d.* packages in \d+m?s"
+                                                  ,"found \d+ vulnerabilities"
+                                                  ,"up to date\, audited \d+ packages in \d+m?s"
+                                                  ,"\d+ package.* looking for funding"
+                                                  ,"[rR]un .* details\.?"
+                                                  ,"\d+ critical severity vulnerabilities"
+                                                  ,"To address issues .* run:"
+                                                  ,"npm audit fix"
+                                                  ,"Some issues .* choosing"
+                                                  ,"a different dependency."
+                                                );
+                                                return [String] ($out | Where-Object{$null -ne $_} | ForEach-Object{$_.Trim()} | Where-Object{ $_ -ne "" } |
+                                                Where-Object{
+                                                  -not (($_ -match ('^('+($ignoreLinesRegex -join "|")+')$')) -and $_.Length -lt 110) }); }
 function ToolEvalVsCodeExec                   (){ [String] $result = (ProcessFindExecutableInPath "code");
                                                   if( $result -eq "" -and (OsIsWindows) ){
                                                     if( (FileExists "$env:LOCALAPPDATA\Programs\Microsoft VS Code\bin\Code.cmd") ){ # user
@@ -2762,6 +2802,7 @@ function FsEntryIsEqual ( [String] $fs1, [String] $fs2, [Boolean] $caseSensitive
 function StdOutBegMsgCareInteractiveMode ( [String] $mode = "" ){ OutWarning "StdOutBegMsgCareInteractiveMode is DEPRECATED; replace it now by one or more of: StdInAskForAnswerWhenInInteractMode; OutProgress `"Minimize console`"; ConsoleMinimize;"; StdInAskForAnswerWhenInInteractMode; }
 function StdOutEndMsgCareInteractiveMode ( [Int32] $delayInSec = 1 ){ OutWarning "StdOutEndMsgCareInteractiveMode is DEPRECATED; replace it now by one or more of: OutSuccess `"Ok, done. Press Enter to Exit / Ending in .. seconds.`", StdInReadLine `"Press Enter to exit.`", ProcessSleepSec!"; StdInReadLine "Press Enter to exit."; }
 function ToolGetBranchCommit ( [String] $repo, [String] $branch, [String] $repoDirForCred = "", [Boolean] $traceCmd = $false ){ OutWarning "ToolGetBranchCommit is DEPRECATED; replace it now by GithubGetBranchCommitId."; GithubGetBranchCommitId $repo $branch $repoDirForCred $traceCmd; }
+function ProcessGetCommandInEnvPathOrAltPaths ( [String] $commandNameOptionalWithExtension, [String[]] $alternativePaths = @(), [String] $downloadHintMsg = ""){ OutWarning "ProcessGetCommandInEnvPathOrAltPaths is DEPRECATED; replace it now by ProcessGetApplInEnvPath which does not have alternative path anymore."; ProcessGetApplInEnvPath $commandNameOptionalWithExtension $downloadHintMsg; }
 
 # ----------------------------------------------------------------------------------------------------
 

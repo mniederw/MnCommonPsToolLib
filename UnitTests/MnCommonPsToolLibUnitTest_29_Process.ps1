@@ -20,7 +20,7 @@ function UnitTest_Process(){
   ProcessSleepSec 1;
   OutProgress "ProcessListInstalledAppx";
   [String[]] $out = ProcessListInstalledAppx; $out|Out-Null; # on linux: empty. On windows example: Microsoft.BingNews_4.34.20074.0_x64__8wekyb3d8bbwe
-  Assert ((ProcessGetCommandInEnvPathOrAltPaths "curl").Length -gt 10);
+  Assert ((ProcessGetApplInEnvPath "curl").Length -gt 10);
   if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){ ProcessStart "notepad"; }
   Assert ((ProcessEnvVarGet "PATH").Length -gt 80);
   if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){ ProcessEnvVarSet; }
