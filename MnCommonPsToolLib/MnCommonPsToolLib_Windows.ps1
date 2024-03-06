@@ -391,7 +391,7 @@ function RegistryPrivRuleCreate               ( [System.Security.Principal.Ident
                                                 # alternative: "ObjectInherit,ContainerInherit"
 function RegistryPrivRuleToString             ( [System.Security.AccessControl.RegistryAccessRule] $rule ){
                                                 # Example: RegistryPrivRuleToString (RegistryPrivRuleCreate (PrivGetGroupAdministrators) "FullControl")
-                                                [String] $s = "$($rule.IdentityReference.ToString()):"; # Example: VORDEFINIERT\Administratoren
+                                                [String] $s = "$($rule.IdentityReference.ToString()):"; # Example: VORDEFINIERT\Administratoren    TODO: use english
                                                 if( $rule.AccessControlType -band [System.Security.AccessControl.AccessControlType]::Allow             ){ $s += "+"; }
                                                 if( $rule.AccessControlType -band [System.Security.AccessControl.AccessControlType]::Deny              ){ $s += "-"; }
                                                 if( $rule.IsInherited ){
@@ -452,7 +452,8 @@ function RegistryKeyAddAclRule                ( [String] $key, [System.Security.
 function RegistryKeySetAclRule                ( [String] $key, [System.Security.AccessControl.RegistryAccessRule] $rule, [Boolean] $useAddNotSet = $false ){
                                                 # Example: "HKLM:\Software\MyManufactor" (RegistryPrivRuleCreate (PrivGetGroupAdministrators) "FullControl");
                                                 $key = RegistryMapToShortKey $key;
-                                                OutProgress "RegistryKeySetAclRule `"$key`" `"$(RegistryPrivRuleToString $rule)`"";
+                                                [String] $traceInfo = "$(ScriptGetCurrentFunc)(`"$key`",`"$(RegistryPrivRuleToString $rule)`",useAddNotSet=$useAddNotSet)";
+                                                OutProgress $traceInfo;
                                                 RegistryRequiresElevatedAdminMode;
                                                 PrivEnableTokenPrivilege SeTakeOwnershipPrivilege;
                                                 PrivEnableTokenPrivilege SeRestorePrivilege;
@@ -465,7 +466,7 @@ function RegistryKeySetAclRule                ( [String] $key, [System.Security.
                                                   else               { $acl.SetAccessRule($rule); }
                                                   $k.SetAccessControl($acl);
                                                   $k.Close(); $hk.Close();
-                                                }catch{ throw [Exception] "$(ScriptGetCurrentFunc)($key,$(RegistryPrivRuleToString $rule),$useAddNotSet) failed because $($_.Exception.Message)"; } }
+                                                }catch{ throw [Exception] "$traceInfo failed because $($_.Exception.Message)"; } }
 function ServiceListRunnings                  (){
                                                 return [String[]] (@()+(Get-Service -ErrorAction SilentlyContinue * |
                                                   # 2023-03: for: get-service McpManagementService on we got the following error without any specific error:
