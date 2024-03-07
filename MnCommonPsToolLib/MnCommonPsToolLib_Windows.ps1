@@ -15,11 +15,11 @@ if( $null -ne (Import-Module -NoClobber -Name "CimCmdlets"     -ErrorAction Cont
 
 # Set some self defined constant global variables
 if( $null -eq (Get-Variable -Scope global -ErrorAction SilentlyContinue -Name AllUsersMenuDir) ){ # check wether last variable already exists because reload safe
-  New-Variable -option Constant -scope global -name UserQuickLaunchDir           -value ([String]"$env:APPDATA/Microsoft/Internet Explorer/Quick Launch/");
-  New-Variable -option Constant -scope global -name UserSendToDir                -value ([String]"$env:APPDATA/Microsoft/Windows/SendTo/");
-  New-Variable -option Constant -scope global -name UserMenuDir                  -value ([String]"$env:APPDATA/Microsoft/Windows/Start Menu/");
-  New-Variable -option Constant -scope global -name UserMenuStartupDir           -value ([String]"$env:APPDATA/Microsoft/Windows/Start Menu/Programs/Startup/");
-  New-Variable -option Constant -scope global -name AllUsersMenuDir              -value ([String]"$env:ALLUSERSPROFILE/Microsoft/Windows/Start Menu/");
+  New-Variable -option Constant -scope global -name UserQuickLaunchDir           -value ([String](FsEntryGetAbsolutePath "$env:APPDATA/Microsoft/Internet Explorer/Quick Launch/"));
+  New-Variable -option Constant -scope global -name UserSendToDir                -value ([String](FsEntryGetAbsolutePath "$env:APPDATA/Microsoft/Windows/SendTo/"));
+  New-Variable -option Constant -scope global -name UserMenuDir                  -value ([String](FsEntryGetAbsolutePath "$env:APPDATA/Microsoft/Windows/Start Menu/"));
+  New-Variable -option Constant -scope global -name UserMenuStartupDir           -value ([String](FsEntryGetAbsolutePath "$env:APPDATA/Microsoft/Windows/Start Menu/Programs/Startup/"));
+  New-Variable -option Constant -scope global -name AllUsersMenuDir              -value ([String](FsEntryGetAbsolutePath "$env:ALLUSERSPROFILE/Microsoft/Windows/Start Menu/"));
 }
 
 function OsIs64BitOs                          (){ return [Boolean] (Get-CimInstance -Class Win32_OperatingSystem -ErrorAction SilentlyContinue).OSArchitecture -eq "64-Bit"; }

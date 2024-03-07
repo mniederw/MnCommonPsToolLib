@@ -5,11 +5,11 @@ Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version
 function UnitTest_Win_OS(){
   OutProgress (ScriptGetCurrentFuncName);
   if( ! (OsIsWindows) ){ OutProgress "Not running on windows, so bypass test."; return; }
-  Assert (FsEntryGetAbsolutePath $UserQuickLaunchDir.StartsWith("C:\"));
-  Assert (FsEntryGetAbsolutePath      $UserSendToDir.StartsWith("C:\"));
-  Assert (FsEntryGetAbsolutePath        $UserMenuDir.StartsWith("C:\"));
-  Assert (FsEntryGetAbsolutePath $UserMenuStartupDir.StartsWith("C:\"));
-  Assert (FsEntryGetAbsolutePath    $AllUsersMenuDir.StartsWith("C:\"));
+  Assert ($UserQuickLaunchDir).StartsWith("C:\");
+  Assert ($UserSendToDir     ).StartsWith("C:\");
+  Assert ($UserMenuDir       ).StartsWith("C:\");
+  Assert ($UserMenuStartupDir).StartsWith("C:\");
+  Assert ($AllUsersMenuDir   ).StartsWith("C:\");
   #
   Assert (OsIs64BitOs);
   Assert ((OsIsHibernateEnabled) -or $true);
