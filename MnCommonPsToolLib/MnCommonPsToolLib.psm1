@@ -1407,7 +1407,8 @@ function DriveFreeSpace                       ( [String] $drive ){
 function DirSep                               (){ return [Char] [IO.Path]::DirectorySeparatorChar; }
 function DirExists                            ( [String] $dir ){
                                                 FsEntryAssertHasTrailingDirSep $dir;
-                                                try{ return [Boolean] (Test-Path -PathType Container -LiteralPath $dir); }catch{ throw [Exception] "$(ScriptGetCurrentFunc)($dir) failed because $($_.Exception.Message)"; } }
+                                                try{ return [Boolean] (Test-Path -PathType Container -LiteralPath $dir); }
+                                                catch{ throw [Exception] "$(ScriptGetCurrentFunc)($dir) failed because $($_.Exception.Message)"; } }
 function DirNotExists                         ( [String] $dir ){ FsEntryAssertHasTrailingDirSep $dir; return [Boolean] -not (DirExists $dir); }
 function DirAssertExists                      ( [String] $dir, [String] $text = "Assertion" ){
                                                 FsEntryAssertHasTrailingDirSep $dir;
@@ -1457,9 +1458,11 @@ function FileExists                           ( [String] $file ){ AssertNotEmpty
 function FileNotExists                        ( [String] $file ){
                                                 return [Boolean] -not (FileExists $file); }
 function FileAssertExists                     ( [String] $file ){
-                                                if( (FsEntryHasTrailingDirSep $file) ){ throw [Exception] "File has not allowed trailing dir sep: `"$file`"."; }; if( (FileNotExists $file) ){ throw [Exception] "File not exists: `"$file`"."; } }
+                                                if( (FsEntryHasTrailingDirSep $file) ){ throw [Exception] "File has not allowed trailing dir sep: `"$file`"."; };
+                                                if( (FileNotExists $file) ){ throw [Exception] "File not exists: `"$file`"."; } }
 function FileExistsAndIsNewer                 ( [String] $ftar, [String] $fsrc ){
-                                                FileAssertExists $fsrc; return [Boolean] ((FileExists $ftar) -and ((FsEntryGetLastModified $ftar) -ge (FsEntryGetLastModified $fsrc))); }
+                                                FileAssertExists $fsrc;
+                                                return [Boolean] ((FileExists $ftar) -and ((FsEntryGetLastModified $ftar) -ge (FsEntryGetLastModified $fsrc))); }
 function FileNotExistsOrIsOlder               ( [String] $ftar, [String] $fsrc ){
                                                 return [Boolean] -not (FileExistsAndIsNewer $ftar $fsrc); }
 function FileReadContentAsString              ( [String] $file, [String] $encodingIfNoBom = "Default" ){
@@ -1470,7 +1473,8 @@ function FileReadContentAsLines               ( [String] $file, [String] $encodi
                                                 OutVerbose "FileRead $file";
                                                 return [String[]] (@()+(Get-Content -Encoding $encodingIfNoBom -LiteralPath $file)); }
 function FileReadJsonAsObject                 ( [String] $jsonFile ){
-                                                try{ Get-Content -Raw -Path $jsonFile | ConvertFrom-Json; }catch{ throw [Exception] "FileReadJsonAsObject(`"$jsonFile`") failed because $($_.Exception.Message)"; } }
+                                                try{ Get-Content -Raw -Path $jsonFile | ConvertFrom-Json; }
+                                                catch{ throw [Exception] "FileReadJsonAsObject(`"$jsonFile`") failed because $($_.Exception.Message)"; } }
 function FileWriteFromString                  ( [String] $file, [String] $content, [Boolean] $overwrite = $true, [String] $encoding = "UTF8BOM" ){
                                                 # Will create path of file. overwrite does ignore readonly attribute.
                                                 $file = FsEntryGetAbsolutePath $file;
@@ -1575,7 +1579,9 @@ function FileDelete                           ( [String] $file, [Boolean] $ignor
                                                     if( -not $ignoreAccessDenied ){ throw; }
                                                     OutWarning "Warning: Ignoring UnauthorizedAccessException for Remove-Item -Force:$ignoreReadonly -LiteralPath `"$file`""; return;
                                                   }catch{ # exc: IOException: The process cannot access the file '$HOME\myprog.lnk' because it is being used by another process.
-                                                    [Boolean] $isUsedByAnotherProc = $_.Exception -is [System.IO.IOException] -and $_.Exception.Message.Contains("The process cannot access the file ") -and $_.Exception.Message.Contains(" because it is being used by another process.");
+                                                    [Boolean] $isUsedByAnotherProc = $_.Exception -is [System.IO.IOException] -and
+                                                      $_.Exception.Message.Contains("The process cannot access the file ") -and
+                                                      $_.Exception.Message.Contains(" because it is being used by another process.");
                                                     if( -not $isUsedByAnotherProc ){ throw; }
                                                     if( $nrOfTries -ge 5 ){ throw; }
                                                     Start-Sleep -Milliseconds $(switch($nrOfTries){1{50}2{100}3{200}4{400}default{800}}); } } }
