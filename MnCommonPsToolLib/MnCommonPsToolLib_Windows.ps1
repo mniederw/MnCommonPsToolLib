@@ -15,11 +15,11 @@ if( $null -ne (Import-Module -NoClobber -Name "CimCmdlets"     -ErrorAction Cont
 
 # Set some self defined constant global variables
 if( $null -eq (Get-Variable -Scope global -ErrorAction SilentlyContinue -Name AllUsersMenuDir) ){ # check wether last variable already exists because reload safe
-  New-Variable -option Constant -scope global -name UserQuickLaunchDir           -value ([String]"$env:APPDATA\Microsoft\Internet Explorer\Quick Launch");
-  New-Variable -option Constant -scope global -name UserSendToDir                -value ([String]"$env:APPDATA\Microsoft\Windows\SendTo");
-  New-Variable -option Constant -scope global -name UserMenuDir                  -value ([String]"$env:APPDATA\Microsoft\Windows\Start Menu");
-  New-Variable -option Constant -scope global -name UserMenuStartupDir           -value ([String]"$env:APPDATA\Microsoft\Windows\Start Menu\Programs\Startup");
-  New-Variable -option Constant -scope global -name AllUsersMenuDir              -value ([String]"$env:ALLUSERSPROFILE\Microsoft\Windows\Start Menu");
+  New-Variable -option Constant -scope global -name UserQuickLaunchDir           -value ([String](FsEntryGetAbsolutePath "$env:APPDATA/Microsoft/Internet Explorer/Quick Launch/"));
+  New-Variable -option Constant -scope global -name UserSendToDir                -value ([String](FsEntryGetAbsolutePath "$env:APPDATA/Microsoft/Windows/SendTo/"));
+  New-Variable -option Constant -scope global -name UserMenuDir                  -value ([String](FsEntryGetAbsolutePath "$env:APPDATA/Microsoft/Windows/Start Menu/"));
+  New-Variable -option Constant -scope global -name UserMenuStartupDir           -value ([String](FsEntryGetAbsolutePath "$env:APPDATA/Microsoft/Windows/Start Menu/Programs/Startup/"));
+  New-Variable -option Constant -scope global -name AllUsersMenuDir              -value ([String](FsEntryGetAbsolutePath "$env:ALLUSERSPROFILE/Microsoft/Windows/Start Menu/"));
 }
 
 function OsIs64BitOs                          (){ return [Boolean] (Get-CimInstance -Class Win32_OperatingSystem -ErrorAction SilentlyContinue).OSArchitecture -eq "64-Bit"; }
@@ -88,7 +88,7 @@ function PrivGetGroupAuthenticatedUsers       (){ return [System.Security.Princi
 function PrivGetGroupEveryone                 (){ return [System.Security.Principal.IdentityReference] (New-Object System.Security.Principal.SecurityIdentifier("S-1-1-0"                                                       )).Translate([System.Security.Principal.NTAccount]); } # Jeder
 function PrivGetUserTrustedInstaller          (){ return [System.Security.Principal.IdentityReference] (New-Object System.Security.Principal.SecurityIdentifier("S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464")).Translate([System.Security.Principal.NTAccount]); } # NT SERVICE\TrustedInstaller
 function PrivFsRuleAsString                   ( [System.Security.AccessControl.FileSystemAccessRule] $rule ){
-                                                return [String] "($($rule.IdentityReference);$(($rule.FileSystemRights).Replace(' ',''));$($rule.InheritanceFlags.Replace(' ',''));$($rule.PropagationFlags.Replace(' ',''));$($rule.AccessControlType);IsInherited=$($rule.IsInherited))";
+                                                return [String] "($($rule.IdentityReference);$(($rule.FileSystemRights).ToString().Replace(' ',''));$($rule.InheritanceFlags.ToString().Replace(' ',''));$($rule.PropagationFlags.ToString().Replace(' ',''));$($rule.AccessControlType);IsInherited=$($rule.IsInherited))";
                                                 } # for later: CentralAccessPolicyId, CentralAccessPolicyName, Sddl="O:BAG:SYD:PAI(A;OICI;FA;;;SY)(A;;FA;;;BA)"
 function PrivAclAsString                      ( [System.Security.AccessControl.FileSystemSecurity] $acl ){
                                                 [String] $s = "Owner=$($acl.Owner);Group=$($acl.Group);Acls=";
@@ -96,12 +96,6 @@ function PrivAclAsString                      ( [System.Security.AccessControl.F
 function PrivAclSetProtection                 ( [System.Security.AccessControl.ObjectSecurity] $acl, [Boolean] $isProtectedFromInheritance, [Boolean] $preserveInheritance ){
                                                 # set preserveInheritance to false to remove inherited access rules, param is ignored if $isProtectedFromInheritance is false.
                                                 $acl.SetAccessRuleProtection($isProtectedFromInheritance, $preserveInheritance); }
-function PrivFsRuleCreate                     ( [System.Security.Principal.IdentityReference] $account, [System.Security.AccessControl.FileSystemRights] $rights,
-                                                [System.Security.AccessControl.InheritanceFlags] $inherit, [System.Security.AccessControl.PropagationFlags] $propagation, [System.Security.AccessControl.AccessControlType] $access ){
-                                                # usually account is (PrivGetGroupAdministrators)
-                                                # combinations see: https://msdn.microsoft.com/en-us/library/ms229747(v=vs.100).aspx
-                                                # https://technet.microsoft.com/en-us/library/ff730951.aspx  Rights=(AppendData,ChangePermissions,CreateDirectories,CreateFiles,Delete,DeleteSubdirectoriesAndFiles,ExecuteFile,FullControl,ListDirectory,Modify,Read,ReadAndExecute,ReadAttributes,ReadData,ReadExtendedAttributes,ReadPermissions,Synchronize,TakeOwnership,Traverse,Write,WriteAttributes,WriteData,WriteExtendedAttributes) Inherit=(ContainerInherit,ObjectInherit,None) Propagation=(InheritOnly,NoPropagateInherit,None) Access=(Allow,Deny)
-                                                return [System.Security.AccessControl.FileSystemAccessRule] (New-Object System.Security.AccessControl.FileSystemAccessRule($account, $rights, $inherit, $propagation, $access)); }
 function PrivFsRuleCreateFullControl          ( [System.Security.Principal.IdentityReference] $account, [Boolean] $useInherit ){ # for dirs usually inherit is used
                                                 [System.Security.AccessControl.InheritanceFlags] $inh = switch($useInherit){ ($false){[System.Security.AccessControl.InheritanceFlags]::None} ($true){[System.Security.AccessControl.InheritanceFlags]"ContainerInherit,ObjectInherit"} };
                                                 [System.Security.AccessControl.PropagationFlags] $prf = switch($useInherit){ ($false){[System.Security.AccessControl.PropagationFlags]::None} ($true){[System.Security.AccessControl.PropagationFlags]::None                          } }; # alternative [System.Security.AccessControl.PropagationFlags]::InheritOnly
@@ -125,10 +119,6 @@ function PrivFsRuleCreateByString             ( [System.Security.Principal.Ident
 function PrivDirSecurityCreateFullControl     ( [System.Security.Principal.IdentityReference] $account ){
                                                 [System.Security.AccessControl.DirectorySecurity] $result = New-Object System.Security.AccessControl.DirectorySecurity;
                                                 $result.AddAccessRule((PrivFsRuleCreateFullControl $account $true));
-                                                return [System.Security.AccessControl.DirectorySecurity] $result; }
-function PrivDirSecurityCreateOwner           ( [System.Security.Principal.IdentityReference] $account ){
-                                                [System.Security.AccessControl.DirectorySecurity] $result = New-Object System.Security.AccessControl.DirectorySecurity;
-                                                $result.SetOwner($account);
                                                 return [System.Security.AccessControl.DirectorySecurity] $result; }
 function PrivFileSecurityCreateOwner          ( [System.Security.Principal.IdentityReference] $account ){
                                                 [System.Security.AccessControl.FileSecurity] $result = New-Object System.Security.AccessControl.FileSecurity;

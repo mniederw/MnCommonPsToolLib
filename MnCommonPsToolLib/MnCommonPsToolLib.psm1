@@ -1257,7 +1257,7 @@ function FsEntryAclSetInheritance             ( [String] $fsEntry ){
                                                 } }
 function FsEntryAclRuleWrite                  ( [String] $modeSetAddOrDel, [String] $fsEntry, [System.Security.AccessControl.FileSystemAccessRule] $rule, [Boolean] $recursive = $false ){
                                                 # $modeSetAddOrDel = "Set", "Add", "Del".
-                                                $targetDir = FsEntryGetAbsolutePath $targetDir;
+                                                $fsEntry = FsEntryGetAbsolutePath $fsEntry;
                                                 OutProgress "FsEntryAclRuleWrite $modeSetAddOrDel `"$fsEntry`" `"$(PrivFsRuleAsString $rule)`"";
                                                 [System.Security.AccessControl.FileSystemSecurity] $acl = FsEntryAclGet $fsEntry;
                                                 if    ( $modeSetAddOrDel -eq "Set" ){ $acl.SetAccessRule($rule); }
@@ -1269,6 +1269,16 @@ function FsEntryAclRuleWrite                  ( [String] $modeSetAddOrDel, [Stri
                                                   FsEntryListAsStringArray "$fsEntry/*" $false | Where-Object{$null -ne $_} |
                                                     ForEach-Object{ FsEntryAclRuleWrite $modeSetAddOrDel $_ $rule $true };
                                                 } }
+function PrivFsRuleCreate                     ( [System.Security.Principal.IdentityReference] $account, [System.Security.AccessControl.FileSystemRights] $rights,
+                                                [System.Security.AccessControl.InheritanceFlags] $inherit, [System.Security.AccessControl.PropagationFlags] $propagation, [System.Security.AccessControl.AccessControlType] $access ){
+                                                # usually account is (PrivGetGroupAdministrators)
+                                                # combinations see: https://msdn.microsoft.com/en-us/library/ms229747(v=vs.100).aspx
+                                                # https://technet.microsoft.com/en-us/library/ff730951.aspx  Rights=(AppendData,ChangePermissions,CreateDirectories,CreateFiles,Delete,DeleteSubdirectoriesAndFiles,ExecuteFile,FullControl,ListDirectory,Modify,Read,ReadAndExecute,ReadAttributes,ReadData,ReadExtendedAttributes,ReadPermissions,Synchronize,TakeOwnership,Traverse,Write,WriteAttributes,WriteData,WriteExtendedAttributes) Inherit=(ContainerInherit,ObjectInherit,None) Propagation=(InheritOnly,NoPropagateInherit,None) Access=(Allow,Deny)
+                                                return [System.Security.AccessControl.FileSystemAccessRule] (New-Object System.Security.AccessControl.FileSystemAccessRule($account, $rights, $inherit, $propagation, $access)); }
+function PrivDirSecurityCreateOwner           ( [System.Security.Principal.IdentityReference] $account ){
+                                                [System.Security.AccessControl.DirectorySecurity] $result = New-Object System.Security.AccessControl.DirectorySecurity;
+                                                $result.SetOwner($account);
+                                                return [System.Security.AccessControl.DirectorySecurity] $result; }
 function FsEntryTrySetOwner                   ( [String] $fsEntry, [System.Security.Principal.IdentityReference] $account, [Boolean] $recursive = $false ){
                                                 # usually account is (PrivGetGroupAdministrators); if the entry itself cannot be set then it tries to set on its parent the fullcontrol for admins.
                                                 $fsEntry = FsEntryGetAbsolutePath $fsEntry;
@@ -1282,12 +1292,21 @@ function FsEntryTrySetOwner                   ( [String] $fsEntry, [System.Secur
                                                   if( $acl.Owner -ne $account ){
                                                     OutProgress "FsEntryTrySetOwner `"$fsEntry`" `"$($account.ToString())`" recursive=$recursive ";
                                                     if( $fs.PSIsContainer ){
-                                                      try{
-                                                        $fs.SetAccessControl((PrivDirSecurityCreateOwner $account));
-                                                      }catch{
-                                                        OutProgress "taking ownership of dir `"$($fs.FullName)`" failed so setting fullControl for administrators of its parent `"$($fs.Parent.FullName)`"";
-                                                        $fs.Parent.SetAccessControl((PrivDirSecurityCreateFullControl (PrivGetGroupAdministrators)));
-                                                        $fs.SetAccessControl((PrivDirSecurityCreateOwner $account));
+                                                      if( ProcessIsLesserEqualPs5 ){
+                                                        try{
+                                                          $fs.SetAccessControl((PrivDirSecurityCreateOwner $account));
+                                                            # 2024-03: Method invocation failed because [System.IO.DirectoryInfo] does not contain a method named 'SetAccessControl'.
+                                                        }catch{
+                                                          OutProgress "taking ownership of dir `"$($fs.FullName)`" failed so setting fullControl for administrators of its parent `"$($fs.Parent.FullName)`"";
+                                                          $fs.Parent.SetAccessControl((PrivDirSecurityCreateFullControl (PrivGetGroupAdministrators)));
+                                                          $fs.SetAccessControl((PrivDirSecurityCreateOwner $account));
+                                                        }
+                                                      }else{ # 2024-03 gets no error but no works for System Volume Information directory.
+                                                        $di = [System.IO.DirectoryInfo]::new($fsEntry);
+                                                        $ds = $di.GetAccessControl();
+                                                        [System.Security.Principal.SecurityIdentifier] $sid = $account.Translate([System.Security.Principal.SecurityIdentifier]);
+                                                        $ds.SetOwner($sid);
+                                                        $di.SetAccessControl($ds);
                                                       }
                                                     }else{ # is a file
                                                       try{
@@ -1388,7 +1407,8 @@ function DriveFreeSpace                       ( [String] $drive ){
 function DirSep                               (){ return [Char] [IO.Path]::DirectorySeparatorChar; }
 function DirExists                            ( [String] $dir ){
                                                 FsEntryAssertHasTrailingDirSep $dir;
-                                                try{ return [Boolean] (Test-Path -PathType Container -LiteralPath $dir); }catch{ throw [Exception] "$(ScriptGetCurrentFunc)($dir) failed because $($_.Exception.Message)"; } }
+                                                try{ return [Boolean] (Test-Path -PathType Container -LiteralPath $dir); }
+                                                catch{ throw [Exception] "$(ScriptGetCurrentFunc)($dir) failed because $($_.Exception.Message)"; } }
 function DirNotExists                         ( [String] $dir ){ FsEntryAssertHasTrailingDirSep $dir; return [Boolean] -not (DirExists $dir); }
 function DirAssertExists                      ( [String] $dir, [String] $text = "Assertion" ){
                                                 FsEntryAssertHasTrailingDirSep $dir;
@@ -1438,9 +1458,11 @@ function FileExists                           ( [String] $file ){ AssertNotEmpty
 function FileNotExists                        ( [String] $file ){
                                                 return [Boolean] -not (FileExists $file); }
 function FileAssertExists                     ( [String] $file ){
-                                                if( (FsEntryHasTrailingDirSep $file) ){ throw [Exception] "File has not allowed trailing dir sep: `"$file`"."; }; if( (FileNotExists $file) ){ throw [Exception] "File not exists: `"$file`"."; } }
+                                                if( (FsEntryHasTrailingDirSep $file) ){ throw [Exception] "File has not allowed trailing dir sep: `"$file`"."; };
+                                                if( (FileNotExists $file) ){ throw [Exception] "File not exists: `"$file`"."; } }
 function FileExistsAndIsNewer                 ( [String] $ftar, [String] $fsrc ){
-                                                FileAssertExists $fsrc; return [Boolean] ((FileExists $ftar) -and ((FsEntryGetLastModified $ftar) -ge (FsEntryGetLastModified $fsrc))); }
+                                                FileAssertExists $fsrc;
+                                                return [Boolean] ((FileExists $ftar) -and ((FsEntryGetLastModified $ftar) -ge (FsEntryGetLastModified $fsrc))); }
 function FileNotExistsOrIsOlder               ( [String] $ftar, [String] $fsrc ){
                                                 return [Boolean] -not (FileExistsAndIsNewer $ftar $fsrc); }
 function FileReadContentAsString              ( [String] $file, [String] $encodingIfNoBom = "Default" ){
@@ -1451,7 +1473,8 @@ function FileReadContentAsLines               ( [String] $file, [String] $encodi
                                                 OutVerbose "FileRead $file";
                                                 return [String[]] (@()+(Get-Content -Encoding $encodingIfNoBom -LiteralPath $file)); }
 function FileReadJsonAsObject                 ( [String] $jsonFile ){
-                                                try{ Get-Content -Raw -Path $jsonFile | ConvertFrom-Json; }catch{ throw [Exception] "FileReadJsonAsObject(`"$jsonFile`") failed because $($_.Exception.Message)"; } }
+                                                try{ Get-Content -Raw -Path $jsonFile | ConvertFrom-Json; }
+                                                catch{ throw [Exception] "FileReadJsonAsObject(`"$jsonFile`") failed because $($_.Exception.Message)"; } }
 function FileWriteFromString                  ( [String] $file, [String] $content, [Boolean] $overwrite = $true, [String] $encoding = "UTF8BOM" ){
                                                 # Will create path of file. overwrite does ignore readonly attribute.
                                                 $file = FsEntryGetAbsolutePath $file;
@@ -1556,7 +1579,9 @@ function FileDelete                           ( [String] $file, [Boolean] $ignor
                                                     if( -not $ignoreAccessDenied ){ throw; }
                                                     OutWarning "Warning: Ignoring UnauthorizedAccessException for Remove-Item -Force:$ignoreReadonly -LiteralPath `"$file`""; return;
                                                   }catch{ # exc: IOException: The process cannot access the file '$HOME\myprog.lnk' because it is being used by another process.
-                                                    [Boolean] $isUsedByAnotherProc = $_.Exception -is [System.IO.IOException] -and $_.Exception.Message.Contains("The process cannot access the file ") -and $_.Exception.Message.Contains(" because it is being used by another process.");
+                                                    [Boolean] $isUsedByAnotherProc = $_.Exception -is [System.IO.IOException] -and
+                                                      $_.Exception.Message.Contains("The process cannot access the file ") -and
+                                                      $_.Exception.Message.Contains(" because it is being used by another process.");
                                                     if( -not $isUsedByAnotherProc ){ throw; }
                                                     if( $nrOfTries -ge 5 ){ throw; }
                                                     Start-Sleep -Milliseconds $(switch($nrOfTries){1{50}2{100}3{200}4{400}default{800}}); } } }
