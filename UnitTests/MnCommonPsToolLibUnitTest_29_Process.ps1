@@ -21,7 +21,7 @@ function UnitTest_Process(){
   OutProgress "ProcessListInstalledAppx";
   [String[]] $out = ProcessListInstalledAppx; $out|Out-Null; # on linux: empty. On windows example: Microsoft.BingNews_4.34.20074.0_x64__8wekyb3d8bbwe
   Assert ((ProcessGetApplInEnvPath "curl").Length -gt 10);
-  if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){ ProcessStart "notepad"; }
+  ProcessStart "tar" @("--version") | Out-Null; # any exe which should exists on all platforms
   Assert ((ProcessEnvVarGet "PATH").Length -gt 80);
   if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){ ProcessEnvVarSet; }
   if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){ ProcessEnvVarPathAdd "PATH" "$HOME"; }

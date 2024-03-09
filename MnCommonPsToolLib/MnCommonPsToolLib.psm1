@@ -4,7 +4,7 @@
 # Licensed under GPL3. This is freeware.
 # 2013-2024 produced by Marc Niederwieser, Switzerland.
 
-[String] $global:MnCommonPsToolLibVersion = "7.49";
+[String] $global:MnCommonPsToolLibVersion = "7.50";
   # Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
   # Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
   # more see Releasenotes.txt
@@ -884,6 +884,7 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 $prInfo.UseShellExecute = $false; # UseShellExecute must be false when redirect io
                                                 $prInfo.RedirectStandardError = $true;
                                                 $prInfo.RedirectStandardOutput = $true;
+                                                # Note: This does not prevent exes waiting for keyboard input as "less": $prInfo.RedirectStandardInput = $true; ... $pr.Start(); $pr.StandardInput.Close();
                                                 $prInfo.RedirectStandardInput = $false; # parent and child have same standard-input and no additional pipe created.
                                                 # for future use: $prInfo.StandardOutputEncoding = Encoding.UTF8;
                                                 # for future use: $prInfo.StandardErrorEncoding  = Encoding.UTF8;
@@ -896,24 +897,49 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 # The reason is the called program can produce child processes which can inherit redirect handles which can be still open
                                                 # while a subprocess exited and so WaitForExit which does wait for EOFs can block forever.
                                                 # See https://stackoverflow.com/questions/26713373/process-waitforexit-doesnt-return-even-though-process-hasexited-is-true
-                                                # Uses async read of stdout and stderr to avoid deadlocks.
                                                 [System.Text.StringBuilder] $bufStdOut = New-Object System.Text.StringBuilder;
                                                 [System.Text.StringBuilder] $bufStdErr = New-Object System.Text.StringBuilder;
-                                                $actionReadStdOut = { if( (StringIsFilled $Event.SourceEventArgs.Data) ){ [void]$Event.MessageData.AppendLine($Event.SourceEventArgs.Data); } };
-                                                $actionReadStdErr = { if( (StringIsFilled $Event.SourceEventArgs.Data) ){ [void]$Event.MessageData.AppendLine($Event.SourceEventArgs.Data); } };
-                                                #[String] $thid = "$([System.Threading.Thread]::CurrentThread.ManagedThreadId)";
-                                                [Object] $eventStdOut = Register-ObjectEvent -InputObject $pr -EventName "OutputDataReceived" -Action $actionReadStdOut -MessageData $bufStdOut;
-                                                [Object] $eventStdErr = Register-ObjectEvent -InputObject $pr -EventName "ErrorDataReceived"  -Action $actionReadStdErr -MessageData $bufStdErr;
-                                                [void]$pr.Start();
-                                                $pr.BeginOutputReadLine();
-                                                $pr.BeginErrorReadLine();
+                                                # Uses async read of stdout and stderr to avoid deadlocks.
+                                                #
+                                                # Source solution tries without polling:
+                                                #     $actionReadStdOut = { if( -not ([String]::IsNullOrEmpty($Event.SourceEventArgs.Data)) ){ [void]$Event.MessageData.Append($Event.SourceEventArgs.Data); } };
+                                                #     $actionReadStdErr = { if( -not ([String]::IsNullOrEmpty($Event.SourceEventArgs.Data)) ){ [void]$Event.MessageData.Append($Event.SourceEventArgs.Data); } };
+                                                #     [Object] $eventStdOut = Register-ObjectEvent -InputObject $pr -EventName "OutputDataReceived" -Action $actionReadStdOut -MessageData $bufStdOut;
+                                                #     [Object] $eventStdErr = Register-ObjectEvent -InputObject $pr -EventName "ErrorDataReceived"  -Action $actionReadStdErr -MessageData $bufStdErr;
+                                                #     ... pr.Start
+                                                #     $pr.BeginOutputReadLine();
+                                                #     $pr.BeginErrorReadLine();
+                                                #     ...
+                                                #     Unregister-Event -SourceIdentifier $eventStdOut.Name; $eventStdOut.Dispose();
+                                                #     Unregister-Event -SourceIdentifier $eventStdErr.Name; $eventStdErr.Dispose();
+                                                #   is not usable because for some executable calls it did not absolutely always process or generate the events in sequential order which resulted in corrupted outputfiles!
+                                                # Also another solution with EventArgs (or variants by using: $queueStdOut = New-Object System.Collections.Concurrent.ConcurrentQueue[String];)
+                                                #     # The $EventArgs is an automatic variable, the two events are never called at the same time, so it is multithreading safe.
+                                                #     $pr.add_OutputDataReceived({ $bufStdOut.Append($EventArgs.Data); });
+                                                #     $pr.add_ErrorDataReceived( { $bufStdErr.Append($EventArgs.Data); });
+                                                #   did not work because it throws:
+                                                #     System.Management.Automation.PSInvalidOperationException: There is no Runspace available to run scripts in this thread.
+                                                #     You can provide one in the DefaultRunspace property of the System.Management.Automation.Runspaces.Runspace type.
+                                                #     The script block you attempted to invoke was:  if( -not [String]:…($EventArgs.Data) }
+                                                #     at System.Management.Automation.ScriptBlock.GetContextFromTLS() ... at System.Threading.PortableThreadPool.WorkerThread.WorkerThreadStart()
+                                                #
+                                                $pr.Start() | Out-Null;
+                                                while($true){
+                                                  while( -not $pr.StandardOutput.Peek() -gt -1 ){ $bufStdOut.Append($pr.StandardOutput.ReadLine()); }
+                                                  while( -not $pr.StandardError.Peek()  -gt -1 ){ $bufStdErr.Append($pr.StandardError.ReadLine()) ; }
+                                                  if( $pr.HasExited ){
+                                                    $bufStdOut.Append($pr.StandardOutput.ReadToEnd());
+                                                    $bufStdErr.Append($pr.StandardError.ReadToEnd());
+                                                    break;
+                                                  }
+                                                  Start-Sleep -Milliseconds 100;
+                                                }
                                                 $pr.WaitForExit();
                                                 [Int32] $exitCode = $pr.ExitCode;
                                                 $pr.Dispose();
-                                                Unregister-Event -SourceIdentifier $eventStdOut.Name; $eventStdOut.Dispose();
-                                                Unregister-Event -SourceIdentifier $eventStdErr.Name; $eventStdErr.Dispose();
                                                 [String] $out = $bufStdOut.ToString();
-                                                [String] $err = $bufStdErr.ToString().Trim(); if( $err -ne "" ){ $err = [Environment]::NewLine + $err; }
+                                                [String] $err = $bufStdErr.ToString(); if( $err -ne "" ){ $err = [Environment]::NewLine + $err.Trim(); }
+                                                OutVerbose "ProcessStart-Result rc=$exitCode outLen=$($out.Length) errLen=$($err.Length) ";
                                                 [Boolean] $doThrow = $exitCode -ne 0 -or ($err -ne "" -and -not $careStdErrAsOut);
                                                 if( $ErrorActionPreference -ne "Continue" -and $doThrow ){
                                                   if( -not $traceCmd ){ OutProgress $traceInfo; } # in case of an error output command line, if not yet done
@@ -922,7 +948,7 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                     ForEach-Object{ OutProgress "  $_"; };
                                                   [String] $msgPrg = "ProcessStart";
                                                   if( $careStdErrAsOut ){ $msgPrg += "-careStdErrAsOut"; }
-                                                  [String] $msg = "$msgPrg($traceInfo) failed with rc=$exitCode $err";
+                                                  [String] $msg = "$msgPrg($traceInfo) failed with rc=$exitCode because $err";
                                                   throw [Exception] $msg;
                                                 }
                                                 $out += $err;
@@ -1544,7 +1570,7 @@ function FileContentsAreEqual                 ( [String] $f1, [String] $f2, [Boo
                                                 if( $fi1.Length -ne $fi2.Length ){ return [Boolean] $false; }
                                                 # Alternative: use: sha256sum file1 file2;
                                                 if( $true ){ # Much more performant (20 sec for 5 GB file).
-                                                  if( (OsIsWindows) ){ & "fc.exe" "/b" ($fi1.FullName) ($fi2.FullName) > $null; }
+                                                  if( (OsIsWindows) ){ & "fc.exe" "/b" ($fi1.FullName) ($fi2.FullName) | Out-Null; }
                                                   else{                & "cmp" "-s"    ($fi1.FullName) ($fi2.FullName) | Out-Null; }
                                                   [Boolean] $result = $?;
                                                   ScriptResetRc;
@@ -2452,7 +2478,10 @@ function GitListCommitComments                ( [String] $tarDir, [String] $loca
                                                     if( $doSummary ){ $options += "--summary"; }
                                                     [String] $out = "";
                                                     try{
-                                                      $out = (ProcessStart "git" $options -careStdErrAsOut:$true -traceCmd:$true); # git can write warnings to stderr which we not handle as error
+                                                      # git can write warnings to stderr which we not handle as error.
+                                                      # Note: We have an unresolved problem, that ProcessStart would hang (more see: UnitTests/TodoUnresolvedProblems.ps1), so we use call operator.
+                                                      #   $out = (ProcessStart "git" $options -careStdErrAsOut:$true -traceCmd:$true);
+                                                      $out = & "git" "--git-dir=$localRepoDir\.git" "log" "--after=1990-01-01" "--pretty=format:%ci %cn [%ce] %s" 2>&1; AssertRcIsOk;
                                                     }catch{
                                                       # Example: ProcessStart of ("git" "--git-dir=D:\Workspace\mniederw\MnCommonPsToolLib\.git" "log" "--after=1990-01-01" "--pretty=format:%ci %cn [%ce] %s" "--summary") failed with rc=128\nfatal: your current branch 'master' does not have any commits yet
                                                       if( $_.Exception.Message.Contains("fatal: your current branch '") -and

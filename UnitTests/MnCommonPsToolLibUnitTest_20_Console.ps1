@@ -15,7 +15,7 @@ function UnitTest_Console(){
       [RECT] $r = New-Object RECT; [Object] $hd = (Get-Process -ID $PID).MainWindowHandle;
       [Window]::GetWindowRect($hd,[ref]$r) | Out-Null;
       ConsoleSetPos $r.Left $r.Top;
-      ConsoleSetGuiProperties;
+      if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){ ConsoleSetGuiProperties; } # is often tested and would relocate window
     }catch{
       # 2024-03 on github we get: Exception calling "GetWindowRect" with "2" argument(s): "Value cannot be null. (Parameter 'path1')"
       OutWarning "Warning: We ignore exceptions for ConsoleSetPos and ConsoleSetGuiProperties because is probably running on machine without gui: $_";
