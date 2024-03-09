@@ -925,11 +925,11 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 #
                                                 $pr.Start() | Out-Null;
                                                 while($true){
-                                                  while( -not $pr.StandardOutput.Peek() -gt -1 ){ $bufStdOut.Append($pr.StandardOutput.ReadLine()); }
-                                                  while( -not $pr.StandardError.Peek()  -gt -1 ){ $bufStdErr.Append($pr.StandardError.ReadLine()) ; }
+                                                  while( -not $pr.StandardOutput.Peek() -gt -1 ){ $bufStdOut.Append($pr.StandardOutput.ReadLine()) | Out-Null; }
+                                                  while( -not $pr.StandardError.Peek()  -gt -1 ){ $bufStdErr.Append($pr.StandardError.ReadLine())  | Out-Null; }
                                                   if( $pr.HasExited ){
-                                                    $bufStdOut.Append($pr.StandardOutput.ReadToEnd());
-                                                    $bufStdErr.Append($pr.StandardError.ReadToEnd());
+                                                    $bufStdOut.Append($pr.StandardOutput.ReadToEnd()) | Out-Null;
+                                                    $bufStdErr.Append($pr.StandardError.ReadToEnd())  | Out-Null;
                                                     break;
                                                   }
                                                   Start-Sleep -Milliseconds 100;
