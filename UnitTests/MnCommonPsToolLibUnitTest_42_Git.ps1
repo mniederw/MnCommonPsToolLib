@@ -4,11 +4,12 @@ Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version
 
 function UnitTest_Git(){
   OutProgress (ScriptGetCurrentFuncName);
+  GitSetGlobalVar "core.pager" "cat"; # use cat for pager because waiting for keyboard is in most cases not neccessary
+  if( (OsIsWindows) ){ GitDisableAutoCrLf; } # on github initial settings are systemwide AutoCrLf.
   [String] $d = DirCreateTemp;
   [String] $repoDir = (FsEntryGetAbsolutePath "$d/mniederw/MnCommonPsToolLib#main/");
   Assert ((GitBuildLocalDirFromUrl $d "https://github.com/mniederw/MnCommonPsToolLib") -eq (FsEntryGetAbsolutePath "$d/mniederw/MnCommonPsToolLib/"));
   Assert ((GitBuildLocalDirFromUrl $d "https://github.com/mniederw/MnCommonPsToolLib#main") -eq $repoDir);
-  if( (OsIsWindows) ){ GitDisableAutoCrLf; } # on github initial settings are systemwide AutoCrLf.
   GitCmd "Clone"        $d "https://github.com/mniederw/MnCommonPsToolLib#main";
   GitCmd "Fetch"        $d "https://github.com/mniederw/MnCommonPsToolLib#main";
   GitCmd "Pull"         $d "https://github.com/mniederw/MnCommonPsToolLib#main";
@@ -27,8 +28,8 @@ function UnitTest_Git(){
   try{
     GitMerge $repoDir "main";
   }catch{
-    # 2024-03 on github we get: failed with rc=128  Committer identity unknown *** Please tell me who you are. 
-    #   Run   git config --global user.email "you@example.com"   git config --global user.name "Your Name" to set your account's default identity. 
+    # 2024-03 on github we get: failed with rc=128  Committer identity unknown *** Please tell me who you are.
+    #   Run   git config --global user.email "you@example.com"   git config --global user.name "Your Name" to set your account's default identity.
     #   Omit --global to set the identity only in this repository. fatal: empty ident name (for <runner@fv-az1538-315.upsp13a5k4ou3ds4kr34xzh2lh.cx.internal.cloudapp.net>) not allowed
     OutWarning "Warning: Ignore exceptions for GitMerge because probably missing committer name: $_ ";
   }
@@ -37,5 +38,6 @@ function UnitTest_Git(){
   if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){ GitSetGlobalVar "mygitglobalvar" "myvalue"; }
   GitDisableAutoCrLf;
   # TODO LATER NOT YET IMPLEMENTED GitBranchRecreate ( [String] $repoUrlWithFromBranch, [String] $toBranch )
+  # TODO remove temp dir
 }
 UnitTest_Git;
