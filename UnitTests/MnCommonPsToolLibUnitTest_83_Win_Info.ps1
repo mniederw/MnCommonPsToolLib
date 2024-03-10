@@ -6,7 +6,7 @@ function UnitTest_Win_Info(){
   OutProgress (ScriptGetCurrentFuncName);
   if( ! (OsIsWindows) ){ OutProgress "Not running on windows, so bypass test."; return; }
   #
-  OutInfo "InfoAboutComputerOverview:";
+  OutProgressTitle "InfoAboutComputerOverview:";
   [String] $a = (InfoAboutComputerOverview);
   OutProgress $a;
     # InfoAboutComputerOverview:
@@ -19,7 +19,7 @@ function UnitTest_Win_Info(){
     # PathVariable    : C:\Program Files\...
   Assert ($a -like "*PathVariable*");
   #
-  OutInfo "InfoAboutExistingShares:";
+  OutProgressTitle "InfoAboutExistingShares:";
   [String] $a = (InfoAboutExistingShares);
   OutProgress $a;
     # Info about existing shares:
@@ -29,10 +29,10 @@ function UnitTest_Win_Info(){
     #   Transfer     = 'D:\Transfer' Transfer dir for any user
   Assert ($a -like "*IPC$*");
   #
-  OutInfo "InfoAboutSystemInfo";
+  OutProgressTitle "InfoAboutSystemInfo";
   # TODO: InfoAboutSystemInfo                  this requires elevated mode
   #
-  OutInfo "InfoAboutRunningProcessesAndServices";
+  OutProgressTitle "InfoAboutRunningProcessesAndServices";
   # TODO: InfoAboutRunningProcessesAndServices
     # Info about processes:
     #
@@ -41,14 +41,14 @@ function UnitTest_Win_Info(){
     #   ClassicStartMenu
     #   ...
   #
-  OutInfo "InfoHdSpeed";
+  OutProgressTitle "InfoHdSpeed";
   # TODO: InfoHdSpeed                     requires elevated mode
     # Windows-Systembewertungstool ... Read                   449.80 MB/s ... Write                  454.22 MB/s ...
   #
-  OutInfo "InfoAboutNetConfig";
+  OutProgressTitle "InfoAboutNetConfig";
   # TODO: InfoAboutNetConfig
   #
-  OutInfo "InfoGetInstalledDotNetVersion";
+  OutProgressTitle "InfoGetInstalledDotNetVersion";
   InfoGetInstalledDotNetVersion; # to console not output: "4.7.2 or later (533325)"
   if( (ProcessFindExecutableInPath "clrver.exe") -ne "" ){
     InfoGetInstalledDotNetVersion $true;

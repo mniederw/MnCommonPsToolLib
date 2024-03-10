@@ -35,14 +35,14 @@ Installation:
 - Clone or Download zip file and extract it
 - Run:   pwsh Install.ps1   and select menu item I=Install
 - On Windows it installs it system-wide for all users and on linux/osx installs it for local user.
-- Afterwards call pwsh and use any funtion of the library for example: OutInfo "Hello world";
+- Afterwards call pwsh and use any funtion of the library for example: OutProgressTitle "Hello world";
 
 Example usages of this module in a .ps1 script:
 -----------------------------------------------
      # Simple example for using MnCommonPsToolLib
      Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1";
      Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
-     OutInfo "Hello world";
+     OutProgressTitle "Hello world";
      OutProgress "Working";
      StdInReadLine "Press Enter to exit.";
      # More examples see: https://github.com/mniederw/MnCommonPsToolLib/tree/main/Examples

@@ -4,22 +4,22 @@
 Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 
 function ExampleUseAssertions{
-  OutInfo "$($MyInvocation.MyCommand)";
+  OutProgressTitle "$($MyInvocation.MyCommand)";
   Assert ((2 + 3) -eq 5);
-  OutSuccess "Ok, done.";
+  OutProgressSuccess "Ok, done.";
 }
 
 function ExampleUseCommon(){
-  OutInfo "$($MyInvocation.MyCommand)";
+  OutProgressTitle "$($MyInvocation.MyCommand)";
   [DateTime] $minimumDate = Get-Date -Date "0001-01-01 00:00:00.000";
   OutProgress "Today in ISO format      : $(DateTimeNowAsStringIsoDate)";
   OutProgress "Current ts in ISO format : $(DateTimeAsStringIso (Get-Date))";
   OutProgress "Minimum date is          : $(DateTimeAsStringIso $minimumDate)"; # 0001-01-01 00:00:00
-  OutSuccess "Ok, done.";
+  OutProgressSuccess "Ok, done.";
 }
 
 function ExampleUseFsEntries(){
-  OutInfo "$($MyInvocation.MyCommand)";
+  OutProgressTitle "$($MyInvocation.MyCommand)";
   OutProgress "Current dir is: $(FsEntryGetAbsolutePath '.')";
   [String] $d = "$HOME/Documents";
   [String[]] $a = @()+(FsEntryListAsStringArray $d $true $false $true | Where-Object{$null -ne $_});
@@ -31,41 +31,41 @@ function ExampleUseFsEntries(){
   OutProgress "View these files in json format: $(StringReplaceNewlines ($a2 | StreamToJsonString))";
   OutProgress "View these files in csv  format: $($o2 | StreamToCsvStrings)";
   OutProgress "View these files in html format: $(StringReplaceNewlines ($o2 | StreamToHtmlTableStrings))";
-  OutSuccess "Ok, done.";
+  OutProgressSuccess "Ok, done.";
 }
 
 function ExampleUseParallelStatementsHavingOneSecondWaiting {
-  OutInfo "$($MyInvocation.MyCommand)";
+  OutProgressTitle "$($MyInvocation.MyCommand)";
   [DateTime] $startedAt = Get-Date;
   # Note about statement blocks: No functions or variables of the script where it is embedded can be used.
   (0..4) | ForEachParallel { Write-Output "Running script nr: $_ and wait one second."; Start-Sleep -Seconds 1; }
   OutProgress "Total used time: $((New-Timespan -Start $startedAt -End (Get-Date)).ToString('d\ hh\:mm\:ss\.fff'))";
-  OutSuccess "Ok, done.";
+  OutProgressSuccess "Ok, done.";
 }
 
 function ExampleUseParallelStatementsHavingRandomWaitBetween1and2Seconds {
-  OutInfo "$($MyInvocation.MyCommand)";
+  OutProgressTitle "$($MyInvocation.MyCommand)";
   [DateTime] $startedAt = Get-Date;
   # Note about statement blocks: No functions or variables of the script where it is embedded can be used.
   (0..4) | ForEachParallel -MaxThreads 2 { $t = 1.0 + ((Get-Random -Minimum 1 -Maximum 9) / 10);
     Write-Output "Running script nr: $_ and wait $t seconds."; Start-Sleep -Seconds $t; };
   OutProgress "Total used time: $((New-Timespan -Start $startedAt -End (Get-Date)).ToString('d\ hh\:mm\:ss\.fff'))";
-  OutSuccess "Ok, done.";
+  OutProgressSuccess "Ok, done.";
 }
 
 function ExampleUseAsynchronousJob {
-  OutInfo "$($MyInvocation.MyCommand)";
+  OutProgressTitle "$($MyInvocation.MyCommand)";
   if( ! (OsIsWindows) ){ OutProgress "Not running on windows, so bypass test."; return; }
-  $job = JobStart { Param( $s ); Import-Module "MnCommonPsToolLib.psm1"; OutProgress "Running job and returning a string."; return [String] $s; } "my argument";
+  $job = JobStart { Param( $s ); Import-Module "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; } OutProgress "Running job and returning a string."; return [String] $s; } "my argument";
   Start-Sleep -Seconds 1;
   [String] $res = JobWaitForEnd $job.Id;
   OutProgress "Result text of job is: '$res'";
   Assert ($res -eq "my argument");
-  OutSuccess "Ok, done.";
+  OutProgressSuccess "Ok, done.";
 }
 
 function ExampleUseEnvironmentVarsOfDifferentScopes {
-  OutInfo "$($MyInvocation.MyCommand)";
+  OutProgressTitle "$($MyInvocation.MyCommand)";
   [String] $v = "$($env:Temp)";
   [String] $v1 = ProcessEnvVarGet "Temp" ([System.EnvironmentVariableTarget]::Process);
   [String] $v2 = ProcessEnvVarGet "Temp" ([System.EnvironmentVariableTarget]::User   );
@@ -78,27 +78,27 @@ function ExampleUseEnvironmentVarsOfDifferentScopes {
   ProcessEnvVarSet "MnCommonPsToolLibExampleVar" "Testvalue";
   Assert ($env:MnCommonPsToolLibExampleVar -eq "Testvalue");
   ProcessEnvVarSet "MnCommonPsToolLibExampleVar" "";
-  OutSuccess "Ok, done.";
+  OutProgressSuccess "Ok, done.";
 }
 
 function ExampleUseNetDownloadToString {
-  OutInfo "$($MyInvocation.MyCommand)";
+  OutProgressTitle "$($MyInvocation.MyCommand)";
   $url = "https://duckduckgo.com/";
   [String] $content = NetDownloadToString $url;
   Assert ($content.Length -gt 0);
-  OutSuccess "Ok, done.";
+  OutProgressSuccess "Ok, done.";
 }
 
 function ExampleUseNetDownloadIsSuccessful {
-  OutInfo "$($MyInvocation.MyCommand)";
+  OutProgressTitle "$($MyInvocation.MyCommand)";
   $url = "https://duckduckgo.com/";
   OutProgress "Check NetDownloadIsSuccessful $url";
   Assert (NetDownloadIsSuccessful $url);
-  OutSuccess "Ok, done.";
+  OutProgressSuccess "Ok, done.";
 }
 
 function ExampleUseListFirstFivePublicReposOfGithubOrg {
-  OutInfo "$($MyInvocation.MyCommand)";
+  OutProgressTitle "$($MyInvocation.MyCommand)";
   # find by: https://api.github.com/search/users?q=type:org
   [String[]] $orgs = @( "arduino", "google", "microsoft", "github", "EpicGames", "facebook", "openai", "alibaba", "apple", "dotnet" );
   # note: using this can lead to error: "Response status code does not indicate success: 403 (rate limit exceeded)."
@@ -108,15 +108,15 @@ function ExampleUseListFirstFivePublicReposOfGithubOrg {
   try{
   ToolGithubApiListOrgRepos $randomOrg | Select-Object -First 5 Url, archived, language, default_branch, LicName |
     StreamToTableString | Foreach-Object { OutProgress $_; };
-    OutSuccess "Ok, done.";
+    OutProgressSuccess "Ok, done.";
   }catch{
     if( -not $_.Exception.Message.Contains("403 (rate limit exceeded)") ){ throw; }
-    OutSuccess "Ok, done. We got 403(rate-limit-exceeded) which we must ignore because it occurrs sometimes.";
+    OutProgressSuccess "Ok, done. We got 403(rate-limit-exceeded) which we must ignore because it occurrs sometimes.";
   }
 }
 
 
-OutInfo "$($MyInvocation.MyCommand)";
+OutProgressTitle "$($MyInvocation.MyCommand)";
 OutProgress "As example perform some readonly things (writes only to temp dir) so system is not touched relevantly.";
 ExampleUseAssertions;
 ExampleUseCommon;

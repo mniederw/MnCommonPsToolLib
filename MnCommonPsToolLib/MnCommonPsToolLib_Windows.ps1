@@ -1198,7 +1198,7 @@ function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url
 function SvnPreCommitCleanupRevertAndDelFiles ( [String] $workDir, [String[]] $relativeDelFsEntryPatterns, [String[]] $relativeRevertFsEntries ){
                                                 $workDir = FsEntryGetAbsolutePath $workDir;
                                                 FsEntryAssertHasTrailingDirSep $workDir;
-                                                OutInfo "SvnPreCommitCleanupRevertAndDelFiles `"$workDir`"";
+                                                OutProgressTitle "SvnPreCommitCleanupRevertAndDelFiles `"$workDir`"";
                                                 FsEntryAssertHasTrailingDirSep $workDir;
                                                 [String] $dotSvnDir = SvnGetDotSvnDir $workDir;
                                                 [String] $svnRequiresCleanup = "$dotSvnDir/OwnSvnRequiresCleanup.txt";
@@ -1220,7 +1220,7 @@ function SvnTortoiseCommitAndUpdate           ( [String] $workDir, [String] $svn
                                                 $workDir = FsEntryGetAbsolutePath $workDir;
                                                 FsEntryAssertHasTrailingDirSep $workDir;
                                                 [String] $traceInfo = "SvnTortoiseCommitAndUpdate workdir=`"$workDir`" url=$svnUrl user=$svnUser";
-                                                OutInfo $traceInfo;
+                                                OutProgressTitle $traceInfo;
                                                 OutProgress "SvnLogFile: `"$svnLogFile`"";
                                                 FileAppendLineWithTs $svnLogFile ("$([Environment]::NewLine)"+("-"*80)+"$([Environment]::NewLine)"+(DateTimeNowAsStringIso "yyyy-MM-dd HH:mm")+" "+$traceInfo);
                                                 try{
@@ -1393,7 +1393,7 @@ function TfsInitLocalWorkspaceIfNotDone       ( [String] $url, [String] $rootDir
                                                     # The workspace MYCOMPUTER;John Doe already exists on computer MYCOMPUTER.
                                                 }finally{ Set-Location $cd; } }
 function TfsDeleteLocalMachWorkspace          ( [String] $url ){ # we support only workspace name identic to computername
-                                                OutInfo "Delete local tfs workspace with name of current computer";
+                                                OutProgressTitle "Delete local tfs workspace with name of current computer";
                                                 if( -not (TfsHasLocalMachWorkspace $url) ){ OutProgress "Delete-Workspace not nessessary because has no workspace of name identic to computername."; return; }
                                                 [string] $wsName = $ComputerName;
                                                 # also deletes the directory "./$tf/".
@@ -1593,7 +1593,7 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                 $targetRootDir = FsEntryGetAbsolutePath $targetRootDir;
                                                 [String] $currentUser = "$env:USERDOMAIN\$env:USERNAME";
                                                 [String] $traceInfo = "SqlGenerateFullDbSchemaFiles(logicalEnv=$logicalEnv,dbInstanceServerName=$dbInstanceServerName,dbname=$dbName,targetRootDir=$targetRootDir,currentUser=$currentUser)";
-                                                OutInfo $traceInfo;
+                                                OutProgressTitle $traceInfo;
                                                 [String] $tarDir = "$targetRootDir/$(Get-Date -Format yyyy-MM-dd)/$logicalEnv/$dbName/";
                                                 if( DirExists $tarDir ){
                                                   [String] $msg = "Nothing done because target dir already exists: `"$tarDir`"";
@@ -1759,7 +1759,7 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                   }
                                                   # for future use: remove the lines when in sequence: "SET ANSI_NULLS ON","GO","SET QUOTED_IDENTIFIER ON","GO".
                                                   OutProgress "";
-                                                  OutSuccess "ok, done. Written files below: `"$tarDir`"";
+                                                  OutProgressSuccess "ok, done. Written files below: `"$tarDir`"";
                                                 }catch{
                                                   # exc: "The given path's format is not supported."
                                                   # exc: "Illegal characters in path."  (if table name contains double quotes)
@@ -1785,7 +1785,7 @@ function ToolRdpConnect                       ( [String] $rdpfile, [String] $mst
                                                 & "$env:SystemRoot/System32/mstsc.exe" $mstscOptions $rdpfile; AssertRcIsOk;
                                               }
 function ToolHibernateModeEnable              (){
-                                                OutInfo "Enable hibernate mode";
+                                                OutProgressTitle "Enable hibernate mode";
                                                 if( (OsIsHibernateEnabled) ){
                                                   OutProgress "Ok, is enabled.";
                                                 }elseif( (DriveFreeSpace 'C') -le ((OsInfoMainboardPhysicalMemorySum) * 1.3) ){
@@ -1796,7 +1796,7 @@ function ToolHibernateModeEnable              (){
                                                 }
                                               }
 function ToolHibernateModeDisable             (){
-                                                OutInfo "Disable hibernate mode";
+                                                OutProgressTitle "Disable hibernate mode";
                                                 if( -not (OsIsHibernateEnabled) ){
                                                   OutProgress "Ok, is disabled.";
                                                 }else{
@@ -1805,7 +1805,7 @@ function ToolHibernateModeDisable             (){
                                                 }
                                               }
 function ToolActualizeHostsFileByMaster       ( [String] $srcHostsFile ){
-                                                OutInfo "Actualize hosts file by a master file";
+                                                OutProgressTitle "Actualize hosts file by a master file";
                                                 # regular manually way: run notepad.exe with admin rights, open the file, edit, save.
                                                 [String] $tarHostsFile = FsEntryGetAbsolutePath "$env:SystemRoot/System32/drivers/etc/hosts";
                                                 [String] $tardir = FsEntryMakeTrailingDirSep (RegistryGetValueAsString "HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters" "DataBasePath");
@@ -1937,7 +1937,7 @@ function ToolSignDotNetAssembly               ( [String] $keySnk, [String] $srcD
                                                 # If the sourcefile has an correspondig xml file with the same name then this is also copied to target.
                                                 # If the input file was already signed then it creates a target file with the same name and the extension ".originalWasAlsoSigned.txt".
                                                 # Note: Generate your own key with: sn.exe -k mykey.snk
-                                                OutInfo "Sign dot-net assembly: keySnk=`"$keySnk`" srcDllOrExe=`"$srcDllOrExe`" tarDllOrExe=`"$tarDllOrExe`" overwrite=$overwrite ";
+                                                OutProgressTitle "Sign dot-net assembly: keySnk=`"$keySnk`" srcDllOrExe=`"$srcDllOrExe`" tarDllOrExe=`"$tarDllOrExe`" overwrite=$overwrite ";
                                                 [Boolean] $execHasStrongName = ([String](& sn -vf $srcDllOrExe | Select-Object -Skip 4 )) -like "Assembly '*' is valid";
                                                 [Boolean] $isDllNotExe = $srcDllOrExe.ToLower().EndsWith(".dll");
                                                 if( -not $isDllNotExe -and -not $srcDllOrExe.ToLower().EndsWith(".exe") ){
@@ -2035,7 +2035,7 @@ function ToolWin10PackageInstall              ( [String] $packageName ){ # Examp
                                                   [String] $name = (Get-WindowsCapability -Online | Where-Object name -like "${packageName}~*").Name;
                                                   Add-WindowsCapability -Online -name $name | Out-Null; # example output: "Path          :\nOnline        : True\nRestartNeeded : False"
                                                   [String] $restartNeeded = (Get-WindowsCapability -Online -name $packageName).RestartNeeded;
-                                                  OutInfo "Ok, installation done, current state=$(ToolWin10PackageGetState $packageName) RestartNeeded=$restartNeeded Name=$name";
+                                                  OutProgressTitle "Ok, installation done, current state=$(ToolWin10PackageGetState $packageName) RestartNeeded=$restartNeeded Name=$name";
                                                 } }
 function ToolWin10PackageDeinstall            ( [String] $packageName ){
                                                 OutProgress "Deinstall Win10 Package: `"$packageName`"";
@@ -2046,7 +2046,7 @@ function ToolWin10PackageDeinstall            ( [String] $packageName ){
                                                   [String] $name = (Get-WindowsCapability -Online | Where-Object name -like "${packageName}~*").Name;
                                                   Remove-WindowsCapability -Online -name $name | Out-Null;
                                                   [String] $restartNeeded = (Get-WindowsCapability -Online -name $packageName).RestartNeeded;
-                                                  OutInfo "Ok, deinstallation done, current state=$(ToolWin10PackageGetState $packageName) RestartNeeded=$restartNeeded Name=$name";
+                                                  OutProgressTitle "Ok, deinstallation done, current state=$(ToolWin10PackageGetState $packageName) RestartNeeded=$restartNeeded Name=$name";
                                                 } }
 function ToolOsWindowsResetSystemFileIntegrity(){ # uses about 4 min
                                                 [String] $f = "$env:SystemRoot$(DirSep)Logs$(DirSep)CBS$(DirSep)CBS.log";
@@ -2064,7 +2064,7 @@ function ToolOsWindowsResetSystemFileIntegrity(){ # uses about 4 min
                                                 & "Dism.exe" "/Online" "/Cleanup-Image" "/RestoreHealth"; ScriptResetRc; # uses about 2 min; also repairs autoupdate;
                                                 OutProgress "Dump last lines of logfile '$f':";
                                                 FileGetLastLines $f 100 | Foreach-Object{ OutProgress "  $_"; };
-                                                OutInfo "Ok, checked and repaired missing, corrupted or ownership-settings of system files and logged to '$env:Windows/Logs/CBS/CBS.log'"; }
+                                                OutProgressTitle "Ok, checked and repaired missing, corrupted or ownership-settings of system files and logged to '$env:Windows/Logs/CBS/CBS.log'"; }
 function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $url, [Boolean] $requireElevatedAdminMode = $false,
                                                   [Boolean] $doWaitIfFailed = $false, [String] $additionalOkUpdMsg = "",
                                                   [Boolean] $assertFilePreviouslyExists = $true, [Boolean] $performPing = $true ){
@@ -2077,7 +2077,7 @@ function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $
                                                 # Example: ToolPerformFileUpdateAndIsActualized "$env:TEMP/tmp/a.psm1" "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/master/MnCommonPsToolLib/MnCommonPsToolLib.psm1" $true $true "Please restart" $false $true;
                                                 $targetFile = FsEntryGetAbsolutePath $targetFile;
                                                 try{
-                                                  OutInfo "Update file `"$targetFile`"";
+                                                  OutProgressTitle "Update file `"$targetFile`"";
                                                   OutProgress "FromUrl: $url";
                                                   [String] $hashInstalled = "";
                                                   [Boolean] $targetFileExists = (FileExists $targetFile);
@@ -2106,7 +2106,7 @@ function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $
                                                       OutProgress "Is running in elevated admin mode.";
                                                     }
                                                     FileMove $tmp $targetFile $true;
-                                                    OutSuccess "Ok, updated `"$targetFile`". $additionalOkUpdMsg";
+                                                    OutProgressSuccess "Ok, updated `"$targetFile`". $additionalOkUpdMsg";
                                                   }
                                                   ProcessRefreshEnvVars;
                                                   return [Boolean] $true;
@@ -2139,9 +2139,9 @@ function ToolInstallOrUpdate                  ( [String] $installMedia, [String]
                                                 if( FileNotExists $installMedia ){
                                                   OutWarning "Warning: Missing Installmedia `"$installMedia`"";
                                                 }elseif( $mainTargetFileDate -lt $mainTargetFileMinDate ){
-                                                  OutInfo "Installmedia `"$installMedia`"";
-                                                  $installDirs | ForEach-Object{ OutInfo "  Accepted-Installdir: `"$_`""; };
-                                                  if( $installHints -ne "" ){ OutInfo "  InstallHints: $installHints"; }
+                                                  OutProgressTitle "Installmedia `"$installMedia`"";
+                                                  $installDirs | ForEach-Object{ OutProgressTitle "  Accepted-Installdir: `"$_`""; };
+                                                  if( $installHints -ne "" ){ OutProgressTitle "  InstallHints: $installHints"; }
                                                   if( StdInAskForBoolean ){
                                                     & $installMedia; AssertRcIsOk;
                                                   }
@@ -2149,12 +2149,12 @@ function ToolInstallOrUpdate                  ( [String] $installMedia, [String]
                                                   OutProgress "Is up-to-date: `"$installMedia`"";
                                                 } }
 function ToolInstallNuPckMgrAndCommonPsGalMo  (){
-                                                OutInfo     "Install or actualize Nuget Package Manager and from PSGallery some common modules: ";
+                                                OutProgressTitle     "Install or actualize Nuget Package Manager and from PSGallery some common modules: ";
                                                 OutProgress "  InstallModules: SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate. Update-Help. ";
                                                 OutProgress "  Needs about 1 min.";
                                                 ProcessRestartInElevatedAdminMode;
                                                 OutProgress "Import-Module PowerShellGet:";
-                                                Import-Module -ErrorAction Stop PowerShellGet; # provides: Set-PSRepository, Install-Module
+                                                Import-Module "PowerShellGet"; # provides: Set-PSRepository, Install-Module
                                                 OutProgress "Set repository PSGallery to trusted: ";
                                                 Set-PSRepository PSGallery -InstallationPolicy Trusted; # uses 14 sec
                                                 OutProgress "List of installed package providers:";
@@ -2232,7 +2232,7 @@ function ToolManuallyDownloadAndInstallProg   ( [String] $programName, [String] 
                                                 # Example: ToolManuallyDownloadAndInstallProg "Powershell-V7"     "https://learn.microsoft.com/de-de/powershell/scripting/install/installing-powershell-on-windows" "0001-01-01" "pwsh.exe" "";
                                                 # Example: ToolManuallyDownloadAndInstallProg "TortoiseGit 64bit" "https://tortoisegit.org/download/" "0001-01-01" "C:/Program Files/TortoiseGit/bin/TortoiseGit.dll" "";
                                                 for( [Int32] $i = 0; $i -lt $programExecutableOrDir.Count; $i++ ){ $programExecutableOrDir[$i] = FsEntryUnifyDirSep $programExecutableOrDir[$i]; }
-                                                OutInfo ("Check "+ "`"$programName`"".PadRight(40));
+                                                OutProgressTitle ("Check "+ "`"$programName`"".PadRight(40));
                                                 OutProgress "Expecting newer existance than minimum $mainTargetFileMinIsoDate of one of the target executables or dirs ";
                                                 OutProgress ("[" + (($programExecutableOrDir|ForEach-Object{"`"$_`""}) -join ",") + "] ");
                                                 [Boolean] $noExecSoReturnAfterOneRun = $programExecutableOrDir[0] -eq "" -and $programExecutableOrDir.Count -le 1;

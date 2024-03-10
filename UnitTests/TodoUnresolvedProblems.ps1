@@ -1,11 +1,11 @@
 ﻿#!/usr/bin/env pwsh
 
-Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; }
+Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 
 function TodoUnresolvedProblems(){
   OutProgress (ScriptGetCurrentFuncName);
 
-  OutInfo "2024-03: Problem ProcessStart is hanging but if we replace it by call operator then it works";
+  OutProgressTitle "2024-03: Problem ProcessStart is hanging but if we replace it by call operator then it works";
   OutProgress "Occurrs with git log command which uses internally a pager which does waiting for keyboard input,";
   OutProgress "even if we made sure that in config we replace pager to use cat. If we use call operator then it does not hang.";
   OutProgress "We set git config to use cat for pager because waiting for keyboard is in most cases not neccessary";
