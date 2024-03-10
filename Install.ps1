@@ -1,20 +1,22 @@
 ﻿#!/usr/bin/env pwsh
 
 Param( [String] $sel ) # if $sel = "Install" then reinstall in standard mode and exit.
+
+Set-StrictMode -Version Latest; trap [Exception] { Write-Error $_; Read-Host "Press Enter to Exit"; break; } $ErrorActionPreference = "Stop";
+
 $PSModuleAutoLoadingPreference = "none"; # disable autoloading modules
-Set-StrictMode -Version Latest; trap [Exception] { $Host.UI.WriteErrorLine("Error: $_"); Read-Host "Press Enter to Exit"; break; } $ErrorActionPreference = "Stop";
 Import-Module Microsoft.PowerShell.Management; # load: Get-ChildItem
 Import-Module Microsoft.PowerShell.Utility   ; # load: Write-Host,Write-Output
 Import-Module Microsoft.PowerShell.Security  ; # load: Get-Executionpolicy
 [String] $ps5WinModuleDir = "$env:SystemRoot\System32\WindowsPowerShell\v1.0\Modules\";
 [String] $ps5ModuleDir    = "$env:ProgramFiles\WindowsPowerShell\Modules\";
 
-function OutStringInColor                     ( [String] $color, [String] $line, [Boolean] $noNewLine = $true ){ Write-Host -ForegroundColor $color -NoNewline:$noNewLine $line; }
-function OutInfo                              ( [String] $line ){ OutStringInColor "White"     $line  $false; }
-function OutWarning                           ( [String] $line ){ OutStringInColor "Yellow"    $line  $false; }
-function OutProgress                          ( [String] $line ){ OutStringInColor "Gray"   "  $line" $false; }
-function OutProgressText                      ( [String] $line ){ OutStringInColor "Gray"   "  $line" $true ; }
-function OutQuestion                          ( [String] $line ){ OutStringInColor "Cyan"      $line  $true ; }
+function OutProgress                          ( [String] $line, [Int32] $indentLevel = 1, [Boolean] $noNewLine = $false, [String] $color = "Gray" ){ Write-Host -ForegroundColor $color -noNewline:$noNewLine "$("  "*$indentLevel)$line"; }
+function OutProgressTitle                     ( [String] $line ){ OutProgress $line -indentLevel:0 -color:White; }
+function OutProgressText                      ( [String] $str, [String] $color = "Gray" ){ OutProgress $str -indentLevel:0 -noNewLine:$true -color:$color; }
+function OutWarning                           ( [String] $line, [Int32] $indentLevel = 1 ){ OutProgressText "$("  "*$indentLevel)"; Write-Warning $line; }
+function OutError                             ( [String] $line, [Int32] $indentLevel = 1 ){ $Host.UI.WriteErrorLine("$("  "*$indentLevel)$line"); }
+function OutProgressQuestion                  ( [String] $str  ){ OutProgress $str -indentLevel:0 -noNewLine:$true -color:"Cyan"; }
 function DirSep                               (){ return [Char] [IO.Path]::DirectorySeparatorChar; }
 function FsEntryHasTrailingDirSep             ( [String] $fsEntry ){ return [Boolean] ($fsEntry.EndsWith("\") -or $fsEntry.EndsWith("/")); }
 function FsEntryRemoveTrailingDirSep          ( [String] $fsEntry ){ [String] $r = $fsEntry;
@@ -97,13 +99,13 @@ if( $dirsWithPsm1Files.Count -ne 1 ){ throw [Exception] "Tool is designed for wo
 
 function CurrentInstallationModes( [String] $color = "White" ){
   if( (OsIsWindows) ){
-    if( (DirExists $moduleTarDir64bit)       ){ OutStringInColor $color "Installed-in-Std-Mode-for-64bit " $true; }else{ OutStringInColor "Gray" "Not-Installed-in-Std-Mode-for-64bit " $true; }
-    if( (DirExists $moduleTarDir32bit)       ){ OutStringInColor $color "Installed-in-Std-Mode-for-32bit " $true; }else{ OutStringInColor "Gray" "Not-Installed-in-Std-Mode-for-32bit " $true; }
-    if( (OsPsModulePathContains $srcRootDir) ){ OutStringInColor $color "Installed-for-Developers "        $true; }else{ OutStringInColor "Gray" "Not-Installed-for-Developers "        $true; }
+    if( (DirExists $moduleTarDir64bit)       ){ OutProgressText -color:$color "Installed-in-Std-Mode-for-64bit "; }else{ OutProgressText "Not-Installed-in-Std-Mode-for-64bit "; }
+    if( (DirExists $moduleTarDir32bit)       ){ OutProgressText -color:$color "Installed-in-Std-Mode-for-32bit "; }else{ OutProgressText "Not-Installed-in-Std-Mode-for-32bit "; }
+    if( (OsPsModulePathContains $srcRootDir) ){ OutProgressText -color:$color "Installed-for-Developers "       ; }else{ OutProgressText "Not-Installed-for-Developers "       ; }
   }else{
-    if( (DirExists $moduleTarDirLinux)       ){ OutStringInColor $color "Installed-in-Std-Mode-for-Linux " $true; }else{ OutStringInColor "Gray" "Not-Installed-in-Std-Mode-for-Linux " $true; }
+    if( (DirExists $moduleTarDirLinux)       ){ OutProgressText -color:$color "Installed-in-Std-Mode-for-Linux "; }else{ OutProgressText "Not-Installed-in-Std-Mode-for-Linux "; }
   }
-  OutInfo "";
+  OutProgress "";
 }
 
 function InstallStandardMode(){
@@ -125,8 +127,8 @@ function InstallStandardMode(){
 if( $sel -eq "Install" ){ InstallStandardMode; [Environment]::Exit("0"); }
 
 # for future use: [Boolean] $isDev = DirExists "$srcRootDir\.git";
-OutInfo         "Install Menu for Powershell Module - $moduleName";
-OutInfo         "-------------------------------------$("-"*($moduleName.Length))`n";
+OutProgressTitle "Install Menu for Powershell Module - $moduleName";
+OutProgressTitle "-------------------------------------$("-"*($moduleName.Length))`n";
 
 if( (OsIsWindows) ){
   OutProgress     "For installation or uninstallation the elevated administrator mode is ";
@@ -173,26 +175,26 @@ if( (OsIsWindows) ){
   OutProgress     "  PsModulePath contains SrcRootDir   = $(OsPsModulePathContains $srcRootDir). ";
   OutProgressText "  Current installation modes         = "; CurrentInstallationModes;
   if( ! (ShellSessionIs64not32Bit) ){
-    OutWarning "    Warning: Your current session is 32bit, it is recommended to generally use 64bit! ";
+    OutWarning "Your current session is 32bit, it is recommended to generally use 64bit! ";
   }
   if( ! (OsPsModulePathContains $ps5WinModuleDir) ){
-    OutWarning "    Warning: PsModulePath not contains Ps5WinModDir, it is strongly recommended to add them (see menu items)! ";
+    OutWarning "PsModulePath not contains Ps5WinModDir, it is strongly recommended to add them (see menu items)! ";
   }
   if( ! (OsPsModulePathContains $ps5ModuleDir) ){
-    OutWarning "    Warning: PsModulePath not contains Ps5ModuleDir, it is strongly recommended to add them (see menu items)! ";
+    OutWarning "PsModulePath not contains Ps5ModuleDir, it is strongly recommended to add them (see menu items)! ";
   }
-  OutInfo         "";
-  OutInfo         "  I = Install or reinstall in standard mode. ";
-  OutInfo         "  A = Alternative installation for developers which uses module at current location to change and test the module. ";
-  OutInfo         "  N = Uninstall all modes. ";
-  OutInfo         "  U = When installed in standard mode do update from web. "; # in future do download and also switch to standard mode.
-  OutInfo         "  W = Add Ps5WinModDir and Ps5ModuleDir to system PsModulePath environment variable. ";
-  OutInfo         "  B = Elevate and Configure Execution Policy to Bypass       for environment ps7, ps5-64bit and ps5-32bit. ";
-  OutInfo         "  R = Elevate and Configure Execution Policy to RemoteSigned for environment ps7, ps5-64bit and ps5-32bit. ";
-  OutInfo         "  Q = Quit. `n";
+  OutProgress     "";
+  OutProgress     "  I = Install or reinstall in standard mode. ";
+  OutProgress     "  A = Alternative installation for developers which uses module at current location to change and test the module. ";
+  OutProgress     "  N = Uninstall all modes. ";
+  OutProgress     "  U = When installed in standard mode do update from web. "; # in future do download and also switch to standard mode.
+  OutProgress     "  W = Add Ps5WinModDir and Ps5ModuleDir to system PsModulePath environment variable. ";
+  OutProgress     "  B = Elevate and Configure Execution Policy to Bypass       for environment ps7, ps5-64bit and ps5-32bit. ";
+  OutProgress     "  R = Elevate and Configure Execution Policy to RemoteSigned for environment ps7, ps5-64bit and ps5-32bit. ";
+  OutProgress     "  Q = Quit. `n";
   if( $sel -ne "" ){ OutProgress "Selection (afterwards exit): $sel "; }
   while( @("I","A","N","U","W","Q","B","R") -notcontains $sel ){
-    OutQuestion "Enter selection case insensitive and press enter: ";
+    OutProgressQuestion "Enter selection case insensitive and press enter: ";
     $sel = (Read-Host);
   }
   $Global:ArgsForRestartInElevatedAdminMode = @( $sel );
@@ -223,15 +225,15 @@ if( (OsIsWindows) ){
   OutProgress     "Running on Non-Windows OS (Linux, MacOS) ";
   OutProgress     "so currently this installation installs it locally not globally. ";
   OutProgress     "LinuxTargetDir: `"$linuxTargetDir`" ";
-  OutInfo         "";
-  OutInfo         "  I = Install or reinstall in standard mode. ";
-  OutInfo         "  Q = Quit. `n";
+  OutProgress     "";
+  OutProgress     "  I = Install or reinstall in standard mode. ";
+  OutProgress     "  Q = Quit. `n";
   if( $sel -ne "" ){ OutProgress "Selection (afterwards exit): $sel "; }
   while( @("I","Q") -notcontains $sel ){
-    OutQuestion "Enter selection case insensitive and press enter: ";
+    OutProgressQuestion "Enter selection case insensitive and press enter: ";
     $sel = (Read-Host);
   }
   if( $sel -eq "I" ){ InstallStandardMode; }
   if( $sel -eq "Q" ){ OutProgress "Quit."; }
 }
-OutQuestion "Finished. Press Enter to exit. "; Read-Host;
+OutProgressQuestion "Finished. Press Enter to exit. "; Read-Host;

@@ -2,7 +2,7 @@
 
 Param( [Boolean] $showAlsoIgnored = $false )
 
-Set-StrictMode -Version Latest; trap [Exception] { $Host.UI.WriteErrorLine("Error: $_"); Read-Host "Press Enter to Exit"; break; } $ErrorActionPreference = "Stop";
+Set-StrictMode -Version Latest; trap [Exception] { Write-Error $_; Read-Host "Press Enter to Exit"; break; } $ErrorActionPreference = "Stop";
 
 function UnitTest_ScriptAnalyser(){
   OutProgress "Test Script Analyzer recursively on all repository files";

@@ -4,7 +4,7 @@
 # Licensed under GPL3. This is freeware.
 # 2013-2024 produced by Marc Niederwieser, Switzerland.
 
-[String] $global:MnCommonPsToolLibVersion = "7.50";
+[String] $global:MnCommonPsToolLibVersion = "7.51";
   # Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
   # Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
   # more see Releasenotes.txt
@@ -51,16 +51,11 @@
 # Example usages of this module for a .ps1 script:
 #      # Simple example for using MnCommonPsToolLib
 #      Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1";
-#      Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; } $ErrorActionPreference = "Stop";
-#      OutInfo "Hello world";
+#      Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
+#      OutProgressTitle "Hello world";
 #      OutProgress "Working";
 #      StdInReadLine "Press Enter to exit.";
 # More examples see: https://github.com/mniederw/MnCommonPsToolLib/tree/main/Examples
-
-
-
-# Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object; function calls that use the syntax for calling methods; variable without a name (${}).
-Set-StrictMode -Version Latest;
 
 # Check last-exit-code status
 if( ((test-path "variable:LASTEXITCODE") -and $null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) ){
@@ -68,13 +63,18 @@ if( ((test-path "variable:LASTEXITCODE") -and $null -ne $LASTEXITCODE -and $LAST
   $global:LASTEXITCODE = 0; $error.clear();
 }
 
-# Assert that the following executed statements from here to the end of this script are not ignored.
-# The functions which are later called by a caller of this script are not affected by this trap statement.
-# Trap statement are not cared if a catch block is used!
-# It is strongly recommended that callers of this script perform after the import-module statement the following set and trap statements for unhandled exceptions:
+# Standard header for unhandled exceptions:
+# - Set-StrictMode: Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object;
+#   function calls that use the syntax for calling methods; variable without a name (${}).
+# - trap: Assert that the following executed statements from here to the end of this script are not ignored.
+#   The functions which are later called by a caller of this script are not affected by this trap statement.
+#   Trap statement are not cared if a catch block is used!
+# - ErrorActionPreference to Stop: Throw on first error.
+# Note: If client code wants to handle exceptions than it should use catch blocks!
+# We strongly recommended that callers of this script perform after the import-module statement the following statements:
 #   Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
-# It is also strongy recommended for client code when it wants to handle exceptions that it uses catch blocks!
-trap [Exception] { $Host.UI.WriteErrorLine($_); break; }
+# In ALL scripts which are not using this module we stongly recommend the following line:
+Set-StrictMode -Version Latest; trap [Exception] { Write-Error $_; Read-Host "Press Enter to Exit"; break; } $ErrorActionPreference = "Stop";
 
 # Define global variables if they are not yet defined; caller of this script can anytime set or change these variables to control the specified behaviour.
 function GlobalVariablesInit(){
@@ -90,14 +90,14 @@ function GlobalVariablesInit(){
   if( -not [String[]](Get-Variable ArgsForRestartInElevatedAdminMode -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ArgsForRestartInElevatedAdminMode -value @()   ; }
                                                                       # if restarted for entering elevated admin mode then it additionally adds these parameters.
   if( -not [String]  (Get-Variable ModeOutputWithTsPrefix            -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name ModeOutputWithTsPrefix            -value $false; }
-                                                                      # if true then it will add before each OutInfo, OutWarning, OutError, OutProgress a timestamp prefix.
+                                                                      # if true then it will add before each OutProgressTitle, OutWarning, OutError, OutProgress a timestamp prefix.
   if( -not [String]  (Get-Variable PSModuleAutoLoadingPreference     -Scope Global -ErrorAction SilentlyContinue) ){ $error.clear(); New-Variable -scope global -name PSModuleAutoLoadingPreference     -value "All"; }
-                                                                      # if true then it will add before each OutInfo, OutWarning, OutError, OutProgress a timestamp prefix.
+                                                                      # if true then it will add before each OutProgressTitle, OutWarning, OutError, OutProgress a timestamp prefix.
   # Set some powershell predefined global variables, also in scope of caller of this module:
   $global:ErrorActionPreference         = "Stop"                    ; # abort if a called exe will write to stderr, default is 'Continue'. Can be overridden in each command by [-ErrorAction actionPreference]
-  $global:ReportErrorShowExceptionClass = $true                     ; # on trap more detail exception info
-  $global:ReportErrorShowInnerException = $true                     ; # on trap more detail exception info
-  $global:ReportErrorShowStackTrace     = $true                     ; # on trap more detail exception info
+  $global:ReportErrorShowExceptionClass = $true                     ; # on trap more detail exception info (on ps5 always true)
+  $global:ReportErrorShowInnerException = $true                     ; # on trap more detail exception info (on ps5 always true)
+  $global:ReportErrorShowStackTrace     = $true                     ; # on trap more detail exception info (on ps5 always true)
   $global:FormatEnumerationLimit        = 999                       ; # used for Format-Table, but seams not to work, default is 4
   $global:OutputEncoding                = [Console]::OutputEncoding ; # for pipe to native applications use the same as current console, on ps5 the default is 'System.Text.ASCIIEncoding' on ps7 it is utf-8
   if( $null -ne $Host.PrivateData ){ # if running as job then it is null
@@ -444,6 +444,9 @@ Function ConsoleSetPos                        ( [Int32] $x, [Int32] $y ){ # if c
                                                   [Int32] $w = $r.Right - $r.Left; [Int32] $h = $r.Bottom - $r.Top;
                                                   If( $t ){ [Window]::MoveWindow($hd, $x, $y, $w, $h, $true) | Out-Null; }
                                                 } }
+function StdOutLine                           ( [String] $line ){ $Host.UI.WriteLine($line); } # Writes an stdout line in default color, normally not used, rather use OutProgressTitle because it classifies kind of output.
+function StdOutLine                           ( [String] $line ){ $Host.UI.WriteLine($line); } # Writes an stdout line in default color, normally not used, rather use OutProgressTitle because it classifies kind of output.
+function StdInWaitForAKey                     (){ StdInAssertAllowInteractions; $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") | Out-Null; } # does not work in powershell-ise, so in general do not use it, use StdInReadLine
 function ConsoleSetGuiProperties              (){ # set standard sizes which makes sense, display-hight 46 lines for HD with 125% zoom. It is performed only once per shell.
                                                 # On Ubuntu setting buffersize is not supported, so a warning is given out to verbose output.
                                                 if( -not [Boolean] (Get-Variable consoleSetGuiProperties_DoneOnce -Scope script -ErrorAction SilentlyContinue) ){
@@ -499,30 +502,37 @@ function ConsoleSetGuiProperties              (){ # set standard sizes which mak
                                                   ConsoleSetPos 40 40; # little indended from top and left
                                                 }
                                                 $script:consoleSetGuiProperties_DoneOnce = $true; }
-function OutGetTsPrefix                       ( [Boolean] $forceTsPrefix = $false ){
-                                                return [String] $(switch($forceTsPrefix -or $global:ModeOutputWithTsPrefix){($true){"$(DateTimeNowAsStringIso) "}default{""}}); }
-function OutStringInColor                     ( [String] $color, [String] $line, [Boolean] $noNewLine = $true ){
-                                                # NoNewline is used because on multi threading usage, line text and newline can be interrupted between.
-                                                Write-Host -ForegroundColor $color -NoNewline:$noNewLine $line; }
-function OutInfo                              ( [String] $line ){ OutStringInColor $global:InfoLineColor "$(OutGetTsPrefix)$line$([Environment]::NewLine)"; }
-function OutSuccess                           ( [String] $line ){ OutStringInColor Green "$(OutGetTsPrefix)$line$([Environment]::NewLine)"; }
+function OutData                              ( [String] $line ){
+                                                # Output of data; are the stdout which is passed to the pipeline; redirectable by 1> .
+                                                Write-Output $line; }
+function OutError                             ( [String] $line, [Int32] $indentLevel = 1 ){
+                                                # Writes a line in red. Is currently not redirectable by *> . In future we want write it to the stderr by Write-Error so it will then be redirectable by 2> .
+                                                [String] $p = "Error: "; if( (StringLeft $line $p.Length) -eq $p ){ StringRemoveLeftNr $line $p.Length; }
+                                                # Note: We do not use the following because it generates more than one line on ps5: Write-Error -Message $line -Category NotSpecified;
+                                                $Host.UI.WriteErrorLine("$(OutGetTsPrefix)$("  "*$indentLevel)$line"); }
 function OutWarning                           ( [String] $line, [Int32] $indentLevel = 1 ){
-                                                OutStringInColor Yellow "$(OutGetTsPrefix)$("  "*$indentLevel)$line$([Environment]::NewLine)"; }
-function OutError                             ( [String] $line ){
-                                                $Host.UI.WriteErrorLine("$(OutGetTsPrefix)$line"); } # Writes a stderr line in red.
-function OutProgress                          ( [String] $line, [Int32] $indentLevel = 1 ){
-                                                # Used for tracing changing actions, otherwise use OutVerbose.
+                                                # Writes in yellow; redirectable by 3> .
+                                                [String] $p = "Warning: "; if( (StringLeft $line $p.Length) -eq $p ){ StringRemoveLeftNr $line $p.Length; }
+                                                OutProgressText "$(OutGetTsPrefix)$("  "*$indentLevel)";
+                                                Write-Warning $line; } # todo: suppress prefix
+function OutProgress                          ( [String] $line, [Int32] $indentLevel = 1, [Boolean] $noNewLine = $false, [String] $color = "Gray" ){
+                                                # Used for tracing changing actions; wraps Write-Host or Write-Information; if noNewLine is true then no TsPrefix. redirecable by 6> .
                                                 if( $global:ModeHideOutProgress ){ return; }
-                                                OutStringInColor Gray "$(OutGetTsPrefix)$("  "*$indentLevel)$line$([Environment]::NewLine)"; }
-function OutProgressText                      ( [String] $str ){
-                                                if( $global:ModeHideOutProgress ){ return; }
-                                                OutStringInColor Gray "$(OutGetTsPrefix)$str"; }
+                                                Write-Host -ForegroundColor $color -noNewline:$noNewLine "$(switch($noNewLine){($true){''}($false){OutGetTsPrefix}})$("  "*$indentLevel)$line"; }
+function OutProgressText                      ( [String] $str, [String] $color = "Gray" ){ OutProgress $str -indentLevel:0 -noNewLine:$true -color:$color; }
+function OutProgressTitle                     ( [String] $line ){ OutProgress $line -indentLevel:0 -color:$global:InfoLineColor; }
+function OutProgressSuccess                   ( [String] $line ){ OutProgress $line -color:"Green"; }
+function OutProgressQuestion                  ( [String] $str  ){ OutProgress $str -indentLevel:0 -noNewLine:$true -color:"Cyan"; }
+function OutInfo                              ( [String] $line ){ OutProgressTitle $line; } # deprecated
+
 function OutVerbose                           ( [String] $line ){
                                                 # Output depends on $VerbosePreference, used in general for tracing some important arguments or command results mainly of IO-operations.
                                                 Write-Verbose -Message "$(DateTimeNowAsStringIso) $line"; }
 function OutDebug                             ( [String] $line ){
                                                 # Output depends on $DebugPreference, used in general for tracing internal states which can produce a lot of lines.
                                                 Write-Debug   -Message "$(DateTimeNowAsStringIso) $line"; }
+function OutGetTsPrefix                       ( [Boolean] $forceTsPrefix = $false ){
+                                                return [String] $(switch($forceTsPrefix -or $global:ModeOutputWithTsPrefix){($true){"$(DateTimeNowAsStringIso) "}default{""}}); }
 function OutClear                             (){ Clear-Host; }
 function OutStartTranscriptInTempDir          ( [String] $name = "MnCommonPsToolLib", [Boolean] $useHHMMSS = $false ){
                                                  # append everything from console to logfile, return full path name of logfile. Optionally use precision by seconds for file name.
@@ -533,18 +543,16 @@ function OutStartTranscriptInTempDir          ( [String] $name = "MnCommonPsTool
                                                 Start-Transcript -Path $f -Append -IncludeInvocationHeader | Out-Null;
                                                 return [String] $f; }
 function OutStopTranscript                    (){ Stop-Transcript | Out-Null; } # Writes to output: Transcript stopped, output file is C:\Temp\....txt
-function StdOutLine                           ( [String] $line ){ $Host.UI.WriteLine($line); } # Writes an stdout line in default color, normally not used, rather use OutInfo because it classifies kind of output.
 function StdInAssertAllowInteractions         (){ if( $global:ModeDisallowInteractions ){
                                                 throw [Exception] "Cannot read for input because all interactions are disallowed, either caller should make sure variable ModeDisallowInteractions is false or he should not call an input method."; } }
-function StdInReadLine                        ( [String] $line ){ OutStringInColor "Cyan" $line; StdInAssertAllowInteractions; return [String] (Read-Host); }
-function StdInReadLinePw                      ( [String] $line ){ OutStringInColor "Cyan" $line; StdInAssertAllowInteractions; return [System.Security.SecureString] (Read-Host -AsSecureString); }
+function StdInReadLine                        ( [String] $line ){ OutProgressQuestion $line; StdInAssertAllowInteractions; return [String] (Read-Host); }
+function StdInReadLinePw                      ( [String] $line ){ OutProgressQuestion $line; StdInAssertAllowInteractions; return [System.Security.SecureString] (Read-Host -AsSecureString); }
 function StdInAskForEnter                     ( [String] $msg = "Press Enter to continue" ){ StdInReadLine $msg | Out-Null; }
 function StdInAskForBoolean                   ( [String] $msg = "Enter Yes or No (y/n)?", [String] $strForYes = "y", [String] $strForNo = "n" ){
-                                                 while($true){ OutStringInColor "Magenta" $msg;
+                                                 while($true){ OutProgressQuestion $msg;
                                                  [String] $answer = StdInReadLine ""; if( $answer -eq $strForYes ){ return [Boolean] $true ; }
                                                  if( $answer -eq $strForNo  ){ return [Boolean] $false; } } }
-function StdInWaitForAKey                     (){ StdInAssertAllowInteractions; $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") | Out-Null; } # does not work in powershell-ise, so in general do not use it, use StdInReadLine
-function StdOutRedLineAndPerformExit          ( [String] $line, [Int32] $delayInSec = 1 ){ #
+function StdOutRedLineAndPerformExit          ( [String] $line, [Int32] $delayInSec = 1 ){ # TODO replace this by throw
                                                 OutError $line; if( $global:ModeDisallowInteractions ){ ProcessSleepSec $delayInSec; }else{ StdInReadLine "Press Enter to Exit"; }; Exit 1; }
 function StdErrHandleExc                      ( [System.Management.Automation.ErrorRecord] $er, [Int32] $delayInSec = 1 ){
                                                 # Output full error information in red lines and then either wait for pressing enter or otherwise
@@ -552,14 +560,15 @@ function StdErrHandleExc                      ( [System.Management.Automation.Er
                                                 [String] $msg = "$(StringFromErrorRecord $er)";
                                                 OutError $msg;
                                                 if( -not $global:ModeDisallowInteractions ){
-                                                  OutError "Press Enter to exit.";
+                                                  OutProgress "StdErrHandleExc: Press Enter to exit.";
                                                   try{
                                                     Read-Host; return;
                                                   }catch{ # exc: PSInvalidOperationException:  Read-Host : Windows PowerShell is in NonInteractive mode. Read and Prompt functionality is not available.
-                                                    OutError "Note: Cannot Read-Host because $($_.Exception.Message)";
+                                                    OutWarning "Warning: In StdErrHandleExc cannot Read-Host because $($_.Exception.Message)";
+                                                    if( $delayInSec -eq 0 ){ $delayInSec = 1; }
                                                   }
                                                 }
-                                                if( $delayInSec -gt 0 ){ StdOutLine "Waiting for $delayInSec seconds."; }
+                                                if( $delayInSec -gt 0 ){ OutProgress "StdErrHandleExc: Waiting for $delayInSec seconds."; }
                                                 ProcessSleepSec $delayInSec; }
 function StdPipelineErrorWriteMsg             ( [String] $msg ){ Write-Error $msg; } # does not work in powershell-ise, so in general do not use it, use throw
 function StdInAskForAnswerWhenInInteractMode  ( [String] $line = "Are you sure (y/n)? ", [String] $expectedAnswer = "y" ){
@@ -600,10 +609,10 @@ function AssertRcIsOk                         ( [String[]] $linesToOutProgress =
                                                   }
                                                 }
                                                 throw [Exception] $msg; }
-function HelpHelp                             (){ Get-Help     | ForEach-Object{ OutInfo $_; } }
-function HelpListOfAllVariables               (){ Get-Variable | Sort-Object Name | ForEach-Object{ OutInfo "$($_.Name.PadRight(32)) $($_.Value)"; } } # Select-Object Name, Value | StreamToListString
-function HelpListOfAllAliases                 (){ Get-Alias    | Select-Object CommandType, Name, Version, Source | StreamToTableString | ForEach-Object{ OutInfo $_; } }
-function HelpListOfAllCommands                (){ Get-Command  | Select-Object CommandType, Name, Version, Source | StreamToTableString | ForEach-Object{ OutInfo $_; } }
+function HelpHelp                             (){ Get-Help     | ForEach-Object{ OutProgressTitle $_; } }
+function HelpListOfAllVariables               (){ Get-Variable | Sort-Object Name | ForEach-Object{ OutProgressTitle "$($_.Name.PadRight(32)) $($_.Value)"; } } # Select-Object Name, Value | StreamToListString
+function HelpListOfAllAliases                 (){ Get-Alias    | Select-Object CommandType, Name, Version, Source | StreamToTableString | ForEach-Object{ OutProgressTitle $_; } }
+function HelpListOfAllCommands                (){ Get-Command  | Select-Object CommandType, Name, Version, Source | StreamToTableString | ForEach-Object{ OutProgressTitle $_; } }
 function HelpListOfAllModules                 (){ Get-Module -ListAvailable | Sort-Object Name | Select-Object Name, ModuleType, Version, ExportedCommands; } # depends on $env:PSModulePath
 function HelpListOfAllExportedCommands        (){ (Get-Module -ListAvailable).ExportedCommands.Values | Sort-Object Name | Select-Object Name, ModuleName; }
 function HelpGetType                          ( [Object] $obj ){ return [String] $obj.GetType(); }
@@ -821,10 +830,10 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 # - as tracing the calling command can easy be written to output.
                                                 # The only known disadvantage currently is, it is not optimized for line oriented output because it returns a single string.
                                                 # As working directory the current dir is taken which makes it compatible to call operator.
-                                                # If careStdErrAsOut is true then output on stderr will not lead to an error, instead it will be appended to stdout.
                                                 # If exitCode is not 0 or stderr is not empty then it throws.
-                                                # But if ErrorActionPreference is Continue then stderr is appended to output and no error is produced.
-                                                # In case an error is throwed then it will first OutProgress the non empty stdout lines.
+                                                # If careStdErrAsOut is true then occurring stderr text will not be throwed, instead it will be appended to stdout.
+                                                # If ErrorActionPreference is Continue then stderr is appended to output and no error is throwed.
+                                                # In case an error is throwed then it will first call OutProgress with the non empty stdout lines.
                                                 # Internally the stdout and stderr are stored to variables and not to temporary files to avoid file system IO.
                                                 # Important Note: The original Process.Start(ProcessStartInfo) cannot run a ps1 file
                                                 #   even if $env:PATHEXT contains the PS1 because it does not precede it with (powershell.exe -File) or (pwsh -File).
@@ -835,7 +844,7 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 # Generally for each call of an executable the commandline is handled by some special rules which are descripted in
                                                 # "Parsing C++ command-line arguments" https://docs.microsoft.com/en-us/cpp/cpp/main-function-command-line-args
                                                 # As follow:
-                                                # - Arguments are delimited by white space, which is either a space or a tab.
+                                                # - Arguments are delimited by white spaces, which are either spaces or tabs.
                                                 # - The first argument (argv[0]) is treated specially. It represents the program name.
                                                 #   Because it must be a valid pathname, parts surrounded by double quote marks (") are allowed.
                                                 #   The double quote marks aren't included in the argv[0] output.
@@ -941,7 +950,7 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 [String] $err = $bufStdErr.ToString(); if( $err -ne "" ){ $err = [Environment]::NewLine + $err.Trim(); }
                                                 OutVerbose "ProcessStart-Result rc=$exitCode outLen=$($out.Length) errLen=$($err.Length) ";
                                                 [Boolean] $doThrow = $exitCode -ne 0 -or ($err -ne "" -and -not $careStdErrAsOut);
-                                                if( $ErrorActionPreference -ne "Continue" -and $doThrow ){
+                                                if( $doThrow -and $ErrorActionPreference -ne "Continue" ){
                                                   if( -not $traceCmd ){ OutProgress $traceInfo; } # in case of an error output command line, if not yet done
                                                   StringSplitIntoLines $out | Where-Object{$null -ne $_} |
                                                     Where-Object{ StringIsFilled $_ } |
@@ -972,7 +981,7 @@ function ProcessEnvVarList                    (){
                                                 [Hashtable] $envVarProc = [Hashtable]::new([System.Environment]::GetEnvironmentVariables([System.EnvironmentVariableTarget]::Process),[StringComparer]::InvariantCultureIgnoreCase);
                                                 [Hashtable] $envVarUser = [Hashtable]::new([System.Environment]::GetEnvironmentVariables([System.EnvironmentVariableTarget]::User   ),[StringComparer]::InvariantCultureIgnoreCase);
                                                 [Hashtable] $envVarMach = [Hashtable]::new([System.Environment]::GetEnvironmentVariables([System.EnvironmentVariableTarget]::Machine),[StringComparer]::InvariantCultureIgnoreCase);
-                                                OutInfo "List all environment variables with scopes process, user and machine:";
+                                                OutProgressTitle "List all environment variables with scopes process, user and machine:";
                                                 OutProgress "`"Scope  `",`"$("Name".PadRight(32))`",`"Value`"";
                                                 $envVarProc.Keys | Sort-Object | ForEach-Object{ OutProgress "`"PROCESS`",`"$($_.PadRight(32))`",`"$($envVarProc[$_])`""; }
                                                 $envVarUser.Keys | Sort-Object | ForEach-Object{ OutProgress "`"USER   `",`"$($_.PadRight(32))`",`"$($envVarUser[$_])`""; }
@@ -2389,7 +2398,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                     Where-Object{ -not ($_.StartsWith("Checking out files: ") -and ($_.EndsWith(")") -or $_.EndsWith(", done."))) } |
                                                     ForEach-Object{ OutWarning "Warning: For (git $gitArgs) got unexpected output: $_"; };
                                                   [String] $branchInfo = "$((GitShowBranch $dir).PadRight(10)) ($(GitShowRemoteName $dir)-default=$(GitShowBranch $dir $true))";
-                                                  OutSuccess "  Ok, usedTimeInSec=$([Int64]($usedTime.Elapsed.TotalSeconds+0.999)) for url: $($url.PadRight(60)) branch: $branchInfo ";
+                                                  OutProgressSuccess "  Ok, usedTimeInSec=$([Int64]($usedTime.Elapsed.TotalSeconds+0.999)) for url: $($url.PadRight(60)) branch: $branchInfo ";
                                                 }catch{
                                                   # exc:              fatal: HttpRequestException encountered.
                                                   # exc:              Fehler beim Senden der Anforderung.
@@ -2418,7 +2427,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                     OutProgress "Note: If you would like to ignore and revert all local changes then call:  GitCmd Revert `"$tarRootDir`" $urlAndOptionalBranch; # maybe also try with pull --allow-unrelated-histories ";
                                                   }
                                                   if( $cmd -eq "Pull" -and $msg.Contains("fatal: Couldn't find remote ref HEAD") ){
-                                                    OutSuccess "  Ok, repository has no content."; return;
+                                                    OutProgressSuccess "  Ok, repository has no content."; return;
                                                   }
                                                   if( $msg.Contains("remote: Repository not found.") -and $msg.Contains("fatal: repository ") ){
                                                     $msg = "$cmd failed because not found repository: $url .";
@@ -2609,7 +2618,7 @@ function GitCloneOrPullUrls                   ( [String[]] $listOfRepoUrls, [Str
                                                 #   # If you want single threaded then call it with only one item in the list.
                                                 #   OutProgress "GitCloneOrPullUrls NrOfUrls=$($listOfRepoUrls.Count) CallLog=`"$gitLogFile`" ";
                                                 #   [String[]] $errorLines = @();
-                                                #   if( $listOfRepoUrls.Count -eq 0 ){ OutProgress "Ok, GitCloneOrPullUrls was called with no urls so nothing to do."; return; }
+                                                #   if( $listOfRepoUrls.Count -eq 0 ){ OutProgressSuccess "Ok, GitCloneOrPullUrls was called with no urls so nothing to do."; return; }
                                                 #   [Object] $threadSafeDict = [System.Collections.Concurrent.ConcurrentDictionary[string,string]]::new();
                                                 #   $listOfRepoUrls | ForEach-Object { [System.Tuple]::Create($tarRootDirOfAllRepos,$_,$errorAsWarning,$threadSafeDict) } |
                                                 #   ForEach-Object{ #TODO later: ForEachParallel { GlobalVariablesInit;
@@ -2854,9 +2863,11 @@ function ToolEvalVsCodeExec                   (){ [String] $result = (ProcessFin
 function GetSetGlobalVar( [String] $var, [String] $val){ OutWarning "GetSetGlobalVar is DEPRECATED, replace it now by GitSetGlobalVar. ";  GitSetGlobalVar $var $val; }
 function FsEntryIsEqual ( [String] $fs1, [String] $fs2, [Boolean] $caseSensitive = $false ){ OutWarning "FsEntryIsEqual is DEPRECATED, replace it now by FsEntryPathIsEqual."; return (FsEntryPathIsEqual $fs1 $fs2); }
 function StdOutBegMsgCareInteractiveMode ( [String] $mode = "" ){ OutWarning "StdOutBegMsgCareInteractiveMode is DEPRECATED; replace it now by one or more of: StdInAskForAnswerWhenInInteractMode; OutProgress `"Minimize console`"; ConsoleMinimize;"; StdInAskForAnswerWhenInInteractMode; }
-function StdOutEndMsgCareInteractiveMode ( [Int32] $delayInSec = 1 ){ OutWarning "StdOutEndMsgCareInteractiveMode is DEPRECATED; replace it now by one or more of: OutSuccess `"Ok, done. Press Enter to Exit / Ending in .. seconds.`", StdInReadLine `"Press Enter to exit.`", ProcessSleepSec!"; StdInReadLine "Press Enter to exit."; }
+function StdOutEndMsgCareInteractiveMode ( [Int32] $delayInSec = 1 ){ OutWarning "StdOutEndMsgCareInteractiveMode is DEPRECATED; replace it now by one or more of: OutProgressSuccess `"Ok, done. Press Enter to Exit / Ending in .. seconds.`", StdInReadLine `"Press Enter to exit.`", ProcessSleepSec!"; StdInReadLine "Press Enter to exit."; }
 function ToolGetBranchCommit ( [String] $repo, [String] $branch, [String] $repoDirForCred = "", [Boolean] $traceCmd = $false ){ OutWarning "ToolGetBranchCommit is DEPRECATED; replace it now by GithubGetBranchCommitId."; GithubGetBranchCommitId $repo $branch $repoDirForCred $traceCmd; }
 function ProcessGetCommandInEnvPathOrAltPaths ( [String] $commandNameOptionalWithExtension, [String[]] $alternativePaths = @(), [String] $downloadHintMsg = ""){ OutWarning "ProcessGetCommandInEnvPathOrAltPaths is DEPRECATED; replace it now by ProcessGetApplInEnvPath which does not have alternative path anymore."; ProcessGetApplInEnvPath $commandNameOptionalWithExtension $downloadHintMsg; }
+function OutStringInColor                     ( [String] $color, [String] $line, [Boolean] $noNewLine = $true ){ OutWarning "OutStringInColor is DEPRECATED, replace it now by: OutProgress line 0 -noNewline:$noNewLine -color:$color "; OutProgress $line 0 -noNewline:$noNewLine -color:$color; }
+function OutSuccess                           ( [String] $line ){ OutProgressSuccess $line; } # deprecated
 
 # ----------------------------------------------------------------------------------------------------
 
@@ -3100,17 +3111,23 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 # - Extensions and libraries: https://www.powershellgallery.com/  http://ss64.com/links/pslinks.html
 # - Write Portable ps hints: https://powershell.org/2019/02/tips-for-writing-cross-platform-powershell-code/
 # - Script Calling Parameters: The expression CmdletBinding for param is optional and so it should not be used anymore:
-#   Example: [CmdletBinding()] Param( [parameter(Mandatory=$true)] [String] $p1, [parameter(Mandatory=$true)] [String] $p2 ); OutInfo "Parameters: p1=$p1 p2=$p2";
+#   Example: [CmdletBinding()] Param( [parameter(Mandatory=$true)] [String] $p1, [parameter(Mandatory=$true)] [String] $p2 ); OutProgressTitle "Parameters: p1=$p1 p2=$p2";
 # - A starter for any tool can be created by the following code:
 #     #!/usr/bin/env pwsh
 #     $intput | & "mytool.exe" $args ; Exit $LASTEXITCODE ; # alternative: if( $MyInvocation.ExpectingInput ){ # has something in $input variable
 #   Important note: this works well from powershell/pwsh but if such a starter is called from cmd.exe or a bat file,
 #   then all arguments are not passed!!!  In that case you need to perform the following statement:  pwsh -Command MyPsScript.ps1 anyParam...
-# - param ( [Parameter()] [ValidateSet("Yes", "No", "Maybe")] [String] $opt )
+# - Example for Set Parameter:  Param ( [Parameter()] [ValidateSet("Yes", "No", "Maybe")] [String] $opt )
 # - Use  Set-PSDebug -trace 1; Set-PSDebug -trace 2;  to trace each line or use  Set-PSDebug -step  for singlestep mode until  Set-PSDebug -Off;
 # - Note: WMI commands should be replaced by CIM counterparts for portability,
 #   see https://devblogs.microsoft.com/powershell/introduction-to-cim-cmdlets/
 # - Encoding problem on PS5: There is no encoding as UTF8NoBOM, so for UTF8 it generally writes a BOM, alternative code would be:
 #   [System.IO.File]::WriteAllLines($f,$lines,(New-Object System.Text.UTF8Encoding $false))
+# - For make multithreading safe use:
+#   $singletonLockObject = New-Object System.Object;
+#   $scriptBlock = { [System.Threading.Monitor]::Enter($lockObject); try {
+#     # Critical section of code that should be executed by only one thread at a time
+#     Write-Output "Executing in a thread-safe manner"; Start-Sleep -Seconds 1;
+#   }finally{ [System.Threading.Monitor]::Exit($lockObject); } }
 # - More on differences of PS5 and PS7 see: https://learn.microsoft.com/en-us/powershell/scripting/whats-new/differences-from-windows-powershell?view=powershell-7.3
 #

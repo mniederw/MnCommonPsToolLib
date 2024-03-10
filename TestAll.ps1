@@ -1,6 +1,6 @@
 ﻿#!/usr/bin/env pwsh
 
-Set-StrictMode -Version Latest; trap [Exception] { $Host.UI.WriteErrorLine("Error: $_"); Read-Host "Press Enter to Exit"; break; } $ErrorActionPreference = "Stop";
+Set-StrictMode -Version Latest; trap [Exception] { Write-Error $_; Read-Host "Press Enter to Exit"; break; } $ErrorActionPreference = "Stop";
 
 [Boolean] $is_windows = (-not (Get-Variable -Name IsWindows -ErrorAction SilentlyContinue) -or $IsWindows); # portable PS5/PS7
 [Boolean] $is_linux   = (-not $is_windows -and $IsLinux);
@@ -56,7 +56,7 @@ Write-Output "List all aliases: ";
   Get-Alias | ForEach-Object{ Write-Output "  $($_.DisplayName)"; } | Select-Object -First 4;
 
 Write-Output "List ps gallery repositories: "; Get-PSRepository;
-Write-Output "List installed ps modules "; 
+Write-Output "List installed ps modules ";
   Get-Module -ListAvailable | Sort-Object ModuleType, Name, Version | Select-Object ModuleType, Name, Version | Format-Table -Wrap -Force -AutoSize;
 Write-Output "Set repository PSGallery to trusted: ";
   Set-PSRepository PSGallery -InstallationPolicy Trusted;
@@ -76,7 +76,7 @@ Write-Output "Extend PSModulePath by PSScriptRoot";
 [Environment]::SetEnvironmentVariable("PSModulePath","${env:PSModulePath}$pathSep$PSScriptRoot","Process"); # add ps module to path
 
 Write-Output "Load our library: MnCommonPsToolLib.psm1";
-Import-Module "MnCommonPsToolLib.psm1";
+Import-Module "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 
 
 
@@ -97,17 +97,17 @@ ProcessRemoveAllAlias @("cd","cat","clear","echo","dir","cp","mv","popd","pushd"
   ,"$PSScriptRoot/UnitTests/AllUnitTests.ps1"
 );
 
-OutInfo     "Running all examples and unit tests, input requests are aborted when called non-interactive by github action.";
+OutProgressTitle "Running all examples and unit tests, input requests are aborted when called non-interactive by github action.";
 OutProgress "If it is running elevated then it performs additional tests. ";
 AssertRcIsOk;
 for( [Int32] $i = 0; $i -lt $ps1Files.Count; $i++ ){
 
-  OutInfo ("----- "+(FsEntryGetFileName $ps1Files[$i])+" -----").PadRight(120,'-');
+  OutProgressTitle ("----- "+(FsEntryGetFileName $ps1Files[$i])+" -----").PadRight(120,'-');
   & $ps1Files[$i];
   if( "$env:GITHUB_WORKSPACE" -ne "" ){ ScriptResetRc; } # On github input stream was closed
   AssertRcIsOk;
 
 }
-OutInfo ("----- TestAll.ps1 ended -----").PadRight(120,'-');
-OutSuccess "Ok, done. All tests are successful. Exit after 2 seconds. ";
+OutProgressTitle ("----- TestAll.ps1 ended -----").PadRight(120,'-');
+OutProgressSuccess "Ok, done. All tests are successful. Exit after 2 seconds. ";
 ProcessSleepSec 2;
