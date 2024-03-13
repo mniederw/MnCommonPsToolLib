@@ -70,8 +70,11 @@ function UnitTest_FsEntry_Dir_File(){
   # TODO: DirNotExists                         ( [String] $dir ){ return [Boolean] -not (DirExists $dir); }
   # TODO: DirAssertExists                      ( [String] $dir, [String] $text = "Assertion" ){
   # TODO: DirCreate                            ( [String] $dir ){
-  # TODO: DirCreateTemp                        ( [String] $prefix = "" ){ while($true){
-  # TODO: DirDelete                            ( [String] $dir, [Boolean] $ignoreReadonly = $true ){
+  #
+  [String] $tmpDir = DirCreateTemp "MnPrefix";
+  #
+  DirDelete $tmpDir;
+  #
   # TODO: DirDeleteContent                     ( [String] $dir, [Boolean] $ignoreReadonly = $true ){
   # TODO: DirDeleteIfIsEmpty                   ( [String] $dir, [Boolean] $ignoreReadonly = $true ){
   # TODO: DirCopyToParentDirByAddAndOverwrite  ( [String] $srcDir, [String] $tarParentDir ){

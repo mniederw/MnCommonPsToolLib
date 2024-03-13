@@ -5,7 +5,8 @@ Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version
 function UnitTest_Global(){
   OutProgress (ScriptGetCurrentFuncName);
 
-  if( [Console]::OutputEncoding.WebName -ne "utf-8" ){ # we are running in non utf-8 console as example VS-Code.
+  if( [Console]::OutputEncoding.WebName -ne "utf-8" ){
+    OutProgress "Set UTF8 for console"; # we are running in non utf-8 console as example VS-Code.
     $Global:OutputEncoding = [Console]::OutputEncoding = [Console]::InputEncoding = [Text.UTF8Encoding]::UTF8;
     GlobalVariablesInit;
   }
