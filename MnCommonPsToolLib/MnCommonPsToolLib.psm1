@@ -4,7 +4,7 @@
 # Licensed under GPL3. This is freeware.
 # 2013-2024 produced by Marc Niederwieser, Switzerland.
 
-[String] $global:MnCommonPsToolLibVersion = "7.51";
+[String] $global:MnCommonPsToolLibVersion = "7.52";
   # Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
   # Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
   # more see Releasenotes.txt
@@ -41,8 +41,8 @@
 # - More: Powershell useful knowledge and additional documentation see bottom of MnCommonPsToolLib.psm1
 #
 # Recommendations for windows environment:
-# - Use UTF-8 not Win1252 as standard, for example we use the following line in a startup script file:
-#   ToolAddLineToConfigFile $Profile "`$Global:OutputEncoding = [Console]::OutputEncoding = [Console]::InputEncoding = [Text.UTF8Encoding]::UTF8; # AUTOCREATED LINE BY StartupOnLogon, set pipelining to utf8.";
+# - Use UTF-8 not Win1252 as standard, for example we use the following line in a startup and profile script file:
+#   ToolAddLineToConfigFile $PROFILE "`$Global:OutputEncoding = [Console]::OutputEncoding = [Console]::InputEncoding = [Text.UTF8Encoding]::UTF8; # AUTOCREATED LINE BY StartupOnLogon, set pipelining to utf8.";
 # - As alternative use in each relevant ps script file the following statement:
 #   $Global:OutputEncoding = [Console]::OutputEncoding = [Console]::InputEncoding = [Text.UTF8Encoding]::UTF8;
 # - As further alternative switch your windows (intl.cpl):
@@ -120,7 +120,7 @@ function GlobalVariablesInit(){
 
   # We like english error messages
   [System.Threading.Thread]::CurrentThread.CurrentUICulture = [System.Globalization.CultureInfo]::GetCultureInfo('en-US');
-    # alternatives: [System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::GetCultureInfo('en-US'); Set-Culture en-US;
+    # alternatives: [System.Threading.Thread]::CurrentThread.CurrentCulture = [System.Globalization.CultureInfo]::GetCultureInfo('en-US'); Set-Culture en-US; # for nr, date and time formats
   Write-Verbose "GlobalVariablesInit end.";
 }
 GlobalVariablesInit;
@@ -170,12 +170,12 @@ function ForEachParallel {
             # PSScriptAnalyzer: On PS7 we get "PSUseProcessBlockForPipelineCommand warning: Command accepts pipeline input but has not defined a process block."
             #   There is an unknown reason why we need to declare the parameter $InputObject, but we do not use it. Maybe later try to remove it.
          [Parameter(Mandatory=$false)]                        [Int32]                                    $MaxThreads=8 )
-  if( $PSVersionTable.PSVersion.Major -gt 5 ){
+  if( $PSVersionTable.PSVersion.Major -le 5 ){
+    $input | ForEachParallelPS5 -MaxThreads $MaxThreads $ScriptBlock;
+  }else{
     # Avoid PSScriptAnalyzer: On PS7 we get PSReviewUnusedParameter The parameter 'InputObject' has been declared but not used.
       $InputObject.GetType() | Out-Null;
     $input | ForEach-Object -ThrottleLimit $MaxThreads -Parallel $ScriptBlock;
-  }else{
-    $input | ForEachParallelPS5 -MaxThreads $MaxThreads $ScriptBlock;
   }
   # For future use: 0..9 | ForEach-Object -Parallel { Write-Output $_ } -AsJob;
 }
@@ -454,7 +454,7 @@ function ConsoleSetGuiProperties              (){ # set standard sizes which mak
                                                 }
                                                 if( $script:consoleSetGuiProperties_DoneOnce ){ return; }
                                                 [Object] $w = $Host.ui.RawUI;
-                                                $w.windowtitle = "$PSCommandPath $(switch(ProcessIsRunningInElevatedAdminMode){($true){'- Elevated Admin Mode'}default{'';}})";
+                                                $w.windowtitle = "$PSCommandPath - PS-V$($Host.Version.ToString()) $(switch(ProcessIsRunningInElevatedAdminMode){($true){'- Elevated Admin Mode'}default{'';}})";
                                                 $w.foregroundcolor = "Gray";
                                                 $w.backgroundcolor = switch(ProcessIsRunningInElevatedAdminMode){($true){"DarkMagenta"}default{"DarkBlue";}};
                                                 # for future use: $ = $host.PrivateData; $.VerboseForegroundColor = "White"; $.VerboseBackgroundColor = "Blue";
@@ -895,7 +895,7 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 $prInfo.RedirectStandardOutput = $true;
                                                 # Note: This does not prevent exes waiting for keyboard input as "less": $prInfo.RedirectStandardInput = $true; ... $pr.Start(); $pr.StandardInput.Close();
                                                 $prInfo.RedirectStandardInput = $false; # parent and child have same standard-input and no additional pipe created.
-                                                # for future use: $prInfo.StandardOutputEncoding = Encoding.UTF8;
+                                                # for future use: $prInfo.StandardOutputEncoding = Encoding.UTF8; # default is $null which means it takes default standard output encoding (but where is this defined?)
                                                 # for future use: $prInfo.StandardErrorEncoding  = Encoding.UTF8;
                                                 # for future use: $prInfo.StandardInputEncoding  = Encoding.UTF8;
                                                 $prInfo.WorkingDirectory = (Get-Location);
@@ -1030,12 +1030,12 @@ function ProcessRefreshEnvVars                ( [Boolean] $traceCmd = $true ){ #
                                                   }else{ OutVerbose "ProcessRefreshEnvVars AreEqual $_ $val"; }
                                                 } }
 function ProcessRemoveAllAlias                ( [String[]] $excludeAliasNames = @(), [Boolean] $doTrace = $false ){
-                                                # remove all existing aliases on any levels (local, script, private, and global).
+                                                # Remove all existing aliases on any levels (local, script, private, and global).
                                                 # We recommend to exclude the followings: @("cd","cat","clear","echo","dir","cp","mv","popd","pushd","rm","rmdir").
-                                                # In powershell v5 (also v7) on windows there are a predefined list of about 180 aliases in each session which cannot be avoided.
+                                                # In powershell (v5 and v7) there are a predefined list of about 180 (on windows) or 108 (on linux) aliases in each session which cannot be avoided.
                                                 # This is very bad because there are also aliases defined as curl->Invoke-WebRequest or wget->Invoke-WebRequest which are incompatible to their known tools.
-                                                # On linux there are 108 aliases and fortunately the curl and wget are not part of it.
-                                                # 2024-02 update: On windows ps7.4 the curl and wget alias seams to be finally gone!
+                                                # On linux fortunately the curl and wget are not part of it.
+                                                # 2024-02 update: On windows ps7.4 the curl and wget alias are finally gone (but still in PS5)!
                                                 # Also the Invoke-ScriptAnalyzer results with a warning as example:
                                                 #   PSAvoidUsingCmdletAliases 'cd' is an alias of 'Set-Location'. Alias can introduce possible problems and make scripts hard to maintain.
                                                 #   Please consider changing alias to its full content.
@@ -1444,7 +1444,7 @@ function DirExists                            ( [String] $dir ){
                                                 FsEntryAssertHasTrailingDirSep $dir;
                                                 try{ return [Boolean] (Test-Path -PathType Container -LiteralPath $dir); }
                                                 catch{ throw [Exception] "$(ScriptGetCurrentFunc)($dir) failed because $($_.Exception.Message)"; } }
-function DirNotExists                         ( [String] $dir ){ FsEntryAssertHasTrailingDirSep $dir; return [Boolean] -not (DirExists $dir); }
+function DirNotExists                         ( [String] $dir ){ AssertNotEmpty $dir "dir"; FsEntryAssertHasTrailingDirSep $dir; return [Boolean] -not (DirExists $dir); }
 function DirAssertExists                      ( [String] $dir, [String] $text = "Assertion" ){
                                                 FsEntryAssertHasTrailingDirSep $dir;
                                                 if( -not (DirExists $dir) ){ throw [Exception] "$text failed because dir not exists: `"$dir`"."; } }
@@ -1456,15 +1456,17 @@ function DirCreateTemp                        ( [String] $prefix = "" ){ while($
                                                 if( FsEntryNotExists $d ){ DirCreate $d; return [String] $d; } } }
 function DirDelete                            ( [String] $dir, [Boolean] $ignoreReadonly = $true ){
                                                 # Remove dir recursively if it exists, be careful when using this.
+                                                AssertNotEmpty $dir "dir";
                                                 $dir = FsEntryGetAbsolutePath $dir;
                                                 FsEntryAssertHasTrailingDirSep $dir;
                                                 if( (DirExists $dir) ){
-                                                  try{ OutProgress "DirDelete$(switch($ignoreReadonly){($true){''}default{'CareReadonly'}}) `"$dir`"";
+                                                  try{ OutProgress "DirDelete-Recursive$(switch($ignoreReadonly){($true){''}default{'CareReadonly'}}) `"$dir`"";
                                                     Remove-Item -Force:$ignoreReadonly -Recurse -LiteralPath $dir;
                                                   }catch{ # Example: Für das Ausführen des Vorgangs sind keine ausreichenden Berechtigungen vorhanden.
                                                     throw [Exception] "$(ScriptGetCurrentFunc)$(switch($ignoreReadonly){($true){''}default{'CareReadonly'}})(`"$dir`") failed because $($_.Exception.Message) (maybe locked or readonly files exists)"; } } }
 function DirDeleteContent                     ( [String] $dir, [Boolean] $ignoreReadonly = $true ){
                                                 # remove dir content if it exists, be careful when using this.
+                                                AssertNotEmpty $dir "dir";
                                                 $dir = FsEntryGetAbsolutePath $dir;
                                                 FsEntryAssertHasTrailingDirSep $dir;
                                                 if( (DirExists $dir) -and (@()+(Get-ChildItem -Force -Directory -LiteralPath $dir)).Count -gt 0 ){
@@ -1473,6 +1475,7 @@ function DirDeleteContent                     ( [String] $dir, [Boolean] $ignore
                                                   }catch{ # exc: Für das Ausführen des Vorgangs sind keine ausreichenden Berechtigungen vorhanden.
                                                     throw [Exception] "$(ScriptGetCurrentFunc)$(switch($ignoreReadonly){($true){''}default{'CareReadonly'}})(`"$dir`") failed because $($_.Exception.Message) (maybe locked or readonly files exists)"; } } }
 function DirDeleteIfIsEmpty                   ( [String] $dir, [Boolean] $ignoreReadonly = $true ){
+                                                AssertNotEmpty $dir "dir";
                                                 FsEntryAssertHasTrailingDirSep $dir;
                                                 if( (DirExists $dir) -and (@()+(Get-ChildItem -Force -LiteralPath $dir)).Count -eq 0 ){ DirDelete $dir; } }
 function DirCopyToParentDirByAddAndOverwrite  ( [String] $srcDir, [String] $tarParentDir ){
@@ -1568,7 +1571,8 @@ function FileTouch                            ( [String] $file ){
                                                 else{ FileCreateEmpty $file $false $false "ASCII"; } }
 function FileGetLastLines                     ( [String] $file, [Int32] $nrOfLines ){
                                                 Get-content -tail $nrOfLines -LiteralPath $file; }
-function FileContentsAreEqual                 ( [String] $f1, [String] $f2, [Boolean] $allowSecondFileNotExists = $true ){ # first file must exist
+function FileContentsAreEqual                 ( [String] $f1, [String] $f2, [Boolean] $allowSecondFileNotExists = $true ){
+                                                # Binary equality; first file must exist; if second file not exists it returns false;
                                                 FileAssertExists $f1; if( $allowSecondFileNotExists -and -not (FileExists $f2) ){ return [Boolean] $false; }
                                                 [System.IO.FileInfo] $fi1 = Get-Item -Force -LiteralPath $f1; [System.IO.FileStream] $fs1 = $null;
                                                 [System.IO.FileInfo] $fi2 = Get-Item -Force -LiteralPath $f2; [System.IO.FileStream] $fs2 = $null;
@@ -1623,15 +1627,17 @@ function FileDelete                           ( [String] $file, [Boolean] $ignor
 function FileCopy                             ( [String] $srcFile, [String] $tarFile, [Boolean] $overwrite = $false ){
                                                 $srcFile = FsEntryGetAbsolutePath $srcFile;
                                                 $tarFile = FsEntryGetAbsolutePath $tarFile;
-                                                OutProgress "FileCopy(Overwrite=$overwrite) `"$srcFile`" to `"$tarFile`" $(switch($(FileExists $(FsEntryEsc $tarFile))){($true){'(Target exists)'}default{''}})";
+                                                OutProgress "FileCopy(Overwrite=$overwrite)$(switch($(FileExists $(FsEntryEsc $tarFile))){($true){'(TargetExists)'}default{''}}) `"$srcFile`" to `"$tarFile`" ";
                                                 FsEntryCreateParentDir $tarFile;
                                                 Copy-Item -Force:$overwrite (FsEntryEsc $srcFile) (FsEntryEsc $tarFile); }
 function FileMove                             ( [String] $srcFile, [String] $tarFile, [Boolean] $overwrite = $false ){
                                                 $srcFile = FsEntryGetAbsolutePath $srcFile;
                                                 $tarFile = FsEntryGetAbsolutePath $tarFile;
-                                                OutProgress "FileMove(Overwrite=$overwrite) `"$srcFile`" to `"$tarFile`"$(switch($(FileExists $(FsEntryEsc $tarFile))){($true){'(Target exists)'}default{''}})";
+                                                OutProgress "FileMove(Overwrite=$overwrite)$(switch($(FileExists $(FsEntryEsc $tarFile))){($true){'(TargetExists)'}default{''}}) `"$srcFile`" to `"$tarFile`" ";
                                                 FsEntryCreateParentDir $tarFile;
                                                 Move-Item -Force:$overwrite -LiteralPath $srcFile -Destination $tarFile; }
+function FileSyncContent                      ( [String] $fromFile, [String] $toFile ){ # overwrite if different
+                                                if( -not (FileContentsAreEqual $fromFile $toFile) ){ FileCopy $fromFile $toFile $true; } }
 function FileGetHexStringOfHash128BitsMd5     ( [String] $srcFile ){ [String] $md = "MD5"; return [String] (get-filehash -Algorithm $md $srcFile).Hash; } # 2008: is broken. Because PSScriptAnalyzer.PSAvoidUsingBrokenHashAlgorithms we put name into a variable.
 function FileGetHexStringOfHash256BitsSha2    ( [String] $srcFile ){ return [String] (get-filehash -Algorithm "SHA256" $srcFile).Hash; } # 2017-11 ps standard is SHA256, available are: SHA1;SHA256;SHA384;SHA512;MACTripleDES;MD5;RIPEMD160
 function FileGetHexStringOfHash512BitsSha2    ( [String] $srcFile ){ return [String] (get-filehash -Algorithm "SHA512" $srcFile).Hash; } # 2017-12: this is our standard for ps
@@ -1795,6 +1801,7 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                 # Maybe later: OAuth. Example: https://docs.github.com/en/free-pro-team@latest/rest/overview/other-authentication-methods
                                                 # Alternative on PS5 and PS7: Invoke-RestMethod -Uri "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/main/MnCommonPsToolLib/MnCommonPsToolLib.psm1" -OutFile "$env:TEMP/tmp/p.tmp";
                                                 $tarFile = FsEntryGetAbsolutePath $tarFile;
+                                                Assert (-not (FsEntryHasTrailingDirSep $tarFile));
                                                 [String] $authMethod = "Basic"; # Current implemented authMethods: "Basic".
                                                 AssertNotEmpty $url "NetDownloadFile.url"; # alternative check: -or $url.EndsWith("/")
                                                 if( $us -ne "" ){ AssertNotEmpty $pw "password for username=$us"; }
@@ -2732,6 +2739,23 @@ function ToolAddLineToConfigFile              ( [String] $file, [String] $line, 
                                                 # if file not exists or line not found case sensitive in file then the line is appended.
                                                 if( FileNotExists $file ){ FileWriteFromLines $file $line; }
                                                 elseif( -not (StringArrayContains (FileReadContentAsLines $file $existingFileEncodingIfNoBom) $line) ){ FileAppendLines $file $line; } }
+function ToolFindOppositeProfileFromPs5orPs7  (){ # If we are running PS5 then find profile of PS7 and vice versa.
+                                                # Origin profile on PS5: $HOME\Documents\PowerShell\Microsoft.PowerShell_profile.ps1
+                                                # Origin profile on PS7: $HOME\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1
+                                                # Other profiles as from ($PROFILE | select *) are generally not existing.
+                                                if( $PSVersionTable.PSVersion.Major -le 5 ){
+                                                      return [String] $(switch((ProcessFindExecutableInPath "pwsh"          ) -ne ""){($true){& pwsh           -NoLogo -NoProfile -NonInteractive -NoProfileLoadTime -Command {Write-Output $PROFILE;}}($false){""}}); }
+                                                else{ return [String] $(switch((ProcessFindExecutableInPath "powershell.exe") -ne ""){($true){& powershell.exe -NoLogo -NoProfile -NonInteractive                    -Command {Write-Output $PROFILE;}}($false){""}}); } }
+function ToolAddToProfileIfFullPathNotEmpty   ( [String] $profileFullPath = "", [String] $autoCreatedBy = "StartupOnLogon" ){
+                                                # We recommend to perform in a startup logon script:
+                                                #   AddToProfileIfFullPathNotEmpty $PROFILE; AddToProfileIfFullPathNotEmpty (FindOppositeProfileFromPs5orPs7);
+                                                #
+                                                if( $profileFullPath -eq "" ){ return; }
+                                                #
+                                                ToolAddLineToConfigFile $profileFullPath "`$Global:OutputEncoding = [Console]::OutputEncoding = [Console]::InputEncoding = [Text.UTF8Encoding]::UTF8;                # AUTOCREATED LINE BY $autoCreatedBy, set pipelining to utf8.";
+                                                ToolAddLineToConfigFile $profileFullPath  "[System.Threading.Thread]::CurrentThread.CurrentUICulture = [System.Globalization.CultureInfo]::GetCultureInfo('en-US');  # AUTOCREATED LINE BY $autoCreatedBy, create english error messages.";
+                                                ToolAddLineToConfigFile $profileFullPath  "Remove-Item -Force Alias:curl -ErrorAction SilentlyContinue; Remove-Item -Force Alias:wget -ErrorAction SilentlyContinue; # AUTOCREATED LINE BY $autoCreatedBy, remove at least aliases: curl, wget.";
+                                                ToolAddLineToConfigFile $profileFullPath  "# Disabled-because-requires-4sec-which-is-too-long-for-each-session: ProcessRemoveAllAlias @(`"cd`",`"cat`",`"clear`",`"echo`",`"dir`",`"cp`",`"mv`",`"popd`",`"pushd`",`"rm`",`"rmdir`"); # AUTOCREATED LINE BY $autoCreatedBy, remove: curl, wget, diff, ..."; }
 function ToolGithubApiAssertValidRepoUrl      ( [String] $repoUrl ){
                                                 # Example repoUrl="https://github.com/mniederw/MnCommonPsToolLib/"
                                                 [String] $githubUrl = "https://github.com/";
@@ -2907,18 +2931,18 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 # - Parameter validation attributes (Example: ValidateRange): https://social.technet.microsoft.com/wiki/contents/articles/15994.powershell-advanced-function-parameter-attributes.aspx#Parameter_Validation_Attributes
 # - Do Not Use: Avoid using $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") or Write-Error because different behaviour of powershell.exe and powershell_ise.exe
 # - Extensions: download and install PowerShell Community Extensions (PSCX) https://github.com/Pscx/Pscx for ntfs-junctions and symlinks.
-# - Special predefined variables which are not yet used in this script (use by $global:anyprefefinedvar; names are case insensitive):
+# - Special predefined variables, sometimes use it by $global:anyprefefinedvar, names are case insensitive:
 #   https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_automatic_variables
 #   $null, $true, $false  - some constants
 #   $args                 - Contains an array of the parameters passed to a function.
 #   $error                - Contains objects for which an error occurred while being processed in a cmdlet.
-#   $HOME                 - Specifies the users home directory. ($env:USERPROFILE)
+#   $HOME                 - Specifies the users home directory. (same as $env:USERPROFILE on windows.)
 #   $PsHome               - The directory where the Windows PowerShell is installed. (C:\Windows\SysWOW64\WindowsPowerShell\v1.0)
 #   $PROFILE              - $HOME\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1
+#   $PSScriptRoot         - folder of current running script
 #   $PS...                - some variables
 #   $MaximumAliasCount, $MaximumDriveCount, $MaximumErrorCount, $MaximumFunctionCount, $MaximumHistoryCount, $MaximumVariableCount  - some maximum values
 #   $StackTrace, $ConsoleFileName, $ErrorView, $ExecutionContext, $Host, $input, $NestedPromptLevel, $PID, $PWD, $ShellId           - some environment values
-#   $PSScriptRoot         - folder of current running script
 # - Comparison operators; -eq, -ne, -lt, -le, -gt, -ge, "abcde" -like "aB?d*", -notlike,
 #   @( "a1", "a2" ) -contains "a2", -notcontains, "abcdef" -match "b[CD]", -notmatch, "abcdef" -cmatch "b[cd]", -notcmatch, -not
 # - Automatic variables see: http://technet.microsoft.com/en-us/library/dd347675.aspx
@@ -3018,9 +3042,9 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #   - PS 5/7 is poisoning the current scope by its aliases. See also comments on: ProcessRemoveAllAlias.
 #     List all aliases by: alias; For example: Alias curl -> Invoke-WebRequest ; Alias wget -> Invoke-WebRequest ; Alias diff -> Compare-Object ;
 #     If we really want to call the curl executable than this is a mess.
-#     We strongly recommend to add to your ps5 $profile ($HOME\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1) at least the line:
+#     We strongly recommend to add to your ps5 $PROFILE (Example: $HOME\Documents\PowerShell\Microsoft.PowerShell_profile.ps1) at least the line:
 #       Remove-Item -Force "Alias:curl" -ErrorAction SilentlyContinue; Remove-Item -Force "Alias:wget" -ErrorAction SilentlyContinue;
-#     If you have to bypass the curl alias you need to do the following:
+#     Alternative: If you want to use curl and have to bypass the curl alias you need to do the following:
 #     [String] $curlPath = "$(get-command -CommandType Application curl -ErrorAction SilentlyContinue | Select -First 1 | ForEach-Object{ $_.Source })";
 #   - Automatically added folders (2023-02):
 #     - ps7: %USERPROFILE%\Documents\PowerShell\Modules\         location for current users for any modules

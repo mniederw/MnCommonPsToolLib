@@ -783,14 +783,18 @@ function JuniperNcEstablishVpnConnAndRdp      ( [String] $rdpfile, [String] $url
                                                 [String] $secureCredentialFile = "$rdpfile.vpn-uspw.$ComputerName.txt";
                                                 JuniperNcEstablishVpnConn $secureCredentialFile $url $realm;
                                                 ToolRdpConnect $rdpfile; }
-function InfoAboutComputerOverview            (){ return [String[]] @(
-                                                "InfoAboutComputerOverview:", "",
-                                                "ComputerName   : $ComputerName",
-                                                "UserName       : $env:UserName",
-                                                "Datetime       : $(DateTimeNowAsStringIso 'yyyy-MM-dd HH:mm')",
-                                                "ProductKey     : $(OsGetWindowsProductKey)",
-                                                "ConnectedDrives: $([System.IO.DriveInfo]::getdrives())",
-                                                "PathVariable   : $env:PATH" ); }
+function InfoAboutComputerOverview            (){ return [String[]] @( "InfoAboutComputerOverview:", ""
+                                                  ,"Common.Datetime                : $(DateTimeNowAsStringIso 'yyyy-MM-dd HH:mm')"
+                                                  ,"OS.ComputerName                : $ComputerName"
+                                                  ,"OS.Win.ProductKey              : $(OsGetWindowsProductKey)"
+                                                  ,"FS.ConnectedDrives             : $([System.IO.DriveInfo]::getdrives())"
+                                                  ,"Session.UserName               : $env:UserName"
+                                                  ,"Session.PathVariable           : $env:PATH"
+                                                  ,"Session.PSVersion              : $((Get-Host).Version.ToString())"
+                                                  ,"Session.Culture                : $((Get-Host).CurrentCulture.Name)" # "de-CH", "en-US"
+                                                  ,"Session.CultureUI              : $((Get-Host).CurrentUICulture.Name)"
+                                                  ,"Session.Culture.DtPattern      : $((Get-Host).CurrentCulture.DateTimeFormat.FullDateTimePattern)" # "yyyy-MM-dd HH:mm:ss"
+                                                  ); }
 function InfoAboutExistingShares              (){
                                                 [String[]] $result = @( "Info about existing shares:", "" );
                                                 foreach( $shareObj in (ShareListAll | Sort-Object Name) ){

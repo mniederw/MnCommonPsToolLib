@@ -70,8 +70,11 @@ function UnitTest_FsEntry_Dir_File(){
   # TODO: DirNotExists                         ( [String] $dir ){ return [Boolean] -not (DirExists $dir); }
   # TODO: DirAssertExists                      ( [String] $dir, [String] $text = "Assertion" ){
   # TODO: DirCreate                            ( [String] $dir ){
-  # TODO: DirCreateTemp                        ( [String] $prefix = "" ){ while($true){
-  # TODO: DirDelete                            ( [String] $dir, [Boolean] $ignoreReadonly = $true ){
+  #
+  [String] $tmpDir = DirCreateTemp "MnPrefix";
+  #
+  DirDelete $tmpDir;
+  #
   # TODO: DirDeleteContent                     ( [String] $dir, [Boolean] $ignoreReadonly = $true ){
   # TODO: DirDeleteIfIsEmpty                   ( [String] $dir, [Boolean] $ignoreReadonly = $true ){
   # TODO: DirCopyToParentDirByAddAndOverwrite  ( [String] $srcDir, [String] $tarParentDir ){
@@ -96,10 +99,41 @@ function UnitTest_FsEntry_Dir_File(){
   # TODO: FileReadEncoding                     ( [String] $file ){
   # TODO: FileTouch                            ( [String] $file ){
   # TODO: FileGetLastLines                     ( [String] $file, [Int32] $nrOfLines ){
-  # TODO: FileContentsAreEqual                 ( [String] $f1, [String] $f2, [Boolean] $allowSecondFileNotExists = $true ){ # first file must exist
+  #
+  function Test_FileContentsAreEqual(){
+    [String] $content = "Hello`n World";
+    [String] $tmpFile1 = (FileGetTempFile);
+    [String] $tmpFile2 = (FileGetTempFile);
+    Assert (FileContentsAreEqual $tmpFile1 $tmpFile2);
+    FileWriteFromString $tmpFile1 $content $true;
+    Assert (-not (FileContentsAreEqual $tmpFile1 $tmpFile2));
+    FileWriteFromString $tmpFile2 $content $true;
+    Assert (FileContentsAreEqual $tmpFile1 $tmpFile2);
+    FileWriteFromString $tmpFile1 "" $true;
+    FileDelete $tmpFile2;
+    Assert (-not (FileContentsAreEqual $tmpFile1 $tmpFile2));
+    FileDelTempFile $tmpFile1;
+    FileDelTempFile $tmpFile2;
+  } Test_FileContentsAreEqual;
+  #
   # TODO: FileDelete                           ( [String] $file, [Boolean] $ignoreReadonly = $true, [Boolean] $ignoreAccessDenied = $false ){
   # TODO: FileCopy                             ( [String] $srcFile, [String] $tarFile, [Boolean] $overwrite = $false ){
   # TODO: FileMove                             ( [String] $srcFile, [String] $tarFile, [Boolean] $overwrite = $false ){
+  #
+  function Test_FileSyncContent(){
+    [String] $content = "Hello`n World";
+    [String] $tmpFile1 = (FileGetTempFile);
+    [String] $tmpFile2 = (FileGetTempFile);
+    FileWriteFromString $tmpFile1 $content $true;
+    FileSyncContent $tmpFile1 $tmpFile2;
+    Assert (FileContentsAreEqual $tmpFile1 $tmpFile2);
+    FileWriteFromString $tmpFile2 "newContent" $true;
+    FileSyncContent $tmpFile1 $tmpFile2;
+    Assert (FileContentsAreEqual $tmpFile1 $tmpFile2);
+    FileDelTempFile $tmpFile1;
+    FileDelTempFile $tmpFile2;
+  } Test_FileSyncContent;
+  #
   # TODO: FileGetHexStringOfHash128BitsMd5     ( [String] $srcFile ){ return [String] (get-filehash -Algorithm "MD5"    $srcFile).Hash; }
   # TODO: FileGetHexStringOfHash256BitsSha2    ( [String] $srcFile ){ return [String] (get-filehash -Algorithm "SHA256" $srcFile).Hash; } # 2017-11 ps standard is SHA256, available are: SHA1;SHA256;SHA384;SHA512;MACTripleDES;MD5;RIPEMD160
   # TODO: FileGetHexStringOfHash512BitsSha2    ( [String] $srcFile ){ return [String] (get-filehash -Algorithm "SHA512" $srcFile).Hash; } # 2017-12: this is our standard for ps

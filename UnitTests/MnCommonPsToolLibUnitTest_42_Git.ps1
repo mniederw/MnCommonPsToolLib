@@ -4,8 +4,11 @@ Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version
 
 function UnitTest_Git(){
   OutProgress (ScriptGetCurrentFuncName);
+  #
   GitSetGlobalVar "core.pager" "cat"; # use cat for pager because waiting for keyboard is in most cases not neccessary
+  #
   if( (OsIsWindows) ){ GitDisableAutoCrLf; } # on github initial settings are systemwide AutoCrLf.
+  #
   [String] $d = DirCreateTemp;
   [String] $repoDir = (FsEntryGetAbsolutePath "$d/mniederw/MnCommonPsToolLib#main/");
   Assert ((GitBuildLocalDirFromUrl $d "https://github.com/mniederw/MnCommonPsToolLib") -eq (FsEntryGetAbsolutePath "$d/mniederw/MnCommonPsToolLib/"));
@@ -38,6 +41,6 @@ function UnitTest_Git(){
   if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){ GitSetGlobalVar "mygitglobalvar" "myvalue"; }
   GitDisableAutoCrLf;
   # TODO LATER NOT YET IMPLEMENTED GitBranchRecreate ( [String] $repoUrlWithFromBranch, [String] $toBranch )
-  # TODO remove temp dir
+  DirDelete $d;
 }
 UnitTest_Git;
