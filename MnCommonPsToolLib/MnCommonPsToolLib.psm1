@@ -1571,7 +1571,8 @@ function FileTouch                            ( [String] $file ){
                                                 else{ FileCreateEmpty $file $false $false "ASCII"; } }
 function FileGetLastLines                     ( [String] $file, [Int32] $nrOfLines ){
                                                 Get-content -tail $nrOfLines -LiteralPath $file; }
-function FileContentsAreEqual                 ( [String] $f1, [String] $f2, [Boolean] $allowSecondFileNotExists = $true ){ # first file must exist
+function FileContentsAreEqual                 ( [String] $f1, [String] $f2, [Boolean] $allowSecondFileNotExists = $true ){
+                                                # Binary equality; first file must exist; if second file not exists it returns false;
                                                 FileAssertExists $f1; if( $allowSecondFileNotExists -and -not (FileExists $f2) ){ return [Boolean] $false; }
                                                 [System.IO.FileInfo] $fi1 = Get-Item -Force -LiteralPath $f1; [System.IO.FileStream] $fs1 = $null;
                                                 [System.IO.FileInfo] $fi2 = Get-Item -Force -LiteralPath $f2; [System.IO.FileStream] $fs2 = $null;
@@ -1626,15 +1627,17 @@ function FileDelete                           ( [String] $file, [Boolean] $ignor
 function FileCopy                             ( [String] $srcFile, [String] $tarFile, [Boolean] $overwrite = $false ){
                                                 $srcFile = FsEntryGetAbsolutePath $srcFile;
                                                 $tarFile = FsEntryGetAbsolutePath $tarFile;
-                                                OutProgress "FileCopy(Overwrite=$overwrite) `"$srcFile`" to `"$tarFile`" $(switch($(FileExists $(FsEntryEsc $tarFile))){($true){'(Target exists)'}default{''}})";
+                                                OutProgress "FileCopy(Overwrite=$overwrite)$(switch($(FileExists $(FsEntryEsc $tarFile))){($true){'(TargetExists)'}default{''}}) `"$srcFile`" to `"$tarFile`" ";
                                                 FsEntryCreateParentDir $tarFile;
                                                 Copy-Item -Force:$overwrite (FsEntryEsc $srcFile) (FsEntryEsc $tarFile); }
 function FileMove                             ( [String] $srcFile, [String] $tarFile, [Boolean] $overwrite = $false ){
                                                 $srcFile = FsEntryGetAbsolutePath $srcFile;
                                                 $tarFile = FsEntryGetAbsolutePath $tarFile;
-                                                OutProgress "FileMove(Overwrite=$overwrite) `"$srcFile`" to `"$tarFile`"$(switch($(FileExists $(FsEntryEsc $tarFile))){($true){'(Target exists)'}default{''}})";
+                                                OutProgress "FileMove(Overwrite=$overwrite)$(switch($(FileExists $(FsEntryEsc $tarFile))){($true){'(TargetExists)'}default{''}}) `"$srcFile`" to `"$tarFile`" ";
                                                 FsEntryCreateParentDir $tarFile;
                                                 Move-Item -Force:$overwrite -LiteralPath $srcFile -Destination $tarFile; }
+function FileSyncContent                      ( [String] $fromFile, [String] $toFile ){ # overwrite if different
+                                                if( -not (FileContentsAreEqual $fromFile $toFile) ){ FileCopy $fromFile $toFile $true; } }
 function FileGetHexStringOfHash128BitsMd5     ( [String] $srcFile ){ [String] $md = "MD5"; return [String] (get-filehash -Algorithm $md $srcFile).Hash; } # 2008: is broken. Because PSScriptAnalyzer.PSAvoidUsingBrokenHashAlgorithms we put name into a variable.
 function FileGetHexStringOfHash256BitsSha2    ( [String] $srcFile ){ return [String] (get-filehash -Algorithm "SHA256" $srcFile).Hash; } # 2017-11 ps standard is SHA256, available are: SHA1;SHA256;SHA384;SHA512;MACTripleDES;MD5;RIPEMD160
 function FileGetHexStringOfHash512BitsSha2    ( [String] $srcFile ){ return [String] (get-filehash -Algorithm "SHA512" $srcFile).Hash; } # 2017-12: this is our standard for ps
