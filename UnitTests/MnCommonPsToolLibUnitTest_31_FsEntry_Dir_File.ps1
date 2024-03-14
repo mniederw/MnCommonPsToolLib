@@ -86,7 +86,16 @@ function UnitTest_FsEntry_Dir_File(){
   # TODO: FileExistsAndIsNewer                 ( [String] $ftar, [String] $fsrc ){
   # TODO: FileNotExistsOrIsOlder               ( [String] $ftar, [String] $fsrc ){
   # TODO: FileReadContentAsString              ( [String] $file, [String] $encodingIfNoBom = "Default" ){ # Encoding Default is ANSI on windows and UTF8 on other platforms.
-  # TODO: FileReadContentAsLines               ( [String] $file, [String] $encodingIfNoBom = "Default" ){ # Encoding Default is ANSI on windows and UTF8 on other platforms.
+  #
+  function Test_FileReadContentAsLines(){
+    [String] $content = "Hello`n World";
+    [String] $tmp = (FileGetTempFile);
+    Assert ((@()+(FileReadContentAsLines $tmp)).Count -eq 0);
+    FileWriteFromString $tmp $content $true;
+    Assert ((FileReadContentAsLines $tmp).Count -eq 2);
+    FileDelTempFile $tmp;
+  } Test_FileReadContentAsLines;
+  #
   # TODO: FileReadJsonAsObject                 ( [String] $jsonFile ){
   # TODO: FileWriteFromString                  ( [String] $file, [String] $content, [Boolean] $overwrite = $true, [String] $encoding = "UTF8BOM" ){
   # TODO: FileWriteFromLines                   ( [String] $file, [String[]] $lines, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM" ){

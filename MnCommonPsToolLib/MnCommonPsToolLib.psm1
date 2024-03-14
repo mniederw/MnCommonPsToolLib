@@ -295,12 +295,12 @@ function StringRemoveRight                    ( [String] $str, [String] $strRigh
 function StringRemoveOptEnclosingDblQuotes    ( [String] $s ){ if( $s.Length -ge 2 -and $s.StartsWith("`"") -and $s.EndsWith("`"") ){
                                                 return [String] $s.Substring(1,$s.Length-2); } return [String] $s; }
 function StringMakeNonNull                    ( [String] $s ){ if( $null -eq $s ){ return ""; }else{ return $s; } }
-function StringExistsInStringArray            ( [String] $itemCaseSensitive, [String[]] $a ){ return [Boolean] (StringArrayContains $a $itemCaseSensitive); }
+function StringExistsInStringArray            ( [String] $itemCaseSensitive, [String[]] $a ){ return [Boolean] (StringArrayContains (@()+$a) $itemCaseSensitive); }
 function StringArrayInsertIndent              ( [String[]] $lines, [Int32] $nrOfBlanks ){
                                                 return [String[]] (@()+($lines | Where-Object{$null -ne $_} | ForEach-Object{ ((" "*$nrOfBlanks)+$_); })); }
 function StringArrayDistinct                  ( [String[]] $lines ){ return [String[]] (@()+($lines | Where-Object{$null -ne $_} | Select-Object -Unique)); }
-function StringArrayConcat                    ( [String[]] $lines, [String] $sep = [Environment]::NewLine ){ return [String] ($lines -join $sep); }
-function StringArrayContains                  ( [String[]] $a, [String] $itemCaseSensitive ){ return [Boolean] ($a.Contains($itemCaseSensitive)); }
+function StringArrayConcat                    ( [String[]] $lines, [String] $sep = [Environment]::NewLine ){ return [String] ($lines -join $sep); } # TODO specify and describe when lines is empty or null
+function StringArrayContains                  ( [String[]] $a, [String] $itemCaseSensitive ){ return [Boolean] ((@()+$a).Contains($itemCaseSensitive)); }
 function StringArrayIsEqual                   ( [String[]] $a, [String[]] $b, [Boolean] $ignoreOrder = $false, [Boolean] $ignoreCase = $false ){
                                                 if( $null -eq $a ){ return [Boolean] ($null -eq $b -or $b.Count -eq 0); }
                                                 if( $null -eq $b ){ return [Boolean] ($null -eq $a -or $a.Count -eq 0); }
@@ -668,10 +668,12 @@ function StreamToListString                   (){ $input | Format-List -ShowErro
 function StreamToFirstPropMultiColumnString   (){ $input | Format-Wide -AutoSize -ShowError | StreamToStringDelEmptyLeadAndTrLines; }
 function StreamToStringIndented               ( [Int32] $nrOfChars = 2 ){ StringSplitIntoLines ($input | StreamToStringDelEmptyLeadAndTrLines) | ForEach-Object{ "$(" "*$nrOfChars)$_" }; }
 function StreamToDataRowsString               ( [String[]] $propertyNames = @() ){ # no header, only rows.
-                                                if( $propertyNames.Count -eq 0 ){ $propertyNames = @("*"); }
+                                                $propertyNames = @()+$propertyNames;
+                                                if( (@()+$propertyNames).Count -eq 0 ){ $propertyNames = @("*"); }
                                                 $input | Format-Table -Wrap -Force -autosize -HideTableHeaders $propertyNames | StreamToStringDelEmptyLeadAndTrLines; }
 function StreamToTableString                  ( [String[]] $propertyNames = @() ){
                                                 # Note: For a simple string array as example  @("one","two")|StreamToTableString  it results with 4 lines "Length","------","     3","     3".
+                                                $propertyNames = @()+$propertyNames;
                                                 if( $propertyNames.Count -eq 0 ){ $propertyNames = @("*"); }
                                                 $input | Format-Table -Wrap -Force -autosize $propertyNames | StreamToStringDelEmptyLeadAndTrLines; }
 function StreamFromCsvStrings                 ( [Char] $delimiter = ',' ){ $input | ConvertFrom-Csv -Delimiter $delimiter; }
@@ -712,7 +714,7 @@ function OsPsModulePathList                   (){ # return content of $env:PSMod
                                                   Split((OsPathSeparator),[System.StringSplitOptions]::RemoveEmptyEntries)) | Where-Object{$null -ne $_} |
                                                   ForEach-Object{ FsEntryMakeTrailingDirSep $_ })); }
 function OsPsModulePathContains               ( [String] $dir ){ # Example: "D:\MyGitRoot\MyGitAccount\MyPsLibRepoName"
-                                                [String[]] $a = OsPsModulePathList;
+                                                [String[]] $a = @()+(OsPsModulePathList);
                                                 return [Boolean] ($a -contains (FsEntryMakeTrailingDirSep $dir)); }
 function OsPsModulePathAdd                    ( [String] $dir ){ $dir = FsEntryMakeTrailingDirSep $dir; if( (OsPsModulePathContains $dir) ){ return; }
                                                 OsPsModulePathSet ((OsPsModulePathList)+@($dir)); }
@@ -794,10 +796,10 @@ function ProcessListRunningsFormatted         (){ return [Object[]] (@()+( Proce
                                                     @{Name="CpuMSec";Expression={[Decimal]::Floor($_.TotalProcessorTime.TotalMilliseconds).ToString().PadLeft(7,' ')}},
                                                     StartTime, @{Name="Prio";Expression={($_.BasePriority)}}, @{Name="WorkSet";Expression={($_.WorkingSet64)}}, Path |
                                                     StreamToTableString )); }
-function ProcessListRunningsAsStringArray     (){ return [String[]] (StringSplitIntoLines (@()+(ProcessListRunnings |
+function ProcessListRunningsAsStringArray     (){ return [String[]] (@()+(StringSplitIntoLines (@()+(ProcessListRunnings |
                                                     Where-Object{$null -ne $_} |
                                                     Format-Table -auto -HideTableHeaders " ",ProcessName,ProductVersion,Company |
-                                                    StreamToStringDelEmptyLeadAndTrLines))); }
+                                                    StreamToStringDelEmptyLeadAndTrLines)))); }
 function ProcessIsRunning                     ( [String] $processName ){ return [Boolean] ($null -ne (Get-Process -ErrorAction SilentlyContinue ($processName.Replace(".exe","")))); }
 function ProcessCloseMainWindow               ( [String] $processName ){ # enter name without exe extension.
                                                 while( (ProcessIsRunning $processName) ){
@@ -1004,8 +1006,8 @@ function ProcessRefreshEnvVars                ( [Boolean] $traceCmd = $true ){ #
                                                 $envVarNewP["PSModulePath"] = $envVarProc["PSModulePath"];
                                                 # Note: For PATH we do not touch current order of process scope but append new ones.
                                                 [String] $sep = OsPathSeparator;
-                                                [String[]] $p = ProcessPathVarStringToUnifiedArray $envVarProc["PATH"];
-                                                [String[]] $mAndU = ProcessPathVarStringToUnifiedArray ($envVarMach["PATH"] + $sep + $envVarUser["PATH"]);
+                                                [String[]] $p = @()+(ProcessPathVarStringToUnifiedArray $envVarProc["PATH"]);
+                                                [String[]] $mAndU = @()+(ProcessPathVarStringToUnifiedArray ($envVarMach["PATH"] + $sep + $envVarUser["PATH"]));
                                                 $mAndU | ForEach-Object{
                                                   if( "" -ne "$_" -and $p -notcontains $_ ){ $p += $_;
                                                     OutProgress "Extended PATH of scope process by: `"$_`"";
@@ -1015,8 +1017,8 @@ function ProcessRefreshEnvVars                ( [Boolean] $traceCmd = $true ){ #
                                                 # Note: Powershell preceeds the PSModulePath env var on Windows of process scope with
                                                 #   "$HOME\Documents\PowerShell\Modules;C:\Program Files\PowerShell\Modules;c:\program files\powershell\7\Modules;"
                                                 #   and so we only check for new parts of user and machine scope and do not touch current order of process scope but append new ones.
-                                                [String[]] $p = ProcessPathVarStringToUnifiedArray $envVarProc["PSModulePath"];
-                                                [String[]] $mAndU = ProcessPathVarStringToUnifiedArray ($envVarMach["PSModulePath"] + $sep + $envVarUser["PSModulePath"]);
+                                                [String[]] $p = @()+(ProcessPathVarStringToUnifiedArray $envVarProc["PSModulePath"]);
+                                                [String[]] $mAndU = @()+(ProcessPathVarStringToUnifiedArray ($envVarMach["PSModulePath"] + $sep + $envVarUser["PSModulePath"]));
                                                 $mAndU | ForEach-Object{
                                                   if( "" -ne "$_" -and $p -notcontains $_ ){ $p += $_;
                                                     OutProgress "Extended PSModulePath of scope process by: `"$_`"";
@@ -1043,6 +1045,7 @@ function ProcessRemoveAllAlias                ( [String[]] $excludeAliasNames = 
                                                 #   powershell -NoProfile { Get-Alias | Select-Object Name, Definition, Visibility, Options, Module | StreamToTableString }
                                                 # example: ProcessRemoveAllAlias @("cd","cat","clear","echo","dir","cp","mv","popd","pushd","rm","rmdir");
                                                 # example: ProcessRemoveAllAlias @("cd","cat","clear","echo","dir","cp","mv","popd","pushd","rm","rmdir","select","where","foreach");
+                                                $excludeAliasNames = @()+$excludeAliasNames;
                                                 [String[]] $removedAliasNames = @();
                                                 @(1,2,3) | ForEach-Object{ Get-Alias | Select-Object Name | ForEach-Object{ $_.Name } |
                                                   Where-Object { $_ -notin $excludeAliasNames } |
@@ -1106,8 +1109,7 @@ function FsEntryJoinRelativePatterns          ( [String] $rootDir, [String[]] $r
                                                 # Create an array Example: @( "c:\myroot\bin\", "c:\myroot\obj\", "c:\myroot\*.tmp", ... )
                                                 #   from input as @( "bin\;obj\;", ";*.tmp;*.suo", ".\dir\d1?\", ".\dir\file*.txt");
                                                 # If an fs entry specifies a dir patterns then it must be specified by a trailing directory delimiter.
-                                                [String[]] $a = @(); $relativeFsEntriesPatternsSemicolonSeparated |
-                                                  Where-Object{$null -ne $_} |
+                                                [String[]] $a = @(); $relativeFsEntriesPatternsSemicolonSeparated | Where-Object{$null -ne $_} |
                                                   ForEach-Object{ $a += (StringSplitToArray ";" $_); };
                                                 return [String[]] (@()+($a | ForEach-Object{ FsEntryGetAbsolutePath "$rootDir/$_"; })); }
 function FsEntryPathIsEqual                   ( [String] $fs1, [String] $fs2 ){ # compare independent on trailing dir separators. Case sensitivity depends on OS.
@@ -1508,7 +1510,7 @@ function FileReadContentAsString              ( [String] $file, [String] $encodi
                                                 return [String] (FileReadContentAsLines $file $encodingIfNoBom | Out-String -Width ([Int32]::MaxValue)); }
 function FileReadContentAsLines               ( [String] $file, [String] $encodingIfNoBom = "Default" ){
                                                 # Encoding Default is ANSI on windows and UTF8 on other platforms.
-                                                OutVerbose "FileRead $file";
+                                                OutVerbose "FileReadContentAsLines $file";
                                                 return [String[]] (@()+(Get-Content -Encoding $encodingIfNoBom -LiteralPath $file)); }
 function FileReadJsonAsObject                 ( [String] $jsonFile ){
                                                 try{ Get-Content -Raw -Path $jsonFile | ConvertFrom-Json; }
@@ -2289,7 +2291,7 @@ function GitShowBranch                        ( [String] $repoDir, [Boolean] $ge
                                                   # for future use: [String] $remote = (GitShowRemoteName $repoDir); # Example: "origin"
                                                   # for future use: if( $remote -eq "" ){ throw [ExcMsg] "Cannot get default branch in repodir=`"$repoDir`" because GitShowRemoteName returned empty string."; }
                                                   #[String[]] $out = (StringSplitIntoLines (ProcessStart "git" @("-C", (FsEntryRemoveTrailingDirSep $repoDir), "--git-dir=.git", "branch", "--remotes", "--no-color" ) -traceCmd:$false));
-                                                  [String[]] $out = (& "git" "-C" $repoDir "--git-dir=.git" "branch" "--remotes" "--no-color"); AssertRcIsOk;
+                                                  [String[]] $out = @()+(& "git" "-C" $repoDir "--git-dir=.git" "branch" "--remotes" "--no-color"); AssertRcIsOk;
                                                   [String] $pattern = "  origin/HEAD -> origin/";
                                                   [String[]] $defBranch = @()+($out | Where-Object{ $_.StartsWith($pattern) } | ForEach-Object{ StringRemoveLeft $_ $pattern; });
                                                   if( $defBranch.Count -ne 1 ){ throw [ExcMsg] "GitShowBranch(`"$repoDir`",$getDefault) failed because for (git branch --remotes) we expected a line with leading pattern `"$pattern`" but we got: `"$out`"."; }
@@ -2315,9 +2317,9 @@ function GitBranchList                        ( [String] $repoDir, [Boolean] $re
                                                 AssertNotEmpty $repoDir "repoDir";
                                                 FsEntryAssertHasTrailingDirSep $repoDir;
                                                 [String[]] $opt = @("-C", $repoDir, "branch", "--all" ); if( $remotesOnly ){ $opt += "--remotes"; }
-                                                [String[]] $result = (StringSplitIntoLines (ProcessStart "git" $opt)) | ForEach-Object{ StringRemoveLeftNr $_ 2 } |
+                                                [String[]] $result = @()+((StringSplitIntoLines (ProcessStart "git" $opt)) | ForEach-Object{ StringRemoveLeftNr $_ 2 } |
                                                   ForEach-Object{ if( $_.StartsWith("remotes/") ){ StringRemoveLeftNr $_ "remotes/".Length; }else{ $_; } } |
-                                                  Where-Object{ $_ -ne "" -and (-not $_.StartsWith("origin/HEAD ")) } | Sort-Object;
+                                                  Where-Object{ $_ -ne "" -and (-not $_.StartsWith("origin/HEAD ")) } | Sort-Object);
                                                 return [String[]] $result; }
 function GitCmd                               ( [String] $cmd, [String] $tarRootDir, [String] $urlAndOptionalBranch, [Boolean] $errorAsWarning = $false ){
                                                 # For commands:
@@ -2594,6 +2596,7 @@ function GitDisableAutoCrLf                   (){ # set this as default for glob
 function GitCloneOrPullUrls                   ( [String[]] $listOfRepoUrls, [String] $tarRootDirOfAllRepos, [Boolean] $errorAsWarning = $false ){
                                                 # Works later multithreaded and errors are written out, collected and throwed at the end.
                                                 # If you want single threaded then call it with only one item in the list.
+                                                $listOfRepoUrls = @()+$listOfRepoUrls;
                                                 $tarRootDirOfAllRepos = FsEntryGetAbsolutePath $tarRootDirOfAllRepos;
                                                 FsEntryAssertHasTrailingDirSep $tarRootDirOfAllRepos;
                                                 [String[]] $errorLines = @();
@@ -2738,7 +2741,7 @@ function ToolTailFile                         ( [String] $file ){ OutProgress "S
 function ToolAddLineToConfigFile              ( [String] $file, [String] $line, [String] $existingFileEncodingIfNoBom = "Default" ){
                                                 # if file not exists or line not found case sensitive in file then the line is appended.
                                                 if( FileNotExists $file ){ FileWriteFromLines $file $line; }
-                                                elseif( -not (StringArrayContains (FileReadContentAsLines $file $existingFileEncodingIfNoBom) $line) ){ FileAppendLines $file $line; } }
+                                                elseif( -not (StringArrayContains (@()+(FileReadContentAsLines $file $existingFileEncodingIfNoBom)) $line) ){ FileAppendLines $file $line; } }
 function ToolFindOppositeProfileFromPs5orPs7  (){ # If we are running PS5 then find profile of PS7 and vice versa.
                                                 # Origin profile on PS5: $HOME\Documents\PowerShell\Microsoft.PowerShell_profile.ps1
                                                 # Origin profile on PS7: $HOME\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1
@@ -2833,7 +2836,7 @@ function ToolGithubApiDownloadLatestReleaseDir( [String] $repoUrl ){
                                                 ToolUnzip $tarZip $tarDir; # Example: ./mniederw-MnCommonPsToolLib-25dbfb0/*
                                                 FileDelete $tarZip;
                                                  # list flat dirs, Example: "$env:TEMP/tmp/MnCoPsToLib_catkmrpnfdp/mniederw-MnCommonPsToolLib-25dbfb0/"
-                                                [String[]] $dirs = (@()+(FsEntryListAsStringArray $tarDir $false $true $false));
+                                                [String[]] $dirs = @()+(FsEntryListAsStringArray $tarDir $false $true $false);
                                                 if( $dirs.Count -ne 1 ){ throw [ExcMsg] "Expected one dir in `"$tarDir`" instead of: $dirs"; }
                                                 [String] $dir0 = $dirs[0];
                                                 FsEntryMoveByPatternToDir "$dir0/*" $tarDir;
@@ -2870,9 +2873,8 @@ function ToolNpmFilterIgnorableInstallMessages( [String[]] $out ){
                                                   ,"Some issues .* choosing"
                                                   ,"a different dependency."
                                                 );
-                                                return [String] ($out | Where-Object{$null -ne $_} | ForEach-Object{$_.Trim()} | Where-Object{ $_ -ne "" } |
-                                                Where-Object{
-                                                  -not (($_ -match ('^('+($ignoreLinesRegex -join "|")+')$')) -and $_.Length -lt 110) }); }
+                                                return [String] (@()+($out | Where-Object{$null -ne $_} | ForEach-Object{$_.Trim()} | Where-Object{ $_ -ne "" } |
+                                                Where-Object{ -not (($_ -match ('^('+($ignoreLinesRegex -join "|")+')$')) -and $_.Length -lt 110) })); }
 function ToolEvalVsCodeExec                   (){ [String] $result = (ProcessFindExecutableInPath "code");
                                                   if( $result -eq "" -and (OsIsWindows) ){
                                                     if( (FileExists "$env:LOCALAPPDATA\Programs\Microsoft VS Code\bin\Code.cmd") ){ # user
@@ -2983,42 +2985,40 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #     Recommendation: do not use [System.IO.Path]::GetFullPath, use Resolve-Path.
 #   - ForEach-Object iterates at lease once with $null in pipeline:
 #     see http://stackoverflow.com/questions/4356758/how-to-handle-null-in-the-pipeline
-#     $null | ForEach-Object{ write-Output "ok reached, at least one iteration in pipeline with $null has been done." }
-#     But:  @() | ForEach-Object{ write-Output "NOT OK, reached this unexpected." }
+#     $null | ForEach-Object{ Write-Output "ok reached, at least one iteration in pipeline with $null has been done." }
+#     But:  @() | ForEach-Object{ Write-Output "NOT OK, reached this unexpected." }
 #     Workaround if array variable can be null, then use:
-#       $null | Where-Object{$null -ne $_} | ForEach-Object{ write-Output "NOT OK, reached this unexpected." }
+#       $null | Where-Object{$null -ne $_} | ForEach-Object{ Write-Output "NOT OK, reached this unexpected." }
 #     Alternative:
 #       $null | ForEach-Object -Begin{if($null -eq $_){continue}} -Process {do your stuff here}
 #     Recommendation: Pipelines which use only Select-Object, ForEach-Object and Sort-Object to produce a output for console or logfiles are ignorable
 #       but for others you should avoid side effects in pipelines by always using: |Where-Object{$null -ne $_}
 #   - Compare empty array with $null:
-#     [String[]] $a = @(); if( $a -is [String[]] ){ write-Output "ok reached, var of expected type." };
-#     if( $a.count -eq 0 ){ write-Output "ok reached, count can be used."; }
-#     if(      ($a -eq $null) ){ write-Output "NOT OK, reached this unexpected."; }
-#     if(      ($a -ne $null) ){ write-Output "NOT OK, reached this unexpected."; }
-#     if( -not ($a -eq $null) ){ write-Output "ok reached, compare not-null array wether it is null or not null is always false"; }
-#     if( -not ($a -ne $null) ){ write-Output "ok reached, compare not-null array wether it is null or not null is always false"; }
-#     if( -not ($null -eq $a) ){ write-Output "ok reached, compare array with null must be done by preceeding null."; }
-#     if(      ($null -ne $a) ){ write-Output "ok reached, compare array with null must be done by preceeding null."; }
-#     [Boolean] $r = @() -eq $null; # this throws!
-#     Recommendation: When comparing array with null then always put null on the left side.
-#       More simple when comparing any value with null then always put null on the left side.
-#   - A powershell function returning and empty array is compatible with returning $null.
+#       [String[]] $a = @(); if( $a -is [String[]] ){ Write-Output "ok reached, var of expected type." };
+#       if(    $a.count -eq 0   ){        Write-Output "Ok reached, count can be used."; }
+#       if(      ($null -eq $a) ){;}else{ Write-Output "Ok reached, empty array is not a null array."; }
+#       if(      ($null -ne $a) ){        Write-Output "Ok reached, empty array is not a null array."; }
+#       if( -not ($null -eq $a) ){        Write-Output "Ok reached, empty array is not a null array."; }
+#       if( -not ($null -ne $a) ){        Write-Output "Ok reached, empty array is not a null array."; }
+#       [Boolean] $r = @() -eq $null; # this throws: Cannot convert value "System.Object[]" to type "System.Boolean"!
+#       Conclusion: This behaviour is an absolute DESIGN-ERROR, this makes it very hard to handle with empty or null arrays!
+#   - A powershell function returning an empty array is compatible with returning $null.
 #     But nevertheless it is essential wether it returns an empty array or null because
 #     when adding the result of the call to an empty array then it results in count =0 or =1.
 #     see https://stackoverflow.com/questions/18476634/powershell-doesnt-return-an-empty-array-as-an-array
 #       function ReturnEmptyArray(){ return [String[]] @(); }
 #       function ReturnNullArray(){ return [String[]] $null; }
-#       if( $null -eq (ReturnEmptyArray) ){ write-Output "ok reached, function return empty array which is equal to null"; }
-#       if( $null -eq (ReturnNullArray)  ){ write-Output "ok reached, function return null  array which is equal to null"; }
-#       if( (@()+(ReturnEmptyArray                          )).Count -eq 0 ){ write-Output "ok reached, function return empty array which counts as 0"; }
-#       if( (@()+(ReturnNullArray                           )).Count -eq 1 ){ write-Output "ok reached, function return null array which counts as one element"; }
-#       if( (@()+(ReturnNullArray|Where-Object{$null -ne $_})).Count -eq 0 ){ write-Output "ok reached, function return null but converted to empty array"; }
+#       if( $null -eq (ReturnEmptyArray) ){ Write-Output "ok reached, function return empty array which is equal to null"; }
+#       if( $null -eq (ReturnNullArray)  ){ Write-Output "ok reached, function return null  array which is equal to null"; }
+#       if( (@()+(ReturnEmptyArray                          )).Count -eq 0 ){ Write-Output "ok reached, function return empty array which counts as 0"; }
+#       if( (@()+(ReturnNullArray                           )).Count -eq 1 ){ Write-Output "ok reached, function return null array which counts as one element"; }
+#       if( (@()+(ReturnNullArray|Where-Object{$null -ne $_})).Count -eq 0 ){ Write-Output "ok reached, function return null but converted to empty array"; }
 #     Recommendation: After a call of a function which returns an array then add an empty array.
-#       If its possible that a function can returns null instead of an empty array then also use (|Where-Object{$null -ne $_})
+#       If its possible that a function can returns null instead of an empty array then also use (|Where-Object{$null -ne $_}).
+#       Never add null to an empty empty array a null array!
 #   - Empty array in pipeline is converted to $null:
 #       [String[]] $a = (([String[]]@()) | Where-Object{$null -ne $_});
-#       if( $null -eq $a ){ write-Output "ok reached, var is null." };
+#       if( $null -eq $a ){ Write-Output "ok reached, var is null." };
 #     Recommendation: After pipelining add an empty array.
 #       [String[]] $a = (@()+(@()|Where-Object{$null -ne $_})); Assert ($null -ne $a);
 #   - Variable name conflict: ... | ForEach-Object{ [String[]] $a = $_; ... }; [Array] $a = ...;
@@ -3027,7 +3027,7 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #       or dot-source the command that you are using to set the variable.
 #     Recommendation: Rename one of the variables.
 #   - Good behaviour: DotNet functions as Split() can return empty arrays instead of return $null:
-#       [String[]] $a = "".Split(";",[System.StringSplitOptions]::RemoveEmptyEntries); if( $a.Count -eq 0 ){ write-Output "Ok, array-is-empty"; }
+#       [String[]] $a = "".Split(";",[System.StringSplitOptions]::RemoveEmptyEntries); if( $a.Count -eq 0 ){ Write-Output "Ok, array-is-empty"; }
 #     But the PS5 version has a bug:
 #       [String] $s = "abc".Split("cx"); if( $s -eq "abc" ){ Write-Output "Ok, correct."; }else{ Write-Output "Result='$s' is wrong. We know it happens in PS5, Current-PS-Version: $($PSVersionTable.PSVersion.Major)"; }
 #   - Exceptions are always catched within Pipeline Expression statement and instead of expecting the throw it returns $null:
@@ -3059,6 +3059,7 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #       In future if ps7 can completely replace ps5 then we can remove this folder.
 #   - Type Mismatch: A function returns a string array: If it returns a single element (=string) then it does not return a string array but the string:
 #     function ReturnStringArrayWithOneString(){ return [String[]] @("abc"); } Assert (ReturnStringArrayWithOneString)[0] -eq "a";
+#     This is a design error, a string should not be given when we requested for a string array.
 # - Scopes for variables, aliases, functions and psdrives:
 #   - Local           : Current scope, is one of the other scopes: global, script, private, numbered scopes.
 #   - Global          : Active after first script start, includes automatic variables (http://ss64.com/ps/syntax-automatic-variables.html),
@@ -3080,7 +3081,7 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #   - Dot Sourcing Operator (.) runs script in local scope, variables and functions persists in shell after script end,
 #     used to include ps artefacts:
 #       . ".\myscript.ps1"
-#       . { write-Output "Test"; }
+#       . { Write-Output "Test"; }
 #       powershell.exe -command ". .\myscript.ps1"
 #       powershell.exe -file      ".\myscript.ps1"
 #     Use this only if the two files belong together, otherwise use the call operator.

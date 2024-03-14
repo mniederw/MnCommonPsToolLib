@@ -72,8 +72,9 @@ function OsWinPowerOff                        ( [Int32] $waitSec = 60, [Boolean]
                                                 if( $forceIfScreenLocked -and (OsIsWinScreenLocked) ){ Stop-Computer -Force; }else{ Stop-Computer; } }
 function ProcessGetNrOfCores                  (){ return [Int32] (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors; }
 function ProcessOpenAssocFile                 ( [String] $fileOrUrl ){ & "rundll32" "url.dll,FileProtocolHandler" $fileOrUrl; AssertRcIsOk; }
-function JobStart                             ( [ScriptBlock] $scr, [Object[]] $scrArgs = $null, [String] $name = "Job" ){ # Return job object of type PSRemotingJob, the returned object of the script block can later be requested.
-                                                return [System.Management.Automation.Job] (Start-Job -name $name -ScriptBlock $scr -ArgumentList $scrArgs); }
+function JobStart                             ( [ScriptBlock] $scr, [Object[]] $scrArgs = @(), [String] $name = "Job" ){ # Return job object of type PSRemotingJob, the returned object of the script block can later be requested.
+                                                [Object[]] $scrArgs2 = $(switch(ArrayIsNullOrEmpty $scrArgs){($true){$null}($false){$scrArgs}}); # TODO test wether this is nessessary.
+                                                return [System.Management.Automation.Job] (Start-Job -name $name -ScriptBlock $scr -ArgumentList $scrArgs2); }
 function JobGet                               ( [String] $id ){ return [System.Management.Automation.Job] (Get-Job -Id $id); } # Return job object.
 function JobGetState                          ( [String] $id ){ return [String] (JobGet $id).State; } # NotStarted, Running, Completed, Stopped, Failed, and Blocked.
 function JobWaitForNotRunning                 ( [Int32] $id, [Int32] $timeoutInSec = -1 ){ Wait-Job -Id $id -Timeout $timeoutInSec | Out-Null; }
@@ -473,8 +474,8 @@ function ServiceListExistings                 (){ # We could also use Get-Servic
                                                 # 2017-06 we got (RuntimeException: You cannot call a method on a null-valued expression.) so we added null check.
                                                 return [CimInstance[]](@()+(Get-CimInstance win32_service | Where-Object{$null -ne $_} | Sort-Object ProcessId,Name)); }
 function ServiceListExistingsAsStringArray    (){
-                                                return [String[]] (StringSplitIntoLines (@()+(ServiceListExistings | Where-Object{$null -ne $_} |
-                                                  Format-Table -auto -HideTableHeaders ProcessId,Name,StartMode,State | StreamToStringDelEmptyLeadAndTrLines ))); }
+                                                return [String[]] (@()+(StringSplitIntoLines (@()+(ServiceListExistings | Where-Object{$null -ne $_} |
+                                                  Format-Table -auto -HideTableHeaders ProcessId,Name,StartMode,State | StreamToStringDelEmptyLeadAndTrLines )))); }
 function ServiceNotExists                     ( [String] $serviceName ){
                                                 return [Boolean] -not (ServiceExists $serviceName); }
 function ServiceExists                        ( [String] $serviceName ){
@@ -712,7 +713,7 @@ function NetAdapterListAll                    (){
                                                 return [Object[]] (@()+(Get-CimInstance -Class win32_networkadapter | Where-Object{$null -ne $_} |
                                                 Select-Object Name,NetConnectionID,MACAddress,Speed,@{Name="Status";Expression={(NetAdapterGetConnectionStatusName $_.NetConnectionStatus)}})); }
 function NetGetIpConfig                       (){ # as "IPCONFIG.EXE" "/ALL"
-                                                return [Object[]] (Get-NetIPConfiguration -Detailed -All | Where-Object{$null -ne $_} | Sort-Object InterfaceAlias |
+                                                return [Object[]] (@()+(Get-NetIPConfiguration -Detailed -All | Where-Object{$null -ne $_} | Sort-Object InterfaceAlias |
                                                 # unused: ComputerName, InterfaceIndex, NetCompartment.CompartmentId, NetCompartment.CompartmentDescription,
                                                 #   @{Name="NetIPv6InterfNlMTU";Expression={$_.NetIPv6Interface.NlMTU}},@{Name="NetIPv4InterfNlMTU";Expression={$_.NetIPv4Interface.NlMTU}},
                                                 Select-Object InterfaceAlias,InterfaceDescription,@{Name="NetAdSt";Expression={$_.NetAdapter.Status}},
@@ -727,10 +728,10 @@ function NetGetIpConfig                       (){ # as "IPCONFIG.EXE" "/ALL"
                                                 @{Name="NetProfilIPv6Co";Expression={$_.NetProfile.IPv6Connectivity}},
                                                 @{Name="IPv4DefaultGateway";Expression={$_.IPv4DefaultGateway.NextHop}},
                                                 @{Name="IPv6DefaultGateway";Expression={$_.IPv6DefaultGateway.NextHop}},
-                                                @{Name="DNSServer";Expression={$_.DNSServer.ServerAddresses -join "; "}} ); }
+                                                @{Name="DNSServer";Expression={$_.DNSServer.ServerAddresses -join "; "}} )); }
 function NetGetIpAddress                      (){ # IP V4 and V6 address configuration and interfaces with which addresses are associated
-                                                return [Object[]] (Get-NetIPAddress | Where-Object{$null -ne $_} | Sort-Object AddressFamily, InterfaceAlias, IPAddress | # unused: InterfaceIndex, SkipAsSource,PolicyStore
-                                                Select-Object @{Name="Fam";Expression={$_.AddressFamily}}, InterfaceAlias, IPAddress, Type,PrefixLength,PrefixOrigin,SuffixOrigin,AddressState,ValidLifetime,PreferredLifetime); }
+                                                return [Object[]] (@()+(Get-NetIPAddress | Where-Object{$null -ne $_} | Sort-Object AddressFamily, InterfaceAlias, IPAddress | # unused: InterfaceIndex, SkipAsSource,PolicyStore
+                                                Select-Object @{Name="Fam";Expression={$_.AddressFamily}}, InterfaceAlias, IPAddress, Type,PrefixLength,PrefixOrigin,SuffixOrigin,AddressState,ValidLifetime,PreferredLifetime)); }
 function NetGetNetView                        (){ # List provided shares (later for portability list mounts)
                                                 [String[]] $out = @()+(& "NET.EXE" "VIEW" $ComputerName ); AssertRcIsOk $out; return [String[]] $out; }
 function NetGetNetStat                        (){ [String[]] $out = @()+(& "NETSTAT.EXE" "/A"             ); AssertRcIsOk $out; return [String[]] $out; }
@@ -856,7 +857,7 @@ function InfoAboutRunningProcessesAndServices (){
 function InfoHdSpeed                          (){ # Works only on Windows
                                                 ProcessRestartInElevatedAdminMode;
                                                 [String[]] $out1 = @()+(& "winsat.exe" "disk" "-seq" "-read"  "-drive" "c"); AssertRcIsOk $out1;
-                                                [String[]] $out2 = @()+(& "winsat.exe" "disk" "-seq" "-write" "-drive" "c"); AssertRcIsOk $out2; return [String[]] @( $out1, $out2 ); }
+                                                [String[]] $out2 = @()+(& "winsat.exe" "disk" "-seq" "-write" "-drive" "c"); AssertRcIsOk $out2; return [String[]] ($out1+$out2); }
 function InfoAboutNetConfig                   (){
                                                 return [String[]] @( "InfoAboutNetConfig:", ""
                                                 ,"NetGetIpConfig:"     ,(NetGetIpConfig) , ""
@@ -1110,7 +1111,7 @@ function SvnRevert                            ( [String] $workDir, [String[]] $r
                                                 # Undo the specified fs-entries if they have any pending change.
                                                 $workDir = FsEntryGetAbsolutePath $workDir;
                                                 FsEntryAssertHasTrailingDirSep $workDir;
-                                                foreach( $e in $relativeRevertFsEntries ){
+                                                foreach( $e in (@()+$relativeRevertFsEntries) ){
                                                   [String] $f = "$workDir/$e";
                                                   FileAppendLineWithTs $svnLogFile "SvnRevert(`"$f`")";
                                                   # avoid:  svn: E155010: The node 'C:\MyWorkDir\UnexistingDir' was not found.
@@ -1212,12 +1213,12 @@ function SvnPreCommitCleanupRevertAndDelFiles ( [String] $workDir, [String[]] $r
                                                   FileDelete $svnRequiresCleanup;
                                                 }
                                                 OutProgress "Remove known unused temp, cache and log directories and files";
-                                                FsEntryJoinRelativePatterns $workDir $relativeDelFsEntryPatterns |
+                                                FsEntryJoinRelativePatterns $workDir (@()+$relativeDelFsEntryPatterns) |
                                                   Where-Object{$null -ne $_} | ForEach-Object{
                                                     FsEntryListAsStringArray $_ | Where-Object{$null -ne $_} | ForEach-Object{
                                                       FileAppendLines $svnLogFile "  Delete: `"$_`""; FsEntryDelete $_; }; };
                                                 OutProgress "SvnRevert - Restore known unwanted changes of directories and files";
-                                                SvnRevert $workDir $relativeRevertFsEntries; }
+                                                SvnRevert $workDir (@()+$relativeRevertFsEntries); }
 function SvnTortoiseCommitAndUpdate           ( [String] $workDir, [String] $svnUrl, [String] $svnUser, [Boolean] $ignoreIfHostNotReachable, [String] $pw = "" ){
                                                 # Check svn dir, do svn cleanup, check svn user by asserting it matches previously used svn user, delete temporary files, svn commit (interactive), svn update.
                                                 # If pw is empty then it takes it from svn-credential-cache.
@@ -2231,7 +2232,8 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){
                                                 #     And Update-Module : Das Modul 'Pester' wurde nicht mithilfe von 'Install-Module' installiert und kann folglich nicht aktualisiert werden.
                                                 # - Example: Uninstall-Module -MaximumVersion "0.9.99" -Name SqlServer;
                                                 }
-function ToolManuallyDownloadAndInstallProg   ( [String] $programName, [String] $programDownloadUrl, [String] $mainTargetFileMinIsoDate = "0001-01-01", [String[]] $programExecutableOrDir = "", [String] $programConfigurations = "" ){
+function ToolManuallyDownloadAndInstallProg   ( [String] $programName, [String] $programDownloadUrl, [String] $mainTargetFileMinIsoDate = "0001-01-01",
+                                                  [String[]] $programExecutableOrDir = "", [String] $programConfigurations = "" ){
                                                 # programExecutableOrDir: one or alternative targets can be specified.
                                                 # Example: ToolManuallyDownloadAndInstallProg "Powershell-V7"     "https://learn.microsoft.com/de-de/powershell/scripting/install/installing-powershell-on-windows" "0001-01-01" "pwsh.exe" "";
                                                 # Example: ToolManuallyDownloadAndInstallProg "TortoiseGit 64bit" "https://tortoisegit.org/download/" "0001-01-01" "C:/Program Files/TortoiseGit/bin/TortoiseGit.dll" "";
