@@ -4,6 +4,7 @@ Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version
 
 function UnitTest_String(){
   OutProgress (ScriptGetCurrentFuncName);
+  function ReturnEmptyArray(){ return [String[]] @(); }
   Assert         (StringIsNullOrEmpty                $null);
   Assert         (StringIsNullOrEmpty                "");
   AssertIsFalse  (StringIsNullOrEmpty                "abc");
@@ -52,6 +53,9 @@ function UnitTest_String(){
   Assert         ((StringArrayContains               @("a","b") "a")               -eq $true       );
   Assert         ((StringArrayContains               @("a","b") "A")               -eq $false      );
   Assert         ((StringArrayContains               @("a","b") "x")               -eq $false      );
+  Assert         ((StringArrayContains               @() "x")                      -eq $false      );
+  Assert         ((StringArrayContains               @() "")                       -eq $false      );
+  Assert         ((StringArrayContains               (ReturnEmptyArray) "x")       -eq $false      );
   Assert         ((StringArrayIsEqual                $null      @("a")                 ) -eq $false);
   Assert         ((StringArrayIsEqual                $null      @("")                  ) -eq $false);
   Assert         ((StringArrayIsEqual                @()        @("a")                 ) -eq $false);
