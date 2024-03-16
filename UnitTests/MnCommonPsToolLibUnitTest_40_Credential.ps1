@@ -5,10 +5,9 @@ Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version
 function UnitTest_Credential(){
   OutProgress (ScriptGetCurrentFuncName);
   #
-  # TODO:  CredentialStandardizeUserWithDomain  ( [String] $username ){
-  #                                          # Allowed username as input: "", "u0", "u0@domain", "@domain\u0", "domain\u0"   used because for unknown reasons sometimes a username like user@domain does not work, it requires domain\user.
-  # TODO:  CredentialGetSecureStrFromHexString  ( [String] $text ){
-  # TODO:  CredentialGetSecureStrFromText       ( [String] $text ){ AssertNotEmpty $text "$(ScriptGetCurrentFunc).callingText";
+  # TODO:  CredentialStandardizeUserWithDomain  ( [String] $username ){ # Allowed username as input: "", "u0", "u0@domain", "@domain\u0", "domain\u0"   used because for unknown reasons sometimes a username like user@domain does not work, it requires domain\user.
+  # TODO:  CredentialGetSecureStrFromHexString  ( [String] $text )
+  # TODO:  CredentialGetSecureStrFromText       ( [String] $text )
   # TODO:  CredentialGetHexStrFromSecureString  ( [System.Security.SecureString] $code ){
   # TODO:  CredentialGetTextFromSecureString    ( [System.Security.SecureString] $code ){
   # TODO:  CredentialGetUsername                ( [System.Management.Automation.PSCredential] $cred = $null, [Boolean] $onNullCredGetCurrentUserInsteadOfEmpty = $false ){
