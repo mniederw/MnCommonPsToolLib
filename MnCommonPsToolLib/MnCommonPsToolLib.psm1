@@ -2394,8 +2394,10 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   # Example: "git" "clone" "--quiet" "--branch" "MyBranch" "--" "https://github.com/mniederw/myrepo" "$env:TEMP/tmp/mniederw/myrepo#MyBranch"
                                                   # TODO middle prio: check env param pull.rebase and think about display and usage
                                                   [String] $out = (ProcessStart "git" $gitArgs -careStdErrAsOut:$true -traceCmd:$true);
+                                                  #
                                                   # Skip known unused strings which are written to stderr as:
                                                   # - "Checking out files:  47% (219/463)" or "Checking out files: 100% (463/463), done."
+                                                  # - "Updating files:  74% (19687/26603)"
                                                   # - warning: You appear to have cloned an empty repository.
                                                   # - The string "Already up to date." is presumebly suppressed by quiet option.
                                                   if( $cmd -eq "Revert" ){
@@ -2411,8 +2413,9 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   }
                                                   StringSplitIntoLines $out | Where-Object{ StringIsFilled $_ } |
                                                     ForEach-Object{ $_.Trim(); } |
-                                                    Where-Object{ -not ($_.StartsWith("Checking out files: ") -and ($_.EndsWith(")") -or $_.EndsWith(", done."))) } |
+                                                    Where-Object{ -not (($_.StartsWith("Checking out files: ") -or $_.StartsWith("Updating files: ")) -and $_.Contains("% (") -and ($_.EndsWith(")") -or $_.EndsWith(", done."))) } |
                                                     ForEach-Object{ OutWarning "Warning: For (git $gitArgs) got unexpected output: $_"; };
+                                                  #
                                                   [String] $branchInfo = "$((GitShowBranch $dir).PadRight(10)) ($(GitShowRemoteName $dir)-default=$(GitShowBranch $dir $true))";
                                                   OutProgressSuccess "  Ok, usedTimeInSec=$([Int64]($usedTime.Elapsed.TotalSeconds+0.999)) for url: $($url.PadRight(60)) branch: $branchInfo ";
                                                 }catch{
