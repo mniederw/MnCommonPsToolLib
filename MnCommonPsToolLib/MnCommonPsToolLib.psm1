@@ -4,7 +4,7 @@
 # Licensed under GPL3. This is freeware.
 # 2013-2024 produced by Marc Niederwieser, Switzerland.
 
-[String] $global:MnCommonPsToolLibVersion = "7.52";
+[String] $global:MnCommonPsToolLibVersion = "7.53";
   # Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
   # Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
   # more see Releasenotes.txt
@@ -576,14 +576,14 @@ function StdInAskForAnswerWhenInInteractMode  ( [String] $line = "Are you sure (
                                                 if( -not $global:ModeDisallowInteractions ){ [String] $answer = StdInReadLine $line; if( $answer -ne $expectedAnswer ){ StdOutRedLineAndPerformExit "Aborted"; } } }
 function StdInAskAndAssertExpectedAnswer      ( [String] $line = "Are you sure (y/n)? ", [String] $expectedAnswer = "y" ){ # works case insensitive
                                                 [String] $answer = StdInReadLine $line; if( $answer -ne $expectedAnswer ){ StdOutRedLineAndPerformExit "Aborted"; } }
-function Assert                               ( [Boolean] $cond, [String] $failReason = "condition is false." ){
+function Assert                               ( [Boolean] $cond, [String] $failReason = "condition is false at $(ScriptGetCurrentFuncChain)." ){
                                                 if( -not $cond ){ throw [Exception] "Assertion failed because $failReason"; } }
-function AssertIsFalse                        ( [Boolean] $cond, [String] $failReason = "" ){
+function AssertIsFalse                        ( [Boolean] $cond, [String] $failReason = "condition is true but expected false at $(ScriptGetCurrentFuncChain)." ){
                                                 if( $cond ){ throw [Exception] "Assertion-Is-False failed because $failReason"; } }
 function AssertIsEmpty                        ( [String] $s, [String] $varName = "given value"){
-                                                Assert ($s -eq "") "Assertion-is-Empty failed for $varName."; }
+                                                Assert ($s -eq "") "Assertion-is-Empty failed for $(ScriptGetCurrentFuncChain)$varName."; }
 function AssertNotEmpty                       ( [String] $s, [String] $varName = "given value"){
-                                                Assert ($s -ne "") "not allowed empty string for $varName."; }
+                                                Assert ($s -ne "") "not allowed empty string for $(ScriptGetCurrentFuncChain)$varName."; }
 function AssertRcIsOk                         ( [String[]] $linesToOutProgress = "", [Boolean] $useLinesAsExcMessage = $false,
                                                 [String] $logFileToOutProgress = "", [String] $encodingIfNoBom = "Default" ){
                                                 # Asserts success status of last statement and wether code of last exit or native command was zero.
@@ -619,7 +619,14 @@ function HelpGetType                          ( [Object] $obj ){ return [String]
 function ScriptImportModuleIfNotDone          ( [String] $moduleName ){ if( -not (Get-Module $moduleName) ){
                                                 OutProgress "Import module $moduleName (can take some seconds on first call)";
                                                 Import-Module -NoClobber $moduleName -DisableNameChecking; } }
-function ScriptGetCurrentFunc                 (){ return [String] ((Get-Variable MyInvocation -Scope 1).Value.MyCommand.Name); }
+function ScriptGetCurrentFunc                 ([Int32] $scopeNr = 1 ){
+                                                try{
+                                                  [System.Management.Automation.PSVariable] $sc = Get-Variable -ErrorAction "SilentlyContinue" MyInvocation -Scope $scopeNr;
+                                                  return [String] ($sc.Value.MyCommand.Name);
+                                                }catch [System.ArgumentOutOfRangeException]{ # avoid: Get-Variable: The scope number '1' exceeds the number of active scopes. (Parameter 'Scope')
+                                                  return ""; } }
+function ScriptGetCurrentFuncChain            ([Int32] $scopeNr = 3 ){ [String] $result = "";
+                                                for( [Int32] $i = $scopeNr; $i -le ($scopeNr+5); $i++ ){ [String] $s = ScriptGetCurrentFunc $i; if( $s -eq "" ){ break; } $result = "${s}:$result"; } return [String] $result; }
 function ScriptGetCurrentFuncName             (){ return [String] ((Get-PSCallStack)[2].Position); }
 function ScriptGetAndClearLastRc              ( [Int32] $rcForLastStmtFailure = 255 ){
                                                 #    return lastExitCode         when last exit or native call was not zero
@@ -1490,7 +1497,7 @@ function DirCopyToParentDirByAddAndOverwrite  ( [String] $srcDir, [String] $tarP
                                                 DirCreate $tarParentDir; Copy-Item -Force -Recurse (FsEntryEsc $srcDir) (FsEntryEsc $tarParentDir); }
 function FileGetSize                          ( [String] $file ){
                                                 return [Int64] (Get-ChildItem -Force -File -LiteralPath $file).Length; }
-function FileExists                           ( [String] $file ){ AssertNotEmpty $file "$(ScriptGetCurrentFunc):filename";
+function FileExists                           ( [String] $file ){ AssertNotEmpty $file "file";
                                                 [String] $f2 = FsEntryGetAbsolutePath $file; if( Test-Path -PathType Leaf -LiteralPath $f2 ){ return [Boolean] $true; }
                                                 # Note: Known bug: Test-Path does not work for hidden and system files, so we need an additional check.
                                                 # Note2: The following would not works on vista and win7-with-ps2: [String] $d = Split-Path $f2; return [Boolean] ([System.IO.Directory]::EnumerateFiles($d) -contains $f2);
@@ -1688,7 +1695,7 @@ function CredentialStandardizeUserWithDomain  ( [String] $username ){
                                                 return [String] ($u[1]+"\"+$u[0]); }
 function CredentialGetSecureStrFromHexString  ( [String] $text ){
                                                 return [System.Security.SecureString] (ConvertTo-SecureString $text); } # Will throw if it is not an encrypted string.
-function CredentialGetSecureStrFromText       ( [String] $text ){ AssertNotEmpty $text "$(ScriptGetCurrentFunc).callingText";
+function CredentialGetSecureStrFromText       ( [String] $text ){ AssertNotEmpty $text "callingText";
                                                 return [System.Security.SecureString] (ConvertTo-SecureString $text -AsPlainText -Force); }
 function CredentialGetHexStrFromSecureString  ( [System.Security.SecureString] $code ){
                                                 return [String] (ConvertFrom-SecureString $code); } # Example return: "ea32f9d30de3d3dc7fcd86a6a8f587ed9"
@@ -1803,12 +1810,12 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                 # Maybe later: OAuth. Example: https://docs.github.com/en/free-pro-team@latest/rest/overview/other-authentication-methods
                                                 # Alternative on PS5 and PS7: Invoke-RestMethod -Uri "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/main/MnCommonPsToolLib/MnCommonPsToolLib.psm1" -OutFile "$env:TEMP/tmp/p.tmp";
                                                 $tarFile = FsEntryGetAbsolutePath $tarFile;
-                                                Assert (-not (FsEntryHasTrailingDirSep $tarFile));
-                                                [String] $authMethod = "Basic"; # Current implemented authMethods: "Basic".
-                                                AssertNotEmpty $url "NetDownloadFile.url"; # alternative check: -or $url.EndsWith("/")
-                                                if( $us -ne "" ){ AssertNotEmpty $pw "password for username=$us"; }
                                                 OutProgress "NetDownloadFile $url";
                                                 OutProgress "  (onlyIfNewer=$onlyIfNewer) to `"$tarFile`" ";
+                                                Assert (-not (FsEntryHasTrailingDirSep $tarFile));
+                                                [String] $authMethod = "Basic"; # Current implemented authMethods: "Basic".
+                                                AssertNotEmpty $url "url"; # alternative check: -or $url.EndsWith("/")
+                                                if( $us -ne "" ){ AssertNotEmpty $pw "passwordForUsername=$us"; }
                                                 # Check minimum secure protocol (avoid Ssl3,Tls,Tls11; require Tls12)
                                                 #   On Win10 and GithubWorkflowWindowsLatest: "SystemDefault".
                                                 if( [System.Net.ServicePointManager]::SecurityProtocol -notin @("SystemDefault","Tls12") ){
@@ -1891,8 +1898,8 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                 #                      CRAM-MD5, NTLM, Negotiate and Kerberos), file transfer resume, proxy tunneling and more.
                                                 # Example: curl --show-error --output $tarFile --silent --create-dirs --connect-timeout 70 --retry 2 --retry-delay 5 --remote-time --stderr - --user "$($us):$pw" $url;
                                                 $tarFile = FsEntryGetAbsolutePath $tarFile;
-                                                AssertNotEmpty $url "NetDownloadFileByCurl.url";
-                                                if( $us -ne "" ){ AssertNotEmpty $pw "password for username=$us"; }
+                                                AssertNotEmpty $url "url";
+                                                if( $us -ne "" ){ AssertNotEmpty $pw "passwordForUsername=$us"; }
                                                 [String[]] $opt = @( # see https://curl.haxx.se/docs/manpage.html
                                                    "--show-error"                            # Show error. With -s, make curl show errors when they occur
                                                   ,"--fail"                                  # if http response code is 4xx or 5xx then fail, but 3XX (redirects) are ok.
@@ -2563,7 +2570,7 @@ function GitSetGlobalVar                      ( [String] $var, [String] $val, [B
                                                 # if val is empty then it will unset the var.
                                                 # If option $useSystemNotGlobal is true then system-wide variable are set instead of the global.
                                                 # The order of priority for configuration levels is: local, global, system.
-                                                AssertNotEmpty $var;
+                                                AssertNotEmpty $var "var";
                                                 # check if defined
                                                 [String] $confScope = $(switch($useSystemNotGlobal){($true){"--system"      }($false){"--global"        }});
                                                 [String] $confFile  = $(switch($useSystemNotGlobal){($true){"/etc/gitconfig"}($false){"$HOME/.gitconfig"}});

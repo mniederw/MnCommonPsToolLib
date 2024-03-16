@@ -588,7 +588,7 @@ function ShareGetTypeNr                       ( [String] $typeName ){
                                                 return [UInt32] $(switch($typeName){ "DiskDrive"{0} "PrintQueue"{1} "Device"{2} "IPC"{3}
                                                 "DiskDriveAdmin"{2147483648} "PrintQueueAdmin"{2147483649} "DeviceAdmin"{2147483650} "IPCAdmin"{2147483651} default{4294967295} }); }
 function ShareExists                          ( [String] $shareName ){
-                                                AssertNotEmpty $shareName;
+                                                AssertNotEmpty $shareName "shareName";
                                                 return [Boolean] ($null -ne (Get-SMBShare | Where-Object{$null -ne $_} |
                                                   Where-Object{ $shareName -ne "" -and (FsEntryPathIsEqual $_.Name $shareName) })); }
 function ShareListAll                         ( [String] $selectShareName = "" ){
@@ -615,7 +615,7 @@ function ShareLocksClose                      ( [String] $fsEntryPath = "" ){
                                                     OutProgress "ShareLocksClose `"$($_.Path)`"";
                                                     Close-SmbOpenFile -Force -FileId $_.FileId; }; }
 function ShareCreate                          ( [String] $shareName, [String] $dir, [String] $descr = "", [Int32] $nrOfAccessUsers = 25, [Boolean] $ignoreIfAlreadyExists = $true ){
-                                                AssertNotEmpty $shareName;
+                                                AssertNotEmpty $shareName "shareName";
                                                 FsEntryAssertHasTrailingDirSep $dir;
                                                 $dir = FsEntryGetAbsolutePath $dir;
                                                 DirAssertExists $dir "ShareCreate($shareName)";
@@ -632,7 +632,7 @@ function ShareCreate                          ( [String] $shareName, [String] $d
                                                 # alternative: -FolderEnumerationMode AccessBased; Note: this is not allowed but it is the default: -ContinuouslyAvailable $true
                                                 New-SmbShare -Path $dir -Name $shareName -Description $descr -ConcurrentUserLimit $nrOfAccessUsers -FolderEnumerationMode Unrestricted -FullAccess (PrivGetGroupEveryone) | Out-Null; }
 function ShareRemove                          ( [String] $shareName ){ # no action if it not exists
-                                                AssertNotEmpty $shareName;
+                                                AssertNotEmpty $shareName "shareName";
                                                 if( -not (ShareExists $shareName) ){ return; }
                                                 OutProgress "Remove shareName=`"$shareName`"";
                                                 Remove-SmbShare -Name $shareName -Confirm:$false; }
