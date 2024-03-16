@@ -2182,39 +2182,49 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){
                                                   Select-Object Name, Version, InstalledDate, UpdatedDate, Dependencies, Repository, PackageManagementProvider, InstalledLocation |
                                                   StreamToTableString | StreamToStringIndented;
                                                 # https://docs.microsoft.com/en-us/powershell/scripting/how-to-use-docs?view=powershell-7.2  take lts version
-                                                OutProgress "Install-Module -AcceptLicense -Scope AllUsers -Name PowerShellGet, SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate; ";
                                                 # alternatives: Install-Module -Force [-MinimumVersion <String>] [-MaximumVersion <String>] [-RequiredVersion <String>]
                                                 try{
-                                                  Install-Module -AcceptLicense -Scope AllUsers -Name PowerShellGet, SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate;
+                                                  OutProgress "Install-Module -AcceptLicense -Scope AllUsers -Name PowerShellGet, SqlServer, ThreadJob, PSScriptAnalyzer, Pester, PSWindowsUpdate, PsReadline; ";
+                                                  Install-Module              -AcceptLicense -Scope AllUsers -Name PowerShellGet, SqlServer, ThreadJob, PSScriptAnalyzer, Pester, PSWindowsUpdate, PsReadline;
                                                 }catch{
                                                     # Install-Module : A parameter cannot be found that matches parameter name 'AcceptLicense'. ParameterBindingException
                                                     [String] $msg = $_.Exception.Message;
                                                     OutProgress "Failed because $msg";
                                                     OutProgress "Sometimes it failed because unknown parameter AcceptLicense, so we retry without it. ";
-                                                    OutProgress "Install-Module -Scope AllUsers -Name PowerShellGet, SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate; ";
-                                                    Install-Module -Scope AllUsers -Name PowerShellGet, SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate;
+                                                    OutProgress "Install-Module -Scope AllUsers -Name PowerShellGet, SqlServer, ThreadJob, PSScriptAnalyzer, Pester, PSWindowsUpdate, PsReadline; ";
+                                                    Install-Module              -Scope AllUsers -Name PowerShellGet, SqlServer, ThreadJob, PSScriptAnalyzer, Pester, PSWindowsUpdate, PsReadline;
                                                 }
-                                                # On PS7 we would get: Update-Module: Module 'PowerShellGet' was not installed by using Install-Module, so it cannot be updated.
-                                                if( (ProcessIsLesserEqualPs5) ){
-                                                  OutProgress "Update  modules: PowerShellGet, SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate";
-                                                  try{
-                                                    Update-Module -AcceptLicense -Scope AllUsers -Name PowerShellGet, SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate;
-                                                  }catch{
-                                                    # 2023-10: option AcceptLicense not exists ...
-                                                    OutWarning "Warning: Update-Module failed because $($_.Exception.Message), ignored.";
-                                                  }
-                                                }
-                                                # Set-Culture -CultureInfo de-CH; # change default culture for current user
-                                                OutProgress "Current Culture: $((Get-Culture).Name) = $((Get-Culture).DisplayName) "; # show current culture, Example: "de-CH"
-                                                OutProgress "update-help";
+                                                # 2024-03: On PS7 we would get: Update-Module: Module 'PsReadline' was not installed by using Install-Module, so it cannot be updated.
+                                                OutProgress "Update  modules: PowerShellGet, SqlServer, ThreadJob, PSScriptAnalyzer, Pester, PSWindowsUpdate. On PS5 also PsReadline.";
                                                 try{
-                                                  (update-help -ErrorAction continue *>&1) | ForEach-Object{ OutProgress "  $_"; };
+                                                  if( (ProcessIsLesserEqualPs5) ){ Update-Module -AcceptLicense -Scope AllUsers -Name PowerShellGet, SqlServer, ThreadJob, PSScriptAnalyzer, Pester, PSWindowsUpdate, PsReadline; }
+                                                  else                           { Update-Module -AcceptLicense -Scope AllUsers -Name PowerShellGet, SqlServer, ThreadJob, PSScriptAnalyzer, Pester, PSWindowsUpdate; }
                                                 }catch{
-                                                  # example 2022-02: update-help : Failed to update Help for the module(s) 'ConfigDefender, PSReadline' with UI culture(s) {en-US} :
+                                                  # 2023-10: option AcceptLicense not exists ...
+                                                  OutWarning "Warning: Update-Module failed because $($_.Exception.Message), ignored.";
+                                                }
+                                                #
+                                                OutProgress "Uninstall old versions of modules: ";
+                                                Get-InstalledModule | ForEach-Object {
+                                                  [String] $v = $_.Version; OutProgress "  Uninstall all but $($_.Name) version $v ";
+                                                  Get-InstalledModule -Name $_.Name -AllVersions | Where-Object -Property Version -LT -Value $v | Uninstall-Module;
+                                                }
+                                                #
+                                                try{
+                                                   OutProgress "Update-Help to en-US";
+                                                   (Update-Help -UICulture en-US -ErrorAction Continue *>&1) | ForEach-Object{ OutProgress "  $_"; };
+                                                   OutProgress "Update-Help to current Culture: $((Get-Culture).Name) = $((Get-Culture).DisplayName)"; # Example: "de-CH"
+                                                   (Update-Help                  -ErrorAction Continue *>&1) | ForEach-Object{ OutProgress "  $_"; };
+                                                }catch{
+                                                  # 2024-03: On PS5: Fehler beim Aktualisieren von Hilfe für die Module "HostNetworkingService, PSReadline, WindowsUpdateProvider"
+                                                  #   mit den Benutzeroberflächenkulturen {de-DE}: Die XML-Datei "HelpInfo" für die Benutzeroberflächenkultur de-DE kann nicht abgerufen werden.
+                                                  #   Stellen Sie sicher, dass die HelpInfoUri-Eigenschaft im Modulmanifest gültig ist, oder überprüfen Sie die Netzwerkverbindung, und führen Sie den Befehl dann erneut aus.
+                                                  # 2022-02: update-help : Failed to update Help for the module(s) 'ConfigDefender, PSReadline' with UI culture(s) {en-US} :
                                                   #   Unable to retrieve the HelpInfo XML file for UI culture en-US.
                                                   #   Make sure the HelpInfoUri property in the module manifest is valid or check your network connection and then try the command again.
                                                   OutWarning "Warning: Update-help failed because $($_.Exception.Message), ignored.";
                                                 }
+                                                #
                                                 OutProgress "List of installed modules having an installdate:";
                                                 Get-InstalledModule | Where-Object{$null -ne $_ -and $null -ne $_.InstalledDate } |
                                                   Select-Object Name | Get-InstalledModule -AllVersions |
