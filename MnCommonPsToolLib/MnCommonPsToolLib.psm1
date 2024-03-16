@@ -1060,8 +1060,10 @@ function ProcessRemoveAllAlias                ( [String[]] $excludeAliasNames = 
                                                 $removedAliasNames = $removedAliasNames | Select-Object -Unique | Sort-Object;
                                                 if( $doTrace -and $removedAliasNames.Count -gt 0 ){
                                                   OutProgress "Removed all existing $($removedAliasNames.Count) alias except [$excludeAliasNames]."; } }
-function FsEntryEsc                           ( [String] $fsentry ){ AssertNotEmpty $fsentry "file-system-entry"; # Escaping is not nessessary if a command supports -LiteralPath.
-                                                return [String] [Management.Automation.WildcardPattern]::Escape($fsentry); } # Important for chars as [,], etc.
+function FsEntryEsc                           ( [String] $fsentry ){ # Escaping a string by preceeding the chars ('[',']','?','*') with a backtick char.
+                                                # Escaping is not nessessary if a command supports -LiteralPath.
+                                                AssertNotEmpty $fsentry "file-system-entry";
+                                                return [String] [Management.Automation.WildcardPattern]::Escape($fsentry); }
 function FsEntryUnifyDirSep                   ( [String] $fsEntry ){ return [String] ($fsEntry -replace "[\\/]",(DirSep)); }
 function FsEntryGetAbsolutePath               ( [String] $fsEntry ){ # works without IO, so no check to file system; does not remove a trailing dir-separator. Return empty for empty input.
                                                 # Convert dir-separators slashes or backslashes to correct os dependent dir separators.
@@ -1069,8 +1071,11 @@ function FsEntryGetAbsolutePath               ( [String] $fsEntry ){ # works wit
                                                 # see http://stackoverflow.com/questions/3038337/powershell-resolve-path-that-might-not-exist
                                                 if( $fsEntry -eq "" ){ return [String] ""; }
                                                 if( (OsIsWindows) -and $fsEntry.StartsWith("//") ){ $fsEntry = $fsEntry.Replace("/","\"); }
-                                                try{ return [String] ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($fsEntry)); }
-                                                catch [System.Management.Automation.DriveNotFoundException] {
+                                                try{
+                                                  # Note: GetUnresolvedProviderPathFromPSPath("./") does not return a trailing dir sep.
+                                                  return [String] ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($fsEntry)+
+                                                    $(switch( $fsEntry -eq "./" -or $fsEntry.Replace("\","/").EndsWith("/./") ){($true){(DirSep)}($false){""}}));
+                                                }catch [System.Management.Automation.DriveNotFoundException] {
                                                   # Example: DriveNotFoundException: Cannot find drive. A drive with the name 'Z' does not exist.
                                                   try{ return [String] [IO.Path]::GetFullPath($fsEntry);
                                                   }catch{
@@ -2419,22 +2424,22 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   [String] $branchInfo = "$((GitShowBranch $dir).PadRight(10)) ($(GitShowRemoteName $dir)-default=$(GitShowBranch $dir $true))";
                                                   OutProgressSuccess "  Ok, usedTimeInSec=$([Int64]($usedTime.Elapsed.TotalSeconds+0.999)) for url: $($url.PadRight(60)) branch: $branchInfo ";
                                                 }catch{
-                                                  # exc:              fatal: HttpRequestException encountered.
-                                                  # exc:              Fehler beim Senden der Anforderung.
-                                                  # exc:              fatal: AggregateException encountered.
-                                                  # exc:              Logon failed, use ctrl+c to cancel basic credential prompt.  - bash: /dev/tty: No such device or address - error: failed to execute prompt script (exit code 1) - fatal: could not read Username for 'https://github.com': No such file or directory
-                                                  # exc: Clone rc=128 remote: Repository not found.\nfatal: repository 'https://github.com/mniederw/UnknownRepo/' not found
-                                                  # exc:              fatal: Not a git repository: 'D:\WorkGit\mniederw\UnknownRepo\.git'
-                                                  # exc:              error: unknown option `anyUnknownOption'
-                                                  # exc: Pull  rc=128 fatal: refusing to merge unrelated histories
-                                                  # exc: Pull  rc=128 error: Pulling is not possible because you have unmerged files. - hint: Fix them up in the work tree, and then use 'git add/rm <file>' - fatal: Exiting because of an unresolved conflict. - hint: as appropriate to mark resolution and make a commit.
-                                                  # exc: Pull  rc=128 fatal: Exiting because of an unresolved conflict. - error: Pulling is not possible because you have unmerged files. - hint: as appropriate to mark resolution and make a commit. - hint: Fix them up in the work tree, and then use 'git add/rm <file>'
-                                                  # exc: Pull  rc=1   fatal: Couldn't find remote ref HEAD    (in case the repo contains no content)
-                                                  # exc:              error: Your local changes to the following files would be overwritten by merge:   (Then the lines: "        ...file..." "Aborting" "Please commit your changes or stash them before you merge.")
-                                                  # exc:              error: The following untracked working tree files would be overwritten by merge:   (Then the lines: "        ....file..." "Please move or remove them before you merge." "Aborting")
-                                                  # exc: Pull  rc=1   Auto-merging dir1/file1  CONFLICT (add/add): Merge conflict in dir1/file1  Automatic merge failed; fix conflicts and then commit the result.\nwarning: Cannot merge binary files: dir1/file1 (HEAD vs. ab654...)
-                                                  # exc: Pull  rc=1   fatal: unable to access 'https://github.com/anyUser/anyGitRepo/': Failed to connect to github.com port 443: Timed out
-                                                  # exc: Pull  rc=1   fatal: TaskCanceledException encountered. -    Eine Aufgabe wurde abgebrochen. - bash: /dev/tty: No such device or address - error: failed to execute prompt script (exit code 1) - fatal: could not read Username for 'https://github.com': No such file or directory
+                                                  # 2023-01: exc:              fatal: HttpRequestException encountered.
+                                                  # 2023-01: exc:              Fehler beim Senden der Anforderung.
+                                                  # 2023-01: exc:              fatal: AggregateException encountered.
+                                                  # 2023-01: exc:              Logon failed, use ctrl+c to cancel basic credential prompt.  - bash: /dev/tty: No such device or address - error: failed to execute prompt script (exit code 1) - fatal: could not read Username for 'https://github.com': No such file or directory
+                                                  # 2023-01: exc: Clone rc=128 remote: Repository not found.\nfatal: repository 'https://github.com/mniederw/UnknownRepo/' not found
+                                                  # 2023-01: exc:              fatal: Not a git repository: 'D:\WorkGit\mniederw\UnknownRepo\.git'
+                                                  # 2023-01: exc:              error: unknown option `anyUnknownOption'
+                                                  # 2023-01: exc: Pull  rc=128 fatal: refusing to merge unrelated histories
+                                                  # 2023-01: exc: Pull  rc=128 error: Pulling is not possible because you have unmerged files. - hint: Fix them up in the work tree, and then use 'git add/rm <file>' - fatal: Exiting because of an unresolved conflict. - hint: as appropriate to mark resolution and make a commit.
+                                                  # 2023-01: exc: Pull  rc=128 fatal: Exiting because of an unresolved conflict. - error: Pulling is not possible because you have unmerged files. - hint: as appropriate to mark resolution and make a commit. - hint: Fix them up in the work tree, and then use 'git add/rm <file>'
+                                                  # 2024-03: exc: Pull  rc=1   fatal: couldn't find remote ref HEAD    (in case the repo contains no content)
+                                                  # 2023-01: exc:              error: Your local changes to the following files would be overwritten by merge:   (Then the lines: "        ...file..." "Aborting" "Please commit your changes or stash them before you merge.")
+                                                  # 2023-01: exc:              error: The following untracked working tree files would be overwritten by merge:   (Then the lines: "        ....file..." "Please move or remove them before you merge." "Aborting")
+                                                  # 2023-01: exc: Pull  rc=1   Auto-merging dir1/file1  CONFLICT (add/add): Merge conflict in dir1/file1  Automatic merge failed; fix conflicts and then commit the result.\nwarning: Cannot merge binary files: dir1/file1 (HEAD vs. ab654...)
+                                                  # 2023-01: exc: Pull  rc=1   fatal: unable to access 'https://github.com/anyUser/anyGitRepo/': Failed to connect to github.com port 443: Timed out
+                                                  # 2023-01: exc: Pull  rc=1   fatal: TaskCanceledException encountered. -    Eine Aufgabe wurde abgebrochen. - bash: /dev/tty: No such device or address - error: failed to execute prompt script (exit code 1) - fatal: could not read Username for 'https://github.com': No such file or directory
                                                   $msg = "$(ScriptGetCurrentFunc)($cmd,$tarRootDir,$url) failed because $(StringReplaceNewlines $($_.Exception.Message) ' - ')";
                                                   ScriptResetRc;
                                                   if( $cmd -eq "Pull" -and ( $msg.Contains("error: Your local changes to the following files would be overwritten by merge:") -or
@@ -2445,7 +2450,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   if( $cmd -eq "Pull" -and $msg.Contains("fatal: refusing to merge unrelated histories") ){
                                                     OutProgress "Note: If you would like to ignore and revert all local changes then call:  GitCmd Revert `"$tarRootDir`" $urlAndOptionalBranch; # maybe also try with pull --allow-unrelated-histories ";
                                                   }
-                                                  if( $cmd -eq "Pull" -and $msg.Contains("fatal: Couldn't find remote ref HEAD") ){
+                                                  if( $cmd -eq "Pull" -and $msg.Contains("fatal: couldn't find remote ref HEAD") ){
                                                     OutProgressSuccess "  Ok, repository has no content."; return;
                                                   }
                                                   if( $msg.Contains("remote: Repository not found.") -and $msg.Contains("fatal: repository ") ){
@@ -2509,23 +2514,25 @@ function GitListCommitComments                ( [String] $tarDir, [String] $loca
                                                       # git can write warnings to stderr which we not handle as error.
                                                       # Note: We have an unresolved problem, that ProcessStart would hang (more see: UnitTests/TodoUnresolvedProblems.ps1), so we use call operator.
                                                       #   $out = (ProcessStart "git" $options -careStdErrAsOut:$true -traceCmd:$true);
+                                                      # Example: ProcessStart of ("git" "--git-dir=D:\Workspace\mniederw\MnCommonPsToolLib\.git" "log" "--after=1990-01-01" "--pretty=format:%ci %cn [%ce] %s" "--summary")
                                                       $out = & "git" "--git-dir=$localRepoDir\.git" "log" "--after=1990-01-01" "--pretty=format:%ci %cn [%ce] %s" 2>&1; AssertRcIsOk;
                                                     }catch{
-                                                      # Example: ProcessStart of ("git" "--git-dir=D:\Workspace\mniederw\MnCommonPsToolLib\.git" "log" "--after=1990-01-01" "--pretty=format:%ci %cn [%ce] %s" "--summary") failed with rc=128\nfatal: your current branch 'master' does not have any commits yet
-                                                      if( $_.Exception.Message.Contains("fatal: your current branch '") -and
-                                                          $_.Exception.Message.Contains("' does not have any commits yet") ){ # Last operation failed [rc=128]
-                                                        $out +=  "$([Environment]::NewLine)" + "Info: your current branch 'master' does not have any commits yet.";
+                                                      # 2024-03: m="Last operation failed [ExitCode=128]. For the reason see the previous output. "
+                                                      # 2024-03: out="fatal: your current branch 'main' does not have any commits yet"
+                                                      [String] $m = $_.Exception.Message;
+                                                      if( $out.Contains("fatal: your current branch '") -and $out.Contains("' does not have any commits yet") ){
+                                                        $out += "$([Environment]::NewLine)  Info: Empty branch without commits.";
                                                         OutProgress "  Info: Empty branch without commits.";
                                                       }else{
-                                                        $out += "$([Environment]::NewLine)" + "Warning: (GitListCommitComments `"$tarDir`" `"$localRepoDir`" `"$fileExtension`" `"$prefix`" `"$doOnlyIfOlderThanAgeInDays`") ";
-                                                        $out += "$([Environment]::NewLine)" + "  failed because $($_.Exception.Message)";
-                                                        if( $_.Exception.Message.Contains("warning: inexact rename detection was skipped due to too many files.") ){
-                                                          $out += "$([Environment]::NewLine)" + "  The reason is that the config value of diff.renamelimit with its default of 100 is too small. ";
-                                                          $out += "$([Environment]::NewLine)" + "  Before a next retry you should either add the two lines (`"[diff]`",`"  renamelimit = 999999`") to .git/config file, ";
-                                                          $out += "$([Environment]::NewLine)" + "  or run (git `"--git-dir=$localRepoDir\.git`" config diff.renamelimit 999999) ";
-                                                          $out += "$([Environment]::NewLine)" + "  or run (git config --global diff.renamelimit 999999). Instead of 999999 you can also try a lower value as 200,400, etc. ";
+                                                        $out += "$([Environment]::NewLine)  Warning: (GitListCommitComments `"$tarDir`" `"$localRepoDir`" `"$fileExtension`" `"$prefix`" `"$doOnlyIfOlderThanAgeInDays`") ";
+                                                        $out += "$([Environment]::NewLine)  failed because $m";
+                                                        if( $out.Contains("warning: inexact rename detection was skipped due to too many files.") ){
+                                                          $out += "$([Environment]::NewLine)  The reason is that the config value of diff.renamelimit with its default of 100 is too small. ";
+                                                          $out += "$([Environment]::NewLine)  Before a next retry you should either add the two lines (`"[diff]`",`"  renamelimit = 999999`") to .git/config file, ";
+                                                          $out += "$([Environment]::NewLine)  or run (git `"--git-dir=$localRepoDir\.git`" config diff.renamelimit 999999) ";
+                                                          $out += "$([Environment]::NewLine)  or run (git config --global diff.renamelimit 999999). Instead of 999999 you can also try a lower value as 200,400, etc. ";
                                                         }else{
-                                                          $out += "$([Environment]::NewLine)" + "  Outfile `"$fout`" is probably not correctly filled.";
+                                                          $out += "$([Environment]::NewLine)  Outfile `"$fout`" is probably not correctly filled.";
                                                         }
                                                         OutWarning $out;
                                                       }
