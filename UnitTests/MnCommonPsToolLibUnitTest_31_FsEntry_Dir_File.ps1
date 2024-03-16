@@ -10,9 +10,28 @@ function UnitTest_FsEntry_Dir_File(){
   Assert         ((FsEntryMakeRelative "$HOME/MyDir/File"      "$HOME/MyDir/"      ).Replace("\","/") -eq "File");
   Assert         ((FsEntryMakeRelative "$HOME/MyDir/"          "$HOME/MyDir/"      ).Replace("\","/") -eq "./");
   #
-  # TODO: FsEntryEsc                           ( [String] $fsentry )
-  # TODO: FsEntryUnifyDirSep
-  # TODO: FsEntryGetAbsolutePath               ( [String] $fsEntry )
+  Assert ((FsEntryEsc "aa[bb]cc?dd*ee``ff") -eq "aa``[bb``]cc``?dd``*ee``ff");
+  #
+  Assert ((FsEntryUnifyDirSep "$HOME\MyDir/MyFile.txt") -eq $(switch((OsIsWindows)){($true){"$HOME\MyDir\MyFile.txt"}($false){"$HOME/MyDir/MyFile.txt"}}));
+  #
+  function Test_FsEntryGetAbsolutePath(){
+    Assert ((FsEntryGetAbsolutePath "$HOME\MyDir\MyFile.txt") -eq $(switch((OsIsWindows)){($true){"$HOME\MyDir\MyFile.txt"}($false){"$HOME/MyDir/MyFile.txt"}}));
+    Assert ((FsEntryGetAbsolutePath "$HOME/MyDir/MyFile.txt") -eq $(switch((OsIsWindows)){($true){"$HOME\MyDir\MyFile.txt"}($false){"$HOME/MyDir/MyFile.txt"}}));
+    Assert ((FsEntryGetAbsolutePath "$HOME/MyDir/"          ) -eq $(switch((OsIsWindows)){($true){"$HOME\MyDir\"          }($false){"$HOME/MyDir/"          }}));
+    Assert ((FsEntryGetAbsolutePath "$HOME/MyDir"           ) -eq $(switch((OsIsWindows)){($true){"$HOME\MyDir"           }($false){"$HOME/MyDir"           }}));
+    Assert ((FsEntryGetAbsolutePath "//MyDomain/MyShare"    ) -eq $(switch((OsIsWindows)){($true){"\\MyDomain\MyShare"    }($false){"//MyDomain/MyShare"    }}));
+    Assert ((FsEntryGetAbsolutePath "//MyDomain/MyShare/"   ) -eq $(switch((OsIsWindows)){($true){"\\MyDomain\MyShare\"   }($false){"//MyDomain/MyShare/"   }}));
+    Assert ((FsEntryGetAbsolutePath "//MyDomain/MyShare/f"  ) -eq $(switch((OsIsWindows)){($true){"\\MyDomain\MyShare\f"  }($false){"//MyDomain/MyShare/f"  }}));
+    Push-Location "$HOME/";
+    Assert ((FsEntryGetAbsolutePath "."                      ) -eq $(switch((OsIsWindows)){($true){"$HOME"                }($false){"$HOME"                 }}));
+    Assert ((FsEntryGetAbsolutePath "./"                     ) -eq $(switch((OsIsWindows)){($true){"$HOME\"               }($false){"$HOME/"                }}));
+    Assert ((FsEntryGetAbsolutePath "./."                    ) -eq $(switch((OsIsWindows)){($true){"$HOME"                }($false){"$HOME"                 }}));
+    Assert ((FsEntryGetAbsolutePath "././"                   ) -eq $(switch((OsIsWindows)){($true){"$HOME\"               }($false){"$HOME/"                }}));
+    Assert ((FsEntryGetAbsolutePath "./d/"                   ) -eq $(switch((OsIsWindows)){($true){"$HOME\d\"             }($false){"$HOME/d/"              }}));
+    Assert ((FsEntryGetAbsolutePath "./f"                    ) -eq $(switch((OsIsWindows)){($true){"$HOME\f"              }($false){"$HOME/f"               }}));
+    Pop-Location;
+  } Test_FsEntryGetAbsolutePath;
+  #
   # TODO: FsEntryGetUncShare                   ( [String] $fsEntry )
   # TODO: FsEntryMakeValidFileName             ( [String] $str )
   # TODO: FsEntryMakeRelative                  ( [String] $fsEntry, [String] $belowDir, [Boolean] $prefixWithDotDir = $false )
@@ -65,7 +84,8 @@ function UnitTest_FsEntry_Dir_File(){
   #
   # TODO: DriveFreeSpace                       ( [String] $drive ){
   #
-  # TODO: DirSep                               ()
+  Assert ((DirSep) -eq $(switch((OsIsWindows)){($true){"\"}($false){"/"}}));
+  #
   # TODO: DirExists                            ( [String] $dir ){
   # TODO: DirNotExists                         ( [String] $dir ){ return [Boolean] -not (DirExists $dir); }
   # TODO: DirAssertExists                      ( [String] $dir, [String] $text = "Assertion" ){
