@@ -539,7 +539,7 @@ function OutStartTranscriptInTempDir          ( [String] $name = "MnCommonPsTool
                                                 if( $name -eq "" ){ $name = "MnCommonPsToolLib"; }
                                                 [String] $pattern = "yyyy yyyy-MM yyyy-MM-dd";
                                                 if( $useHHMMSS ){ $pattern += "_HH'h'mm'm'ss's'"; }
-                                                [String] $f = "$env:TEMP/tmp/$name/$((DateTimeNowAsStringIso $pattern).Replace(" ","/")).$name.txt"; # works for windows and linux
+                                                [String] $f = FsEntryGetAbsolutePath "$env:TEMP/tmp/$name/$((DateTimeNowAsStringIso $pattern).Replace(" ","/")).$name.txt"; # works for windows and linux
                                                 Start-Transcript -Path $f -Append -IncludeInvocationHeader | Out-Null;
                                                 return [String] $f; }
 function OutStopTranscript                    (){ Stop-Transcript | Out-Null; } # Writes to output: Transcript stopped, output file is C:\Temp\....txt
@@ -1557,9 +1557,7 @@ function FileAppendLines                      ( [String] $file, [String[]] $line
                                                 FsEntryCreateParentDir $file;
                                                 $lines | Out-File -Encoding $encoding -Append -LiteralPath $file; }
 function FileGetTempFile                      (){ return [String] [System.IO.Path]::GetTempFileName(); } # Example on linux: "/tmp/tmpFN3Gnz.tmp"; on windows: C:\Windows\Temp\tmpE3B6.tmp
-function FileDelTempFile                      ( [String] $file ){ if( (FileExists $file) ){
-                                                OutDebug "FileDelete -Force `"$file`"";
-                                                Remove-Item -Force -LiteralPath $file; } } # As FileDelete but no progress msg.
+function FileDelTempFile                      ( [String] $file ){ FileDelete $file -traceCmd:$false; } # As FileDelete but no progress msg.
 function FileReadEncoding                     ( [String] $file ){
                                                 # read BOM = Byte order mark.
                                                 [Byte[]] $b = Get-Content -Encoding Byte -ReadCount 4 -TotalCount 4 -LiteralPath $file; # works also when lesser than 4 bytes
@@ -1617,11 +1615,13 @@ function FileContentsAreEqual                 ( [String] $f1, [String] $f2, [Boo
                                                     } return [Boolean] $true;
                                                   }finally{ $fs1.Close(); $fs2.Close(); } }
                                                 }
-function FileDelete                           ( [String] $file, [Boolean] $ignoreReadonly = $true, [Boolean] $ignoreAccessDenied = $false ){
+function FileDelete                           ( [String] $file, [Boolean] $ignoreReadonly = $true, [Boolean] $ignoreAccessDenied = $false, [Boolean] $traceCmd = $true ){
                                                 # for hidden files it is also required to set ignoreReadonly=true.
                                                 # In case the file is used by another process it waits some time between a retries.
                                                 $file = FsEntryGetAbsolutePath $file;
-                                                if( (FileExists $file) ){ OutProgress "FileDelete$(switch($ignoreReadonly){($true){''}default{'CareReadonly'}}) `"$file`""; }
+                                                [String] $traceMsg = "FileDelete$(switch($ignoreReadonly){($true){''}default{'CareReadonly'}}) `"$file`"";
+                                                if( (FileNotExists $file) ){ OutDebug $traceMsg; return; }
+                                                if( $traceCmd ){ OutProgress $traceMsg; }else{ OutVerbose $traceMsg; }
                                                 [Int32] $nrOfTries = 0; while($true){ $nrOfTries++;
                                                   try{
                                                     Remove-Item -Force:$ignoreReadonly -LiteralPath $file;

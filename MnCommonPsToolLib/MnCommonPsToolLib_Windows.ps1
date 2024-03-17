@@ -1855,7 +1855,7 @@ function ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [Strin
                                                   OutVerbose "NotCreatedBecauseSourceFileNotExists: $lnkFile"; return;
                                                 }
                                                 if( $isDir ){ DirAssertExists $srcFsEntry; }else{ FileAssertExists $srcFsEntry; }
-                                                if( $forceRecreate ){ FileDelete $lnkFile; }
+                                                if( $forceRecreate ){ FileDelete $lnkFile -traceCmd:$false; }
                                                 if( (FileExists $lnkFile) ){
                                                   OutVerbose "Unchanged: $lnkFile";
                                                 }else{
@@ -2165,22 +2165,22 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){
                                                 OutProgress "List of installed package providers:";
                                                 Get-PackageProvider -ListAvailable | Where-Object{$null -ne $_} |
                                                   Select-Object Name, Version, DynamicOptions |
-                                                  StreamToTableString | StreamToStringIndented;
+                                                  StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
                                                 OutProgress "Update NuGet"; # works asynchron
                                                 # On PS7 for "Install-PackageProvider NuGet" we got:
                                                 #   Install-PackageProvider: No match was found for the specified search criteria for the provider 'NuGet'. The package provider requires 'PackageManagement' and 'Provider' tags. Please check if the specified package has the tags.
                                                 # So we ignore errors.
                                                 Install-PackageProvider -Name NuGet -ErrorAction SilentlyContinue |
                                                   Select-Object Name, Status, Version, Source |
-                                                  StreamToTableString | StreamToStringIndented;
+                                                  StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
                                                 OutProgress "List of modules:";
                                                 Get-Module | Sort-Object Name | Select-Object Name,ModuleType,Version,Path |
-                                                  StreamToTableString | StreamToStringIndented;
+                                                  StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
                                                 OutProgress "List of installed modules having an installdate:";
                                                 Get-InstalledModule | Where-Object{$null -ne $_ -and $null -ne $_.InstalledDate } |
                                                   Select-Object Name | Get-InstalledModule -AllVersions |
                                                   Select-Object Name, Version, InstalledDate, UpdatedDate, Dependencies, Repository, PackageManagementProvider, InstalledLocation |
-                                                  StreamToTableString | StreamToStringIndented;
+                                                  StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
                                                 # https://docs.microsoft.com/en-us/powershell/scripting/how-to-use-docs?view=powershell-7.2  take lts version
                                                 # alternatives: Install-Module -Force [-MinimumVersion <String>] [-MaximumVersion <String>] [-RequiredVersion <String>]
                                                 try{
@@ -2206,7 +2206,8 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){
                                                 #
                                                 OutProgress "Uninstall old versions of modules: ";
                                                 Get-InstalledModule | ForEach-Object {
-                                                  [String] $v = $_.Version; OutProgress "  Uninstall all but $($_.Name) version $v ";
+                                                  [String] $v = $_.Version;
+                                                  OutProgress "  Uninstall all but $($_.Name) V$v ";
                                                   Get-InstalledModule -Name $_.Name -AllVersions | Where-Object -Property Version -LT -Value $v | Uninstall-Module;
                                                 }
                                                 #
@@ -2229,7 +2230,7 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){
                                                 Get-InstalledModule | Where-Object{$null -ne $_ -and $null -ne $_.InstalledDate } |
                                                   Select-Object Name | Get-InstalledModule -AllVersions |
                                                   Select-Object Name, Version, InstalledDate, UpdatedDate, Dependencies, Repository, PackageManagementProvider, InstalledLocation |
-                                                  StreamToTableString | StreamToStringIndented;
+                                                  StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
                                                 # Hints:
                                                 # - Install-Module -Force -Name myModule; # 2021-12: Paralled installed V1.0.0.1 and V2.2.5
                                                 #   we got: WARNING: The version '1.4.7' of module 'myModule' is currently in use. Retry the operation after closing the applications.
