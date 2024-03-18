@@ -74,7 +74,10 @@ if( ((test-path "variable:LASTEXITCODE") -and $null -ne $LASTEXITCODE -and $LAST
 # We strongly recommended that callers of this script perform after the import-module statement the following statements:
 #   Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 # In ALL scripts which are not using this module we stongly recommend the following line:
-Set-StrictMode -Version Latest; trap [Exception] { Write-Error $_; Read-Host "Press Enter to Exit"; break; } $ErrorActionPreference = "Stop";
+Set-StrictMode -Version Latest; $ErrorActionPreference = "Stop"; trap [Exception] { $nl = [Environment]::NewLine;
+  Write-Error -ErrorAction Continue "$($_.Exception.GetType().Name): $($_.Exception.Message)${nl}$($_.InvocationInfo.PositionMessage)$nl$($_.ScriptStackTrace)";
+  Read-Host "Press Enter to Exit"; break; }
+
 
 # Define global variables if they are not yet defined; caller of this script can anytime set or change these variables to control the specified behaviour.
 function GlobalVariablesInit(){
