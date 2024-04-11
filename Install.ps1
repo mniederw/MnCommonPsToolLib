@@ -96,6 +96,7 @@ if( $dirsWithPsm1Files.Count -ne 1 ){ throw [Exception] "Tool is designed for wo
 [String] $moduleTarDir64bit = "$tarRootDir64bit\$moduleName";
 [String] $moduleTarDirLinux = "$linuxTargetDir/$moduleName";
 [String] $psVersion = "$($PSVersionTable.PSVersion.ToString()) $(switch((ShellSessionIs64not32Bit)){($true){"64bit"}($false){"32bit"}})";
+[Boolean] $ps7Exists = DirExists "$env:SystemDrive\Program Files\PowerShell\7\";
 
 function CurrentInstallationModes( [String] $color = "White" ){
   if( (OsIsWindows) ){
@@ -166,7 +167,7 @@ if( (OsIsWindows) ){
   OutProgress     "  PsModuleFolder(allUsers,32bit)     = `"$tarRootDir32bit`". ";
   OutProgress     "  SrcRootDir                         = `"$srcRootDir`". ";
   OutProgress     "  IsInElevatedAdminMode              = $(ProcessIsRunningInElevatedAdminMode).";
-  OutProgress     "  Executionpolicy-PS7                = $(& "$env:SystemDrive\Program Files\PowerShell\7\pwsh.EXE"           -Command Get-Executionpolicy).";
+  OutProgress     "  Executionpolicy-PS7                = $(switch($ps7Exists){($true){& "$env:SystemDrive\Program Files\PowerShell\7\pwsh.EXE" -Command Get-Executionpolicy}($false){"Is-not-installed"}}).";
   OutProgress     "  Executionpolicy-PS5-64bit          = $(& "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -Command Get-Executionpolicy).";
   OutProgress     "  Executionpolicy-PS5-32bit          = $(& "$env:SystemRoot\SysWOW64\WindowsPowerShell\v1.0\powershell.exe" -Command Get-Executionpolicy).";
   OutProgress     "  ShellSessionIs64not32Bit           = $(ShellSessionIs64not32Bit). ";
@@ -211,15 +212,15 @@ if( (OsIsWindows) ){
   if( $sel -eq "W" ){ AddToPsModulePath $ps5WinModuleDir; AddToPsModulePath $ps5ModuleDir; }
   if( $sel -eq "B" ){ ProcessRestartInElevatedAdminMode;
                       OutProgress "Set-Executionpolicy Bypass";
-                      & "$env:SystemDrive\Program Files\PowerShell\7\pwsh.EXE"           -Command { Set-Executionpolicy Bypass; };
-                      & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -Command { Set-Executionpolicy Bypass; };
-                      & "$env:SystemRoot\SysWOW64\WindowsPowerShell\v1.0\powershell.exe" -Command { Set-Executionpolicy Bypass; };
+                      if( $ps7Exists ){ & "$env:SystemDrive\Program Files\PowerShell\7\pwsh.EXE"           -Command { Set-Executionpolicy Bypass; }; }
+                                        & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -Command { Set-Executionpolicy Bypass; };
+                                        & "$env:SystemRoot\SysWOW64\WindowsPowerShell\v1.0\powershell.exe" -Command { Set-Executionpolicy Bypass; };
   }
   if( $sel -eq "R" ){ ProcessRestartInElevatedAdminMode;
                       OutProgress "Set-Executionpolicy RemoteSigned";
-                      & "$env:SystemDrive\Program Files\PowerShell\7\pwsh.EXE"           -Command { Set-Executionpolicy RemoteSigned };
-                      & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -Command { Set-Executionpolicy RemoteSigned };
-                      & "$env:SystemRoot\SysWOW64\WindowsPowerShell\v1.0\powershell.exe" -Command { Set-Executionpolicy RemoteSigned }; }
+                      if( $ps7Exists ){ & "$env:SystemDrive\Program Files\PowerShell\7\pwsh.EXE"           -Command { Set-Executionpolicy RemoteSigned }; }
+                                        & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -Command { Set-Executionpolicy RemoteSigned };
+                                        & "$env:SystemRoot\SysWOW64\WindowsPowerShell\v1.0\powershell.exe" -Command { Set-Executionpolicy RemoteSigned }; }
   if( $sel -eq "Q" ){ OutProgress "Quit."; }
 }else{ # non-windows
   OutProgress     "Running on Non-Windows OS (Linux, MacOS) ";

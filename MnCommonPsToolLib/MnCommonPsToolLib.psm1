@@ -4,7 +4,7 @@
 # Licensed under GPL3. This is freeware.
 # 2013-2024 produced by Marc Niederwieser, Switzerland.
 
-[String] $global:MnCommonPsToolLibVersion = "7.53";
+[String] $global:MnCommonPsToolLibVersion = "7.55";
   # Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
   # Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
   # more see Releasenotes.txt
@@ -1116,10 +1116,8 @@ function FsEntryAssertHasTrailingDirSep       ( [String] $fsEntry ){ if( $fsEntr
 function FsEntryRemoveTrailingDirSep          ( [String] $fsEntry ){ [String] $r = $fsEntry;
                                                 if( $r -ne "" ){ while( FsEntryHasTrailingDirSep $r ){ $r = $r.Remove($r.Length-1); }
                                                 if( $r -eq "" ){ $r = $fsEntry; } } return [String] (FsEntryGetAbsolutePath $r); }
-function FsEntryMakeTrailingDirSep            ( [String] $fsEntry ){
-                                                [String] $result = $fsEntry;
-                                                if( $result -ne "" -and -not (FsEntryHasTrailingDirSep $result) ){ $result += "/"; }
-                                                return [String] (FsEntryGetAbsolutePath $result); }
+function FsEntryRelativeMakeTrailingDirSep    ( [String] $fsEntry ){ return [String] ($fsEntry + $(switch($fsEntry -ne "" -and -not (FsEntryHasTrailingDirSep $fsEntry)){($true){(DirSep)}($false){""}})); } # if fsEntry is empty then it returns empty.
+function FsEntryMakeTrailingDirSep            ( [String] $fsEntry ){ return [String] (FsEntryGetAbsolutePath (FsEntryRelativeMakeTrailingDirSep $fsEntry)); }
 function FsEntryJoinRelativePatterns          ( [String] $rootDir, [String[]] $relativeFsEntriesPatternsSemicolonSeparated ){
                                                 # Create an array Example: @( "c:\myroot\bin\", "c:\myroot\obj\", "c:\myroot\*.tmp", ... )
                                                 #   from input as @( "bin\;obj\;", ";*.tmp;*.suo", ".\dir\d1?\", ".\dir\file*.txt");
@@ -1373,8 +1371,8 @@ function FsEntryTrySetOwner                   ( [String] $fsEntry, [System.Secur
                                                     FsEntryListAsStringArray "$fs/*" $false | Where-Object{$null -ne $_} |
                                                       ForEach-Object{ FsEntryTrySetOwner $_ $account $true };
                                                   }
-                                                }catch{
-                                                  OutWarning "Warning: Ignoring FsEntryTrySetOwner($fsEntry,$account) failed because $($_.Exception.Message)";
+                                                }catch{ # Example: "Attempted to perform an unauthorized operation."
+                                                  OutProgress "Note: Ignoring FsEntryTrySetOwner(`"$fsEntry`",$account) failed because $($_.Exception.Message)";
                                                 } }
 function FsEntryTrySetOwnerAndAclsIfNotSet    ( [String] $fsEntry, [System.Security.Principal.IdentityReference] $account, [Boolean] $recursive = $false ){
                                                 # usually account is (PrivGetGroupAdministrators)
@@ -1394,7 +1392,7 @@ function FsEntryTrySetOwnerAndAclsIfNotSet    ( [String] $fsEntry, [System.Secur
                                                       ForEach-Object{ FsEntryTrySetOwnerAndAclsIfNotSet $_ $account $true };
                                                   }
                                                 }catch{
-                                                  OutWarning "Warning: FsEntryTrySetOwnerAndAclsIfNotSet `"$fsEntry`" $account $recursive : Failed because $($_.Exception.Message)";
+                                                  OutProgress "Note: FsEntryTrySetOwnerAndAclsIfNotSet(`"$fsEntry`",$account,$recursive) failed because $($_.Exception.Message)";
                                                 } }
 function FsEntryTryForceRenaming              ( [String] $fsEntry, [String] $extension ){
                                                 $fsEntry = FsEntryGetAbsolutePath $fsEntry;
