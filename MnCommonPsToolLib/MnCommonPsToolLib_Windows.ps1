@@ -1938,10 +1938,13 @@ function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [St
                                                     OutWarning "Warning: Create menulink by reading file `"$f`", taking first line as cmdLine ($cmdLine) $addTraceInfo failed because $msg";
                                                   } } }
 function ToolSignDotNetAssembly               ( [String] $keySnk, [String] $srcDllOrExe, [String] $tarDllOrExe, [Boolean] $overwrite = $false ){
-                                                # Sign (apply strong name) a given source executable with a given key and write it to a target file.
+                                                # Sign (apply strong name) a given source executable (dll or exe) with a given key and write it to a target file.
                                                 # If the sourcefile has an correspondig xml file with the same name then this is also copied to target.
                                                 # If the input file was already signed then it creates a target file with the same name and the extension ".originalWasAlsoSigned.txt".
                                                 # Note: Generate your own key with: sn.exe -k mykey.snk
+                                                $keySnk      = FsEntryGetAbsolutePath $keySnk;
+                                                $srcDllOrExe = FsEntryGetAbsolutePath $srcDllOrExe;
+                                                $tarDllOrExe = FsEntryGetAbsolutePath $tarDllOrExe;
                                                 OutProgressTitle "Sign dot-net assembly: keySnk=`"$keySnk`" srcDllOrExe=`"$srcDllOrExe`" tarDllOrExe=`"$tarDllOrExe`" overwrite=$overwrite ";
                                                 [Boolean] $execHasStrongName = ([String](& sn -vf $srcDllOrExe | Select-Object -Skip 4 )) -like "Assembly '*' is valid";
                                                 [Boolean] $isDllNotExe = $srcDllOrExe.ToLower().EndsWith(".dll");
@@ -2207,24 +2210,22 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){
                                                 OutProgress "Uninstall old versions of modules: ";
                                                 Get-InstalledModule | ForEach-Object {
                                                   [String] $v = $_.Version;
-                                                  OutProgress "  Uninstall all but $($_.Name) V$v ";
+                                                  OutProgress "  Uninstall all older versions than $($_.Name) V$v ";
                                                   Get-InstalledModule -Name $_.Name -AllVersions | Where-Object -Property Version -LT -Value $v | Uninstall-Module;
                                                 }
                                                 #
-                                                try{
-                                                   OutProgress "Update-Help to en-US";
-                                                   (Update-Help -UICulture en-US -ErrorAction Continue *>&1) | ForEach-Object{ OutProgress "  $_"; };
-                                                   OutProgress "Update-Help to current Culture: $((Get-Culture).Name) = $((Get-Culture).DisplayName)"; # Example: "de-CH"
-                                                   (Update-Help                  -ErrorAction Continue *>&1) | ForEach-Object{ OutProgress "  $_"; };
-                                                }catch{
+                                                OutProgress "Update-Help to en-US";
+                                                (Update-Help -UICulture en-US -ErrorAction Continue *>&1) | ForEach-Object{ OutProgress "  $_"; };
+                                                OutProgress "Update-Help to current Culture: $((Get-Culture).Name) = $((Get-Culture).DisplayName)"; # Example: "de-CH"
+                                                (Update-Help                  -ErrorAction Continue *>&1) | ForEach-Object{ OutProgress "  $_"; };
+                                                  # 2024-04: On PS7: Update-Help: Failed to update Help for the module(s) 'PSReadline, WindowsUpdateProvider' with UI culture(s) {en-US} : One or more errors occurred.
+                                                  #   (Response status code does not indicate success: 404 (Not Found).). English-US help content is available and can be installed using: Update-Help -UICulture en-US.
                                                   # 2024-03: On PS5: Fehler beim Aktualisieren von Hilfe für die Module "HostNetworkingService, PSReadline, WindowsUpdateProvider"
                                                   #   mit den Benutzeroberflächenkulturen {de-DE}: Die XML-Datei "HelpInfo" für die Benutzeroberflächenkultur de-DE kann nicht abgerufen werden.
                                                   #   Stellen Sie sicher, dass die HelpInfoUri-Eigenschaft im Modulmanifest gültig ist, oder überprüfen Sie die Netzwerkverbindung, und führen Sie den Befehl dann erneut aus.
                                                   # 2022-02: update-help : Failed to update Help for the module(s) 'ConfigDefender, PSReadline' with UI culture(s) {en-US} :
                                                   #   Unable to retrieve the HelpInfo XML file for UI culture en-US.
                                                   #   Make sure the HelpInfoUri property in the module manifest is valid or check your network connection and then try the command again.
-                                                  OutWarning "Warning: Update-help failed because $($_.Exception.Message), ignored.";
-                                                }
                                                 #
                                                 OutProgress "List of installed modules having an installdate:";
                                                 Get-InstalledModule | Where-Object{$null -ne $_ -and $null -ne $_.InstalledDate } |
