@@ -2210,7 +2210,7 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){
                                                 OutProgress "Uninstall old versions of modules: ";
                                                 Get-InstalledModule | ForEach-Object {
                                                   [String] $v = $_.Version;
-                                                  OutProgress "  Uninstall all older versions than $($_.Name) V$v ";
+                                                  OutProgress "  Uninstall all older versions than $($_.Name.PadRight(32,' ')) V$v ";
                                                   Get-InstalledModule -Name $_.Name -AllVersions | Where-Object -Property Version -LT -Value $v | Uninstall-Module;
                                                 }
                                                 #
