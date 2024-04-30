@@ -14,12 +14,12 @@ if( $null -ne (Import-Module -NoClobber -Name "CimCmdlets"     -ErrorAction Cont
 # Import-Module "ServerManager"; # Is not always available, requires windows-server-os or at least Win10Prof with installed RSAT. Because seldom used we do not try to load it here.
 
 # Set some self defined constant global variables
-if( $null -eq (Get-Variable -Scope global -ErrorAction SilentlyContinue -Name AllUsersMenuDir) ){ # check wether last variable already exists because reload safe
-  New-Variable -option Constant -scope global -name UserQuickLaunchDir           -value ([String](FsEntryGetAbsolutePath "$env:APPDATA/Microsoft/Internet Explorer/Quick Launch/"));
-  New-Variable -option Constant -scope global -name UserSendToDir                -value ([String](FsEntryGetAbsolutePath "$env:APPDATA/Microsoft/Windows/SendTo/"));
-  New-Variable -option Constant -scope global -name UserMenuDir                  -value ([String](FsEntryGetAbsolutePath "$env:APPDATA/Microsoft/Windows/Start Menu/"));
-  New-Variable -option Constant -scope global -name UserMenuStartupDir           -value ([String](FsEntryGetAbsolutePath "$env:APPDATA/Microsoft/Windows/Start Menu/Programs/Startup/"));
-  New-Variable -option Constant -scope global -name AllUsersMenuDir              -value ([String](FsEntryGetAbsolutePath "$env:ALLUSERSPROFILE/Microsoft/Windows/Start Menu/"));
+if( $null -eq (Get-Variable -Scope Global -ErrorAction SilentlyContinue -Name AllUsersMenuDir) ){ # check wether last variable already exists because reload safe
+  New-Variable -option Constant -scope Global -name UserQuickLaunchDir           -Value ([String](FsEntryGetAbsolutePath "$env:APPDATA/Microsoft/Internet Explorer/Quick Launch/"));
+  New-Variable -option Constant -scope Global -name UserSendToDir                -Value ([String](FsEntryGetAbsolutePath "$env:APPDATA/Microsoft/Windows/SendTo/"));
+  New-Variable -option Constant -scope Global -name UserMenuDir                  -Value ([String](FsEntryGetAbsolutePath "$env:APPDATA/Microsoft/Windows/Start Menu/"));
+  New-Variable -option Constant -scope Global -name UserMenuStartupDir           -Value ([String](FsEntryGetAbsolutePath "$env:APPDATA/Microsoft/Windows/Start Menu/Programs/Startup/"));
+  New-Variable -option Constant -scope Global -name AllUsersMenuDir              -Value ([String](FsEntryGetAbsolutePath "$env:ALLUSERSPROFILE/Microsoft/Windows/Start Menu/"));
 }
 
 function OsIs64BitOs                          (){ return [Boolean] (Get-CimInstance -Class Win32_OperatingSystem -ErrorAction SilentlyContinue).OSArchitecture -eq "64-Bit"; }

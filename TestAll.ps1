@@ -2,7 +2,7 @@
 
 Set-StrictMode -Version Latest; trap [Exception] { Write-Error $_; Read-Host "Press Enter to Exit"; break; } $ErrorActionPreference = "Stop";
 
-[Boolean] $is_windows = (-not (Get-Variable -Name IsWindows -ErrorAction SilentlyContinue) -or $IsWindows); # portable PS5/PS7
+[Boolean] $is_windows = (-not (Get-Variable -Name "IsWindows" -ErrorAction SilentlyContinue) -or $IsWindows); # portable PS5/PS7
 [Boolean] $is_linux   = (-not $is_windows -and $IsLinux);
 [Boolean] $is_maxos   = (-not $is_windows -and $IsMacOS);
 [String]  $pathSep    = $(switch($is_windows){$true{";"}default{":"}});
@@ -50,20 +50,27 @@ $($env:PSModulePath).Split($pathSep) | Where-Object{ $null -ne $_ } | ForEach-Ob
   # Github-ubuntu : ":/home/runner/.local/share/powershell/Modules"
   #                 ":/usr/local/share/powershell/Modules"
   #                 ":/opt/microsoft/powershell/7/Modules"
-Write-Output "List all environment variables: ";
-  Get-Variable | Format-Table -AutoSize -Force -Wrap | Out-String -Stream | ForEach-Object{ "  $_" } | Select-Object -First 999;
-Write-Output "List all aliases: ";
-  Get-Alias | ForEach-Object{ Write-Output "  $($_.DisplayName)"; } | Select-Object -First 4;
-
-Write-Output "List ps gallery repositories: "; Get-PSRepository;
-Write-Output "List installed ps modules ";
-  Get-Module -ListAvailable | Sort-Object ModuleType, Name, Version | Select-Object ModuleType, Name, Version | Format-Table -Wrap -Force -AutoSize;
+Write-Output "----- List all environment variables: ----- ";
+  Get-Variable | Sort-Object Name | Select-Object Name, Value | Format-Table -AutoSize -Wrap -Property Name, @{Name="Value";Expression={$_.Value};Alignment="Left"};
+Write-Output "----- List all aliases: ----- ";
+  Get-Alias    | Sort-Object Name | Select-Object CommandType, Name, Definition, Options, Module, Version | Format-Table -AutoSize;
+Write-Output "----- List ps gallery repositories: ----- ";
+  Get-PSRepository;
+Write-Output "----- List installed ps modules ----- ";
+  Get-Module -ListAvailable | Sort-Object ModuleType, Name, Version | Select-Object ModuleType, Name, Version, ExportedCommands | Format-Table -Wrap -Force -AutoSize;
+Write-Output "----- List commands grouped by modules ----- ";
+  Get-Command -Module * | Group Module;
+Write-Output "----- List all currently used modules ----- ";
+  Get-Module -All; # all currently used
 Write-Output "Set repository PSGallery to trusted: ";
   Set-PSRepository PSGallery -InstallationPolicy Trusted;
   Write-Output "Install and import from PSGallery used modules in user scope: ";
   Write-Output "  Microsoft.PowerShell.Archive, PSReadLine, PowerShellGet, PackageManagement, PSScriptAnalyzer, ThreadJob, SqlServer, Pester.";
   Install-Module Microsoft.PowerShell.Archive, PSReadLine, PowerShellGet, PackageManagement, PSScriptAnalyzer, ThreadJob, SqlServer, Pester;
   Import-Module Microsoft.PowerShell.Archive, PSReadLine, PowerShellGet, PackageManagement, PSScriptAnalyzer, ThreadJob, SqlServer, Pester;
+
+# for future use: Get-Variable -Scope Local; Get-Variable -Scope Script; Get-Variable -Scope Global;
+# for future use: Get-PSSnapin -Registered; Get-Command -Noun *; # list pssnapins
 
 # disabled because it would not find for example Write-Output anymore:
 #   Write-Output "Set disable autoloading modules."; $PSModuleAutoLoadingPreference = "none"; # disable autoloading modules
@@ -77,10 +84,6 @@ Write-Output "Extend PSModulePath by PSScriptRoot";
 
 Write-Output "Load our library: MnCommonPsToolLib.psm1";
 Import-Module "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
-
-
-
-
 
 OutProgress "Show MnCommonPsToolLibVersion: $Global:MnCommonPsToolLibVersion"; # Example: "7.47"
 OutProgress "Show OsPsVersion             : $(OsPsVersion)";                   # Example: "7.4"
