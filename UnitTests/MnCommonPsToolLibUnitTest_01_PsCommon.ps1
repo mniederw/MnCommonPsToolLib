@@ -26,6 +26,9 @@ function UnitTest_PsCommon(){
   [String[]] $a = $null; AssertIsFalse ( $null -ne $a );
   [String[]] $a = $null; Assert        ( $null -eq $a );
   #
+  # No element through pipelining results in null array
+  [String[]] $a = @() | Where-Object{ $false }; Assert ($null -eq $a);
+  #
   # null in switch works ok if compared with string but not otherwise
   [String] $s = ""   ; [String] $r = switch ($s){$null {"IS_NULL"} "" {"IS_EMPTY"}}; Assert ($r -eq "IS_EMPTY");
   [String] $s = $null; [String] $r = switch ($s){$null {"IS_NULL"} "" {"IS_EMPTY"}}; Assert ($r -eq "IS_EMPTY");

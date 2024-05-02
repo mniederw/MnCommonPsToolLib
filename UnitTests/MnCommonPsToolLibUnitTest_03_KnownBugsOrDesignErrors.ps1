@@ -19,11 +19,9 @@ function UnitTest_KnowBugsOrDesignErrors(){
   #
   #
   # Variable or function argument of type String is never $null, if $null is assigned then always empty is stored.
-  [String] $s; $s = $null; Assert ($null -ne $s); Assert ($s -eq "");
+  [String] $s = ""; $s = $null; Assert ($null -ne $s); Assert ($s -eq "");
   # But if type String is within a struct then it can be null.
   Add-Type -TypeDefinition "public struct MyStruct {public string MyVar;}"; Assert( $null -eq (New-Object MyStruct).MyVar );
-  # And the string variable is null IF IT IS RUNNING IN A SCRIPT in ps5or7, if running interactive then it is not null:
-  [String] $s = @() | Where-Object{ $false }; Assert ($null -ne $a);
   #
   #
   # GetFullPath() works not with the current dir but with the working dir where powershell was started for example when running as administrator.
@@ -57,14 +55,13 @@ function UnitTest_KnowBugsOrDesignErrors(){
   #
   #
   # Compare empty array with $null:
-  #       [String[]] $a = @(); if( $a -is [String[]] ){ Write-Output "ok reached, var of expected type." };
-  #       if(    $a.count -eq 0   ){        Write-Output "Ok reached, count can be used."; }
-  #       if(      ($null -eq $a) ){;}else{ Write-Output "Ok reached, empty array is not a null array."; }
-  #       if(      ($null -ne $a) ){        Write-Output "Ok reached, empty array is not a null array."; }
-  #       if( -not ($null -eq $a) ){        Write-Output "Ok reached, empty array is not a null array."; }
-  #       if( -not ($null -ne $a) ){        Write-Output "Ok reached, empty array is not a null array."; }
-  #       [Boolean] $r = @() -eq $null; # this throws: Cannot convert value "System.Object[]" to type "System.Boolean"!
-  #       Conclusion: This behaviour is an absolute DESIGN-ERROR, this makes it very hard to handle with empty or null arrays!
+  [String[]] $a = @(); Assert( $a -is [String[]] );
+  Assert ($a.count -eq 0); # count can be used
+  AssertIsFalse ($null -eq $a); # empty array is not a null array.
+  Assert        ($null -ne $a); # empty array is not a null array.
+  Assert ( -not ($null -eq $a) ); # empty array is not a null array.
+  # [Boolean] $r = @() -eq $null; # this throws: Cannot convert value "System.Object[]" to type "System.Boolean"!
+  # Conclusion: This behaviour is an absolute DESIGN-ERROR, this makes it very hard to handle with empty or null arrays!
   #
   #
   # A powershell function returning an empty array is compatible with returning $null.
@@ -84,10 +81,9 @@ function UnitTest_KnowBugsOrDesignErrors(){
   #
   #
   # Empty array in pipeline is converted to $null:
-  #       [String[]] $a = (([String[]]@()) | Where-Object{$null -ne $_});
-  #       if( $null -eq $a ){ Write-Output "ok reached, var is null." };
-  #     Recommendation: After pipelining add an empty array.
-  #       [String[]] $a = (@()+(@()|Where-Object{$null -ne $_})); Assert ($null -ne $a);
+  [String[]] $a = (([String[]]@()) | Where-Object{$null -ne $_}); Assert ( $null -eq $a );
+  # Recommendation: After pipelining add an empty array.
+  [String[]] $a = (@()+(@()|Where-Object{$null -ne $_})); Assert ($null -ne $a);
   #
   #
   # Variable name conflict: ... | ForEach-Object{ [String[]] $a = $_; ... }; [Array] $a = ...;
@@ -98,9 +94,9 @@ function UnitTest_KnowBugsOrDesignErrors(){
   #
   #
   # Good behaviour: DotNet functions as Split() can return empty arrays instead of return $null:
-  #       [String[]] $a = "".Split(";",[System.StringSplitOptions]::RemoveEmptyEntries); if( $a.Count -eq 0 ){ Write-Output "Ok, array-is-empty"; }
-  #     But the PS5 version has a bug:
-  #       [String] $s = "abc".Split("cx"); if( $s -eq "abc" ){ Write-Output "Ok, correct."; }else{ Write-Output "Result='$s' is wrong. We know it happens in PS5, Current-PS-Version: $($PSVersionTable.PSVersion.Major)"; }
+  [String[]] $a = "".Split(";",[System.StringSplitOptions]::RemoveEmptyEntries); Assert ( $a.Count -eq 0 );
+  # But the PS5 version of Split has a bug, it seams it interprets the first split param as array of splitting chars (note: [regex]::Escape does also not change anything)
+  [String[]] $a = "abcdcx".Split("cx"); if( $processIsLesserEqualPs5 ){ Assert( $a[0] -eq "ab" -and $a.Count -eq 4 ); }else{ Assert( $a[0] -eq "abcd" -and $a.Count -eq 2 ); }
   #
   #
   # Exceptions are always catched within Pipeline Expression statement and instead of expecting the throw it returns $null:
@@ -111,10 +107,6 @@ function UnitTest_KnowBugsOrDesignErrors(){
   #     $a | ForEach-Object{ if( $null -eq $_.Field2 ){ throw [Exception] "Field2 is null"; } } # this does the throw
   #     Recommendation: After creation of the list do iterate through it and assert non-null values
   #       or redo the expression within a ForEach-Object loop to get correct throwed message.
-  #
-  #
-  # String without comparison as condition:
-  Assert ( "anystring" ); Assert ( "$false" );
   #
   #
   # PS 5/7 is poisoning the current scope by its aliases. See also comments on: ProcessRemoveAllAlias.
@@ -142,10 +134,10 @@ function UnitTest_KnowBugsOrDesignErrors(){
   #
   #
   # Type Mismatch: A function returns a string array: If it returns a single element (=string) then it does not return a string array but the string:
-  function ReturnStringArrayWithOneString1(){ return [String[]] @("abc"); } Assert (ReturnStringArrayWithOneString1)[0] -eq "a";
-  # This is a DESIGN ERROR, a string should not be given when we requested for a string array.
+  function ReturnStringArrayWithOneString1(){ return [String[]] @("ab"); } Assert ((ReturnStringArrayWithOneString1)[0] -eq "a"); Assert (([String[]](ReturnStringArrayWithOneString1))[0] -eq "ab");
+  # This is a DESIGN ERROR, a string should not be given when we requested for a string array. The Workaround is to cast result always to an array.
   # Even the alternative with using OutputType keyword does not solve this behaviour:
-  function ReturnStringArrayWithOneString2 { [OutputType([string[]])] Param( [String] $s ); return [string[]]@("abc"); } Assert ((ReturnStringArrayWithOneString2)[0] -eq "a");
+  function ReturnStringArrayWithOneString2 { [OutputType([string[]])] Param( [String] $s ); return [string[]]@("ab"); } Assert ((ReturnStringArrayWithOneString2)[0] -eq "a"); Assert (([String[]](ReturnStringArrayWithOneString2))[0] -eq "ab");
   #
   #
 }
