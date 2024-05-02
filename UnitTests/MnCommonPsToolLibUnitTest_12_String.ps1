@@ -33,11 +33,18 @@ function UnitTest_String(){
   Assert         ((StringReplaceNewlines             "abc`ndef")                   -eq "abc def"   );
   Assert         ((StringSplitToArray                ","  "abc,def,,ghi" $true)[2] -eq "ghi"       );
   Assert         ((StringSplitToArray                ","  "ab,de")[0]              -eq "ab"        );
-  Assert         ((StringSplitToArray                "xy" "abcde")[0]              -eq "a"         ); # note: returns string which is a know ps bug.
+  Assert         ((StringSplitToArray                "xy" "abcde")[0]              -eq "a"         ); # note: returns string which is a known ps bug.
   Assert         (([String[]](StringSplitToArray     "xy" "abcde"))[0]             -eq "abcde"     );
   Assert         (([String[]](StringSplitToArray     "C"  "abcde"))[0]             -eq "abcde"     );
-  Assert         ((StringSplitToArray                ","  "ab,,d"       ).Count    -eq 2           );
-  Assert         ((StringSplitToArray                ","  "ab,,d" $false).Count    -eq 3           );
+  Assert         ((@()+(StringSplitToArray           ","  ""            )).Count   -eq 0           );
+  Assert         ((@()+(StringSplitToArray           ","  "ab"          )).Count   -eq 1           );
+  Assert         ((StringSplitToArray                ","  "ab,de"        ).Count   -eq 2           );
+  Assert         ((StringSplitToArray                ","  "ab,,de"       ).Count   -eq 2           );
+  Assert         ((StringSplitToArray                ","  ",ab,de"       ).Count   -eq 2           );
+  Assert         ((StringSplitToArray                ","  "ab,de,"       ).Count   -eq 2           );
+  Assert         ((StringSplitToArray                ","  "ab,,de" $false).Count   -eq 3           );
+  Assert         ((StringSplitToArray                ","  ",ab,de" $false).Count   -eq 3           );
+  Assert         ((StringSplitToArray                ","  "ab,de," $false).Count   -eq 3           );
   Assert         ((StringReplaceEmptyByTwoQuotes     "abc")                        -eq "abc"       );
   Assert         ((StringReplaceEmptyByTwoQuotes     "")                           -eq "`"`""      );
   Assert         ((StringRemoveLeft                  "abc" "ab")                   -eq "c"         );

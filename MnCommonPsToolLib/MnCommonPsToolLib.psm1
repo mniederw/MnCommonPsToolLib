@@ -4,7 +4,7 @@
 # Licensed under GPL3. This is freeware.
 # 2013-2024 produced by Marc Niederwieser, Switzerland.
 
-[String] $global:MnCommonPsToolLibVersion = "7.55";
+[String] $global:MnCommonPsToolLibVersion = "7.56";
   # Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
   # Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
   # more see Releasenotes.txt
@@ -151,10 +151,10 @@ Add-Type -WarningAction SilentlyContinue -TypeDefinition "using System; public c
   # Note: we need to suppress the warning: The generated type defines no public methods or properties
 
 # Set some self defined constant global variables
-if( $null -eq (Get-Variable -Scope global -ErrorAction SilentlyContinue -Name ComputerName) -or $null -eq $global:InfoLineColor ){ # check wether last variable already exists because reload safe
-  New-Variable -option Constant -scope global -name CurrentMonthAndWeekIsoString -value ([String]((Get-Date -format "yyyy-MM-")+(Get-Date -uformat "W%V")));
-  New-Variable -option Constant -scope global -name InfoLineColor                -Value $(switch($Host.Name -eq "Windows PowerShell ISE Host"){($true){"Gray"}default{"White"}}); # ise is white so we need a contrast color
-  New-Variable -option Constant -scope global -name ComputerName                 -value ([String]$(switch("$env:computername" -ne ""){($true){"$env:computername"}($false){(& "hostname")}}).ToLower()); # provide unified lowercase ComputerName
+if( $null -eq (Get-Variable -Scope Global -ErrorAction SilentlyContinue -Name ComputerName) -or $null -eq $global:InfoLineColor ){ # check wether last variable already exists because reload safe
+  New-Variable -option Constant -Scope Global -name CurrentMonthAndWeekIsoString -Value ([String]((Get-Date -format "yyyy-MM-")+(Get-Date -uformat "W%V")));
+  New-Variable -option Constant -Scope Global -name InfoLineColor                -Value $(switch($Host.Name -eq "Windows PowerShell ISE Host"){($true){"Gray"}default{"White"}}); # ise is white so we need a contrast color
+  New-Variable -option Constant -Scope Global -name ComputerName                 -Value ([String]$(switch("$env:computername" -ne ""){($true){"$env:computername"}($false){(& "hostname")}}).ToLower()); # provide unified lowercase ComputerName
 }
 
 # Statement extensions
@@ -287,9 +287,7 @@ function StringSplitIntoLines                 ( [String] $s ){ return [String[]]
 function StringReplaceNewlines                ( [String] $s, [String] $repl = " " ){ return [String] $s.Replace("`r`n","`n").Replace("`r","`n").Replace("`n",$repl); }
 function StringSplitToArray                   ( [String] $sep, [String] $s, [Boolean] $removeEmptyEntries = $true ){ # works case sensitive
                                                 # this would not work correctly on PS5: return [String[]] $s.Split($sep,$(switch($removeEmptyEntries){($true){[System.StringSplitOptions]::RemoveEmptyEntries}default{[System.StringSplitOptions]::None}})); }
-                                                [String[]] $res = ($s -csplit $sep,0,"SimpleMatch");
-                                                $res = ($res | Where-Object{ (-not $removeEmptyEntries) -or $_ -ne "" });
-                                                return [String[]] (@()+$res); }
+                                                return [string[]] (@()+(($s -csplit [regex]::Escape($sep),0) | Where-Object{ $null -ne $_ } | Where-Object{ (-not $removeEmptyEntries) -or $_ -ne "" })); }
 function StringReplaceEmptyByTwoQuotes        ( [String] $str ){ return [String] $(switch((StringIsNullOrEmpty $str)){($true){"`"`""}default{$str}}); }
 function StringRemoveLeft                     ( [String] $str, [String] $strLeft , [Boolean] $ignoreCase = $true ){ [String] $s = (StringLeft $str $strLeft.Length);
                                                 return [String] $(switch(($ignoreCase -and $s -eq $strLeft ) -or $s -ceq $strLeft ){ ($true){$str.Substring($strLeft.Length,$str.Length-$strLeft.Length)} default{$str} }); }
@@ -452,8 +450,8 @@ function StdOutLine                           ( [String] $line ){ $Host.UI.Write
 function StdInWaitForAKey                     (){ StdInAssertAllowInteractions; $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") | Out-Null; } # does not work in powershell-ise, so in general do not use it, use StdInReadLine
 function ConsoleSetGuiProperties              (){ # set standard sizes which makes sense, display-hight 46 lines for HD with 125% zoom. It is performed only once per shell.
                                                 # On Ubuntu setting buffersize is not supported, so a warning is given out to verbose output.
-                                                if( -not [Boolean] (Get-Variable consoleSetGuiProperties_DoneOnce -Scope script -ErrorAction SilentlyContinue) ){
-                                                  $error.clear(); New-Variable -Scope script -name consoleSetGuiProperties_DoneOnce -value $false;
+                                                if( -not [Boolean] (Get-Variable "consoleSetGuiProperties_DoneOnce" -Scope Script -ErrorAction SilentlyContinue) ){
+                                                  $error.clear(); New-Variable -Scope Script -Name "consoleSetGuiProperties_DoneOnce" -Value $false;
                                                 }
                                                 if( $script:consoleSetGuiProperties_DoneOnce ){ return; }
                                                 [Object] $w = $Host.ui.RawUI;
@@ -613,9 +611,9 @@ function AssertRcIsOk                         ( [String[]] $linesToOutProgress =
                                                 }
                                                 throw [Exception] $msg; }
 function HelpHelp                             (){ Get-Help     | ForEach-Object{ OutProgressTitle $_; } }
-function HelpListOfAllVariables               (){ Get-Variable | Sort-Object Name | ForEach-Object{ OutProgressTitle "$($_.Name.PadRight(32)) $($_.Value)"; } } # Select-Object Name, Value | StreamToListString
-function HelpListOfAllAliases                 (){ Get-Alias    | Select-Object CommandType, Name, Version, Source | StreamToTableString | ForEach-Object{ OutProgressTitle $_; } }
-function HelpListOfAllCommands                (){ Get-Command  | Select-Object CommandType, Name, Version, Source | StreamToTableString | ForEach-Object{ OutProgressTitle $_; } }
+function HelpListOfAllVariables               (){ Get-Variable | Sort-Object Name | Select-Object Name, Value | ForEach-Object{ OutProgressTitle "$($_.Name.PadRight(40)) $($_.Value)"; } } # Select-Object Name, Value | StreamToListString
+function HelpListOfAllAliases                 (){ Get-Alias    | Sort-Object Name | Select-Object CommandType, Name, Definition, Options, Module, Version | StreamToTableString | ForEach-Object{ OutProgressTitle $_; } } # Visibility is always public
+function HelpListOfAllCommands                (){ Get-Command  | Sort-Object Name | Select-Object Name, CommandType, Version, Source | StreamToTableString | ForEach-Object{ OutProgressTitle $_; } }
 function HelpListOfAllModules                 (){ Get-Module -ListAvailable | Sort-Object Name | Select-Object Name, ModuleType, Version, ExportedCommands; } # depends on $env:PSModulePath
 function HelpListOfAllExportedCommands        (){ (Get-Module -ListAvailable).ExportedCommands.Values | Sort-Object Name | Select-Object Name, ModuleName; }
 function HelpGetType                          ( [Object] $obj ){ return [String] $obj.GetType(); }
@@ -1052,7 +1050,7 @@ function ProcessRemoveAllAlias                ( [String[]] $excludeAliasNames = 
                                                 #   PSAvoidUsingCmdletAliases 'cd' is an alias of 'Set-Location'. Alias can introduce possible problems and make scripts hard to maintain.
                                                 #   Please consider changing alias to its full content.
                                                 # All aliases can be listed by:
-                                                #   powershell -NoProfile { Get-Alias | Select-Object Name, Definition, Visibility, Options, Module | StreamToTableString }
+                                                #   powershell -NoProfile { Get-Alias | Select-Object Name, Definition, Options, Module | Format-Table -AutoSize }
                                                 # example: ProcessRemoveAllAlias @("cd","cat","clear","echo","dir","cp","mv","popd","pushd","rm","rmdir");
                                                 # example: ProcessRemoveAllAlias @("cd","cat","clear","echo","dir","cp","mv","popd","pushd","rm","rmdir","select","where","foreach");
                                                 $excludeAliasNames = @()+$excludeAliasNames;
@@ -2976,108 +2974,6 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #   Colors for Write-Output can be done as following but this is not multithreading safe.
 #   [ConsoleColor] $c = $host.UI.RawUI.ForegroundColor; $host.UI.RawUI.ForegroundColor = $color; Write-Output $line; $host.UI.RawUI.ForegroundColor = $c;
 # - Manifest .psd1 file can be created with: New-ModuleManifest MnCommonPsToolLib.psd1 -ModuleVersion "1.0" -Author "Marc Niederwieser"
-# - Known Bugs or Problems:
-#   - Powershell V2 Bug: checking strings for $null is different between if and switch tests:
-#     http://stackoverflow.com/questions/12839479/powershell-treats-empty-string-as-equivalent-to-null-in-switch-statements-but-no
-#   - Variable or function argument of type String is never $null, if $null is assigned then always empty is stored.
-#       [String] $s; $s = $null; Assert ($null -ne $s); Assert ($s -eq "");
-#     But if type String is within a struct then it can be null.
-#       Add-Type -TypeDefinition "public struct MyStruct {public string MyVar;}"; Assert( $null -eq (New-Object MyStruct).MyVar );
-#     And the string variable is null IF IT IS RUNNING IN A SCRIPT in ps5or7, if running interactive then it is not null:
-#       [String] $a = @() | Where-Object{ $false }; Write-Output "IsStringNull: $($null -eq $a)";
-#   - GetFullPath() works not with the current dir but with the working dir where powershell was started for example when running as administrator.
-#     http://stackoverflow.com/questions/4071775/why-is-powershell-resolving-paths-from-home-instead-of-the-current-directory/4072205
-#     powershell.exe         ;
-#                              Get-Location                                 # Example: $HOME
-#                              Write-Output hi > .\a.tmp   ;
-#                              [System.IO.Path]::GetFullPath(".\a.tmp")     # is correct "$HOME\a.tmp"
-#     powershell.exe as Admin;
-#                              Get-Location                                 # Example: C:\WINDOWS\System32
-#                              Set-Location $HOME;
-#                              [System.IO.Path]::GetFullPath(".\a.tmp")     # is wrong   "C:\WINDOWS\System32\a.tmp"
-#                              [System.IO.Directory]::GetCurrentDirectory() # is         "C:\WINDOWS\System32"
-#                              (get-location).Path                          # is         "$HOME"
-#                              Resolve-Path .\a.tmp                         # is correct "$HOME\a.tmp"
-#                              (Get-Item -Path ".\a.tmp" -Verbose).FullName # is correct "$HOME\a.tmp"
-#     Possible reasons: PS can have a regkey as current location. GetFullPath works with [System.IO.Directory]::GetCurrentDirectory().
-#     Recommendation: do not use [System.IO.Path]::GetFullPath, use Resolve-Path.
-#   - ForEach-Object iterates at lease once with $null in pipeline:
-#     see http://stackoverflow.com/questions/4356758/how-to-handle-null-in-the-pipeline
-#     $null | ForEach-Object{ Write-Output "ok reached, at least one iteration in pipeline with $null has been done." }
-#     But:  @() | ForEach-Object{ Write-Output "NOT OK, reached this unexpected." }
-#     Workaround if array variable can be null, then use:
-#       $null | Where-Object{$null -ne $_} | ForEach-Object{ Write-Output "NOT OK, reached this unexpected." }
-#     Alternative:
-#       $null | ForEach-Object -Begin{if($null -eq $_){continue}} -Process {do your stuff here}
-#     Recommendation: Pipelines which use only Select-Object, ForEach-Object and Sort-Object to produce a output for console or logfiles are ignorable
-#       but for others you should avoid side effects in pipelines by always using: |Where-Object{$null -ne $_}
-#   - Compare empty array with $null:
-#       [String[]] $a = @(); if( $a -is [String[]] ){ Write-Output "ok reached, var of expected type." };
-#       if(    $a.count -eq 0   ){        Write-Output "Ok reached, count can be used."; }
-#       if(      ($null -eq $a) ){;}else{ Write-Output "Ok reached, empty array is not a null array."; }
-#       if(      ($null -ne $a) ){        Write-Output "Ok reached, empty array is not a null array."; }
-#       if( -not ($null -eq $a) ){        Write-Output "Ok reached, empty array is not a null array."; }
-#       if( -not ($null -ne $a) ){        Write-Output "Ok reached, empty array is not a null array."; }
-#       [Boolean] $r = @() -eq $null; # this throws: Cannot convert value "System.Object[]" to type "System.Boolean"!
-#       Conclusion: This behaviour is an absolute DESIGN-ERROR, this makes it very hard to handle with empty or null arrays!
-#   - A powershell function returning an empty array is compatible with returning $null.
-#     But nevertheless it is essential wether it returns an empty array or null because
-#     when adding the result of the call to an empty array then it results in count =0 or =1.
-#     see https://stackoverflow.com/questions/18476634/powershell-doesnt-return-an-empty-array-as-an-array
-#       function ReturnEmptyArray(){ return [String[]] @(); }
-#       function ReturnNullArray(){ return [String[]] $null; }
-#       if( $null -eq (ReturnEmptyArray) ){ Write-Output "ok reached, function return empty array which is equal to null"; }
-#       if( $null -eq (ReturnNullArray)  ){ Write-Output "ok reached, function return null  array which is equal to null"; }
-#       if( (@()+(ReturnEmptyArray                          )).Count -eq 0 ){ Write-Output "ok reached, function return empty array which counts as 0"; }
-#       if( (@()+(ReturnNullArray                           )).Count -eq 1 ){ Write-Output "ok reached, function return null array which counts as one element"; }
-#       if( (@()+(ReturnNullArray|Where-Object{$null -ne $_})).Count -eq 0 ){ Write-Output "ok reached, function return null but converted to empty array"; }
-#     Recommendation: After a call of a function which returns an array then add an empty array.
-#       If its possible that a function can returns null instead of an empty array then also use (|Where-Object{$null -ne $_}).
-#       Never add null to an empty empty array a null array!
-#   - Empty array in pipeline is converted to $null:
-#       [String[]] $a = (([String[]]@()) | Where-Object{$null -ne $_});
-#       if( $null -eq $a ){ Write-Output "ok reached, var is null." };
-#     Recommendation: After pipelining add an empty array.
-#       [String[]] $a = (@()+(@()|Where-Object{$null -ne $_})); Assert ($null -ne $a);
-#   - Variable name conflict: ... | ForEach-Object{ [String[]] $a = $_; ... }; [Array] $a = ...;
-#     Can result in:  SessionStateUnauthorizedAccessException: Cannot overwrite variable a because the variable has been optimized.
-#       Try using the New-Variable or Set-Variable cmdlet (without any aliases),
-#       or dot-source the command that you are using to set the variable.
-#     Recommendation: Rename one of the variables.
-#   - Good behaviour: DotNet functions as Split() can return empty arrays instead of return $null:
-#       [String[]] $a = "".Split(";",[System.StringSplitOptions]::RemoveEmptyEntries); if( $a.Count -eq 0 ){ Write-Output "Ok, array-is-empty"; }
-#     But the PS5 version has a bug:
-#       [String] $s = "abc".Split("cx"); if( $s -eq "abc" ){ Write-Output "Ok, correct."; }else{ Write-Output "Result='$s' is wrong. We know it happens in PS5, Current-PS-Version: $($PSVersionTable.PSVersion.Major)"; }
-#   - Exceptions are always catched within Pipeline Expression statement and instead of expecting the throw it returns $null:
-#     [Object[]] $a = @( "a", "b" ) | Select-Object -Property @{Name="Field1";Expression={$_}} |
-#       Select-Object -Property Field1,
-#       @{Name="Field2";Expression={if($_.Field1 -eq "a" ){ "is_a"; }else{ throw [Exception] "This exc is ignored and instead of throwing up the stack the result of the Expression statement is $null."; } }};
-#     $a[0].Field2 -eq "is_a" -and $null -eq $a[1].Field2;  # this is true
-#     $a | ForEach-Object{ if( $null -eq $_.Field2 ){ throw [Exception] "Field2 is null"; } } # this does the throw
-#     Recommendation: After creation of the list do iterate through it and assert non-null values
-#       or redo the expression within a ForEach-Object loop to get correct throwed message.
-#   - String without comparison as condition:  Assert ( "anystring" ); Assert ( "$false" );
-#   - PS 5/7 is poisoning the current scope by its aliases. See also comments on: ProcessRemoveAllAlias.
-#     List all aliases by: alias; For example: Alias curl -> Invoke-WebRequest ; Alias wget -> Invoke-WebRequest ; Alias diff -> Compare-Object ;
-#     If we really want to call the curl executable than this is a mess.
-#     We strongly recommend to add to your ps5 $PROFILE (Example: $HOME\Documents\PowerShell\Microsoft.PowerShell_profile.ps1) at least the line:
-#       Remove-Item -Force "Alias:curl" -ErrorAction SilentlyContinue; Remove-Item -Force "Alias:wget" -ErrorAction SilentlyContinue;
-#     Alternative: If you want to use curl and have to bypass the curl alias you need to do the following:
-#     [String] $curlPath = "$(get-command -CommandType Application curl -ErrorAction SilentlyContinue | Select -First 1 | ForEach-Object{ $_.Source })";
-#   - Automatically added folders (2023-02):
-#     - ps7: %USERPROFILE%\Documents\PowerShell\Modules\         location for current users for any modules
-#     - ps5: %USERPROFILE%\Documents\WindowsPowerShell\Modules\  location for current users for any modules
-#     - ps7: %ProgramW6432%\PowerShell\Modules\                  location for all     users for any modules (ps7 and up, multiplatform)
-#     - ps7: %ProgramW6432%\powershell\7\Modules\                location for all     users for any modules (ps7 only  , multiplatform)
-#     - ps5: %ProgramW6432%\WindowsPowerShell\Modules\           location for all     users for any modules (ps5 and up) and             64bit environment (Example: "C:\Program Files")
-#     - ps5: %ProgramFiles(x86)%\WindowsPowerShell\Modules\      location for all     users for any modules (ps5 and up) and             32bit environment (Example: "C:\Program Files (x86")
-#     - ps5: %ProgramFiles%\WindowsPowerShell\Modules\           location for all     users for any modules (ps5 and up) and current 64/32 bit environment (Example: "C:\Program Files (x86)" or "C:\Program Files")
-#   - Not automatically added but currently strongly recommended additional folder:
-#     - %SystemRoot%\System32\WindowsPowerShell\v1.0\Modules\    location for windows modules for all users (ps5 and up)
-#       In future if ps7 can completely replace ps5 then we can remove this folder.
-#   - Type Mismatch: A function returns a string array: If it returns a single element (=string) then it does not return a string array but the string:
-#     function ReturnStringArrayWithOneString(){ return [String[]] @("abc"); } Assert (ReturnStringArrayWithOneString)[0] -eq "a";
-#     This is a design error, a string should not be given when we requested for a string array.
 # - Scopes for variables, aliases, functions and psdrives:
 #   - Local           : Current scope, is one of the other scopes: global, script, private, numbered scopes.
 #   - Global          : Active after first script start, includes automatic variables (http://ss64.com/ps/syntax-automatic-variables.html),
@@ -3092,7 +2988,7 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #     Typically, it includes all the aliases and variables that have the AllScope option,
 #     plus some variables that can be used to customize the scope, such as MaximumFunctionCount.
 #   Examples: $global:MyVar = "a1"; $script:MyVar = "a2"; $private:MyVar = "a3";
-#     function global:MyFunc(){..};  $local.MyVar = "a4"; $MyVar = "a5"; get-variable -scope global;
+#     function global:MyFunc(){..};  $local.MyVar = "a4"; $MyVar = "a5"; Get-Variable -Scope Global;
 # - Run a script:
 #   - runs script in script scope, variables and functions do not persists in shell after script end:
 #       ".\myscript.ps1"

@@ -26,6 +26,14 @@ function UnitTest_PsCommon(){
   [String[]] $a = $null; AssertIsFalse ( $null -ne $a );
   [String[]] $a = $null; Assert        ( $null -eq $a );
   #
+  # No element through pipelining results in null array
+  [String[]] $a = @() | Where-Object{ $false }; Assert ($null -eq $a);
+  #
+  # null in switch works ok if compared with string but not otherwise
+  [String] $s = ""   ; [String] $r = switch ($s){$null {"IS_NULL"} "" {"IS_EMPTY"}}; Assert ($r -eq "IS_EMPTY");
+  [String] $s = $null; [String] $r = switch ($s){$null {"IS_NULL"} "" {"IS_EMPTY"}}; Assert ($r -eq "IS_EMPTY");
+  [Object] $o = $null; [String] $r = switch ($o){$null {"IS_NULL"} "" {"IS_EMPTY"}}; Assert ($r -eq "IS_NULL IS_EMPTY"); # strange behaviour
+  #
   # within double quotes parameters are replaced.
   [String] $myvar = "abc"; Assert ( "$myvar".Length -eq 3 );
   Assert ( '$anyUnknownVar'.Length -gt 0 ); # within single quotes parameters were not replaced.
@@ -52,7 +60,7 @@ function UnitTest_PsCommon(){
   [Boolean] $isOk = $false;
   try{
     [Boolean] $r = "anystring"; # ArgumentTransformationMetadataException: Cannot convert value "System.String" to type "System.Boolean". Boolean parameters accept only Boolean values and numbers, such as $True, $False, 1 or 0.
-	OutVerbose "$r";
+	  OutVerbose "$r";
   }catch{ $isOk = $true; }
   if( -not $isOk ){
     OutVerbose "  IsInteractive=$(ScriptIsProbablyInteractive); Trap=Enabled; Note: Exception was not throwed and catch block not reached. We found out this happens in batch only for unknown reason. If runing interactive then works ok. Analyse it later.";
@@ -60,7 +68,7 @@ function UnitTest_PsCommon(){
   #
   # Check match
   Assert ("hello" -match "hallo|hello|hullo" -and -not ("hello" -match "hallo|xhello|hullo"));
-  #  
+  #
   # OutProgress "Test when ignoring traps";
   # for later:
   # trap [Exception] { OutVerbose "Ignored trap: $_"; continue; } # temporary ignore
