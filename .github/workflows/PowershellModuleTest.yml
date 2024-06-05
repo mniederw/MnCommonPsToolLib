@@ -158,7 +158,7 @@ jobs:
       - name: Assemble intermediate files into temp dir
         #if: ${{ ! success() }}
         run: |
-          mkdir --parents "${{RUNNER_TEMP}}/tmp"; echo "Example content." > "${{RUNNER_TEMP}}/tmp/Example.log";
+          mkdir --parents "$RUNNER_TEMP/tmp"; echo "Example content." > "$RUNNER_TEMP/tmp/Example.log";
 
       - name: Upload intermediate files as zip build artefact
         #if: ${{ ! success() }}
