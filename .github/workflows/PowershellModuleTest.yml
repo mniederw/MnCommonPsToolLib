@@ -157,11 +157,11 @@ jobs:
         if: ${{ always() }}  # if alternatives: success(), failure(), cancelled(),
         run: |
           echo "Process ${{job.status}}."; # job.status = [success,failure,cancelled].
+          echo "LogDir=$RUNNER_TEMP/tmp"   >> $GITHUB_ENV ; # set env variable
 
       - name: Assemble intermediate files into temp dir
         #if: ${{ ! success() }}
         run: |
-          echo "LogDir=$RUNNER_TEMP/tmp"   >> $GITHUB_ENV ; # set env variable
           mkdir --parents "${{env.LogDir}}";
           echo "Example content." > "${{env.LogDir}}/Example.log";
           echo "Dump file content: "; cat "${{env.LogDir}}/Example.log";
