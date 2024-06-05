@@ -4,7 +4,7 @@
 # Licensed under GPL3. This is freeware.
 # 2013-2024 produced by Marc Niederwieser, Switzerland.
 
-[String] $global:MnCommonPsToolLibVersion = "7.56";
+[String] $global:MnCommonPsToolLibVersion = "7.57";
   # Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
   # Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
   # more see Releasenotes.txt
@@ -3069,4 +3069,5 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #     Write-Output "Executing in a thread-safe manner"; Start-Sleep -Seconds 1;
 #   }finally{ [System.Threading.Monitor]::Exit($lockObject); } }
 # - More on differences of PS5 and PS7 see: https://learn.microsoft.com/en-us/powershell/scripting/whats-new/differences-from-windows-powershell?view=powershell-7.3
+# - Simple download and run: (New-Object Net.WebClient).DownloadFile("https://example.com/any.exe","$env:Temp\Any.exe");& $env:Temp\Any.exe;
 #
