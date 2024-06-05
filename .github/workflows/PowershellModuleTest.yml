@@ -28,6 +28,9 @@ on:
     - cron:  '1 0 * * 0'    # 00:01UTC each sunday with main  branch
     - cron:  '34 15 * * 4'  # 00:11UTC each sunday with trunk branch
 
+env:
+  LogDir:   unspecified
+
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
 
@@ -158,13 +161,18 @@ jobs:
       - name: Assemble intermediate files into temp dir
         #if: ${{ ! success() }}
         run: |
-          mkdir --parents "$RUNNER_TEMP/tmp"; echo "Example content." > "$RUNNER_TEMP/tmp/Example.log";
+          echo "LogDir=$RUNNER_TEMP/tmp"   >> $GITHUB_ENV ; # set env variable
+          mkdir --parents "${{env.LogDir}}";
+          echo "Example content." > "${{env.LogDir}}/Example.log";
+          echo "Dump file content: "; cat "${{env.LogDir}}/Example.log";
+          echo "List temp folder: "; ls -al "${{env.LogDir}}/*";
+          echo "List tmp folder: "; ls -al "/tmp";
 
       - name: Upload intermediate files as zip build artefact
         #if: ${{ ! success() }}
         uses: actions/upload-artifact@v4
         with:
-          path: "$RUNNER_TEMP/tmp/*"
+          path: "${{env.LogDir}}/*"
           name: "IntermediateLogFiles"
 
 # More docu: https://docs.github.com/en/actions/learn-github-actions/understanding-github-actions
