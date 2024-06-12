@@ -54,7 +54,7 @@ function UnitTest_Win_Tool(){
   #                                          # Example: ToolSetAssocFileExtToCmd ".log"           "%SystemRoot%\System32\notepad.exe" "txtfile";
   #                                          # Example: ToolSetAssocFileExtToCmd ".out"           "`"C:\Any.exe`" `"%1`" -xy";
   #                                          # Example: ToolSetAssocFileExtToCmd ".out" "";
-  Assert         (((ToolVs2019UserFolderGetLatestUsed) -eq "") -or ((ToolVs2019UserFolderGetLatestUsed).Contains("\\AppData\\Local\\Microsoft\\VisualStudio\\16.0")));
+  Assert         (((ToolVsUserFolderGetLatestUsed) -eq "") -or ((ToolVsUserFolderGetLatestUsed).Contains("\AppData\Local\Microsoft\VisualStudio\16.0")) -or ((ToolVsUserFolderGetLatestUsed).Contains("\AppData\Local\Microsoft\VisualStudio\17.0")));
   #   ToolOsWindowsResetSystemFileIntegrity(){ # uses about 4 min
   #   ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $url, [Boolean] $requireElevatedAdminMode = $false,
   #                                            [Boolean] $doWaitIfFailed = $false, [String] $additionalOkUpdMsg = "",
