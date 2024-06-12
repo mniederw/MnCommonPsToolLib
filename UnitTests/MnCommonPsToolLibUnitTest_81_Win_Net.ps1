@@ -11,12 +11,12 @@ function UnitTest_Win_Net(){
     NetGetIpConfig    | StreamToTableString | StreamToStringIndented;
   }catch{
     # On github windows we got: CommandNotFoundException: The term 'select' is not recognized as a name of a cmdlet, function, script file, or executable program. Check the spelling of the name, or if a path was included, verify that the path is correct and try again.
-    if( $_.Exception.Message.Contains("The term 'select' is not recognized") ){ OutWarning "Warning: Ignoring (known on github): $_ "; }else{ throw; }
+    if( $_.Exception.Message.Contains("The term 'select' is not recognized") ){ OutProgress "Warning: Ignoring (known on github and sometimes locally on windows10): $_ "; }else{ throw; }
   }
   try{
     OutProgress "NetGetIpAddress:"   ; NetGetIpAddress   | StreamToTableString | StreamToStringIndented;
   }catch{
-    OutWarning "Warning: Ignoring (known on github): $_ ";
+    OutProgress "Warning: Ignoring (known on github and sometimes locally on windows10): $_ ";
   }
   OutProgress "NetGetNetView: "; NetGetNetView;
   OutProgress "NetGetNetStat: "; Assert ((NetGetNetStat).Count -gt 2);
