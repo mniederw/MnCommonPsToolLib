@@ -2013,12 +2013,13 @@ function ToolSetAssocFileExtToCmd             ( [String[]] $fileExtensions, [Str
                                                     OutProgress "SetFileAssociation ext=$($ext.PadRight(6)) ftype=$($ft.PadRight(20)) cmd=$exec";
                                                   }
                                                 }; }
-function ToolVs2019UserFolderGetLatestUsed    (){
-                                                # return the current visual studio 2019 config folder or empty string if it not exits.
+function ToolVsUserFolderGetLatestUsed        (){
+                                                # return the current user config folder of visual studio 2022 or 2019 or empty string if it not exits.
                                                 # example: "$env:LOCALAPPDATA\Microsoft\VisualStudio\16.0_d70392ef\"
                                                 [String] $result = "";
                                                 # we internally locate the private registry file used by vs2019, later maybe we use https://github.com/microsoft/vswhere
-                                                [String[]] $a = (@()+(FsEntryListAsStringArray "$env:LOCALAPPDATA\Microsoft\VisualStudio\16.0_*\privateregistry.bin" $false $false));
+                                                [String[]] $a  = (@()+(FsEntryListAsStringArray "$env:LOCALAPPDATA\Microsoft\VisualStudio\17.0_*\privateregistry.bin" $false $false));
+                                                           $a += (@()+(FsEntryListAsStringArray "$env:LOCALAPPDATA\Microsoft\VisualStudio\16.0_*\privateregistry.bin" $false $false));
                                                 if( $a.Count -gt 0 ){
                                                   $result = $a[0];
                                                   $a | Select-Object -Skip 1 | ForEach-Object { if( FileExistsAndIsNewer $_ $result ){ $result = $_; } }
@@ -2304,3 +2305,5 @@ function MnCommonPsToolLibSelfUpdate          (){
                                                 [String]  $url         = "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/master/$moduleName/${moduleName}_Windows.ps1";
                                                 ToolPerformFileUpdateAndIsActualized $modFile $url $requireElevatedAdminMode $doWaitIfFailed $additionalOkUpdMsg $assertFilePreviouslyExists $performPing | Out-Null;
                                                 }
+
+function ToolVs2019UserFolderGetLatestUsed    (){ OutWarning "ToolVs2019UserFolderGetLatestUsed is DEPRECATED, replace it now by: ToolVsUserFolderGetLatestUsed "; return (ToolVsUserFolderGetLatestUsed); }

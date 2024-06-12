@@ -25,7 +25,7 @@ on:
     #   increment with slash after min10 each 5 min (10/5); shortes are 5 minutes; in UTC;
     #   https://docs.github.com/en/actions/using-workflows/events-that-trigger-workflows#schedule
     #   (00:01GMT+0 means at: 01:01GMT+1 wintertime, 02:01GMT+2 daylight-saving-time)
-    - cron:  '1 0 * * 0'    # 00:01UTC each sunday with main  branch
+    - cron:  '01 00 * * 0'  # 00:01UTC each sunday with main  branch
     - cron:  '34 15 * * 4'  # 00:11UTC each sunday with trunk branch
 
 env:
@@ -165,7 +165,7 @@ jobs:
           mkdir --parents "${{env.LogDir}}";
           echo "Example content." > "${{env.LogDir}}/Example.log";
           echo "Dump file content: "; cat "${{env.LogDir}}/Example.log";
-          echo "List temp folder: "; ls -al "${{env.LogDir}}/*";
+          echo "List temp logdir folder: "; ls -al "${{env.LogDir}}";
           echo "List tmp folder: "; ls -al "/tmp";
 
       - name: Upload intermediate files as zip build artefact
