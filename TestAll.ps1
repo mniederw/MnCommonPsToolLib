@@ -62,6 +62,7 @@ Write-Output "----- List commands grouped by modules ----- ";
   Get-Command -Module * | Group Module;
 Write-Output "----- List all currently used modules ----- ";
   Get-Module -All; # all currently used
+Write-Output "----- end-of-list ----- ";
 Write-Output "Set repository PSGallery to trusted: ";
   Set-PSRepository PSGallery -InstallationPolicy Trusted;
   Write-Output "Install and import from PSGallery used modules in user scope: ";
