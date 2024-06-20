@@ -4,7 +4,7 @@
 # Licensed under GPL3. This is freeware.
 # 2013-2024 produced by Marc Niederwieser, Switzerland.
 
-[String] $global:MnCommonPsToolLibVersion = "7.57";
+[String] $global:MnCommonPsToolLibVersion = "7.58";
   # Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
   # Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
   # more see Releasenotes.txt
@@ -2372,6 +2372,9 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   [String] $currentBranch = (GitShowBranch $dir);
                                                   if( $currentBranch -ne $branch ){ throw [Exception] "$cmd $urlAndOptionalBranch to target `"$dir`" containing branch $currentBranch is denied because expected branch $branch. Before retry perform: GitSwitch `"$dir`" $branch;"; }
                                                 }
+                                                if( $cmd -eq "Pull" ){
+                                                  # TODO: assert $url is current upstream
+                                                }
                                                 try{
                                                   [Object] $usedTime = [System.Diagnostics.Stopwatch]::StartNew();
                                                   [String[]] $gitArgs = @();
@@ -2386,7 +2389,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                     if( $branch -ne "" ){ $gitArgs += @( $branch ); }
                                                   }elseif( $cmd -eq "Pull" ){
                                                     # Defaults: "origin";
-                                                    $gitArgs = @( "-C", $dir, "--git-dir=.git", "pull", "--quiet", "--no-stat", "--no-rebase", $url);
+                                                    $gitArgs = @( "-C", $dir, "--git-dir=.git", "pull", "--quiet", "--no-stat", "--no-rebase", "origin");
                                                     if( $branch -ne "" ){ $gitArgs += @( $branch ); }
                                                   }elseif( $cmd -eq "Revert" ){
                                                     GitCmd "Fetch" $tarRootDir $urlAndOptionalBranch $errorAsWarning;
@@ -2394,7 +2397,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                     # if( $branch -ne "" ){ $gitArgs += @( $branch ); }
                                                   }else{ throw [Exception] "Unknown git cmd=`"$cmd`""; }
                                                   FileAppendLineWithTs $gitLogFile "GitCmd(`"$tarRootDir`",$urlAndOptionalBranch) git $(StringArrayDblQuoteItems $gitArgs)";
-                                                  # Example: "git" "-C" "$env:TEMP/tmp/mniederw/myrepo" "--git-dir=.git" "pull" "--quiet" "--no-stat" "--no-rebase" "https://github.com/mniederw/myrepo"
+                                                  # Example: "git" "-C" "$env:TEMP/tmp/mniederw/myrepo" "--git-dir=.git" "pull" "--quiet" "--no-stat" "--no-rebase" "origin"
                                                   # Example: "git" "clone" "--quiet" "--branch" "MyBranch" "--" "https://github.com/mniederw/myrepo" "$env:TEMP/tmp/mniederw/myrepo#MyBranch"
                                                   # TODO middle prio: check env param pull.rebase and think about display and usage
                                                   [String] $out = (ProcessStart "git" $gitArgs -careStdErrAsOut:$true -traceCmd:$true);
