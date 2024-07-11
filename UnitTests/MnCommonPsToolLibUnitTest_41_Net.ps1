@@ -4,6 +4,7 @@ Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version
 
 function UnitTest_Net(){
   OutProgress (ScriptGetCurrentFuncName);
+  Assert ((NetConvertMacToIPv6byEUI64 "00:1A:2B:3C:4D:5E") -eq "fe80::021a:2bff:fe3c:4d5e");
   #
   # TODO: NetExtractHostName                   ( [String] $url ){ return [String] ([System.Uri]$url).Host; }
   # TODO: NetUrlUnescape                       ( [String] $url ){ return [String] [uri]::UnescapeDataString($url); } # convert for example %20 to blank.

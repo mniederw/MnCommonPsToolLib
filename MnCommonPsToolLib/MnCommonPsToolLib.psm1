@@ -4,7 +4,7 @@
 # Licensed under GPL3. This is freeware.
 # 2013-2024 produced by Marc Niederwieser, Switzerland.
 
-[String] $global:MnCommonPsToolLibVersion = "7.58";
+[String] $global:MnCommonPsToolLibVersion = "7.59";
   # Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
   # Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
   # more see Releasenotes.txt
@@ -145,7 +145,10 @@ GlobalVariablesInit;
 
 # Import type and function definitions
 Add-Type -Name Window -Namespace Console -MemberDefinition '[DllImport("Kernel32.dll")] public static extern IntPtr GetConsoleWindow(); [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, Int32 nCmdShow);';
+# Function: [Window]::GetWindowRect ; Function: [Window]::MoveWindow ; Type: RECT ;
 Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class Window { [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect); [DllImport("User32.dll")] public extern static bool MoveWindow(IntPtr handle, int x, int y, int width, int height, bool redraw); } public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }';
+# Type: ServerCertificateValidationCallback ;
+Add-Type -TypeDefinition "using System;using System.Net;using System.Net.Security;using System.Security.Cryptography.X509Certificates; public class ServerCertificateValidationCallback { public static void Ignore() { ServicePointManager.ServerCertificateValidationCallback += delegate( Object obj, X509Certificate certificate, X509Chain chain, SslPolicyErrors errors ){ return true; }; } } ";
 Add-Type -WarningAction SilentlyContinue -TypeDefinition "using System; public class ExcMsg : Exception { public ExcMsg(String s):base(s){} } ";
   # Used for error messages which have a text which will be exact enough so no additionally information as stackdump or data are nessessary. Is handled in our StdErrHandleExc.
   # Note: we need to suppress the warning: The generated type defines no public methods or properties
@@ -314,19 +317,19 @@ function StringArrayIsEqual                   ( [String[]] $a, [String[]] $b, [B
                                                 } return [Boolean] $true; }
 function StringArrayDblQuoteItems             ( [String[]] $a ){ # surround each item by double quotes
                                                 return [String[]] (@()+($a | Where-Object{$null -ne $_} | ForEach-Object { "`"$_`"" })); }
-                                                function StringNormalizeAsVersion             ( [String] $versionString ){
-                                                  # For comparison the first 4 dot separated parts are cared and the rest after a blank is ignored.
-                                                  # Each component which begins with a digit is filled with leading zeros to a length of 5
-                                                  # A leading "V" or "v" is optional and will be removed.
-                                                  # Example: "12.3.40" => "00012.00003.00040"; "12.20" => "00012.00002"; "12.3.beta.40.5 descrtext" => "00012.00003.beta.00040";
-                                                  #     "V12.3" => "00012.00003"; "v12.3" => "00012.00003"; "" => ""; "a" => "a"; " b" => "";
-                                                  return [String] ( ( (StringSplitToArray "." (@()+(StringSplitToArray " " (StringRemoveLeft $versionString "V") $false))[0]) |
-                                                    Select-Object -First 4 |
-                                                    ForEach-Object{ if( $_ -match "^[0-9].*$" ){ $_.PadLeft(5,'0') }else{ $_ } }) -join "."); }
-  function StringCompareVersionIsMinimum        ( [String] $version, [String] $minVersion ){
-                                                  # Return true if version is equal of higher than a given minimum version (also see StringNormalizeAsVersion).
-                                                  return [Boolean] ((StringNormalizeAsVersion $version) -ge (StringNormalizeAsVersion $minVersion)); }
-  function StringFromException                  ( [Exception] $exc ){
+function StringNormalizeAsVersion             ( [String] $versionString ){
+                                                # For comparison the first 4 dot separated parts are cared and the rest after a blank is ignored.
+                                                # Each component which begins with a digit is filled with leading zeros to a length of 5
+                                                # A leading "V" or "v" is optional and will be removed.
+                                                # Example: "12.3.40" => "00012.00003.00040"; "12.20" => "00012.00002"; "12.3.beta.40.5 descrtext" => "00012.00003.beta.00040";
+                                                #     "V12.3" => "00012.00003"; "v12.3" => "00012.00003"; "" => ""; "a" => "a"; " b" => "";
+                                                return [String] ( ( (StringSplitToArray "." (@()+(StringSplitToArray " " (StringRemoveLeft $versionString "V") $false))[0]) |
+                                                  Select-Object -First 4 |
+                                                  ForEach-Object{ if( $_ -match "^[0-9].*$" ){ $_.PadLeft(5,'0') }else{ $_ } }) -join "."); }
+function StringCompareVersionIsMinimum        ( [String] $version, [String] $minVersion ){
+                                                # Return true if version is equal of higher than a given minimum version (also see StringNormalizeAsVersion).
+                                                return [Boolean] ((StringNormalizeAsVersion $version) -ge (StringNormalizeAsVersion $minVersion)); }
+function StringFromException                  ( [Exception] $exc ){
                                                 # Return full info of exception inclusive data and stacktrace, it can contain newlines.
                                                 # Use this if $_ which is equal to $_.Exception.Message is not enough.
                                                 # Usage: in catch block call it with $_.Exception
@@ -1763,6 +1766,21 @@ function CredentialGetAndStoreIfNotExists     ( [String] $secureCredentialFile, 
                                                 return [System.Management.Automation.PSCredential] $cred; }
 function NetExtractHostName                   ( [String] $url ){ return [String] ([System.Uri]$url).Host; }
 function NetUrlUnescape                       ( [String] $url ){ return [String] [uri]::UnescapeDataString($url); } # convert for example %20 to blank.
+function NetConvertMacToIPv6byEUI64           ( [String] $macAddress ){
+                                                # Convert a MAC address to IPv6 link-local address according to https://de.wikipedia.org/wiki/EUI-64
+                                                # For example for input "00:1A:2B:3C:4D:5E" it results with: "fe80::021a:2bff:fe3c:4d5e".
+                                                if( $macAddress -notmatch '^([0-9A-Fa-f]{2}[:-]){5}([0-9A-Fa-f]{2})$' ){
+                                                  throw [Exception] "Invalid MAC address format, expected format XX:XX:XX:XX:XX:XX or XX-XX-XX-XX-XX-XX";
+                                                }
+                                                [String] $mac = $macAddress.ToLower() -replace '[:-]',''; # remove all separators
+                                                [String[]] $macBytes = $mac -split '(.{2})' | Where-Object { $_ -ne '' }; # split into two-char segments
+                                                # Convert the first byte to an integer and toggle the 7th bit
+                                                [Int32] $firstByte = [Convert]::ToInt32($macBytes[0],16) -bxor 2;
+                                                $macBytes[0] = "{0:X2}" -f $firstByte;
+                                                # Insert the fixed FFFE in the middle to form the EUI-64 identifier
+                                                [String[]] $eui64 = $macBytes[0..2] + "ff" + "fe" + $macBytes[3..5];
+                                                return [String] ("fe80::" + ($eui64[0..1] -join '') + ':' + ($eui64[2..3] -join '') + ':' + ($eui64[4..5] -join '') + ':' + ($eui64[6..7] -join ''));
+                                              }
 function NetAdapterGetConnectionStatusName    ( [Int32] $netConnectionStatusNr ){
                                                 return [String] $(switch($netConnectionStatusNr){
                                                   0{"Disconnected"}
@@ -1788,8 +1806,6 @@ function NetPingHostIsConnectable             ( [String] $hostName, [Boolean] $d
                                                 try{ [System.Net.Dns]::GetHostByName($hostName); }catch{ OutVerbose "Ignoring GetHostByName($hostName) failed because $($_.Exception.Message)"; }
                                                 # nslookup $hostName -ErrorAction SilentlyContinue | out-null;
                                                 return [Boolean] (Test-Connection -ComputerName $hostName -BufferSize 16 -Count 1 -ErrorAction SilentlyContinue -quiet); }
-# Type: ServerCertificateValidationCallback
-Add-Type -TypeDefinition "using System;using System.Net;using System.Net.Security;using System.Security.Cryptography.X509Certificates; public class ServerCertificateValidationCallback { public static void Ignore() { ServicePointManager.ServerCertificateValidationCallback += delegate( Object obj, X509Certificate certificate, X509Chain chain, SslPolicyErrors errors ){ return true; }; } } ";
 function NetWebRequestLastModifiedFailSafe    ( [String] $url ){ # Requests metadata from a downloadable file. Return DateTime.MaxValue in case of any problem
                                                 [net.WebResponse] $resp = $null;
                                                 try{
@@ -3073,4 +3089,3 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #   }finally{ [System.Threading.Monitor]::Exit($lockObject); } }
 # - More on differences of PS5 and PS7 see: https://learn.microsoft.com/en-us/powershell/scripting/whats-new/differences-from-windows-powershell?view=powershell-7.3
 # - Simple download and run: (New-Object Net.WebClient).DownloadFile("https://example.com/any.exe","$env:Temp\Any.exe");& $env:Temp\Any.exe;
-#
