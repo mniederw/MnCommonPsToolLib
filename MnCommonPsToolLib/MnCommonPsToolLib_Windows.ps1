@@ -1,5 +1,7 @@
 ﻿# Extension of MnCommonPsToolLib.psm1 - Common powershell tool library - Parts for windows only
 
+if( [System.Environment]::OSVersion.Platform -ne "Win32NT" ){ OutVerbose "$PSScriptRoot : Not Running on windows"; [Environment]::Exit("0"); }
+
 # Import some modules (because it is more performant to do it once than doing this in each function using methods of this module).
 # Note: for example on "Windows Server 2008 R2" we currently are missing these modules
 #   but we ignore the errors because it its enough if the functions which uses these modules will fail.

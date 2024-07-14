@@ -3,17 +3,13 @@
 # Published at: https://github.com/mniederw/MnCommonPsToolLib
 # Licensed under GPL3. This is freeware.
 # 2013-2024 produced by Marc Niederwieser, Switzerland.
-
-[String] $global:MnCommonPsToolLibVersion = "7.59";
-  # Own version variable because manifest can not be embedded into the module itself only by a separate file which is a lack.
-  # Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
-  # more see Releasenotes.txt
-
-# This library encapsulates many common commands for the purpose of supporting compatibility between
-# multi platforms, simplifying commands, fixing usual problems, supporting tracing information,
-# making behaviour compatible for usage with powershell.exe and powershell_ise.exe and acts as documentation.
-# It is splitted in a mulitplatform compatible part and a part which runs only on Windows.
-# Some functions depends on that its subtools as git, svn, etc. are available via path variable.
+# For Version see .psd1 manifest file.
+# Description:
+#   This library encapsulates many common commands for the purpose of supporting compatibility between
+#   multi platforms, simplifying commands, fixing usual problems, supporting tracing information,
+#   making behaviour compatible for usage with powershell.exe and powershell_ise.exe and acts as documentation.
+#   It is splitted in a mulitplatform compatible part and a part which runs only on Windows.
+#   Some functions depends on that its subtools as git, svn, etc. are available via path variable.
 #
 # Recommendations and notes about common approaches of this library:
 # - Unit-Tests: Many functions are included and they are run either
@@ -38,7 +34,13 @@
 #   because for arrays this is mandatory (throws: @() -eq $null)
 # - Null Arrays: All powershell function returning an array should always return an empty array instead of null
 #   for avoiding counting null as one element when added to an empty array.
+# - Module versions: Major version changes will reflect breaking changes and minor identifies extensions and third number are for urgent bugfixes.
 # - More: Powershell useful knowledge and additional documentation see bottom of MnCommonPsToolLib.psm1
+#
+# Recommendations for environment:
+# - We recommend english error messages and make sure the commands curl and wget are not redirected by aliases (from microsoft)
+# - [System.Threading.Thread]::CurrentThread.CurrentUICulture = [System.Globalization.CultureInfo]::GetCultureInfo('en-US');  # create english error messages.
+# - Remove-Item -Force Alias:curl -ErrorAction SilentlyContinue; Remove-Item -Force Alias:wget -ErrorAction SilentlyContinue; # remove at least aliases: curl, wget.
 #
 # Recommendations for windows environment:
 # - Use UTF-8 not Win1252 as standard, for example we use the following line in a startup and profile script file:

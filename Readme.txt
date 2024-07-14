@@ -19,35 +19,36 @@ Description
 -----------
 
 This command line library encapsulates many common powershell functions for the purpose of:
-  - support multi platform compatibility (Windows, Linux and OSX)
-  - simplify command
-  - fix usual problems
-  - support trace information for source management systems (git,svn,tfs)
-  - make behaviour compatible for usage with pwsh, powershell.exe and powershell_ise.exe
+  - supports multi platform compatibility (Windows, Linux and OSX)
+    It is splitted in two parts: a mulitplatform compatible part and a Windows-only part
+  - simplifys command
+  - fixes usual problems
+  - supports trace information on functions which make use of source management systems (git,svn,tfs)
+  - makes behaviour compatible for usage with pwsh, powershell.exe and powershell_ise.exe
   - acts as documentation
-It is splitted in two parts:
-  - a mulitplatform compatible part
-  - a Windows-only part
-Specified Functions will work only if their tools as git, svn, etc. are installed and are available via path variable.
+  - encapsulates some external tools as git, svn, etc. which of course will work only 
+    if their tools are installed and are available via path variable.
 
 Installation:
 -------------
 
-- Install powershell 7 and on Windows call InstallEnablePowerShellToUnrestrictedRequiresAdminRights.bat
-- Clone or Download zip file and extract it
+- Install powershell 7 and on Windows call InstallEnablePowerShellToUnrestrictedRequiresAdminRights.bat (run as admin)
+- Clone or Download zip file of this repository and extract it
 - Run:   pwsh Install.ps1   and select menu item I=Install
 - On Windows it installs it system-wide for all users and on linux/osx installs it for local user.
 - Afterwards call pwsh and use any funtion of the library for example: OutProgressTitle "Hello world";
+- Later Update: Either repeat installation steps or run:
+  Import-Module MnCommonPsToolLib; MnCommonPsToolLibSelfUpdate;
 
 Example usages of this module in a .ps1 script:
 -----------------------------------------------
-     # Simple example for using MnCommonPsToolLib
-     Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1";
-     Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
-     OutProgressTitle "Hello world";
-     OutProgress "Working";
-     StdInReadLine "Press Enter to exit.";
-     # More examples see: https://github.com/mniederw/MnCommonPsToolLib/tree/main/Examples
+  # Simple example for using MnCommonPsToolLib
+  Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1";
+  Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
+  OutProgressTitle "Hello world";
+  OutProgress "Working";
+  StdInReadLine "Press Enter to exit.";
+  # More examples see: https://github.com/mniederw/MnCommonPsToolLib/tree/main/Examples
 
 Files of this repository:
 -------------------------
@@ -59,27 +60,29 @@ Files of this repository:
   powershell script files. If your powershell is already configured so that you can run scripts,
   then you can perform these actions also with the Install.ps1.
 
-- MnCommonPsToolLib\MnCommonPsToolLib.psm1 :
-  This is the single powershell module file, which must be located in a folder
-  with the same name under a folder from PsModulePath to be auto loadable.
+- MnCommonPsToolLib/
+  - MnCommonPsToolLib.psm1        : This is the single powershell module file, which must be located in a folder
+                                    with the same name under a folder from PsModulePath to be auto loadable.
+                                    If it is running on windows then it also imports the windows part file.
+  - MnCommonPsToolLib_Windows.ps1 : The windows parts imported by the main module file.
+  - MnCommonPsToolLib.psd1        : PS module manifest file which contains metadata as version and author
+                                    and it contains releasenotes for last and previously released versions.
 
 - Install.ps1      : Menu script to easy install or uninstall this powershell module and set ps execution mode.
 
 - LICENSE_GPL3.txt : Standard License file.
 
-- Releasenotes.txt : Releasenotes for last and previously released versions.
-
-- Examples\*.ps1   : Examples to show some usages of this library.
+- Examples/*.ps1   : Examples to show some usages of this library.
                      All these files can simply be executed by doubleclicking them.
 
-- UnitTests\*.ps1  : Tests some main functions of this library.
+- UnitTests/*.ps1  : Tests some main functions of this library.
                      Is also contains the starter for script-analyser to check syntax of all ps1 files.
                      All these files can simply be executed by doubleclicking them.
 
 - .gitignore       : File patterns, which files should be ignored for all git commands.
 
 - .github          : Github workflow configuration which runs on push
-                     all examples and unit tests by pwsh (powershell 7.2).
+                     all examples and unit tests by pwsh (powershell 7).
 
 All files except BAT files are stored in UTF8-BOM.
 
