@@ -25,9 +25,9 @@
       Tags                       = @( 'MN', 'Common', 'Tool', 'Library', 'multiplatform' )
       LicenseUri                 = 'https://github.com/mniederw/MnCommonPsToolLib/blob/main/LICENSE_GPL3.txt'
       ProjectUri                 = 'https://github.com/mniederw/MnCommonPsToolLib'
-      ReleaseNotes               = 'https://github.com/mniederw/MnCommonPsToolLib/blob/main/Releasenotes.txt'
       RequireLicenseAcceptance   = $false
       ExternalModuleDependencies = @()
+      ReleaseNotes               = ''
       IconUri                    = ''
       Prerelease                 = ''
     }
