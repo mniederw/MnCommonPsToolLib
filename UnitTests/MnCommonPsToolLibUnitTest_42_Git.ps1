@@ -27,7 +27,7 @@ function UnitTest_Git(){
   Assert ((StringMakeNonNull (GitShowChanges $repoDir)) -eq "");
   Assert (GitBranchList $repoDir).Contains("origin/trunk");
   GitSwitch $repoDir "trunk";
-  GitAdd "$repoDir/Releasenotes.txt";
+  GitAdd "$repoDir/Readme.txt";
   try{
     GitMerge $repoDir "main";
   }catch{
