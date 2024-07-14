@@ -86,7 +86,7 @@ Write-Output "Extend PSModulePath by PSScriptRoot";
 Write-Output "Load our library: MnCommonPsToolLib.psm1";
 Import-Module "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 
-OutProgress "Show MnCommonPsToolLibVersion: $Global:MnCommonPsToolLibVersion"; # Example: "7.47"
+OutProgress "Show MnCommonPsToolLibVersion: $((Get-Module -Name MnCommonPsToolLib -ListAvailable).Version)"; # Example: "7.60"
 OutProgress "Show OsPsVersion             : $(OsPsVersion)";                   # Example: "7.4"
 OutProgress "Show Powershell Version      : $($Host.Version.ToString())";      # Example: "7.4.1"
 
