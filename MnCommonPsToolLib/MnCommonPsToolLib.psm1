@@ -1776,7 +1776,7 @@ function NetConvertMacToIPv6byEUI64           ( [String] $macAddress ){
                                                 }
                                                 [String] $mac = $macAddress.ToLower() -replace '[:-]',''; # remove all separators
                                                 [String[]] $macBytes = $mac -split '(.{2})' | Where-Object { $_ -ne '' }; # split into two-char segments
-                                                # Convert the first byte to an integer and toggle the 7th bit
+                                                # Convert the first byte to an integer and toggle the 7th bit (locally administered)
                                                 [Int32] $firstByte = [Convert]::ToInt32($macBytes[0],16) -bxor 2;
                                                 $macBytes[0] = "{0:X2}" -f $firstByte;
                                                 # Insert the fixed FFFE in the middle to form the EUI-64 identifier

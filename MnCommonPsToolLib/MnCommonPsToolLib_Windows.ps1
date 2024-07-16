@@ -2109,10 +2109,12 @@ function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $
                                                   [String] $tmp = (FileGetTempFile); NetDownloadFile $url $tmp;
                                                   OutProgress "Checking for differences.";
                                                   if( $targetFileExists -and $hashInstalled -eq (FileGetHexStringOfHash512BitsSha2 $tmp) ){
+                                                    FileDelete $tmp;
                                                     OutProgress "Ok, is up to date, nothing done.";
                                                   }else{
                                                     OutProgress "There are changes between the current file and the downloaded file, so overwrite it.";
                                                     if( $requireElevatedAdminMode ){
+                                                      if( -not (ProcessIsRunningInElevatedAdminMode) ){ FileDelete $tmp; }
                                                       ProcessRestartInElevatedAdminMode;
                                                       OutProgress "Is running in elevated admin mode.";
                                                     }
@@ -2299,13 +2301,18 @@ function MnCommonPsToolLibSelfUpdate          (){
                                                   return;
                                                 }
                                                 #
-                                                [String]  $modFile     = "$tarRootDir/$moduleName/${moduleName}.psm1";
-                                                [String]  $url         = "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/master/$moduleName/${moduleName}.psm1";
+                                                [String]  $modFile = "$tarRootDir/$moduleName/${moduleName}.psm1";
+                                                [String]  $url     = "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/master/$moduleName/${moduleName}.psm1";
                                                 ToolPerformFileUpdateAndIsActualized $modFile $url $requireElevatedAdminMode $doWaitIfFailed $additionalOkUpdMsg $assertFilePreviouslyExists $performPing | Out-Null;
                                                 #
-                                                [String]  $modFile     = "$tarRootDir/$moduleName/${moduleName}_Windows.ps1";
-                                                [String]  $url         = "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/master/$moduleName/${moduleName}_Windows.ps1";
+                                                [String]  $modFile = "$tarRootDir/$moduleName/${moduleName}_Windows.ps1";
+                                                [String]  $url     = "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/master/$moduleName/${moduleName}_Windows.ps1";
                                                 ToolPerformFileUpdateAndIsActualized $modFile $url $requireElevatedAdminMode $doWaitIfFailed $additionalOkUpdMsg $assertFilePreviouslyExists $performPing | Out-Null;
+                                                #
+                                                [String]  $modFile = "$tarRootDir/$moduleName/${moduleName}.psd1";
+                                                [String]  $url     = "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/master/$moduleName/${moduleName}.psd1";
+                                                ToolPerformFileUpdateAndIsActualized $modFile $url $requireElevatedAdminMode $doWaitIfFailed $additionalOkUpdMsg $assertFilePreviouslyExists $performPing | Out-Null;
+                                                OutProgress "Current-MnCommonPsToolLibVersion: V$((Get-Module -Name MnCommonPsToolLib -ListAvailable).Version)";
                                                 }
 
 function ToolVs2019UserFolderGetLatestUsed    (){ OutWarning "ToolVs2019UserFolderGetLatestUsed is DEPRECATED, replace it now by: ToolVsUserFolderGetLatestUsed "; return (ToolVsUserFolderGetLatestUsed); }
