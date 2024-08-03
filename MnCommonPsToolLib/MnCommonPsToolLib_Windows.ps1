@@ -464,10 +464,21 @@ function ServiceListRunnings                  (){
                                                 return [String[]] (@()+(Get-Service -ErrorAction SilentlyContinue * |
                                                   # 2023-03: for: get-service McpManagementService on we got the following error without any specific error:
                                                   #   "Get-Service: Service 'McpManagementService (McpManagementService)' cannot be queried due to the following error:"
-                                                  # In services.msc the description is "<Fehler beim Lesen der Beschreibung. Fehlercode: 15100 >".
+                                                  #   In services.msc the description is "<Fehler beim Lesen der Beschreibung. Fehlercode: 15100 >".
                                                   # Since around 10 years thats the first error on this command, according googling it happens on Win10 and Win11,
                                                   # please Microsoft fix this asap.
                                                   # The workaround is to use (ErrorAction SilentlyContinue) what is a dirty solution.
+                                                  # unbelievable but even with the ErrorAction set we got the following exception (later it went ok):
+                                                  # 2024-06-25 On mach=mus*** Win32Exception: The resource loader failed to find MUI file.
+                                                  #   StackTrace: at System.ServiceProcess.ServiceController.get_StartType()
+                                                  #               at Microsoft.PowerShell.Commands.GetServiceCommand.AddProperties(ServiceController service)
+                                                  #               at Microsoft.PowerShell.Commands.GetServiceCommand.ProcessRecord()
+                                                  #               at System.Management.Automation.CommandProcessor.ProcessRecord()
+                                                  #   ScriptStackTrace:
+                                                  #     at ServiceListRunnings, C:\Program Files\WindowsPowerShell\Modules\MnCommonPsToolLib\MnCommonPsToolLib_Windows.ps1: line 462
+                                                  #   InvocationInfo:
+                                                  #     At C:\Program Files\WindowsPowerShell\Modules\MnCommonPsToolLib\MnCommonPsToolLib_Windows.ps1:462 char:73
+                                                  #       + … return [String[]] (@()+(Get-Service -ErrorAction SilentlyContinue * |
                                                   Where-Object{ $_.Status -eq "Running" } |
                                                   Sort-Object Name |
                                                   Format-Table -auto -HideTableHeaders " ",Name,DisplayName |
