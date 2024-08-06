@@ -34,7 +34,7 @@
   }
   #HelpInfoURI            = '';
 
-  ModuleVersion          = '7.61';
+  ModuleVersion          = '7.62';
 
   <#
   Releasenotes
@@ -43,6 +43,7 @@
   Major version will reflect breaking changes, minor identifies extensions and third number identifies urgent bugfixes.
   Breaking changes are usually removed deprecated functions or changed behaviours.
 
+  2024-08-06  V7.62  Extend Install with option InstallAlternative.
   2024-07-16  V7.61  Fix Self-Update.
   2024-07-14  V7.60  Extend Doc. Move Releasenotes.
   2024-07-11  V7.59  Add NetConvertMacToIPv6byEUI64.

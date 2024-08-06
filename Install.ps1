@@ -1,6 +1,7 @@
 ﻿#!/usr/bin/env pwsh
 
-Param( [String] $sel ) # if $sel = "Install" then reinstall in standard mode and exit.
+Param( [String] $sel ) # "Install"         : reinstall in standard mode and exit;
+                       # "InstallInDevMode": reinstall in developer mode and exit.
 
 Set-StrictMode -Version Latest; trap [Exception] { Write-Error $_; Read-Host "Press Enter to Exit"; break; } $ErrorActionPreference = "Stop";
 
@@ -125,7 +126,17 @@ function InstallStandardMode(){
   OutProgressText "Current installation modes: "; CurrentInstallationModes "Green";
 }
 
-if( $sel -eq "Install" ){ InstallStandardMode; [Environment]::Exit("0"); }
+function InstallInDevMode(){
+  OutProgress "Install or reinstall in developer mode, running in dir: $srcRootDir";
+  UninstallDir $moduleTarDir32bit;
+  UninstallDir $moduleTarDir64bit;
+  InstallSrcPathToPsModulePathIfNotInst $srcRootDir;
+  OutProgressText "Current installation modes: ";
+  CurrentInstallationModes "Green";
+}
+
+if( $sel -eq "Install"          ){ InstallStandardMode; [Environment]::Exit("0"); }
+if( $sel -eq "InstallInDevMode" ){ InstallInDevMode   ; [Environment]::Exit("0"); }
 
 # for future use: [Boolean] $isDev = DirExists "$srcRootDir\.git";
 OutProgressTitle "Install Menu for Powershell Module - $moduleName";
@@ -140,7 +151,7 @@ if( (OsIsWindows) ){
   OutProgress     "An installation in standard mode does first an uninstallation and then for ";
   OutProgress     "installation it copies the ps module folder to the common ps module folder ";
   OutProgress     "for all users for 32 and 64 bit. ";
-  OutProgress     "An alternative installation for developers does also first an uninstallation ";
+  OutProgress     "An installation in developer mode does also first an uninstallation ";
   OutProgress     "and then it adds the path of the module folder as entry to the ps module ";
   OutProgress     "path environment variable PSModulePath. ";
   OutProgress     "An uninstallation does both, it removes the copied folder from the common ps ";
@@ -186,7 +197,7 @@ if( (OsIsWindows) ){
   }
   OutProgress     "";
   OutProgress     "  I = Install or reinstall in standard mode. ";
-  OutProgress     "  A = Alternative installation for developers which uses module at current location to change and test the module. ";
+  OutProgress     "  A = Install in developer mode which uses module at current location to change and test the module. ";
   OutProgress     "  N = Uninstall all modes. ";
   OutProgress     "  U = When installed in standard mode do update from web. "; # in future do download and also switch to standard mode.
   OutProgress     "  W = Add Ps5WinModDir and Ps5ModuleDir to system PsModulePath environment variable. ";
@@ -204,10 +215,7 @@ if( (OsIsWindows) ){
                       UninstallSrcPath $srcRootDir;
                       OutProgressText "Current installation modes: "; CurrentInstallationModes "Green"; }
   if( $sel -eq "I" ){ InstallStandardMode; }
-  if( $sel -eq "A" ){ UninstallDir $moduleTarDir32bit;
-                      UninstallDir $moduleTarDir64bit;
-                      InstallSrcPathToPsModulePathIfNotInst $srcRootDir;
-                      OutProgressText "Current installation modes: "; CurrentInstallationModes "Green"; }
+  if( $sel -eq "A" ){ InstallInDevMode; }
   if( $sel -eq "U" ){ SelfUpdate; }
   if( $sel -eq "W" ){ AddToPsModulePath $ps5WinModuleDir; AddToPsModulePath $ps5ModuleDir; }
   if( $sel -eq "B" ){ ProcessRestartInElevatedAdminMode;
