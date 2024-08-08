@@ -58,38 +58,48 @@ function ProcessIsLesserEqualPs5              (){ return [Boolean] ($PSVersionTa
 function ProcessPsExecutable                  (){ return [String] $(switch((ProcessIsLesserEqualPs5)){ $true{"powershell.exe"} default{"pwsh"}}); } # usually in $PSHOME
 function ProcessIsRunningInElevatedAdminMode  (){ if( (OsIsWindows) ){ return [Boolean] ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"); }
                                                   return [Boolean] ("$env:SUDO_USER" -ne "" -or "$env:USER" -eq "root"); }
-function ProcessRestartInElevatedAdminMode    (){ if( -not (ProcessIsRunningInElevatedAdminMode) ){
-                                                [String] $cmd = @( (ScriptGetTopCaller) ) + $sel;
-                                                $cmd = $cmd.Replace("`"","`"`"`""); # see https://docs.microsoft.com/en-us/dotnet/api/system.diagnostics.processstartinfo.arguments
-                                                $cmd = $(switch((ProcessIsLesserEqualPs5)){ $true{"& `"$cmd`""} default{"-Command `"$cmd`""}});
-                                                $cmd = "-NoExit -NoLogo " + $cmd;
-                                                OutProgress "Not running in elevated administrator mode, so elevate current script and exit: `n  & `"$(ProcessPsExecutable)`" $cmd ";
-                                                Start-Process -Verb "RunAs" -FilePath (ProcessPsExecutable) -ArgumentList $cmd;
-                                                OutProgress "Exiting in 5 seconds"; Start-Sleep -Seconds 5;
-                                                [Environment]::Exit("0"); throw [Exception] "Exit done, but it did not work, so it throws now an exception."; } }
+function ProcessRestartInElevatedAdminMode    (){ if( (ProcessIsRunningInElevatedAdminMode) ){ return; }
+                                                if( (OsIsWindows) ){
+                                                  [String] $cmd = @( (ScriptGetTopCaller) ) + $sel;
+                                                  $cmd = $cmd.Replace("`"","`"`"`""); # see https://docs.microsoft.com/en-us/dotnet/api/system.diagnostics.processstartinfo.arguments
+                                                  $cmd = $(switch((ProcessIsLesserEqualPs5)){ $true{"& `"$cmd`""} default{"-Command `"$cmd`""}});
+                                                  $cmd = "-NoExit -NoLogo " + $cmd;
+                                                  OutProgress "Not running in elevated administrator mode, so elevate current script and exit: `n  & `"$(ProcessPsExecutable)`" $cmd ";
+                                                  OutProgress "  Start-Process -Verb RunAs -FilePath $(ProcessPsExecutable) -ArgumentList $cmd ";
+                                                  Start-Process -Verb "RunAs" -FilePath (ProcessPsExecutable) -ArgumentList $cmd;
+                                                  OutProgress "Exiting in 10 seconds. "; Start-Sleep -Seconds 10;
+                                                }else{
+                                                  # works currently only correct if command or argument does not require quotes or double-quotes
+                                                  # maybe for pwsh we have to use: -CommandWithArgs cmdString
+                                                  OutProgress "Not running in elevated administrator mode, so elevate current script and exit:";
+                                                  OutProgress " & sudo $(ProcessPsExecutable) $(ScriptGetTopCaller) $sel ";
+                                                  & sudo $(ProcessPsExecutable) $(ScriptGetTopCaller) $sel;
+                                                }
+                                                [Environment]::Exit("0"); # Note: 'Exit 0;' would only leave the last '. mycommand' statement.
+                                                throw [Exception] "Exit done, but it did not work, so it throws now an exception."; }
 function ShellSessionIs64not32Bit             (){ if( "$env:ProgramFiles" -eq "$env:ProgramW6432" ){ return [Boolean] $true ; }
                                                 elseif( "$env:ProgramFiles" -eq "${env:ProgramFiles(x86)}" ){ return [Boolean] $false; }
                                                 else{ throw [Exception] "Expected ProgramFiles=`"$env:ProgramFiles`" to be equals to ProgramW6432=`"$env:ProgramW6432`" or ProgramFilesx86=`"${env:ProgramFiles(x86)}`" "; } }
 function DirCopy                              ( [String] $srcDir, [String] $tarParentDir ){
-                                                OutProgress "DirCopy `"$srcDir`" to `"$tarParentDir`" ";
+                                                OutProgress "DirCopy `"$srcDir`" to `"$tarParentDir`". ";
                                                 Copy-Item -Force -Recurse -LiteralPath $srcDir -Destination $tarParentDir; }
 function DirDelete                            ( [String] $dir ){ if( (DirExists $dir) ){ OutProgress "RemoveDir '$dir'. "; Remove-Item -Force -Recurse -LiteralPath $dir; } }
-function UninstallDir                         ( [String] $dir ){ if( (DirExists $dir) ){ ProcessRestartInElevatedAdminMode; DirDelete $dir; } }
+function UninstallGlobalDir                   ( [String] $dir ){ if( (DirExists $dir) ){ ProcessRestartInElevatedAdminMode; DirDelete $dir; } }
 function UninstallSrcPath                     ( [String] $dir ){ OutProgress "UninstallSrcPath '$dir'. ";
                                                 if( (OsPsModulePathContains $dir) ){ ProcessRestartInElevatedAdminMode; OsPsModulePathDel $dir; } }
-function InstallDir                           ( [String] $srcDir, [String] $tarParDir ){ ProcessRestartInElevatedAdminMode; DirCopy $srcDir $tarParDir; }
+function InstallGlobalDir                     ( [String] $srcDir, [String] $tarParDir ){ ProcessRestartInElevatedAdminMode; DirCopy $srcDir $tarParDir; }
 function InstallSrcPathToPsModulePathIfNotInst( [String] $srcDir ){ OutProgress "Change environment system variable PSModulePath by appending '$srcDir'. ";
-                                                if( (OsPsModulePathContains $srcDir) ){ OutProgress "Already installed so environment variable not changed."; }
+                                                if( (OsPsModulePathContains $srcDir) ){ OutProgress "Already installed so environment variable not changed. "; }
                                                 else{ ProcessRestartInElevatedAdminMode; OsPsModulePathAdd $srcDir; } }
 function SelfUpdate                           (){ $PSModuleAutoLoadingPreference = "All"; # "none" = Disabled. "All" = Auto load when cmd not found.
                                                 try{ Import-Module "MnCommonPsToolLib.psm1"; MnCommonPsToolLib\MnCommonPsToolLibSelfUpdate; }
-                                                catch{ OutProgress "Please restart shell and maybe calling file manager and retry"; throw; } }
+                                                catch{ OutProgress "Please restart shell and maybe calling file manager and retry. "; throw; } }
 function AddToPsModulePath                    ( [String] $dir ){
                                                 if( (OsPsModulePathContains $dir) ){
-                                                  OutProgress "Ok, matches expectations for system variable PsModulePath that it contains `"$dir`".";
+                                                  OutProgress "Ok, matches expectations for system variable PsModulePath that it contains `"$dir`". ";
                                                 }else{
                                                   ProcessRestartInElevatedAdminMode;
-                                                  OutProgress "To system var PsModulePath appending `"$dir`".";
+                                                  OutProgress "To system var PsModulePath appending `"$dir`". ";
                                                   OsPsModulePathAdd $dir;
                                                 } }
 
@@ -119,9 +129,9 @@ function CurrentInstallationModes(){
     # for later add: Local-Std-Mode
   }else{
     if( (DirExists $moduleTarDirAllUsersLinux) ){ $modes += "Installed-in-Global-Std-Mode-AllUsers"; }
-    if( (DirExists $moduleTarDirCurrUserLinux) ){ $modes += "Installed-in-Local-Std-Mode-Current-User"; }
+    if( (DirExists $moduleTarDirCurrUserLinux) ){ $modes += "Installed-in-Local-Std-Mode-Current-User($env:USER)"; }
   }
-  if( (OsPsModulePathContains $srcRootDir)   ){ $modes += "Installed-in-Local-Developer-Mode-Current-User"; }
+  if( (OsPsModulePathContains $srcRootDir)   ){ $modes += "Installed-in-Local-Developer-Mode-Current-User($env:USER)"; }
   if( $modes.Count -eq 0 ){ $modes += "Not-Installed"; }
   return [String] "$modes.";
 }
@@ -129,27 +139,32 @@ function CurrentInstallationModes(){
 function UninstallGlobalStandardMode(){
   OutProgress "Uninstall global standard mode. ";
   if( (OsIsWindows) ){
-    UninstallDir $moduleTarDir32bit;
-    UninstallDir $moduleTarDir64bit;
+    UninstallGlobalDir $moduleTarDir32bit;
+    UninstallGlobalDir $moduleTarDir64bit;
   }else{
-    DirDelete $moduleTarDirAllUsersLinux;
-    Uninstall-Module -Name "MnCommonPsToolLib" -AllVersions -Force -ErrorAction SilentlyContinue; # does nothing because we never installed it this way
+    UninstallGlobalDir $moduleTarDirAllUsersLinux;
+    #Uninstall-Module -Name "MnCommonPsToolLib" -AllVersions -Force -ErrorAction SilentlyContinue; # does nothing because we never installed it this way
   }
 }
 
 function UninstallLocalStandardAndDeveloperMode(){
-  OutProgress "Uninstall local standard and developer mode ";
+  OutProgress "Uninstall local standard and developer mode. ";
   if( (OsIsWindows) ){
     # here later uninstall: local module dir
     UninstallSrcPath $srcRootDir;
   }else{
     DirDelete $moduleTarDirCurrUserLinux;
-    OutProgress "  Remove addition entry of PSModulePath from `"$PROFILE`" ";
+    OutProgress "  Remove addition entry of PSModulePath from `"$PROFILE`". ";
     if( Test-Path -Path $PROFILE ){
       [String[]] $lines = @()+(Get-Content -Encoding UTF8 -LiteralPath $PROFILE | 
         Where-Object { $_ -notmatch [regex]::Escape($profilePattern) } );
       $lines | Set-Content -Path $PROFILE;
     }
+    OutProgress "  Remove entry from PSModulePath. ";
+    [String[]] $a = @()+($env:PSModulePath.Split((OsPathSeparator),[System.StringSplitOptions]::RemoveEmptyEntries)) | Where-Object{$null -ne $_} |
+      ForEach-Object{ FsEntryMakeTrailingDirSep $_ } |
+      Where-Object{ $_ -ne (FsEntryMakeTrailingDirSep $srcRootDir) };
+    $env:PSModulePath = ($a -join (OsPathSeparator))+(OsPathSeparator);
   }
 }
 
@@ -159,18 +174,18 @@ function UninstallAllModes(){
 }
 
 function InstallInGlobalStandardMode(){
-  OutProgress "Reinstall in standard mode globally. ";
+  OutProgress "Reinstall in global standard mode. ";
   UninstallGlobalStandardMode;
   if( (OsIsWindows) ){
-    InstallDir $moduleSrcDir $tarRootDir32bit;
-    InstallDir $moduleSrcDir $tarRootDir64bit;
+    InstallGlobalDir $moduleSrcDir $tarRootDir32bit;
+    InstallGlobalDir $moduleSrcDir $tarRootDir64bit;
   }else{
-    DirCopy $moduleSrcDir $moduleRootDirAllUsersLinux;
+    InstallGlobalDir $moduleSrcDir $moduleRootDirAllUsersLinux;
   }
 }
 
 function InstallInLocalStandardMode(){
-  OutProgress "Reinstall in local standard mode ";
+  OutProgress "Reinstall in local standard mode. ";
   UninstallLocalStandardAndDeveloperMode;
   if( (OsIsWindows) ){
     # here later add install: local module dir for 32 and 64 bit
@@ -180,21 +195,21 @@ function InstallInLocalStandardMode(){
 }
 
 function InstallInLocalDeveloperMode(){
-  OutProgress "Reinstall in local developer mode, running in dir: $srcRootDir";
+  OutProgress "Reinstall in local developer mode, running in dir: `"$srcRootDir`". ";
   UninstallLocalStandardAndDeveloperMode;
   if( (OsIsWindows) ){
     InstallSrcPathToPsModulePathIfNotInst $srcRootDir;
   }else{
-    OutProgress "  Adding PSModulePath extension to `"$PROFILE`" ";
+    OutProgress "  Adding PSModulePath extension to `"$PROFILE`". ";
     New-Item -type directory -Force (Split-Path $PROFILE) | Out-Null;
-    Add-Content -Path $PROFILE -Value "`$env:PSModulePath += `"$(OsPathSeparator)$srcRootDir`"; # AUTOGENERATED BY $moduleName/Install.ps1 ";
+    Add-Content -Path $PROFILE -Value "`$env:PSModulePath += `"$(OsPathSeparator)$srcRootDir`"; $profilePattern";
     . $PROFILE;
   }
 }
 
 function SetAllEnvsExecutionPolicyToBypass(){
   ProcessRestartInElevatedAdminMode;
-  OutProgress "Set-Executionpolicy Bypass";
+  OutProgress "Set-Executionpolicy Bypass. ";
   if( $ps7Exists ){ & "$env:SystemDrive\Program Files\PowerShell\7\pwsh.EXE"           -Command { Set-Executionpolicy Bypass; }; }
                     & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -Command { Set-Executionpolicy Bypass; };
                     & "$env:SystemRoot\SysWOW64\WindowsPowerShell\v1.0\powershell.exe" -Command { Set-Executionpolicy Bypass; };
@@ -202,7 +217,7 @@ function SetAllEnvsExecutionPolicyToBypass(){
 
 function SetAllEnvsExecutionPolicyToRemoteSigned(){
   ProcessRestartInElevatedAdminMode;
-  OutProgress "Set-Executionpolicy RemoteSigned";
+  OutProgress "Set-Executionpolicy RemoteSigned. ";
   if( $ps7Exists ){ & "$env:SystemDrive\Program Files\PowerShell\7\pwsh.EXE"           -Command { Set-Executionpolicy RemoteSigned }; }
                     & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -Command { Set-Executionpolicy RemoteSigned };
                     & "$env:SystemRoot\SysWOW64\WindowsPowerShell\v1.0\powershell.exe" -Command { Set-Executionpolicy RemoteSigned };
@@ -278,11 +293,11 @@ function Menu(){
     OutProgress     "";
     OutProgress     "Current environment:";
     OutProgressText "    Current installation modes         = "; OutProgressText -color:Green (CurrentInstallationModes); OutProgress "";
-    OutProgress     "  PsVersion                          = `"$psVersion`". ";
+    OutProgress     "  PsVersion                          = `"$psVersion`" on Platform=$([System.Environment]::OSVersion.Platform). ";
+    OutProgress     "  Current-User                       = `"$env:USER`". ";
     OutProgress     "  IsInElevatedAdminMode              = $(ProcessIsRunningInElevatedAdminMode). ";
     OutProgress     "  SrcRootDir                         = `"$srcRootDir`". ";
     OutProgress     "  Powershell User Profile            = `"$PROFILE`". ";
-    OutProgress     "  PsModulePath contains SrcRootDir   = $(OsPsModulePathContains $srcRootDir). ";
     if( (OsIsWindows) ){
       OutProgress   "  Ps5WinModDir                       = `"$ps5WinModuleDir`". ";
       OutProgress   "  Ps5ModuleDir                       = `"$ps5ModuleDir`".    ";
@@ -304,12 +319,12 @@ function Menu(){
         OutWarning "PsModulePath not contains Ps5ModuleDir, it is strongly recommended to add them (see menu items)! ";
       }
     }else{ # non-windows as linux or macos
-      OutProgress   "  Running OS:                        = Unix-Like. ";
-      OutProgress   "  Current-User                       = `"$env:USER`". ";
       OutProgress   "  ModuleRootDirAllUsers              = `"$moduleRootDirAllUsersLinux`". ";
       OutProgress   "  ModuleRootDirCurrUser              = `"$moduleRootDirCurrUserLinux`". ";
       OutProgress   "  PSModulePath = `"$env:PSModulePath`". ";
     }
+    # OutProgress   "  Running OS:                        = Unix-Like. ";
+    # OutProgress     "  PsModulePath contains SrcRootDir   = $(OsPsModulePathContains $srcRootDir). ";
     OutProgress     "";
     OutProgress     "I = Reinstall in global standard mode by copying to module path for all users (requires admin permissions). ";
     OutProgress     "C = Reinstall in local  standard mode by copying to module path for current user (also uninstalls local developer mode). ";
@@ -327,9 +342,8 @@ function Menu(){
     OutProgress     "Q = Quit. ";
     OutProgress     "";
     if( $sel -eq "" ){ OutProgressQuestion "Enter selection case insensitive and press enter: "; $sel = (Read-Host); }
-    else{ OutProgress "Selection: $sel "; }
-    $Global:ArgsForRestartInElevatedAdminMode = @( $sel );
-    if( $sel -eq "I" ){ InstallInGlobalStandardMode; }
+    else{ OutProgress "Selection: `"$sel`" "; }
+    if    ( $sel -eq "I" ){ InstallInGlobalStandardMode; }
     elseif( $sel -eq "C" ){ InstallInLocalStandardMode; }
     elseif( $sel -eq "A" ){ InstallInLocalDeveloperMode; }
     elseif( $sel -eq "D" ){ UninstallGlobalStandardMode; }
@@ -340,7 +354,7 @@ function Menu(){
     elseif( $sel -eq "B" -and (OsIsWindows) ){ SetAllEnvsExecutionPolicyToBypass; }
     elseif( $sel -eq "R" -and (OsIsWindows) ){ SetAllEnvsExecutionPolicyToRemoteSigned; }
     elseif( $sel -eq "H" ){ ShowHelpInfo; }
-    elseif( $sel -eq "Q" ){ OutProgress "Quit."; return; }
+    elseif( $sel -eq "Q" ){ OutProgress "Quit. "; return; }
     else{ OutWarning "Unknown selection: `"$sel`" "; }
     $sel = "";
     OutProgressText "  Current installation modes: "; OutProgressText -color:Green (CurrentInstallationModes); OutProgress "";

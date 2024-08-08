@@ -347,7 +347,7 @@ function StringFromErrorRecord                ( [System.Management.Automation.Er
                                                 [String] $nl = [Environment]::NewLine;
                                                  $msg += "$nl  ScriptStackTrace: $nl    "+$er.ScriptStackTrace.Replace("$nl","$nl    "); # Example: at <ScriptBlock>, C:\myfile.psm1: line 800 at MyFunc
                                                  $msg += "$nl  InvocationInfo:$nl    "+$er.InvocationInfo.PositionMessage.Replace("$nl","$nl    "); # At D:\myfile.psm1:800 char:83 \n   + ...   +   ~~~
-                                                 $msg += "$nl  Ts=$(DateTimeNowAsStringIso) User=$($env:username) mach=$($ComputerName) ";
+                                                 $msg += "$nl  Ts=$(DateTimeNowAsStringIso) User=$($env:USER) mach=$($ComputerName) ";
                                                  # $msg += "$nl  InvocationInfoLine: "+($er.InvocationInfo.Line.Replace("$nl"," ") -replace "\s+"," ");
                                                  # $msg += "$nl  InvocationInfoMyCommand: $($er.InvocationInfo.MyCommand)"; # Example: ForEach-Object
                                                  # $msg += "$nl  InvocationInfoInvocationName: $($er.InvocationInfo.InvocationName)"; # Example: ForEach-Object
@@ -363,7 +363,8 @@ function StringFromErrorRecord                ( [System.Management.Automation.Er
                                                  return [String] $msg; }
 function StringCommandLineToArray             ( [String] $commandLine ){
                                                 # Care spaces or tabs separated args and doublequoted args which can contain double doublequotes for escaping single doublequotes.
-                                                # Example: "my cmd.exe" arg1 "ar g2" "arg""3""" "arg4"""""  Example: StringCommandLineToArray "`"my cmd.exe`" arg1 `"ar g2`" `"arg`"`"3`"`"`" `"arg4`"`"`"`"`""
+                                                # Example: "my cmd.exe" arg1 "ar g2" "arg""3""" "arg4"""""  
+                                                # Example: StringCommandLineToArray "`"my cmd.exe`" arg1 `"ar g2`" `"arg`"`"3`"`"`" `"arg4`"`"`"`"`""
                                                 [String] $line = $commandLine.Trim();
                                                 [String[]] $result = @();
                                                 [Int32] $i = 0;
@@ -1713,7 +1714,7 @@ function CredentialGetTextFromSecureString    ( [System.Security.SecureString] $
                                                 return [String] [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr); }
 function CredentialGetUsername                ( [System.Management.Automation.PSCredential] $cred = $null, [Boolean] $onNullCredGetCurrentUserInsteadOfEmpty = $false ){
                                                 # if cred is null then take current user.
-                                                return [String] $(switch($null -eq $cred){ ($true){$(switch($onNullCredGetCurrentUserInsteadOfEmpty){($true){$env:USERNAME}default{""}})} default{$cred.UserName}}); }
+                                                return [String] $(switch($null -eq $cred){ ($true){$(switch($onNullCredGetCurrentUserInsteadOfEmpty){($true){$env:USER}default{""}})} default{$cred.UserName}}); }
 function CredentialGetPassword                ( [System.Management.Automation.PSCredential] $cred = $null ){
                                                 # if cred is null then return empty string.
                                                 # $cred.GetNetworkCredential().Password is the same as (CredentialGetTextFromSecureString $cred.Password)
