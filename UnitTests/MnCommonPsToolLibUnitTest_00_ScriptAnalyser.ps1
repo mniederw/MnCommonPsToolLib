@@ -2,7 +2,9 @@
 
 Param( [Boolean] $showAlsoIgnored = $false )
 
-Set-StrictMode -Version Latest; trap [Exception] { Write-Error $_; Read-Host "Press Enter to Exit"; break; } $ErrorActionPreference = "Stop";
+Set-StrictMode -Version Latest; $ErrorActionPreference = "Stop"; trap [Exception] { $nl = [Environment]::NewLine;
+  Write-Error -ErrorAction Continue "$($_.Exception.GetType().Name): $($_.Exception.Message)${nl}$($_.InvocationInfo.PositionMessage)$nl$($_.ScriptStackTrace)";
+  Read-Host "Press Enter to Exit"; break; }
 
 function UnitTest_ScriptAnalyser(){
   OutProgress "Test Script Analyzer recursively on all repository files";
