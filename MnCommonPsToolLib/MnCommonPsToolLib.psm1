@@ -363,7 +363,7 @@ function StringFromErrorRecord                ( [System.Management.Automation.Er
                                                  return [String] $msg; }
 function StringCommandLineToArray             ( [String] $commandLine ){
                                                 # Care spaces or tabs separated args and doublequoted args which can contain double doublequotes for escaping single doublequotes.
-                                                # Example: "my cmd.exe" arg1 "ar g2" "arg""3""" "arg4"""""  
+                                                # Example: "my cmd.exe" arg1 "ar g2" "arg""3""" "arg4"""""
                                                 # Example: StringCommandLineToArray "`"my cmd.exe`" arg1 `"ar g2`" `"arg`"`"3`"`"`" `"arg4`"`"`"`"`""
                                                 [String] $line = $commandLine.Trim();
                                                 [String[]] $result = @();
@@ -2246,7 +2246,7 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                 [Int32] $rc = ScriptGetAndClearLastRc; if( $rc -ne 0 ){
                                                   [String] $err = switch($rc){ # on multiple errors the prio: 2,..,8,1.
                                                     0 {"OK"}
-                                                    1 {"Generic"}
+                                                    1 {"Generic"} # Quota exceeded. Host not found.
                                                     2 {"CommandLineOption"}
                                                     3 {"FileIo"}
                                                     4 {"Network"}
@@ -2450,7 +2450,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   # 2023-01: exc:              fatal: AggregateException encountered.
                                                   # 2023-01: exc:              Logon failed, use ctrl+c to cancel basic credential prompt.  - bash: /dev/tty: No such device or address - error: failed to execute prompt script (exit code 1) - fatal: could not read Username for 'https://github.com': No such file or directory
                                                   # 2023-01: exc: Clone rc=128 remote: Repository not found.\nfatal: repository 'https://github.com/mniederw/UnknownRepo/' not found
-                                                  # 2023-01: exc:              fatal: Not a git repository: 'D:\WorkGit\mniederw\UnknownRepo\.git'
+                                                  # 2023-01: exc:              fatal: Not a git repository: 'D:/WorkGit/mniederw/UnknownRepo/.git'
                                                   # 2023-01: exc:              error: unknown option `anyUnknownOption'
                                                   # 2023-01: exc: Pull  rc=128 fatal: refusing to merge unrelated histories
                                                   # 2023-01: exc: Pull  rc=128 error: Pulling is not possible because you have unmerged files. - hint: Fix them up in the work tree, and then use 'git add/rm <file>' - fatal: Exiting because of an unresolved conflict. - hint: as appropriate to mark resolution and make a commit.
@@ -2503,7 +2503,8 @@ function GitMerge                             ( [String] $repoDir, [String] $bra
                                                   #   CONFLICT (modify/delete): MyDir/MyFile.txt deleted in remotes/origin/mybranch and modified in HEAD.  Version HEAD of MyDir/MyFile.txt left in tree.
                                                   #   CONFLICT (file location): MyDir/MyFile.txt added in remotes/origin/mybranch inside a directory that was renamed in HEAD, suggesting it should perhaps be moved to MyDir2/MyFile.txt
                                                   #   Automatic merge failed; fix conflicts and then commit the result.
-                                                  OutProgress $out;
+                                                  #   Automatic merge went well; stopped before committing as requested
+                                                  OutProgress "  $out";
                                                 }catch{
                                                   if( -not $errorAsWarning ){ throw [Exception] "Merge failed, fix conflicts manually: $($_.Exception.Message)"; }
                                                   OutWarning "Warning: Merge of branch $branch into `"$repoDir`" failed, fix conflicts manually. ";
@@ -2528,15 +2529,15 @@ function GitListCommitComments                ( [String] $tarDir, [String] $loca
                                                   if( -not (FsEntryNotExistsOrIsOlderThanNrDays $fout $doOnlyIfOlderThanAgeInDays) ){
                                                     OutProgress "Process git log not nessessary because file is newer than $doOnlyIfOlderThanAgeInDays days: $fout";
                                                   }else{
-                                                    [String[]] $options = @( "--git-dir=$localRepoDir\.git", "log", "--after=1990-01-01", "--pretty=format:%ci %cn [%ce] %s" );
+                                                    [String[]] $options = @( "--git-dir=$($localRepoDir).git", "log", "--after=1990-01-01", "--pretty=format:%ci %cn [%ce] %s" );
                                                     if( $doSummary ){ $options += "--summary"; }
                                                     [String] $out = "";
                                                     try{
                                                       # git can write warnings to stderr which we not handle as error.
                                                       # Note: We have an unresolved problem, that ProcessStart would hang (more see: UnitTests/TodoUnresolvedProblems.ps1), so we use call operator.
                                                       #   $out = (ProcessStart "git" $options -careStdErrAsOut:$true -traceCmd:$true);
-                                                      # Example: ProcessStart of ("git" "--git-dir=D:\Workspace\mniederw\MnCommonPsToolLib\.git" "log" "--after=1990-01-01" "--pretty=format:%ci %cn [%ce] %s" "--summary")
-                                                      $out = & "git" "--git-dir=$localRepoDir\.git" "log" "--after=1990-01-01" "--pretty=format:%ci %cn [%ce] %s" 2>&1; AssertRcIsOk;
+                                                      # Example: ProcessStart of ("git" "--git-dir=D:/Workspace/mniederw/MnCommonPsToolLib/.git" "log" "--after=1990-01-01" "--pretty=format:%ci %cn [%ce] %s" "--summary")
+                                                      $out = & "git" "--git-dir=$($localRepoDir).git" "log" "--after=1990-01-01" "--pretty=format:%ci %cn [%ce] %s" 2>&1; AssertRcIsOk;
                                                     }catch{
                                                       # 2024-03: m="Last operation failed [ExitCode=128]. For the reason see the previous output. "
                                                       # 2024-03: out="fatal: your current branch 'main' does not have any commits yet"
@@ -2550,7 +2551,7 @@ function GitListCommitComments                ( [String] $tarDir, [String] $loca
                                                         if( $out.Contains("warning: inexact rename detection was skipped due to too many files.") ){
                                                           $out += "$([Environment]::NewLine)  The reason is that the config value of diff.renamelimit with its default of 100 is too small. ";
                                                           $out += "$([Environment]::NewLine)  Before a next retry you should either add the two lines (`"[diff]`",`"  renamelimit = 999999`") to .git/config file, ";
-                                                          $out += "$([Environment]::NewLine)  or run (git `"--git-dir=$localRepoDir\.git`" config diff.renamelimit 999999) ";
+                                                          $out += "$([Environment]::NewLine)  or run (git `"--git-dir=$($localRepoDir).git`" config diff.renamelimit 999999) ";
                                                           $out += "$([Environment]::NewLine)  or run (git config --global diff.renamelimit 999999). Instead of 999999 you can also try a lower value as 200,400, etc. ";
                                                         }else{
                                                           $out += "$([Environment]::NewLine)  Outfile `"$fout`" is probably not correctly filled.";

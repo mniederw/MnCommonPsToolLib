@@ -806,7 +806,7 @@ function InfoAboutComputerOverview            (){ return [String[]] @( "InfoAbou
                                                   ,"Session.PathVariable           : $env:PATH"
                                                   ,"Session.PSVersion              : $((Get-Host).Version.ToString())"
                                                   ,"Session.Culture                : $((Get-Host).CurrentCulture.Name)" # "de-CH", "en-US"
-                                                  ,"Session.CultureUI              : $((Get-Host).CurrentUICulture.Name)"
+                                                  ,"Session.CultureUI              : $((Get-Host).CurrentUICulture.Name)" # "de-CH", "en-US"
                                                   ,"Session.Culture.DtPattern      : $((Get-Host).CurrentCulture.DateTimeFormat.FullDateTimePattern)" # "yyyy-MM-dd HH:mm:ss"
                                                   ); }
 function InfoAboutExistingShares              (){

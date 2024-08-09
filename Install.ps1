@@ -32,7 +32,7 @@ function FsEntryGetAbsolutePath               ( [String] $fsEntry ){ return [Str
 function OsIsWindows                          (){ return [Boolean] ([System.Environment]::OSVersion.Platform -eq "Win32NT"); }
 function OsPathSeparator                      (){ return [String] $(switch(OsIsWindows){$true{";"}default{":"}}); } # separator for PATH environment variable
 function OsPsModulePathList                   (){ # on non-windows there is no permanent machine env var.
-                                                [String] $varScope = $(switch(OsIsWindows){$true{"Machine"}default{"Process"}}); 
+                                                [String] $varScope = $(switch(OsIsWindows){$true{"Machine"}default{"Process"}});
                                                 return [String[]] ([Environment]::GetEnvironmentVariable("PSModulePath", $varScope).
                                                 Split((OsPathSeparator),[System.StringSplitOptions]::RemoveEmptyEntries)); }
 function OsPsModulePathSet                    ( [String[]] $pathList ){ # not on non-windows this is not stored permanently but only in session.
@@ -156,7 +156,7 @@ function UninstallLocalStandardAndDeveloperMode(){
     DirDelete $moduleTarDirCurrUserLinux;
     OutProgress "  Remove addition entry of PSModulePath from `"$PROFILE`". ";
     if( Test-Path -Path $PROFILE ){
-      [String[]] $lines = @()+(Get-Content -Encoding UTF8 -LiteralPath $PROFILE | 
+      [String[]] $lines = @()+(Get-Content -Encoding UTF8 -LiteralPath $PROFILE |
         Where-Object { $_ -notmatch [regex]::Escape($profilePattern) } );
       $lines | Set-Content -Path $PROFILE;
     }

@@ -61,7 +61,7 @@ Write-Output "----- List ps gallery repositories: ----- ";
 Write-Output "----- List installed ps modules ----- ";
   Get-Module -ListAvailable | Sort-Object ModuleType, Name, Version | Select-Object ModuleType, Name, Version, ExportedCommands | Format-Table -Wrap -Force -AutoSize;
 Write-Output "----- List commands grouped by modules ----- ";
-  Get-Command -Module * | Group Module;
+  Get-Command -Module * | Group-Object Module;
 Write-Output "----- List all currently used modules ----- ";
   Get-Module -All; # all currently used
 Write-Output "----- end-of-list ----- ";
@@ -70,7 +70,22 @@ Write-Output "Set repository PSGallery to trusted: ";
   Write-Output "Install and import from PSGallery used modules in user scope: ";
   Write-Output "  Microsoft.PowerShell.Archive, PSReadLine, PowerShellGet, PackageManagement, PSScriptAnalyzer, ThreadJob, SqlServer, Pester.";
   Install-Module Microsoft.PowerShell.Archive, PSReadLine, PowerShellGet, PackageManagement, PSScriptAnalyzer, ThreadJob, SqlServer, Pester;
-  Import-Module Microsoft.PowerShell.Archive, PSReadLine, PowerShellGet, PackageManagement, PSScriptAnalyzer, ThreadJob, SqlServer, Pester;
+  Import-Module Microsoft.PowerShell.Archive, PowerShellGet, PackageManagement, ThreadJob, SqlServer, Pester;
+  try{
+    Import-Module PSReadLine;
+  }catch{
+     # on linux this fails in vs-code-terminal-pwsh: Import-Module: Assembly with same name is already loaded
+     OutProgress "Warning: Import-Module PSReadLine; failed because $_. We ignore this because we have seen this in vs-code-terminal-pwsh.";
+  }
+  try{
+    Import-Module PSScriptAnalyzer;
+  }catch{
+    # on linux this fails in vs-code-terminal-pwsh, Example:
+    #   The following error occurred while loading the extended type data file:  Error in TypeData
+    #   "Microsoft.Windows.PowerShell.ScriptAnalyzer.Generic.RuleInfo": The member DefaultDisplayPropertySet is already present. Error in TypeData
+    #   "Microsoft.Windows.PowerShell.ScriptAnalyzer.Generic.SuppressedRecord": The member DefaultDisplayPropertySet is already present. Error in TypeData
+    OutProgress "Warning: Import-Module PSScriptAnalyzer; failed because $_. We ignore this because we have seen this in vs-code-terminal-pwsh.";
+  }
 
 # for future use: Get-Variable -Scope Local; Get-Variable -Scope Script; Get-Variable -Scope Global;
 # for future use: Get-PSSnapin -Registered; Get-Command -Noun *; # list pssnapins
