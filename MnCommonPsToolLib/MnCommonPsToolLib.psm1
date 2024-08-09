@@ -156,10 +156,10 @@ Add-Type -WarningAction SilentlyContinue -TypeDefinition "using System; public c
   # Note: we need to suppress the warning: The generated type defines no public methods or properties
 
 # Set some self defined constant global variables
-if( $null -eq (Get-Variable -Scope Global -ErrorAction SilentlyContinue -Name ComputerName) -or $null -eq $global:InfoLineColor ){ # check wether last variable already exists because reload safe
+if( $null -eq (Get-Variable -Scope Global -ErrorAction SilentlyContinue -Name ComputerName) -or $null -eq $global:InfoLineColor ){ # check wether last variables already exists because reload safe
   New-Variable -option Constant -Scope Global -name CurrentMonthAndWeekIsoString -Value ([String]((Get-Date -format "yyyy-MM-")+(Get-Date -uformat "W%V")));
   New-Variable -option Constant -Scope Global -name InfoLineColor                -Value $(switch($Host.Name -eq "Windows PowerShell ISE Host"){($true){"Gray"}default{"White"}}); # ise is white so we need a contrast color
-  New-Variable -option Constant -Scope Global -name ComputerName                 -Value ([String]$(switch("$env:computername" -ne ""){($true){"$env:computername"}($false){(& "hostname")}}).ToLower()); # provide unified lowercase ComputerName
+  New-Variable -option Constant -Scope Global -name ComputerName                 -Value $([System.Environment]::MachineName.ToLower()); # provide unified lowercase ComputerName
 }
 
 # Statement extensions
@@ -347,7 +347,7 @@ function StringFromErrorRecord                ( [System.Management.Automation.Er
                                                 [String] $nl = [Environment]::NewLine;
                                                  $msg += "$nl  ScriptStackTrace: $nl    "+$er.ScriptStackTrace.Replace("$nl","$nl    "); # Example: at <ScriptBlock>, C:\myfile.psm1: line 800 at MyFunc
                                                  $msg += "$nl  InvocationInfo:$nl    "+$er.InvocationInfo.PositionMessage.Replace("$nl","$nl    "); # At D:\myfile.psm1:800 char:83 \n   + ...   +   ~~~
-                                                 $msg += "$nl  Ts=$(DateTimeNowAsStringIso) User=$($env:username) mach=$($ComputerName) ";
+                                                 $msg += "$nl  Ts=$(DateTimeNowAsStringIso) User=$($env:USERNAME) mach=$ComputerName ";
                                                  # $msg += "$nl  InvocationInfoLine: "+($er.InvocationInfo.Line.Replace("$nl"," ") -replace "\s+"," ");
                                                  # $msg += "$nl  InvocationInfoMyCommand: $($er.InvocationInfo.MyCommand)"; # Example: ForEach-Object
                                                  # $msg += "$nl  InvocationInfoInvocationName: $($er.InvocationInfo.InvocationName)"; # Example: ForEach-Object
@@ -363,7 +363,8 @@ function StringFromErrorRecord                ( [System.Management.Automation.Er
                                                  return [String] $msg; }
 function StringCommandLineToArray             ( [String] $commandLine ){
                                                 # Care spaces or tabs separated args and doublequoted args which can contain double doublequotes for escaping single doublequotes.
-                                                # Example: "my cmd.exe" arg1 "ar g2" "arg""3""" "arg4"""""  Example: StringCommandLineToArray "`"my cmd.exe`" arg1 `"ar g2`" `"arg`"`"3`"`"`" `"arg4`"`"`"`"`""
+                                                # Example: "my cmd.exe" arg1 "ar g2" "arg""3""" "arg4"""""
+                                                # Example: StringCommandLineToArray "`"my cmd.exe`" arg1 `"ar g2`" `"arg`"`"3`"`"`" `"arg4`"`"`"`"`""
                                                 [String] $line = $commandLine.Trim();
                                                 [String[]] $result = @();
                                                 [Int32] $i = 0;
@@ -761,7 +762,7 @@ function PrivAclRegRightsToString             ( [System.Security.AccessControl.R
 function ProcessIsLesserEqualPs5              (){ return [Boolean] ($PSVersionTable.PSVersion.Major -le 5); }
 function ProcessPsExecutable                  (){ return [String] $(switch((ProcessIsLesserEqualPs5)){ $true{"powershell.exe"} default{"pwsh"}}); }
 function ProcessIsRunningInElevatedAdminMode  (){ if( (OsIsWindows) ){ return [Boolean] ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"); }
-                                                  return [Boolean] ("$env:SUDO_USER" -ne ""); }
+                                                  return [Boolean] ("$env:SUDO_USER" -ne "" -or "$env:USER" -eq "root"); }
 function ProcessAssertInElevatedAdminMode     (){ Assert (ProcessIsRunningInElevatedAdminMode) "requires to be in elevated admin mode"; }
 function ProcessRestartInElevatedAdminMode    (){ if( (ProcessIsRunningInElevatedAdminMode) ){ return; }
                                                 # Example: "C:\myscr.ps1" or if interactive then statement name example "ProcessRestartInElevatedAdminMode"
@@ -1713,7 +1714,7 @@ function CredentialGetTextFromSecureString    ( [System.Security.SecureString] $
                                                 return [String] [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr); }
 function CredentialGetUsername                ( [System.Management.Automation.PSCredential] $cred = $null, [Boolean] $onNullCredGetCurrentUserInsteadOfEmpty = $false ){
                                                 # if cred is null then take current user.
-                                                return [String] $(switch($null -eq $cred){ ($true){$(switch($onNullCredGetCurrentUserInsteadOfEmpty){($true){$env:USERNAME}default{""}})} default{$cred.UserName}}); }
+                                                return [String] $(switch($null -eq $cred){ ($true){$(switch($onNullCredGetCurrentUserInsteadOfEmpty){($true){$env:USER}default{""}})} default{$cred.UserName}}); }
 function CredentialGetPassword                ( [System.Management.Automation.PSCredential] $cred = $null ){
                                                 # if cred is null then return empty string.
                                                 # $cred.GetNetworkCredential().Password is the same as (CredentialGetTextFromSecureString $cred.Password)
@@ -2245,7 +2246,7 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                 [Int32] $rc = ScriptGetAndClearLastRc; if( $rc -ne 0 ){
                                                   [String] $err = switch($rc){ # on multiple errors the prio: 2,..,8,1.
                                                     0 {"OK"}
-                                                    1 {"Generic"}
+                                                    1 {"Generic"} # Quota exceeded. Host not found.
                                                     2 {"CommandLineOption"}
                                                     3 {"FileIo"}
                                                     4 {"Network"}
@@ -2449,7 +2450,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   # 2023-01: exc:              fatal: AggregateException encountered.
                                                   # 2023-01: exc:              Logon failed, use ctrl+c to cancel basic credential prompt.  - bash: /dev/tty: No such device or address - error: failed to execute prompt script (exit code 1) - fatal: could not read Username for 'https://github.com': No such file or directory
                                                   # 2023-01: exc: Clone rc=128 remote: Repository not found.\nfatal: repository 'https://github.com/mniederw/UnknownRepo/' not found
-                                                  # 2023-01: exc:              fatal: Not a git repository: 'D:\WorkGit\mniederw\UnknownRepo\.git'
+                                                  # 2023-01: exc:              fatal: Not a git repository: 'D:/WorkGit/mniederw/UnknownRepo/.git'
                                                   # 2023-01: exc:              error: unknown option `anyUnknownOption'
                                                   # 2023-01: exc: Pull  rc=128 fatal: refusing to merge unrelated histories
                                                   # 2023-01: exc: Pull  rc=128 error: Pulling is not possible because you have unmerged files. - hint: Fix them up in the work tree, and then use 'git add/rm <file>' - fatal: Exiting because of an unresolved conflict. - hint: as appropriate to mark resolution and make a commit.
@@ -2502,7 +2503,8 @@ function GitMerge                             ( [String] $repoDir, [String] $bra
                                                   #   CONFLICT (modify/delete): MyDir/MyFile.txt deleted in remotes/origin/mybranch and modified in HEAD.  Version HEAD of MyDir/MyFile.txt left in tree.
                                                   #   CONFLICT (file location): MyDir/MyFile.txt added in remotes/origin/mybranch inside a directory that was renamed in HEAD, suggesting it should perhaps be moved to MyDir2/MyFile.txt
                                                   #   Automatic merge failed; fix conflicts and then commit the result.
-                                                  OutProgress $out;
+                                                  #   Automatic merge went well; stopped before committing as requested
+                                                  OutProgress "  $out";
                                                 }catch{
                                                   if( -not $errorAsWarning ){ throw [Exception] "Merge failed, fix conflicts manually: $($_.Exception.Message)"; }
                                                   OutWarning "Warning: Merge of branch $branch into `"$repoDir`" failed, fix conflicts manually. ";
@@ -2527,15 +2529,15 @@ function GitListCommitComments                ( [String] $tarDir, [String] $loca
                                                   if( -not (FsEntryNotExistsOrIsOlderThanNrDays $fout $doOnlyIfOlderThanAgeInDays) ){
                                                     OutProgress "Process git log not nessessary because file is newer than $doOnlyIfOlderThanAgeInDays days: $fout";
                                                   }else{
-                                                    [String[]] $options = @( "--git-dir=$localRepoDir\.git", "log", "--after=1990-01-01", "--pretty=format:%ci %cn [%ce] %s" );
+                                                    [String[]] $options = @( "--git-dir=$($localRepoDir).git", "log", "--after=1990-01-01", "--pretty=format:%ci %cn [%ce] %s" );
                                                     if( $doSummary ){ $options += "--summary"; }
                                                     [String] $out = "";
                                                     try{
                                                       # git can write warnings to stderr which we not handle as error.
                                                       # Note: We have an unresolved problem, that ProcessStart would hang (more see: UnitTests/TodoUnresolvedProblems.ps1), so we use call operator.
                                                       #   $out = (ProcessStart "git" $options -careStdErrAsOut:$true -traceCmd:$true);
-                                                      # Example: ProcessStart of ("git" "--git-dir=D:\Workspace\mniederw\MnCommonPsToolLib\.git" "log" "--after=1990-01-01" "--pretty=format:%ci %cn [%ce] %s" "--summary")
-                                                      $out = & "git" "--git-dir=$localRepoDir\.git" "log" "--after=1990-01-01" "--pretty=format:%ci %cn [%ce] %s" 2>&1; AssertRcIsOk;
+                                                      # Example: ProcessStart of ("git" "--git-dir=D:/Workspace/mniederw/MnCommonPsToolLib/.git" "log" "--after=1990-01-01" "--pretty=format:%ci %cn [%ce] %s" "--summary")
+                                                      $out = & "git" "--git-dir=$($localRepoDir).git" "log" "--after=1990-01-01" "--pretty=format:%ci %cn [%ce] %s" 2>&1; AssertRcIsOk;
                                                     }catch{
                                                       # 2024-03: m="Last operation failed [ExitCode=128]. For the reason see the previous output. "
                                                       # 2024-03: out="fatal: your current branch 'main' does not have any commits yet"
@@ -2549,7 +2551,7 @@ function GitListCommitComments                ( [String] $tarDir, [String] $loca
                                                         if( $out.Contains("warning: inexact rename detection was skipped due to too many files.") ){
                                                           $out += "$([Environment]::NewLine)  The reason is that the config value of diff.renamelimit with its default of 100 is too small. ";
                                                           $out += "$([Environment]::NewLine)  Before a next retry you should either add the two lines (`"[diff]`",`"  renamelimit = 999999`") to .git/config file, ";
-                                                          $out += "$([Environment]::NewLine)  or run (git `"--git-dir=$localRepoDir\.git`" config diff.renamelimit 999999) ";
+                                                          $out += "$([Environment]::NewLine)  or run (git `"--git-dir=$($localRepoDir).git`" config diff.renamelimit 999999) ";
                                                           $out += "$([Environment]::NewLine)  or run (git config --global diff.renamelimit 999999). Instead of 999999 you can also try a lower value as 200,400, etc. ";
                                                         }else{
                                                           $out += "$([Environment]::NewLine)  Outfile `"$fout`" is probably not correctly filled.";

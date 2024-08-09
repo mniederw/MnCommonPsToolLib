@@ -22,6 +22,7 @@ function TodoUnresolvedProblems(){
   OutProgress "Here the command using ProcessStart which hangs, go to processlist and kill the git sub-process, then it continues:";
   try{
     [String] $out2 = ProcessStart git.exe @("--git-dir=$repoDotGitDir", "log", "--after=1990-01-01", "--pretty=format:%ci %cn [%ce] %s" ) -careStdErrAsOut:$true -traceCmd:$true;
+    OutVerbose "Output of git log command: $out2";
   }catch{ OutProgress "Error: $_"; }
   DirDelete $d;
 }

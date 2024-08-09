@@ -84,7 +84,7 @@ function JobWaitForState                      ( [String] $state = "Completed", [
 function JobWaitForEnd                        ( [Int32] $id ){ JobWaitForNotRunning $id; return [Object] (Receive-Job -Id $id); } # Return result object of script block, job is afterwards deleted.
 function PrivGetUserFromName                  ( [String] $username ){ # optionally as domain\username
                                                 return [System.Security.Principal.NTAccount] $username; }
-function PrivGetUserCurrent                   (){ return [System.Security.Principal.IdentityReference] ([System.Security.Principal.WindowsIdentity]::GetCurrent().User); } # alternative: PrivGetUserFromName "$env:userdomain\$env:username"
+function PrivGetUserCurrent                   (){ return [System.Security.Principal.IdentityReference] ([System.Security.Principal.WindowsIdentity]::GetCurrent().User); } # alternative: PrivGetUserFromName "$env:userdomain\$env:USERNAME"
 function PrivGetUserSystem                    (){ return [System.Security.Principal.IdentityReference] (New-Object System.Security.Principal.SecurityIdentifier("S-1-5-18"                                                      )).Translate([System.Security.Principal.NTAccount]); } # NT AUTHORITY\SYSTEM = NT-AUTORITÄT\SYSTEM
 function PrivGetGroupAdministrators           (){ return [System.Security.Principal.IdentityReference] (New-Object System.Security.Principal.SecurityIdentifier("S-1-5-32-544"                                                  )).Translate([System.Security.Principal.NTAccount]); } # BUILTIN\Administrators = VORDEFINIERT\Administratoren  (more https://msdn.microsoft.com/en-us/library/windows/desktop/aa379649(v=vs.85).aspx)
 function PrivGetGroupAuthenticatedUsers       (){ return [System.Security.Principal.IdentityReference] (New-Object System.Security.Principal.SecurityIdentifier("S-1-5-11"                                                      )).Translate([System.Security.Principal.NTAccount]); } # NT AUTHORITY\Authenticated Users = NT-AUTORITÄT\Authentifizierte Benutzer
@@ -747,9 +747,9 @@ function NetGetIpAddress                      (){ # IP V4 and V6 address configu
                                                 Select-Object @{Name="Fam";Expression={$_.AddressFamily}}, InterfaceAlias, IPAddress, Type,PrefixLength,PrefixOrigin,SuffixOrigin,AddressState,ValidLifetime,PreferredLifetime)); }
 function NetGetNetView                        (){ # List provided shares (later for portability list mounts)
                                                 [String[]] $out = @()+(& "NET.EXE" "VIEW" $ComputerName ); AssertRcIsOk $out; return [String[]] $out; }
-function NetGetNetStat                        (){ [String[]] $out = @()+(& "NETSTAT.EXE" "/A"             ); AssertRcIsOk $out; return [String[]] $out; }
-function NetGetRoute                          (){ [String[]] $out = @()+(& "ROUTE.EXE" "PRINT"            ); AssertRcIsOk $out; return [String[]] $out; }
-function NetGetNbtStat                        (){ [String[]] $out = @()+(& "NBTSTAT.EXE" "-N"             ); AssertRcIsOk $out; return [String[]] $out; }
+function NetGetNetStat                        (){ [String[]] $out = @()+(& "NETSTAT.EXE" "/A"  ); AssertRcIsOk $out; return [String[]] $out; }
+function NetGetRoute                          (){ [String[]] $out = @()+(& "ROUTE.EXE" "PRINT" ); AssertRcIsOk $out; return [String[]] $out; }
+function NetGetNbtStat                        (){ [String[]] $out = @()+(& "NBTSTAT.EXE" "-N"  ); AssertRcIsOk $out; return [String[]] $out; }
 function JuniperNcEstablishVpnConn            ( [String] $secureCredentialFile, [String] $url, [String] $realm ){
                                                 [String] $serviceName = "DsNcService";
                                                 [String] $vpnProg = "${env:ProgramFiles(x86)}/Juniper Networks/Network Connect 8.0/nclauncher.exe";
@@ -806,7 +806,7 @@ function InfoAboutComputerOverview            (){ return [String[]] @( "InfoAbou
                                                   ,"Session.PathVariable           : $env:PATH"
                                                   ,"Session.PSVersion              : $((Get-Host).Version.ToString())"
                                                   ,"Session.Culture                : $((Get-Host).CurrentCulture.Name)" # "de-CH", "en-US"
-                                                  ,"Session.CultureUI              : $((Get-Host).CurrentUICulture.Name)"
+                                                  ,"Session.CultureUI              : $((Get-Host).CurrentUICulture.Name)" # "de-CH", "en-US"
                                                   ,"Session.Culture.DtPattern      : $((Get-Host).CurrentCulture.DateTimeFormat.FullDateTimePattern)" # "yyyy-MM-dd HH:mm:ss"
                                                   ); }
 function InfoAboutExistingShares              (){

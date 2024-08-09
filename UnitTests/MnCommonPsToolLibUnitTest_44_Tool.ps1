@@ -17,7 +17,7 @@ function UnitTest_Tool(){
   [String] $tar7zipFile2 = "$srcFile.7z";
   ToolCreate7zip $srcFile $tar7zipFile1; Assert ((FileGetSize $tar7zipFile1) -gt 0);
   ToolCreate7zip $srcDir  $tar7zipFile2; Assert ((FileGetSize $tar7zipFile2) -gt 0);
-  FileDelete $tar7zipFile1; 
+  FileDelete $tar7zipFile1;
   FileDelete $tar7zipFile2;
   FileDelete $srcFile;
   DirDelete  $srcDir;

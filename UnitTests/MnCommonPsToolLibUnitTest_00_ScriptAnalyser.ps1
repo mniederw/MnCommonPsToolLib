@@ -2,12 +2,14 @@
 
 Param( [Boolean] $showAlsoIgnored = $false )
 
-Set-StrictMode -Version Latest; trap [Exception] { Write-Error $_; Read-Host "Press Enter to Exit"; break; } $ErrorActionPreference = "Stop";
+Set-StrictMode -Version Latest; $ErrorActionPreference = "Stop"; trap [Exception] { $nl = [Environment]::NewLine;
+  Write-Error -ErrorAction Continue "$($_.Exception.GetType().Name): $($_.Exception.Message)${nl}$($_.InvocationInfo.PositionMessage)$nl$($_.ScriptStackTrace)";
+  Read-Host "Press Enter to Exit"; break; }
 
 function UnitTest_ScriptAnalyser(){
-  OutProgress "Test Script Analyzer recursively on all repository files";
+  OutProgress "Test Script Analyzer recursively on all repository files (showAlsoIgnored=$showAlsoIgnored)";
   [String] $dir = $ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath("$PSScriptRoot/../");
-  [String[]] $excl = @(
+  [String[]] $exclusionRules = @(
      "PSAvoidGlobalVars"                              # For some values we require global variables
     ,"PSAvoidUsingPositionalParameters"               # Of course we use positional parameters and do not want to use only named parameters
     ,"PSAvoidUsingConvertToSecureStringWithPlainText" # We need it for our own credential storage; File 'MnCommonPsToolLib.psm1' uses ConvertTo-SecureString with plaintext. This will expose secure information. Encrypted standard strings should be used instead. in line 1578 col 88
@@ -17,24 +19,25 @@ function UnitTest_ScriptAnalyser(){
    #,"PSPossibleIncorrectComparisonWithNull"          # We need it for showing this bad feature
    #,"PSUseDeclaredVarsMoreThanAssignments"           # We have a lot of dummy variables
   );
-  [String[]] $ignoreKnown = @(
+  [String[]] $ignoreKnownProblemMessages = @(
     "Install.ps1 *WARN PSAvoidUsingWriteHost"
     ,"MnCommonPsToolLib.psm1 *WARN PSUseProcessBlockForPipelineCommand" # Command accepts pipeline input but has not defined a process block. in line 155 col 106
     ,"MnCommonPsToolLib.psm1 *WARN PSAvoidUsingWriteHost"
     ,"MnCommonPsToolLib.psm1 *WARN PSAvoidUsingPlainTextForPassword" # Parameter '$repoDirForCred' should not use String type but either SecureString or PSCredential, otherwise it increases the chance to to expose this sensitive information. in line 2429 col 129
     ,"MnCommonPsToolLib_Windows.ps1 *WARN PSAvoidUsingPlainTextForPassword" # Parameter '$secureCredentialFile' should not use String type but either SecureString or PSCredential, otherwise it increases the chance to to expose this sensitive information. in line 720 col 49
-    ,"MnCommonPsToolLibUnitTest_PsCommonWithLintWarnings.ps1 *WARN PSPossibleIncorrectComparisonWithNull" # $null should be on the left side of equality comparisons. in line 11 col 48
+    ,"MnCommonPsToolLibUnitTest_02_PsCommonWithLintWarnings.ps1 *WARN PSPossibleIncorrectComparisonWithNull" # $null should be on the left side of equality comparisons. in line 11 col 48
+    ,"MnCommonPsToolLib.psd1 *WARN PSUseToExportFieldsInManifest" # Do not use wildcard or $null in this field. Explicitly specify a list for FunctionsToExport.   in line 15 col 30
   );
   #
   Write-Output "Running Powershell Script Analyzer recursively below `"$dir`" showAlsoIgnored=$showAlsoIgnored ";
   Write-Output "  which checks all ps scripts and lists suggestions for improvements. ";
-  if( $showAlsoIgnored ){ $excl = @(); $ignoreKnown = @(); }
-  $excl        | Where-Object{ $null -ne $_ } | ForEach-Object{ Write-Output "    ExcludeRule     = $_" }
-  $ignoreKnown | Where-Object{ $null -ne $_ } | ForEach-Object{ Write-Output "    IgnoreKnownRule = $_" }
+  if( $showAlsoIgnored ){ $exclusionRules = @(); $ignoreKnownProblemMessages = @(); }
+  $exclusionRules             | Where-Object{ $null -ne $_ } | ForEach-Object{ Write-Output "    ExcludeRule     = $_" }
+  $ignoreKnownProblemMessages | Where-Object{ $null -ne $_ } | ForEach-Object{ Write-Output "    IgnoreKnownRule = $_" }
   Write-Output "  Note: If PSScriptAnalyzer is not yet installed then install it with admin rights as follow:";
   Write-Output "    Set-PSRepository PSGallery -InstallationPolicy Trusted; Install-Module -ErrorAction Stop PSScriptAnalyzer;"
   #
-  [Object[]] $issues = Invoke-ScriptAnalyzer -Path $dir -Recurse -ExcludeRule $excl;
+  [Object[]] $issues = Invoke-ScriptAnalyzer -Path $dir -Recurse -ExcludeRule $exclusionRules;
   # -ReportSummary would produce red line on console, example: 97 rule violations found.    Severity distribution:  Error = 3, Warning = 57, Information = 37
   $nrOfErrors = $issues.Where({$_.Severity -eq 'Error'  }).Count;
   $nrOfWarningsOrInfo = 0;
@@ -52,11 +55,14 @@ function UnitTest_ScriptAnalyser(){
     # $_.SuggestedCorrections :
     "  $scr $sev $rul : $msgL";
    } | Where-Object{
-     for( [Int32] $i = 0; $i -lt $ignoreKnown.Length; $i++ ){ if( $_ -like ("  "+$ignoreKnown[$i]+" *: *") ){ return $false; } } return $true;
+     for( [Int32] $i = 0; $i -lt $ignoreKnownProblemMessages.Length; $i++ ){
+       if( $_ -like ("  "+$ignoreKnownProblemMessages[$i]+" *: *") ){ return $false; }
+     } return $true;
    } | Sort-Object;
   $lines | Where-Object{ $null -ne $_ } | ForEach-Object{ Write-Output $_; };
   [String] $msg = "ScriptAnalyser found total $nrOfErrors errors and $nrOfWarningsOrInfo warnings-or-infonotes.";
   if( $nrOfErrors -ne 0 ){ throw [Exception] $msg; }
   Write-Output "Ok, done. $msg";
 }
+Write-Verbose "Dummy use $showAlsoIgnored because WARN PSReviewUnusedParameter : The parameter 'showAlsoIgnored' has been declared but not used. in line 3 col 18";
 UnitTest_ScriptAnalyser;

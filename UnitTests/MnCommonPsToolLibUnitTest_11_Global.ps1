@@ -1,6 +1,7 @@
 ﻿#!/usr/bin/env pwsh
 
 Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
+GlobalVariablesInit; # Is nessessary in VS-Code PS Terminal only (seams to work multithreaded somehow and so it lost CurrentThread.CurrentUICulture settings)
 
 function UnitTest_Global(){
   OutProgress (ScriptGetCurrentFuncName);
