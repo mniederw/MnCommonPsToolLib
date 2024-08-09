@@ -156,10 +156,10 @@ Add-Type -WarningAction SilentlyContinue -TypeDefinition "using System; public c
   # Note: we need to suppress the warning: The generated type defines no public methods or properties
 
 # Set some self defined constant global variables
-if( $null -eq (Get-Variable -Scope Global -ErrorAction SilentlyContinue -Name ComputerName) -or $null -eq $global:InfoLineColor ){ # check wether last variable already exists because reload safe
+if( $null -eq (Get-Variable -Scope Global -ErrorAction SilentlyContinue -Name ComputerName) -or $null -eq $global:InfoLineColor ){ # check wether last variables already exists because reload safe
   New-Variable -option Constant -Scope Global -name CurrentMonthAndWeekIsoString -Value ([String]((Get-Date -format "yyyy-MM-")+(Get-Date -uformat "W%V")));
   New-Variable -option Constant -Scope Global -name InfoLineColor                -Value $(switch($Host.Name -eq "Windows PowerShell ISE Host"){($true){"Gray"}default{"White"}}); # ise is white so we need a contrast color
-  New-Variable -option Constant -Scope Global -name ComputerName                 -Value ([String]$(switch("$env:computername" -ne ""){($true){"$env:computername"}($false){(& "hostname")}}).ToLower()); # provide unified lowercase ComputerName
+  New-Variable -option Constant -Scope Global -name ComputerName                 -Value $([System.Environment]::MachineName.ToLower()); # provide unified lowercase ComputerName
 }
 
 # Statement extensions
@@ -347,7 +347,7 @@ function StringFromErrorRecord                ( [System.Management.Automation.Er
                                                 [String] $nl = [Environment]::NewLine;
                                                  $msg += "$nl  ScriptStackTrace: $nl    "+$er.ScriptStackTrace.Replace("$nl","$nl    "); # Example: at <ScriptBlock>, C:\myfile.psm1: line 800 at MyFunc
                                                  $msg += "$nl  InvocationInfo:$nl    "+$er.InvocationInfo.PositionMessage.Replace("$nl","$nl    "); # At D:\myfile.psm1:800 char:83 \n   + ...   +   ~~~
-                                                 $msg += "$nl  Ts=$(DateTimeNowAsStringIso) User=$($env:USER) mach=$($ComputerName) ";
+                                                 $msg += "$nl  Ts=$(DateTimeNowAsStringIso) User=$($env:USERNAME) mach=$ComputerName ";
                                                  # $msg += "$nl  InvocationInfoLine: "+($er.InvocationInfo.Line.Replace("$nl"," ") -replace "\s+"," ");
                                                  # $msg += "$nl  InvocationInfoMyCommand: $($er.InvocationInfo.MyCommand)"; # Example: ForEach-Object
                                                  # $msg += "$nl  InvocationInfoInvocationName: $($er.InvocationInfo.InvocationName)"; # Example: ForEach-Object

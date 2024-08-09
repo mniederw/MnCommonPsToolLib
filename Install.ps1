@@ -57,7 +57,7 @@ function ScriptGetTopCaller                   (){ [String] $f = $global:MyInvoca
 function ProcessIsLesserEqualPs5              (){ return [Boolean] ($PSVersionTable.PSVersion.Major -le 5); }
 function ProcessPsExecutable                  (){ return [String] $(switch((ProcessIsLesserEqualPs5)){ $true{"powershell.exe"} default{"pwsh"}}); } # usually in $PSHOME
 function ProcessIsRunningInElevatedAdminMode  (){ if( (OsIsWindows) ){ return [Boolean] ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"); }
-                                                  return [Boolean] ("$env:SUDO_USER" -ne "" -or "$env:USER" -eq "root"); }
+                                                  return [Boolean] ("$env:SUDO_USER" -ne "" -or "$env:USERNAME" -eq "root"); }
 function ProcessRestartInElevatedAdminMode    (){ if( (ProcessIsRunningInElevatedAdminMode) ){ return; }
                                                 if( (OsIsWindows) ){
                                                   [String] $cmd = @( (ScriptGetTopCaller) ) + $sel;
@@ -129,9 +129,9 @@ function CurrentInstallationModes(){
     # for later add: Local-Std-Mode
   }else{
     if( (DirExists $moduleTarDirAllUsersLinux) ){ $modes += "Installed-in-Global-Std-Mode-AllUsers"; }
-    if( (DirExists $moduleTarDirCurrUserLinux) ){ $modes += "Installed-in-Local-Std-Mode-Current-User($env:USER)"; }
+    if( (DirExists $moduleTarDirCurrUserLinux) ){ $modes += "Installed-in-Local-Std-Mode-Current-User($env:USERNAME)"; }
   }
-  if( (OsPsModulePathContains $srcRootDir)   ){ $modes += "Installed-in-Local-Developer-Mode-Current-User($env:USER)"; }
+  if( (OsPsModulePathContains $srcRootDir)   ){ $modes += "Installed-in-Local-Developer-Mode-Current-User($env:USERNAME)"; }
   if( $modes.Count -eq 0 ){ $modes += "Not-Installed"; }
   return [String] "$modes.";
 }
@@ -294,7 +294,7 @@ function Menu(){
     OutProgress     "Current environment:";
     OutProgressText "    Current installation modes         = "; OutProgressText -color:Green (CurrentInstallationModes); OutProgress "";
     OutProgress     "  PsVersion                          = `"$psVersion`" on Platform=$([System.Environment]::OSVersion.Platform). ";
-    OutProgress     "  Current-User                       = `"$env:USER`". ";
+    OutProgress     "  Current-User                       = `"$env:USERNAME`". ";
     OutProgress     "  IsInElevatedAdminMode              = $(ProcessIsRunningInElevatedAdminMode). ";
     OutProgress     "  SrcRootDir                         = `"$srcRootDir`". ";
     OutProgress     "  Powershell User Profile            = `"$PROFILE`". ";
