@@ -20,7 +20,12 @@ function UnitTest_Net(){
   OutProgress "NetDownloadToString"      ; Assert ((NetDownloadToString $url) -gt 0);
   OutProgress "NetDownloadToStringByCurl"; Assert ((NetDownloadToStringByCurl $url) -gt 0);
   OutProgress "NetDownloadIsSuccessful"  ; Assert (NetDownloadIsSuccessful $url);
-  OutProgress "NetDownloadSite"          ; if( -not (OsIsWindows) -or "$env:GITHUB_WORKSPACE" -eq "" ){ [String] $tmpDir = DirCreateTemp "MNNds"; NetDownloadSite $site $tmpDir -maxBytes 20000; DirDelete $tmpDir; }
+  OutProgress "NetDownloadSite"          ; if( -not (OsIsWindows) -or "$env:GITHUB_WORKSPACE" -eq "" ){ # on linux or non-github-windows
+                                             [String] $tmpDir = DirCreateTemp "MNNds"; 
+                                             OutProgress "  We expect warnings as generic: Exceed quota. http://: Invalid host name.";
+                                             NetDownloadSite $site $tmpDir -maxBytes 20000 *>&1 | Where-Object{ "$_".Trim() -ne "" } | ForEach-Object{ OutProgress "  $_"; };
+                                             # Example: Warning: Ignored one or more occurrences of error category: Generic . More see logfile="/tmp/MNNds.123456//.Download.2024-08.detail.log".
+                                             DirDelete $tmpDir; }
   # TODO on github windows: "wget" was not found in env-path="C:\Program Files\PowerShell\7;C:\Program Files\MongoDB\Server\5.0\bin;C:\aliyun-cli;C:\vcpkg;C:\Program Files (x86)\NSIS\;C:\tools\zstd;
   #   C:\Program Files\Mercurial\;C:\hostedtoolcache\windows\stack\2.15.1\x64;C:\cabal\bin;C:\\ghcup\bin;C:\mingw64\bin;C:\Program Files\dotnet;C:\Program Files\MySQL\MySQL Server 8.0\bin;
   #   C:\Program Files\R\R-4.3.2\bin\x64;C:\SeleniumWebDrivers\GeckoDriver;C:\SeleniumWebDrivers\EdgeDriver\;C:\SeleniumWebDrivers\ChromeDriver;C:\Program Files (x86)\sbt\bin;C:\Program Files (x86)\GitHub CLI;
@@ -39,4 +44,3 @@ function UnitTest_Net(){
   FileDelete $tmp;
 }
 UnitTest_Net;
-

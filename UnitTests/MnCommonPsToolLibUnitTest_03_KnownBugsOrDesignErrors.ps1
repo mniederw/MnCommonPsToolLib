@@ -133,11 +133,17 @@ function UnitTest_KnowBugsOrDesignErrors(){
   #       In future if ps7 can completely replace ps5 then we can remove this folder.
   #
   #
-  # Type Mismatch: A function returns a string array: If it returns a single element (=string) then it does not return a string array but the string:
-  function ReturnStringArrayWithOneString1(){ return [String[]] @("ab"); } Assert ((ReturnStringArrayWithOneString1)[0] -eq "a"); Assert (([String[]](ReturnStringArrayWithOneString1))[0] -eq "ab");
-  # This is a DESIGN ERROR, a string should not be given when we requested for a string array. The Workaround is to cast result always to an array.
+  # Type Mismatch: A function returns a string array:
+  # If it returns a single element (=string) then it does not return a string array but the string:
+  function ReturnStringArrayWithOneString1(){ return [String[]] @("ab"); }
+  Assert ((ReturnStringArrayWithOneString1)[0] -eq "a");
+  Assert (([String[]](ReturnStringArrayWithOneString1))[0] -eq "ab");
+  # This is a DESIGN ERROR, a string should not be given when we requested for a string array.
+  # The Workaround is to cast result always to an array.
   # Even the alternative with using OutputType keyword does not solve this behaviour:
-  function ReturnStringArrayWithOneString2 { [OutputType([string[]])] Param( [String] $s ); return [string[]]@("ab"); } Assert ((ReturnStringArrayWithOneString2)[0] -eq "a"); Assert (([String[]](ReturnStringArrayWithOneString2))[0] -eq "ab");
+  function ReturnStringArrayWithOneString2 { [OutputType([string[]])] Param( <# [String] $s #> ); return [string[]]@("ab"); }
+  Assert ((ReturnStringArrayWithOneString2)[0] -eq "a");
+  Assert (([String[]](ReturnStringArrayWithOneString2))[0] -eq "ab");
   #
   #
 }

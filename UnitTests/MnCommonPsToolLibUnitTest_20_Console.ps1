@@ -18,7 +18,7 @@ function UnitTest_Console(){
       if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){ ConsoleSetGuiProperties; } # is often tested and would relocate window
     }catch{
       # 2024-03 on github we get: Exception calling "GetWindowRect" with "2" argument(s): "Value cannot be null. (Parameter 'path1')"
-      OutWarning "Warning: We ignore exceptions for ConsoleSetPos and ConsoleSetGuiProperties because is probably running on machine without gui: $_";
+      OutProgress "Warning: We ignore exceptions for ConsoleSetPos and ConsoleSetGuiProperties because is probably running on machine without gui or in vs-code-terminal-pwsh: $_";
     }
   }catch{
     # 2024-03 on ps5
