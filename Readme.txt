@@ -1,9 +1,9 @@
-﻿MnCommonPsToolLib - Common Powershell Tool Library for PS5 and PS7 and works on multiplatforms (Windows, Linux and OSX)
-=======================================================================================================================
+﻿MnCommonPsToolLib - Common Powershell Tool Library for PS5 and PS7 and works on multiplatforms (Window, Linux, OSX)
+===================================================================================================================
 
 Published at: https://github.com/mniederw/MnCommonPsToolLib
-Licensed under GPL3. This is freeware.
-2013-2024 produced by Marc Niederwieser, Switzerland.
+Copyright © by Marc Niederwieser, Switzerland, 2013-2024.
+Licensed under GPL3. This is freeware, redistribute and or modify it under the terms of GPL3 or its later versions.
 
 Tribute
 -------
@@ -34,7 +34,8 @@ This command line library encapsulates many common powershell functions for the 
 Installation and Updates:
 -------------------------
 
-- Install powershell 7 and on Windows call InstallEnablePowerShellToUnrestrictedRequiresAdminRights.bat (run as admin)
+- Install powershell 7 and on Windows 
+  call InstallEnablePowerShellToUnrestrictedRequiresAdminRights.bat (run as admin)
 - Clone or download zip file of this repository and extract it
 - Run:   pwsh Install.ps1   and select menu item I=Install
 - On Windows it installs it system-wide for all users and on linux/osx it installs it for local user.

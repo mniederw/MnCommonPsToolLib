@@ -1,9 +1,10 @@
 ﻿# MnCommonPsToolLib - Common Powershell Tool Library for PS5 and PS7 and multiplatforms (Windows, Linux and OSX)
 # --------------------------------------------------------------------------------------------------------------
 # Published at: https://github.com/mniederw/MnCommonPsToolLib
-# Licensed under GPL3. This is freeware.
-# 2013-2024 produced by Marc Niederwieser, Switzerland.
+# Copyright © by Marc Niederwieser, Switzerland, 2013-2024.
+# Licensed under GPL3. This is freeware, redistribute and or modify it under the terms of GPL3 or its later versions.
 # For Version see .psd1 manifest file.
+#
 # Description:
 #   This library encapsulates many common commands for the purpose of supporting compatibility between
 #   multi platforms, simplifying commands, fixing usual problems, supporting tracing information,

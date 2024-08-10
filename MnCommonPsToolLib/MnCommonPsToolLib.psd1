@@ -4,8 +4,8 @@
   RootModule             = 'MnCommonPsToolLib.psm1';
   GUID                   = 'b0d61b3d-cd52-4b36-82e1-df89c8476128';
   Author                 = 'Marc Niederwieser';
-  CompanyName            = 'Private';
-  Copyright              = '(c) Marc Niederwieser. All rights reserved.';
+  CompanyName            = 'Private, Marc Niederwieser, Switzerland.';
+  Copyright              = 'Copyright © by Marc Niederwieser, Switzerland, 2013-2024. Licensed under GPL3.';
   Description            = 'Common Powershell Tool Library for PS5 and PS7 and works on multiplatforms (Windows, Linux and OSX)';
   PowerShellVersion      = '5.1';
   VariablesToExport      = '*';
@@ -34,7 +34,7 @@
   }
   #HelpInfoURI            = '';
 
-  ModuleVersion          = '7.63';
+  ModuleVersion          = '7.64';
 
   <#
   Releasenotes
@@ -43,6 +43,7 @@
   Major version will reflect breaking changes, minor identifies extensions and third number identifies urgent bugfixes.
   Breaking changes are usually removed deprecated functions or changed behaviours.
 
+  2024-08-10  V7.64  Extend Doc.
   2024-08-08  V7.63  Extend Install options. Use portable username and computername. Improve linux portability.
   2024-08-06  V7.62  Extend Install with option InstallAlternative.
   2024-07-16  V7.61  Fix Self-Update.
