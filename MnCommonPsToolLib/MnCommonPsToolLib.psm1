@@ -170,7 +170,7 @@ function ForEachParallel {
   #   You can call functions only from the loaded modules but all global variables are then undefined!
   #   You cannot use any functions or variables from the current script where it is embedded!
   #   Only the single variable $_ can be used, so you need to create a [System.Tuple] for passing multiple values as a single object.
-  #   You can also not base on Auto-Load-Module in your script, so generally use Load-Module for each used module.
+  #   You can also not base on Auto-Import-Module in your script, so generally use Import-Module for each used module.
   # Example: (0..9) | ForEachParallel { Write-Output "Nr: $_"; Start-Sleep -Seconds 1; };
   # Example: (0..9) | ForEachParallel -MaxThreads 2 { Write-Output "Nr: $_"; Start-Sleep -Seconds 1; };
   # Example: $x = "abc"; (0..9) | ForEach-Object{ [System.Tuple]::Create($_,$x) } | ForEachParallel{ "$($_.Item1) $($_.Item2)" };
