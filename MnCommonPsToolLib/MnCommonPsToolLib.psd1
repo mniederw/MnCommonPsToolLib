@@ -34,7 +34,7 @@
   }
   #HelpInfoURI            = '';
 
-  ModuleVersion          = '7.64';
+  ModuleVersion          = '7.65';
 
   <#
   Releasenotes
@@ -43,6 +43,7 @@
   Major version will reflect breaking changes, minor identifies extensions and third number identifies urgent bugfixes.
   Breaking changes are usually removed deprecated functions or changed behaviours.
 
+  2024-08-13  V7.65  Extend Doc.
   2024-08-10  V7.64  Extend Doc.
   2024-08-08  V7.63  Extend Install options. Use portable username and computername. Improve linux portability.
   2024-08-06  V7.62  Extend Install with option InstallAlternative.
