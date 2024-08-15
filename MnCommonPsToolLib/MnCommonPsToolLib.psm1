@@ -982,7 +982,8 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
 function ProcessStartByArray                  ( [String[]] $cmdAndArgs, [Boolean] $careStdErrAsOut = $false, [Boolean] $traceCmd = $false ){
                                                 Assert ($cmdAndArgs.Length -gt 0) "Expected at least the command but cmdAndArgs is empty. ";
                                                 [String] $cmd = $cmdAndArgs[0];
-                                                [String[]] $cmdArgs = @()+($cmdAndArgs[1..($cmdAndArgs.Length-1)]);
+                                                [String[]] $cmdArgs = @();
+                                                if( $cmdAndArgs.Count -lt 1 ){ $cmdArgs += $cmdAndArgs[1..($cmdAndArgs.Length-1)]; }
                                                 return [String] (ProcessStart $cmd $cmdArgs $careStdErrAsOut $traceCmd); }
 function ProcessStartByCmdLine                ( [String] $cmdLine, [Boolean] $careStdErrAsOut = $false, [Boolean] $traceCmd = $false ){
                                                 return [String] (ProcessStartByArray (StringCommandLineToArray $cmdLine) $careStdErrAsOut $traceCmd); }
