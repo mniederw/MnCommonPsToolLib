@@ -2319,25 +2319,27 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){
                                                 }
 function ToolInstallWinGet                    (){
                                                 OutProgressTitle     "Install WinGet";
-                                                Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe; # Register Winget (On Win11 automatically done after first user logon)
-                                                  # In Windows-Sandbox or if winget is not installed at all, then perform the following:
-                                                  #   $progressPreference = 'silentlyContinue'
-                                                  #   Write-Information "Downloading WinGet and its dependencies..."
-                                                  #   Invoke-WebRequest -Uri https://aka.ms/getwinget -OutFile Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle
-                                                  #   Invoke-WebRequest -Uri https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx -OutFile Microsoft.VCLibs.x64.14.00.Desktop.appx
-                                                  #   Invoke-WebRequest -Uri https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.x64.appx -OutFile Microsoft.UI.Xaml.2.8.x64.appx
-                                                  #   Add-AppxPackage Microsoft.VCLibs.x64.14.00.Desktop.appx
-                                                  #   Add-AppxPackage Microsoft.UI.Xaml.2.8.x64.appx
-                                                  #   Add-AppxPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle
-                                                Write-Output "y" | WinGet search | Out-Null; # default source is "msstore"; alternative option: --accept-source-agreements
-                                                  # Skip: Fehler beim Versuch, die Quelle zu aktualisieren: winget \n Die Quelle "msstore" erfordert, dass Sie die folgenden Verträge 
-                                                  #       vor der Verwendung anzeigen. \n Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction \n
-                                                  #       Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben an den Back-End-Dienst gesendet wird, 
-                                                  #       damit er ordnungsgemäß funktioniert (z. B. „US“). \n Stimmen Sie allen Nutzungsbedingungen der Quelle zu? \n [Y] Ja  [N] Nein:
-                                                Write-Output "Update WinGet, current version: $(winget --version) "; # 2024-07: v1.2.10691;
-                                                  # call https://github.com/microsoft/winget-cli/releases
-                                                  # download https://github.com/microsoft/winget-cli/releases/download/v1.8.1911/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle
-                                                Add-AppxPackage -Path 'https://github.com/microsoft/winget-cli/releases/download/v1.8.1911/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle'; # sometimes with: -ForceApplicationShutdown
+                                                if( (ProcessIsLesserEqualPs5) ){
+                                                  Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe; # Register Winget (On Win11 automatically done after first user logon)
+                                                    # In Windows-Sandbox or if winget is not installed at all, then perform the following:
+                                                    #   $progressPreference = 'silentlyContinue'
+                                                    #   Write-Information "Downloading WinGet and its dependencies..."
+                                                    #   Invoke-WebRequest -Uri https://aka.ms/getwinget -OutFile Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle
+                                                    #   Invoke-WebRequest -Uri https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx -OutFile Microsoft.VCLibs.x64.14.00.Desktop.appx
+                                                    #   Invoke-WebRequest -Uri https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.x64.appx -OutFile Microsoft.UI.Xaml.2.8.x64.appx
+                                                    #   Add-AppxPackage Microsoft.VCLibs.x64.14.00.Desktop.appx
+                                                    #   Add-AppxPackage Microsoft.UI.Xaml.2.8.x64.appx
+                                                    #   Add-AppxPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle
+                                                  Write-Output "y" | WinGet search | Out-Null; # default source is "msstore"; alternative option: --accept-source-agreements
+                                                    # Skip: Fehler beim Versuch, die Quelle zu aktualisieren: winget \n Die Quelle "msstore" erfordert, dass Sie die folgenden Verträge 
+                                                    #       vor der Verwendung anzeigen. \n Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction \n
+                                                    #       Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben an den Back-End-Dienst gesendet wird, 
+                                                    #       damit er ordnungsgemäß funktioniert (z. B. „US“). \n Stimmen Sie allen Nutzungsbedingungen der Quelle zu? \n [Y] Ja  [N] Nein:
+                                                  Write-Output "Update WinGet, current version: $(winget --version) "; # 2024-07: v1.2.10691;
+                                                    # call https://github.com/microsoft/winget-cli/releases
+                                                    # download https://github.com/microsoft/winget-cli/releases/download/v1.8.1911/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle
+                                                  Add-AppxPackage -Path 'https://github.com/microsoft/winget-cli/releases/download/v1.8.1911/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle'; # sometimes with: -ForceApplicationShutdown
+                                                }
                                                 Write-Output "Update list of WinGet current version: $(winget --version) "; # 2024-07: vv1.8.1911
                                                 winget source reset; # alternative option: --force
                                                 winget source update;
