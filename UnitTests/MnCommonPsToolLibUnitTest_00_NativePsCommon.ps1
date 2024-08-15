@@ -59,7 +59,7 @@ Write-Output "----- List all aliases: ----- ";
 Write-Output "----- List ps gallery repositories: ----- ";
   Get-PSRepository;
 Write-Output "----- List installed ps modules ----- ";
-  Get-Module -ListAvailable | Sort-Object ModuleType, Name, Version | Select-Object ModuleType, Name, Version <#, ExportedCommands#> | Format-Table -Wrap -Force -AutoSize;
+  Get-Module -ListAvailable | Sort-Object Name, Version | Select-Object Name, Version, ModuleType, Path | Format-Table -Wrap -Force -AutoSize;  
 Write-Output "----- List commands grouped by modules ----- ";
   Get-Command -Module * | Group-Object Module | Select-Object Values, Count, Group;
 Write-Output "----- List all currently used modules ----- ";

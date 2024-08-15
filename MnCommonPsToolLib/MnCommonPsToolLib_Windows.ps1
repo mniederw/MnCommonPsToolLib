@@ -35,6 +35,21 @@ function OsIsHibernateEnabled                 (){
                                                   $_ -like "Die folgenden Standbymodusfunktionen sind auf diesem System verf*" -or $_ -like "Die folgenden Ruhezustandfunktionen sind auf diesem System verf*" });
                                                 AssertRcIsOk; return [Boolean] ((($out.Contains("Ruhezustand") -or $out.Contains("Hibernate"))) -and (FileExists "$env:SystemDrive/hiberfil.sys")); }
 function OsInfoMainboardPhysicalMemorySum     (){ return [Int64] (Get-CimInstance -class Win32_PhysicalMemory | Measure-Object -Property capacity -Sum).Sum; }
+function OsWindowsPackageListInstalled        (){
+                                                [PSCustomObject[]] $a = @()+
+                                                  (Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*")+
+                                                  (Get-ItemProperty -Path "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*");
+                                                return $a | Select-Object DisplayVersion, Publisher, DisplayName, UninstallString; }
+function OsWindowsPackageUninstall            ( [String] $displayName ){
+                                                [PSCustomObject[]] $a = @()+((OsWindowsPackageListInstalled) | 
+                                                  Where-Object{ $_.DisplayName -eq $displayName });
+                                                if( $a.Count -eq 0 ){ OutProgress "Uninstall `"$displayName`" already uninstalled, nothing done. "; return; }
+                                                $a | ForEach-Object{ 
+                                                  [String] $uninstallCmd = $_.UninstallString; # maybe we can append option: " /quiet"
+                                                  OutProgress "Uninstall-Ignoring-Errors `"$displayName`" with: `"$uninstallCmd`" ";
+                                                  ProcessRestartInElevatedAdminMode;
+                                                  ProcessStartByCmdLine $uninstallCmd $true $true;
+                                                } }
 function OsWindowsFeatureGetInstalledNames    (){ # Requires windows-server-os or at least Win10Prof with installed RSAT https://www.microsoft.com/en-au/download/details.aspx?id=45520
                                                   ScriptImportModuleIfNotDone "ServerManager";
                                                   return [String[]] (@()+(Get-WindowsFeature | Where-Object{ $_.InstallState -eq "Installed" } | ForEach-Object{ $_.Name })); } # states: Installed, Available, Removed.
@@ -55,6 +70,14 @@ function OsWindowsFeatureDoUninstall          ( [String] $name ){
                                                 [String] $out = "Result: IsSuccess=$($res.Success) RequiresRestart=$($res.RestartNeeded) ExitCode=$($res.ExitCode) FeatureResult=$($res.FeatureResult)";
                                                 OutProgress $out;
                                                 if( -not $res.Success ){ throw [Exception] "Uninstall $name was not successful, please solve manually. $out"; } }
+function OsWindowsRegRunDisable               ( [String] $regItem, [Boolean] $fromHklmNotHkcu = $false ){
+                                                # for future use: create key "AutorunsDisabled" and copy removed item to it
+                                                if( fromHklmNotHkcu ){
+                                                  OutProgress "Autorun-CurrentUser-Remove: $regItem";
+                                                  Remove-ItemProperty -Path "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run" -Name $regItem -ErrorAction SilentlyContinue;
+                                                }else{
+                                                  OutProgress "Autorun-LocalMachine-Remove: $regItem";
+                                                  Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name $regItem -ErrorAction SilentlyContinue; } }
 function OsGetWindowsProductKey               (){
                                                 [String] $map = "BCDFGHJKMPQRTVWXY2346789";
                                                 [Object] $value = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").digitalproductid[0x34..0x42]; [String] $p = "";
@@ -570,12 +593,22 @@ function TaskList                             (){
                                                   Sort-Object Name; }
                                                 # alternative: schtasks.exe /query /NH /FO CSV
 function TaskIsDisabled                       ( [String] $taskPathAndName ){ # Example: "\Microsoft\VisualStudio\VSIX Auto Update"
-                                                [String] $taskPath = (Split-Path -Parent $taskPathAndName) + "\"; # Example: "\Microsoft\VisualStudio"
-                                                [String] $taskName =  Split-Path -Leaf $taskPathAndName         ; # Example: "VSIX Auto Update"
-                                                return [Boolean] ((Get-ScheduledTask -TaskPath $taskPath -TaskName $taskName).State -eq "Disabled"); }
-function TaskDisable                          ( [String] $taskPathAndName ){
-                                                [String] $taskPath = (Split-Path -Parent $taskPathAndName) + "\"; # Example: "\Microsoft\VisualStudio"
-                                                [String] $taskName =  Split-Path -Leaf $taskPathAndName         ; # Example: "VSIX Auto Update"
+                                                [String] $taskPath = (Split-Path -Parent $taskPathAndName); # Example: "\Microsoft\VisualStudio"
+                                                if( -not $taskPath.EndsWith("\") ){ $taskPath += "\"; }
+                                                [String] $taskName =  Split-Path -Leaf   $taskPathAndName ; # Example: "VSIX Auto Update"
+                                                [CimInstance] $task = Get-ScheduledTask -TaskPath $taskPath -TaskName $taskName -ErrorAction SilentlyContinue;
+                                                if( $null -eq $task ){ Throw "Task not exists: `"$taskPathAndName`" "; }
+                                                return [Boolean] ($task.State -eq "Disabled"); }
+function TaskDisable                          ( [String] $taskPathAndName, [Boolean] $useLikeOperator = $false ){
+                                                if( $useLikeOperator ){
+                                                  TaskList | Where-Object{ $_.Name -like $taskPathAndName } | ForEach-Object{ TaskDisable $_.Name $false; }
+                                                  return;
+                                                }
+                                                [String] $taskPath = (Split-Path -Parent $taskPathAndName); # Example: "\Microsoft\VisualStudio"
+                                                if( -not $taskPath.EndsWith("\") ){ $taskPath += "\"; }
+                                                [String] $taskName =  Split-Path -Leaf   $taskPathAndName       ; # Example: "VSIX Auto Update"
+                                                [CimInstance] $task = Get-ScheduledTask -TaskPath $taskPath -TaskName $taskName -ErrorAction SilentlyContinue;
+                                                if( $null -eq $task ){ Throw "Task not exists: `"$taskPathAndName`" "; }
                                                 if( -not (TaskIsDisabled $taskPathAndName) ){
                                                   OutProgress "TaskDisable $taskPathAndName"; ProcessRestartInElevatedAdminMode;
                                                   try{ Disable-ScheduledTask -TaskPath $taskPath -TaskName $taskName | Out-Null; }
@@ -2173,24 +2206,47 @@ function ToolInstallOrUpdate                  ( [String] $installMedia, [String]
                                                   OutProgress "Is up-to-date: `"$installMedia`"";
                                                 } }
 function ToolInstallNuPckMgrAndCommonPsGalMo  (){
-                                                OutProgressTitle     "Install or actualize Nuget Package Manager and from PSGallery some common modules: ";
-                                                OutProgress "  InstallModules: SqlServer, ThreadJob, PsReadline, PSScriptAnalyzer, Pester, PSWindowsUpdate. Update-Help. ";
+                                                OutProgressTitle     "Install or actualize Nuget Package Manager and from PSGallery some common ps modules: ";
+                                                [String[]] $modules = @(
+                                                  # Predefined on Win  : Microsoft.PowerShell.Core          ; # Std     : Where-Object
+                                                  # Predefined on Linux: Microsoft.PowerShell.PSResourceGet ; # Std     : ?
+                                                  # Predefined         : Microsoft.PowerShell.Utility       ; # Std     : Write-Output
+                                                  # Predefined         : Microsoft.PowerShell.Host          ; # Std     : Start-Transcript
+                                                  # Predefined         : Microsoft.PowerShell.Management    ; # Std     : Start-Process
+                                                  # Predefined         : Microsoft.PowerShell.Security      ; # Std     : Get-ExecutionPolicy, Set-ExecutionPolicy
+                                                    "PowerShellGet"                 # Provides: Set-PSRepository, Install-Module
+                                                  , "PackageManagement"             # Provides: Install-PackageProvider, Get-Package
+                                                  , "SqlServer"                     # UsedBy  : SqlPerformFile, SqlPerformCmd.
+                                                  , "ThreadJob"                     # UsedBy  : GitCloneOrPullUrls
+                                                  , "PSScriptAnalyzer"              # UsedBy  : testing files for analysing powershell code
+                                                  , "Pester"                        # UsedBy  : Run ps tests
+                                                  , "PSWindowsUpdate"               # On Windows only
+                                                  , "PsReadline"                    # Provides: Write-Output
+                                                  , "Microsoft.PowerShell.Archive"  # Provides: Compress-Archive, Expand-Archive
+                                                  # for future use: Microsoft.EntityFrameworkCore.Tools
+                                                  # Import-Module Microsoft.PowerShell.Host;"; # seams to be required once for vs-code-terminal-pwsh
+                                                   );
+                                                OutProgress "  InstallModules: $modules. And Update-Help. ";
                                                 OutProgress "  Needs about 1 min.";
                                                 ProcessRestartInElevatedAdminMode;
                                                 OutProgress "Import-Module PowerShellGet:";
                                                 Import-Module "PowerShellGet"; # provides: Set-PSRepository, Install-Module
+                                                OutProgress "List ps gallery repositories: "; Get-PSRepository;
+                                                OutProgress "List installed ps modules ";
+                                                Get-Module -ListAvailable | Sort-Object Name, Version, ModuleType | Select-Object Name, Version, ModuleType, Path;
                                                 OutProgress "Set repository PSGallery to trusted: ";
                                                 Set-PSRepository PSGallery -InstallationPolicy Trusted; # uses 14 sec
                                                 OutProgress "List of installed package providers:";
                                                 Get-PackageProvider -ListAvailable | Where-Object{$null -ne $_} |
-                                                  Select-Object Name, Version, DynamicOptions |
+                                                  Select-Object Name, Version | # alternative: DynamicOptions
                                                   StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
                                                 OutProgress "Update NuGet"; # works asynchron
                                                 # On PS7 for "Install-PackageProvider NuGet" we got:
-                                                #   Install-PackageProvider: No match was found for the specified search criteria for the provider 'NuGet'. The package provider requires 'PackageManagement' and 'Provider' tags. Please check if the specified package has the tags.
+                                                #   Install-PackageProvider: No match was found for the specified search criteria for the provider 'NuGet'. 
+                                                #     The package provider requires 'PackageManagement' and 'Provider' tags. Please check if the specified package has the tags.
                                                 # So we ignore errors.
                                                 Install-PackageProvider -Name NuGet -ErrorAction SilentlyContinue |
-                                                  Select-Object Name, Status, Version, Source |
+                                                  Select-Object Name, Version, Status, Source |
                                                   StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
                                                 OutProgress "List of modules:";
                                                 Get-Module | Sort-Object Name | Select-Object Name,ModuleType,Version,Path |
@@ -2203,24 +2259,25 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){
                                                 # https://docs.microsoft.com/en-us/powershell/scripting/how-to-use-docs?view=powershell-7.2  take lts version
                                                 # alternatives: Install-Module -Force [-MinimumVersion <String>] [-MaximumVersion <String>] [-RequiredVersion <String>]
                                                 try{
-                                                  OutProgress "Install-Module -AcceptLicense -Scope AllUsers -Name PowerShellGet, SqlServer, ThreadJob, PSScriptAnalyzer, Pester, PSWindowsUpdate, PsReadline; ";
-                                                  Install-Module              -AcceptLicense -Scope AllUsers -Name PowerShellGet, SqlServer, ThreadJob, PSScriptAnalyzer, Pester, PSWindowsUpdate, PsReadline;
+                                                  OutProgress "Install-Module -AcceptLicense -Scope AllUsers -Name $modules; ";
+                                                  Install-Module              -AcceptLicense -Scope AllUsers -Name $modules; # for future use: -Force
                                                 }catch{
-                                                    # Install-Module : A parameter cannot be found that matches parameter name 'AcceptLicense'. ParameterBindingException
-                                                    [String] $msg = $_.Exception.Message;
-                                                    OutProgress "Failed because $msg";
-                                                    OutProgress "Sometimes it failed because unknown parameter AcceptLicense, so we retry without it. ";
-                                                    OutProgress "Install-Module -Scope AllUsers -Name PowerShellGet, SqlServer, ThreadJob, PSScriptAnalyzer, Pester, PSWindowsUpdate, PsReadline; ";
-                                                    Install-Module              -Scope AllUsers -Name PowerShellGet, SqlServer, ThreadJob, PSScriptAnalyzer, Pester, PSWindowsUpdate, PsReadline;
+                                                  # Install-Module : A parameter cannot be found that matches parameter name 'AcceptLicense'. ParameterBindingException
+                                                  [String] $msg = $_.Exception.Message;
+                                                  OutProgress "Failed because $msg";
+                                                  OutProgress "Sometimes it failed because unknown parameter AcceptLicense, so we retry without it. ";
+                                                  OutProgress "Install-Module -Scope AllUsers -Name $modules; ";
+                                                  Install-Module              -Scope AllUsers -Name $modules;
                                                 }
                                                 # 2024-03: On PS7 we would get: Update-Module: Module 'PsReadline' was not installed by using Install-Module, so it cannot be updated.
-                                                OutProgress "Update  modules: PowerShellGet, SqlServer, ThreadJob, PSScriptAnalyzer, Pester, PSWindowsUpdate. On PS5 also PsReadline.";
+                                                $modules = $modules | Where-Object{ (ProcessIsLesserEqualPs5) -or $_ -ne "PsReadline" }; # remove PsReadline for PS7
+                                                OutProgress "Update  modules: $modules ";
                                                 try{
-                                                  if( (ProcessIsLesserEqualPs5) ){ Update-Module -AcceptLicense -Scope AllUsers -Name PowerShellGet, SqlServer, ThreadJob, PSScriptAnalyzer, Pester, PSWindowsUpdate, PsReadline; }
-                                                  else                           { Update-Module -AcceptLicense -Scope AllUsers -Name PowerShellGet, SqlServer, ThreadJob, PSScriptAnalyzer, Pester, PSWindowsUpdate; }
+                                                  Update-Module -AcceptLicense -Scope AllUsers -Name $modules;
                                                 }catch{
                                                   # 2023-10: option AcceptLicense not exists ...
                                                   OutWarning "Warning: Update-Module failed because $($_.Exception.Message), ignored.";
+                                                  Update-Module -ErrorAction SilentlyContinue -AcceptLicense -Scope AllUsers -Name $modules;
                                                 }
                                                 #
                                                 OutProgress "Uninstall old versions of modules: ";
@@ -2260,6 +2317,67 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){
                                                 #     And Update-Module : Das Modul 'Pester' wurde nicht mithilfe von 'Install-Module' installiert und kann folglich nicht aktualisiert werden.
                                                 # - Example: Uninstall-Module -MaximumVersion "0.9.99" -Name SqlServer;
                                                 }
+function ToolInstallWinGet                    (){
+                                                OutProgressTitle     "Install WinGet";
+                                                Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe; # Register Winget (On Win11 automatically done after first user logon)
+                                                  # In Windows-Sandbox or if winget is not installed at all, then perform the following:
+                                                  #   $progressPreference = 'silentlyContinue'
+                                                  #   Write-Information "Downloading WinGet and its dependencies..."
+                                                  #   Invoke-WebRequest -Uri https://aka.ms/getwinget -OutFile Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle
+                                                  #   Invoke-WebRequest -Uri https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx -OutFile Microsoft.VCLibs.x64.14.00.Desktop.appx
+                                                  #   Invoke-WebRequest -Uri https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.x64.appx -OutFile Microsoft.UI.Xaml.2.8.x64.appx
+                                                  #   Add-AppxPackage Microsoft.VCLibs.x64.14.00.Desktop.appx
+                                                  #   Add-AppxPackage Microsoft.UI.Xaml.2.8.x64.appx
+                                                  #   Add-AppxPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle
+                                                Write-Output "y" | WinGet search | Out-Null; # default source is "msstore"; alternative option: --accept-source-agreements
+                                                  # Skip: Fehler beim Versuch, die Quelle zu aktualisieren: winget \n Die Quelle "msstore" erfordert, dass Sie die folgenden Verträge 
+                                                  #       vor der Verwendung anzeigen. \n Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction \n
+                                                  #       Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben an den Back-End-Dienst gesendet wird, 
+                                                  #       damit er ordnungsgemäß funktioniert (z. B. „US“). \n Stimmen Sie allen Nutzungsbedingungen der Quelle zu? \n [Y] Ja  [N] Nein:
+                                                Write-Output "Update WinGet, current version: $(winget --version) "; # 2024-07: v1.2.10691;
+                                                  # call https://github.com/microsoft/winget-cli/releases
+                                                  # download https://github.com/microsoft/winget-cli/releases/download/v1.8.1911/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle
+                                                Add-AppxPackage -Path 'https://github.com/microsoft/winget-cli/releases/download/v1.8.1911/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle'; # sometimes with: -ForceApplicationShutdown
+                                                Write-Output "Update list of WinGet current version: $(winget --version) "; # 2024-07: vv1.8.1911
+                                                winget source reset; # alternative option: --force
+                                                winget source update;
+                                                winget source list; # msstore
+                                                  #   Name    Argument                                      Anstößig
+                                                  #   --------------------------------------------------------------
+                                                  #   msstore https://storeedgefd.dsx.mp.microsoft.com/v9.0 false
+                                                  #   winget  https://cdn.winget.microsoft.com/cache        false
+                                                  # winget --help
+                                                  #   Folgende Befehle sind verfügbar:
+                                                  #     install    Installiert das angegebene Paket
+                                                  #     show       Zeigt Informationen zu einem Paket an
+                                                  #     source     Verwalten von Paketquellen
+                                                  #     search     Suchen und Anzeigen grundlegender Informationen zu Paketen
+                                                  #     list       Installierte Pakete anzeigen
+                                                  #     upgrade    Zeigt verfügbare Upgrades an und führt sie aus.
+                                                  #     uninstall  Deinstalliert das angegebene Paket
+                                                  #     hash       Hilfsprogramm zum Hashen von Installationsdateien
+                                                  #     validate   Überprüft eine Manifestdatei
+                                                  #     settings   Einstellungen öffnen oder Administratoreinstellungen festlegen
+                                                  #     features   Zeigt den Status von experimentellen Features an
+                                                  #     export     Exportiert eine Liste der installierten Pakete
+                                                  #     import     Installiert alle Pakete in einer Datei
+                                                  #     pin        Paketpins verwalten
+                                                  #     configure  Konfiguriert das System in einem gewünschten Zustand
+                                                  #     download   Lädt das Installationsprogramm aus einem bestimmten Paket herunter.
+                                                  #     repair     Repariert das ausgewählte Paket
+                                                  #   Die folgenden Optionen stehen zur Verfügung:
+                                                  #     -v,--version                Version des Tools anzeigen
+                                                  #     --info                      Allgemeine Informationen zum Tool anzeigen
+                                                  #     -?,--help                   Zeigt Hilfe zum ausgewählten Befehl an
+                                                  #     --wait                      Fordert den Benutzer auf, vor dem Beenden eine beliebige Taste zu drücken
+                                                  #     --logs,--open-logs          Öffnen des Standardspeicherorts für Protokolle
+                                                  #     --verbose,--verbose-logs    Aktiviert die ausführliche Protokollierung für WinGet
+                                                  #     --nowarn,--ignore-warnings  Unterdrückt Warnungsausgaben.
+                                                  #     --disable-interactivity     Interaktive Eingabeaufforderungen deaktivieren
+                                                  #     --proxy                     Legen Sie einen Proxy fest, der für diese Ausführung verwendet werden soll.
+                                                  #     --no-proxy                  Verwendung des Proxys für diese Ausführung deaktivieren
+                                                  #   Weitere Hilfe finden Sie unter: „https://aka.ms/winget-command-help“
+                                              }
 function ToolManuallyDownloadAndInstallProg   ( [String] $programName, [String] $programDownloadUrl, [String] $mainTargetFileMinIsoDate = "0001-01-01",
                                                   [String[]] $programExecutableOrDir = "", [String] $programConfigurations = "" ){
                                                 # programExecutableOrDir: one or alternative targets can be specified.

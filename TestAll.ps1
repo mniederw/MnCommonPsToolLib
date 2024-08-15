@@ -6,35 +6,6 @@ Set-StrictMode -Version Latest; $ErrorActionPreference = "Stop"; trap [Exception
 
 Write-Output "----- TestAll.ps1 (running examples and all unitests) ----- ";
 
-<#
-Write-Output "----- Set repository PSGallery to trusted: ----- ";
-  Set-PSRepository PSGallery -InstallationPolicy Trusted;
-Write-Output "----- Install and import from PSGallery used modules in user scope: ----- ";
-  Write-Output "  Install-Module Microsoft.PowerShell.Archive, PSReadLine, PowerShellGet, PackageManagement, PSScriptAnalyzer, ThreadJob, SqlServer, Pester; ";
-  Install-Module Microsoft.PowerShell.Archive, PSReadLine, PowerShellGet, PackageManagement, PSScriptAnalyzer, ThreadJob, SqlServer, Pester;
-  Write-Output "  Import-Module Microsoft.PowerShell.Archive, PowerShellGet, PackageManagement, ThreadJob, SqlServer, Pester; ";
-  Import-Module Microsoft.PowerShell.Archive, PowerShellGet, PackageManagement, ThreadJob, SqlServer, Pester;
-  Write-Output "  Import-Module PSReadLine; ";
-  try{
-    Import-Module PSReadLine;
-  }catch{
-     # on linux this fails in vs-code-terminal-pwsh: Import-Module: Assembly with same name is already loaded
-     OutProgress "Warning: Import-Module PSReadLine; failed because $_. We ignore this because we have seen this in vs-code-terminal-pwsh.";
-     $global:LASTEXITCODE = 0; $error.clear();
-  }
-  Write-Output "  Import-Module PSScriptAnalyzer; ";
-  try{
-    Import-Module PSScriptAnalyzer;
-  }catch{
-    # on linux this fails in vs-code-terminal-pwsh, Example:
-    #   The following error occurred while loading the extended type data file:  Error in TypeData
-    #   "Microsoft.Windows.PowerShell.ScriptAnalyzer.Generic.RuleInfo": The member DefaultDisplayPropertySet is already present. Error in TypeData
-    #   "Microsoft.Windows.PowerShell.ScriptAnalyzer.Generic.SuppressedRecord": The member DefaultDisplayPropertySet is already present. Error in TypeData
-    OutProgress "Warning: Import-Module PSScriptAnalyzer; failed because $_. We ignore this because we have seen this in vs-code-terminal-pwsh.";
-    $global:LASTEXITCODE = 0; $error.clear();
-  }
-#>
-
 Write-Output "----- Load MnCommonPsToolLib.psm1 ----- ";
 Write-Output "Assert powershell module library MnCommonPsToolLib.psm1 exists next this running script. ";
 Push-Location $PSScriptRoot; Pop-Location;
