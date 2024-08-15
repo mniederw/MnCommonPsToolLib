@@ -41,8 +41,8 @@ function OsWindowsPackageListInstalled        (){
                                                   (Get-ItemProperty -Path "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*");
                                                 return $a | Select-Object DisplayVersion, Publisher, DisplayName, UninstallString; }
 function OsWindowsPackageUninstall            ( [String] $displayName ){
-                                                [PSCustomObject[]] $a = @()+((OsWindowsPackageListInstalled) | 
-                                                  Where-Object{ $_.DisplayName -eq $displayName });
+                                                [PSCustomObject[]] $a = @()+((OsWindowsPackageListInstalled) | Where-Object{ $null -ne $_ } |
+                                                  Where-Object{ "$($_.DisplayName)" -ne "" -and $_.DisplayName -eq $displayName });
                                                 if( $a.Count -eq 0 ){ OutProgress "Uninstall `"$displayName`" already uninstalled, nothing done. "; return; }
                                                 $a | ForEach-Object{ 
                                                   [String] $uninstallCmd = $_.UninstallString; # maybe we can append option: " /quiet"
