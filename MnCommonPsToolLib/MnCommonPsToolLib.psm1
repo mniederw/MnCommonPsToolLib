@@ -621,7 +621,7 @@ function HelpHelp                             (){ Get-Help     | ForEach-Object{
 function HelpListOfAllVariables               (){ Get-Variable | Sort-Object Name | Select-Object Name, Value | ForEach-Object{ OutProgressTitle "$($_.Name.PadRight(40)) $($_.Value)"; } } # Select-Object Name, Value | StreamToListString
 function HelpListOfAllAliases                 (){ Get-Alias    | Sort-Object Name | Select-Object CommandType, Name, Definition, Options, Module, Version | StreamToTableString | ForEach-Object{ OutProgressTitle $_; } } # Visibility is always public
 function HelpListOfAllCommands                (){ Get-Command  | Sort-Object Name | Select-Object Name, CommandType, Version, Source | StreamToTableString | ForEach-Object{ OutProgressTitle $_; } }
-function HelpListOfAllModules                 (){ Get-Module -ListAvailable | Sort-Object Name | Select-Object Name, ModuleType, Version, ExportedCommands; } # depends on $env:PSModulePath
+function HelpListOfAllModules                 (){ Get-Module -ListAvailable | Sort-Object Name, Version | Select-Object Name, Version, ModuleType; } # depends on $env:PSModulePath; for late usage: ExportedCommands.
 function HelpListOfAllExportedCommands        (){ (Get-Module -ListAvailable).ExportedCommands.Values | Sort-Object Name | Select-Object Name, ModuleName; }
 function HelpGetType                          ( [Object] $obj ){ return [String] $obj.GetType(); }
 function ScriptImportModuleIfNotDone          ( [String] $moduleName ){ if( -not (Get-Module $moduleName) ){
@@ -979,6 +979,13 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 }
                                                 $out += $err;
                                                 return [String] $out; }
+function ProcessStartByArray                  ( [String[]] $cmdAndArgs, [Boolean] $careStdErrAsOut = $false, [Boolean] $traceCmd = $false ){
+                                                Assert ($cmdAndArgs.Length -gt 0) "Expected at least the command but cmdAndArgs is empty. ";
+                                                [String] $cmd = $cmdAndArgs[0];
+                                                [String[]] $cmdArgs = @()+($cmdAndArgs[1..($cmdAndArgs.Length-1)]);
+                                                return [String] (ProcessStart $cmd $cmdArgs $careStdErrAsOut $traceCmd); }
+function ProcessStartByCmdLine                ( [String] $cmdLine, [Boolean] $careStdErrAsOut = $false, [Boolean] $traceCmd = $false ){
+                                                return [String] (ProcessStartByArray (StringCommandLineToArray $cmdLine) $careStdErrAsOut $traceCmd); }
 function ProcessEnvVarGet                     ( [String] $name, [System.EnvironmentVariableTarget] $scope = [System.EnvironmentVariableTarget]::Process ){
                                                 return [String] [Environment]::GetEnvironmentVariable($name,$scope); }
 function ProcessEnvVarSet                     ( [String] $name, [String] $val, [System.EnvironmentVariableTarget] $scope = [System.EnvironmentVariableTarget]::Process, [Boolean] $traceCmd = $true ){
