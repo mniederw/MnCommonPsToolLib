@@ -72,7 +72,7 @@ function OsWindowsFeatureDoUninstall          ( [String] $name ){
                                                 if( -not $res.Success ){ throw [Exception] "Uninstall $name was not successful, please solve manually. $out"; } }
 function OsWindowsRegRunDisable               ( [String] $regItem, [Boolean] $fromHklmNotHkcu = $false ){
                                                 # for future use: create key "AutorunsDisabled" and copy removed item to it
-                                                if( fromHklmNotHkcu ){
+                                                if( $fromHklmNotHkcu ){
                                                   OutProgress "Autorun-CurrentUser-Remove: $regItem";
                                                   Remove-ItemProperty -Path "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run" -Name $regItem -ErrorAction SilentlyContinue;
                                                 }else{
