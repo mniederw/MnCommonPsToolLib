@@ -5,7 +5,7 @@ Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version
 function UnitTest_Win_Svn(){
   OutProgress (ScriptGetCurrentFuncName);
   if( ! (OsIsWindows) ){ OutProgress "Not running on windows, so bypass test."; return; }
-  Assert ((SvnExe).Length -ge 0);
+  Assert ((ProcessFindExecutableInPath "svn").Length -ge 0);
   if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){ SvnEnvInfoGet $workDir; }
   if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){ SvnGetDotSvnDir "$workDir/subdir/"; }
   if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){ SvnAuthorizationSave $workDir "myuser"; }

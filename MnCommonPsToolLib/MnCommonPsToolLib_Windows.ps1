@@ -947,8 +947,6 @@ function InfoGetInstalledDotNetVersion        ( [Boolean] $alsoOutInstalledClrAn
 Add-Type -TypeDefinition "public struct SvnEnvInfo {public string Url; public string Path; public string RealmPattern; public string CachedAuthorizationFile; public string CachedAuthorizationUser; public string Revision; }";
                                                 # Example: Url="https://myhost/svn/Work"; Path="D:\Work"; RealmPattern="https://myhost:443";
                                                 # CachedAuthorizationFile="$env:APPDATA\Subversion\auth\svn.simple\25ff84926a354d51b4e93754a00064d6"; CachedAuthorizationUser="myuser"; Revision="1234"
-function SvnExe                               (){ # Note: if certificate is not accepted then a pem file (for example lets-encrypt-r3.pem) can be added to file "$env:APPDATA\Subversion\servers"
-                                                return [String] ((RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseSVN" "Directory") + ".\bin\svn.exe"); }
 # Script local variable: svnLogFile
 [String] $script:svnLogFile = FsEntryGetAbsolutePath "${env:TEMP}/tmp/MnCommonPsToolLibLog/$(DateTimeNowAsStringIsoYear)/$(DateTimeNowAsStringIsoMonth)/Svn.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
 function SvnEnvInfoGet                        ( [String] $workDir ){
@@ -970,9 +968,9 @@ function SvnEnvInfoGet                        ( [String] $workDir ){
                                                 #   Last Changed Author: xy
                                                 #   Last Changed Rev: 1234
                                                 #   Last Changed Date: 2013-12-31 23:59:59 +0100 (Mi, 31 Dec 2013)
-                                                [String[]] $out = @()+(& (SvnExe) "info" $workDir); AssertRcIsOk $out;
+                                                [String[]] $out = @()+(& "svn" "info" $workDir); AssertRcIsOk $out;
                                                 FileAppendLines $svnLogFile (StringArrayInsertIndent $out 2);
-                                                [String[]] $out2 = @()+(& (SvnExe) "propget" "svn:ignore" "-R" $workDir); AssertRcIsOk $out2;
+                                                [String[]] $out2 = @()+(& "svn" "propget" "svn:ignore" "-R" $workDir); AssertRcIsOk $out2;
                                                 # Example:
                                                 #   work\Users\MyName - test?.txt
                                                 #   test2*.txt
@@ -1065,6 +1063,7 @@ function SvnGetDotSvnDir                      ( $workSubDir ){
                                                 throw [Exception] "Missing directory '.svn' within or up from the path `"$workSubDir`""; }
 function SvnAuthorizationSave                ( [String] $workDir, [String] $user ){
                                                 # If this part fails then you should clear authorization account in svn settings.
+                                                # Note: if certificate is not accepted then a pem file (for example lets-encrypt-r3.pem) can be added to file "$env:APPDATA\Subversion\servers"
                                                 $workDir = FsEntryGetAbsolutePath $workDir;
                                                 FsEntryAssertHasTrailingDirSep $workDir;
                                                 OutProgress "SvnAuthorizationSave user=$user";
@@ -1091,7 +1090,7 @@ function SvnCleanup                           ( [String] $workDir ){
                                                 FsEntryAssertHasTrailingDirSep $workDir;
                                                 FileAppendLineWithTs $svnLogFile "SvnCleanup(`"$workDir`")";
                                                 # For future alternative option: --trust-server-cert-failures unknown-ca,cn-mismatch,expired,not-yet-valid,other
-                                                [String[]] $out = @()+(& (SvnExe) "cleanup" --non-interactive $workDir); AssertRcIsOk $out;
+                                                [String[]] $out = @()+(& "svn" "cleanup" --non-interactive $workDir); AssertRcIsOk $out;
                                                 # At 2022-01 we got:
                                                 #   svn: E155009: Failed to run the WC DB work queue associated with '\\myserver\MyShare\Work', work item 363707 (sync-file-flags 102 MyDir/MyFile.ext)
                                                 #   svn: E720002: Can't set file '\\myserver\MyShare\Work\MyDir\MyFile.ext' read-write: Das System kann die angegebene Datei nicht finden.
@@ -1142,7 +1141,7 @@ function SvnStatus                            ( [String] $workDir, [Boolean] $sh
                                                 FsEntryAssertHasTrailingDirSep $workDir;
                                                 FileAppendLineWithTs $svnLogFile "SvnStatus(`"$workDir`")";
                                                 OutVerbose "SvnStatus - List pending changes";
-                                                [String[]] $out = @()+(& (SvnExe) "status" $workDir); AssertRcIsOk $out;
+                                                [String[]] $out = @()+(& "svn" "status" $workDir); AssertRcIsOk $out;
                                                 FileAppendLines $svnLogFile (StringArrayInsertIndent $out 2);
                                                 [Int32] $nrOfPendingChanges = $out.Count;
                                                 [Int32] $nrOfCommitRelevantChanges = ([String[]](@()+($out |
@@ -1162,7 +1161,7 @@ function SvnRevert                            ( [String] $workDir, [String[]] $r
                                                   FileAppendLineWithTs $svnLogFile "SvnRevert(`"$f`")";
                                                   # avoid:  svn: E155010: The node 'C:\MyWorkDir\UnexistingDir' was not found.
                                                   if( (FsEntryExists $f) ){
-                                                    [String[]] $out = @()+(& (SvnExe) "revert" "--recursive" "$f"); AssertRcIsOk $out;
+                                                    [String[]] $out = @()+(& "svn" "revert" "--recursive" "$f"); AssertRcIsOk $out;
                                                     FileAppendLines $svnLogFile (StringArrayInsertIndent $out 2);
                                                   }
                                                 } }
@@ -1170,7 +1169,7 @@ function SvnTortoiseCommit                    ( [String] $workDir ){
                                                 $workDir = FsEntryGetAbsolutePath $workDir;
                                                 FsEntryAssertHasTrailingDirSep $workDir;
                                                 FileAppendLineWithTs $svnLogFile "SvnTortoiseCommit(`"$workDir`") call checkin dialog";
-                                                [String] $tortoiseExe = (RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseSVN" "ProcPath"); # Example: "C:\Program Files\TortoiseSVN\bin\TortoiseProc.exe"
+                                                [String] $tortoiseExe = FsEntryGetAbsolutePath (RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseSVN" "ProcPath"); # Example: "C:\Program Files\TortoiseSVN\bin\TortoiseProc.exe"
                                                 Start-Process -NoNewWindow -Wait -FilePath "$tortoiseExe" -ArgumentList @("/closeonend:2","/command:commit","/path:`"$workDir`""); AssertRcIsOk; }
 function SvnUpdate                            ( [String] $workDir, [String] $user ){
                                                 $workDir = FsEntryGetAbsolutePath $workDir;
@@ -1204,9 +1203,9 @@ function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url
                                                   if( $doUpdateOnly ){ $opt = @( "update"  ) + $opt + @(       $workDir ); }
                                                   else               { $opt = @( "checkout") + $opt + @( $url, $workDir ); }
                                                   [String] $logline = $opt; $logline = $logline.Replace("--password $pw","--password ...");
-                                                  FileAppendLineWithTs $svnLogFile "`"$(SvnExe)`" $logline";
+                                                  FileAppendLineWithTs $svnLogFile "`"svn`" $logline";
                                                   try{
-                                                    & (SvnExe) $opt 2> $tmp | ForEach-Object{ FileAppendLineWithTs $svnLogFile ("  "+$_); OutProgress $_ 2; };
+                                                    & "svn" $opt 2> $tmp | ForEach-Object{ FileAppendLineWithTs $svnLogFile ("  "+$_); OutProgress $_ 2; };
                                                     [String] $encodingIfNoBom = "Default"; # Encoding Default is ANSI on windows and UTF8 on other platforms.
                                                     AssertRcIsOk (FileReadContentAsLines $tmp $encodingIfNoBom) $true;
                                                     break;
@@ -2447,3 +2446,4 @@ function MnCommonPsToolLibSelfUpdate          (){
                                                 }
 
 function ToolVs2019UserFolderGetLatestUsed    (){ OutWarning "ToolVs2019UserFolderGetLatestUsed is DEPRECATED, replace it now by: ToolVsUserFolderGetLatestUsed "; return (ToolVsUserFolderGetLatestUsed); }
+function SvnExe                               (){ OutWarning "SvnExe is DEPRECATED, replace it now by (expect it in path): `"svn`" "; return "svn"; }
