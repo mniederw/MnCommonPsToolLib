@@ -60,7 +60,7 @@ function UnitTest_PsCommon(){
   [Boolean] $isOk = $false;
   try{
     [Boolean] $r = "anystring"; # ArgumentTransformationMetadataException: Cannot convert value "System.String" to type "System.Boolean". Boolean parameters accept only Boolean values and numbers, such as $True, $False, 1 or 0.
-	  OutVerbose "$r";
+    OutVerbose "$r";
   }catch{ $isOk = $true; }
   if( -not $isOk ){
     OutVerbose "  IsInteractive=$(ScriptIsProbablyInteractive); Trap=Enabled; Note: Exception was not throwed and catch block not reached. We found out this happens in batch only for unknown reason. If runing interactive then works ok. Analyse it later.";
@@ -68,6 +68,21 @@ function UnitTest_PsCommon(){
   #
   # Check match
   Assert ("hello" -match "hallo|hello|hullo" -and -not ("hello" -match "hallo|xhello|hullo"));
+  #
+  # Unexpected behaviour (undocumented)
+  if( (OsIsWindows) ){
+    Push-Location "C:\Windows";
+    Assert ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath("C:") -eq "C:\Windows"); # returns unexpected current dir of the drive
+    Assert ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath("C:\") -eq "C:\"); # ok, expected
+    Assert ([IO.Path]::GetFullPath("C:\") -eq "C:\"); # ok, expected
+    if( (ProcessIsLesserEqualPs5) ){
+      Assert ([IO.Path]::GetFullPath("C:") -eq "C:\Windows\System32\WindowsPowerShell\v1.0" ); # returns unexpected current dir of the drive
+    }else{
+      [String] $d = [IO.Path]::GetFullPath("C:");
+      Assert ($d -eq "C:\Windows\system32" -or $d -eq "C:\"); # returns unexpected dir (when run in ps1 then "C:\" and when run GetFullPath interactive then "C:\Windows\system32")
+    }
+    Pop-Location;
+  }
   #
   # OutProgress "Test when ignoring traps";
   # for later:
@@ -78,5 +93,6 @@ function UnitTest_PsCommon(){
   # Assert ( ("ab"     ).Count -eq 1 );
   # Assert ( ($null    ).Count -eq 0 );
   # trap [Exception] { StdErrHandleExc $_; break; } # restore
+  #
 }
 UnitTest_PsCommon;

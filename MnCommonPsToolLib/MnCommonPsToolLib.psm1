@@ -1081,14 +1081,20 @@ function FsEntryEsc                           ( [String] $fsentry ){ # Escaping 
                                                 AssertNotEmpty $fsentry "file-system-entry";
                                                 return [String] [Management.Automation.WildcardPattern]::Escape($fsentry); }
 function FsEntryUnifyDirSep                   ( [String] $fsEntry ){ return [String] ($fsEntry -replace "[\\/]",(DirSep)); }
-function FsEntryGetAbsolutePath               ( [String] $fsEntry ){ # works without IO, so no check to file system; does not remove a trailing dir-separator. Return empty for empty input.
+function FsEntryGetAbsolutePath               ( [String] $fsEntry ){ # Works without IO, so no check to file system; does not remove a trailing dir-separator. Return empty for empty input.
                                                 # Convert dir-separators slashes or backslashes to correct os dependent dir separators.
+                                                # On windows for entries as "C:" it returns "C:\".
                                                 # Note: We cannot use (Resolve-Path -LiteralPath $fsEntry) because it will throw if path not exists,
                                                 # see http://stackoverflow.com/questions/3038337/powershell-resolve-path-that-might-not-exist
                                                 if( $fsEntry -eq "" ){ return [String] ""; }
-                                                if( (OsIsWindows) -and $fsEntry.StartsWith("//") ){ $fsEntry = $fsEntry.Replace("/","\"); }
+                                                if( (OsIsWindows) ){
+                                                  if( $fsEntry.StartsWith("//") ){ $fsEntry = $fsEntry.Replace("/","\"); }
+                                                  if( $fsEntry.Length -eq 2 -and $fsEntry[1] -eq ':' -and [char]::IsLetter($fsEntry[0]) ){ $fsEntry += '\'; }
+                                                }
                                                 try{
                                                   # Note: GetUnresolvedProviderPathFromPSPath("./") does not return a trailing dir sep.
+                                                  # Note: On Windows for entries as "C:" GetUnresolvedProviderPathFromPSPath 
+                                                  #   would unexpectedly return undocumented current dir of that drive. Similar effects for or GetFullPath.
                                                   return [String] ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($fsEntry)+
                                                     $(switch( $fsEntry -eq "./" -or $fsEntry.Replace("\","/").EndsWith("/./") ){($true){(DirSep)}($false){""}}));
                                                 }catch [System.Management.Automation.DriveNotFoundException] {
@@ -1200,10 +1206,11 @@ function FsEntryListAsFileSystemInfo          ( [String] $fsEntryPattern, [Boole
                                                 #   In non-recursive mode they are handled as they are not present, so files are also matched ("*\myfile\").
                                                 #   In recursive mode they wrongly match only files and not directories ("*\myfile\") and
                                                 #   so parent dir parts (".\*\dir\" or "d1\dir\") would not be found for unknown reasons.
-                                                #   Very strange is that (CD "D:\tmp"; CD "C:"; Get-Item "D:";) does not list D:\ but it lists the current directory of that drive.
+                                                #   On Windows very strange is that (CD "C:\Windows"; CD "C:"; Get-Item "C:";) does not list "C:\" but it lists unexpectedly 
+                                                #   the current directory of that drive. The (Get-Item "C:\*") works as expected correctly.
                                                 #   So we interpret a trailing backslash as it would not be present with the exception that
                                                 #     If pattern contains a trailing backslash then pattern "\*\" will be replaced by ("\.\").
-                                                #   If pattern is a drive as "C:" then a trailing backslash is added to avoid the unexpected listing of current dir of that drive.
+                                                #   If pattern is a drive as "C:" or "C:\" then it is converted to "C:\*" to avoid the unexpected listing of current dir of that drive.
                                                 AssertNotEmpty $fsEntryPattern "pattern";
                                                 [String] $pa = $fsEntryPattern;
                                                 [Boolean] $trailingBackslashMode = (FsEntryHasTrailingDirSep $pa);
@@ -1216,7 +1223,7 @@ function FsEntryListAsFileSystemInfo          ( [String] $fsEntryPattern, [Boole
                                                   # enable that ".\*\dir\" can also find dir as top dir
                                                   $pa = $pa.Replace("\*\","\.\").Replace("/*/","/./"); # Otherwise Get-ChildItem would find dirs.
                                                 }
-                                                if( $pa.Length -eq 2 -and $pa.EndsWith(":") -and $pa -match "[a-z]" ){ $pa += $(DirSep); }
+                                                if( $pa -match "^[a-z]\:[\/\\]?$" ){ $pa = "$($pa[0]):$(DirSep)*"; }
                                                 if( $inclTopDir -and $includeDirs -and -not ($pa -eq "*" -or $pa.EndsWith("$(DirSep)*")) ){
                                                   $result += @()+((Get-Item -Force -ErrorAction SilentlyContinue -Path $pa) |
                                                     Where-Object{$null -ne $_} | Where-Object{ $_.PSIsContainer });
@@ -1464,9 +1471,7 @@ function FsEntryGetSize                       ( [String] $fsEntry ){ # Must exis
                                                   Where-Object{$null -ne $_} | Measure-Object -Property length -sum;
                                                 if( $null -eq $size ){ return [Int64] 0; }
                                                 return [Int64] $size.sum; }
-function DriveFreeSpace                       ( [String] $drive ){
-                                                FsEntryAssertHasTrailingDirSep $drive;
-                                                return [Int64] (Get-PSDrive $drive | Select-Object -ExpandProperty Free); }
+function DriveFreeSpace                       ( [String] $driveLetter ){ return [Int64] (Get-PSDrive $drive | Select-Object -ExpandProperty Free); } # Example: "C"
 function DirSep                               (){ return [Char] [IO.Path]::DirectorySeparatorChar; }
 function DirExists                            ( [String] $dir ){
                                                 FsEntryAssertHasTrailingDirSep $dir;
