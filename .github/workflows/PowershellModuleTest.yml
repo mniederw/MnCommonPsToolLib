@@ -76,7 +76,7 @@ jobs:
             # Windows : C:\Windows\system32\curl.exe  # 2024-02: V8.4
           echo "github.event.schedule=${{github.event.schedule}} ";
           echo "List ps gallery repositories: "; Get-PSRepository;
-          echo "List installed ps modules "; Get-Module -ListAvailable | Sort-Object ModuleType, Name, Version | Select-Object ModuleType, Name, Version;
+          echo "List installed ps modules "; Get-Module -ListAvailable | Sort-Object ModuleType, Name, Version | Select-Object ModuleType, Name, Version | Format-Table -AutoSize;
 
       - name: Test all
         shell: pwsh

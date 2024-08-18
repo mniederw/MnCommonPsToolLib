@@ -41,7 +41,7 @@ function OsWindowsPackageListInstalled        (){
                                                   (Get-ItemProperty -Path "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*");
                                                 return $a | Select-Object DisplayVersion, Publisher, DisplayName, UninstallString; }
 function OsWindowsPackageUninstall            ( [String] $displayName ){
-                                                [PSCustomObject[]] $a = @()+((OsWindowsPackageListInstalled) | Where-Object{ $null -ne $_ } |
+                                                [PSCustomObject[]] $a = @()+(OsWindowsPackageListInstalled | Where-Object{ $null -ne $_ } |
                                                   Where-Object{ "$($_.DisplayName)" -ne "" -and $_.DisplayName -eq $displayName });
                                                 if( $a.Count -eq 0 ){ OutProgress "Uninstall `"$displayName`" already uninstalled, nothing done. "; return; }
                                                 $a | ForEach-Object{ 
@@ -504,14 +504,14 @@ function ServiceListRunnings                  (){
                                                   #       + … return [String[]] (@()+(Get-Service -ErrorAction SilentlyContinue * |
                                                   Where-Object{ $_.Status -eq "Running" } |
                                                   Sort-Object Name |
-                                                  Format-Table -auto -HideTableHeaders " ",Name,DisplayName |
+                                                  Format-Table -AutoSize -HideTableHeaders " ",Name,DisplayName |
                                                   StreamToStringDelEmptyLeadAndTrLines)); }
 function ServiceListExistings                 (){ # We could also use Get-Service but members are lightly differnet;
                                                 # 2017-06 we got (RuntimeException: You cannot call a method on a null-valued expression.) so we added null check.
                                                 return [CimInstance[]](@()+(Get-CimInstance win32_service | Where-Object{$null -ne $_} | Sort-Object ProcessId,Name)); }
 function ServiceListExistingsAsStringArray    (){
                                                 return [String[]] (@()+(StringSplitIntoLines (@()+(ServiceListExistings | Where-Object{$null -ne $_} |
-                                                  Format-Table -auto -HideTableHeaders ProcessId,Name,StartMode,State | StreamToStringDelEmptyLeadAndTrLines )))); }
+                                                  Format-Table -AutoSize -HideTableHeaders ProcessId,Name,StartMode,State | StreamToStringDelEmptyLeadAndTrLines )))); }
 function ServiceNotExists                     ( [String] $serviceName ){
                                                 return [Boolean] -not (ServiceExists $serviceName); }
 function ServiceExists                        ( [String] $serviceName ){
@@ -626,7 +626,7 @@ function DriveMapTypeToString                 ( [UInt32] $driveType ){
 function DriveList                            (){
                                                 return [Object[]] (@()+(Get-CimInstance "Win32_LogicalDisk" |
                                                   Where-Object{$null -ne $_} |
-                                                  Select-Object DeviceID, FileSystem, Size, FreeSpace, VolumeName, DriveType, @{Name="DriveTypeName";Expression={(DriveMapTypeToString $_.DriveType)}}, ProviderName)); }
+                                                  Select-Object DeviceID, FileSystem, Size, FreeSpace, VolumeName, DriveType, @{Name="DriveTypeName";Expression={(DriveMapTypeToString $_.DriveType)}}, ProviderName)) | Format-Table -AutoSize; }
 function ShareGetTypeName                     ( [UInt32] $typeNr ){
                                                 return [String] $(switch($typeNr){ 0{"DiskDrive"} 1 {"PrintQueue"} 2{"Device"} 3{"IPC"}
                                                 2147483648{"DiskDriveAdmin"} 2147483649{"PrintQueueAdmin"} 2147483650{"DeviceAdmin"} 2147483651{"IPCAdmin"} default{"unknownNr=$typeNr"} }); }

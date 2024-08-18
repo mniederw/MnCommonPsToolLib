@@ -685,12 +685,12 @@ function StreamToStringIndented               ( [Int32] $nrOfChars = 2 ){ String
 function StreamToDataRowsString               ( [String[]] $propertyNames = @() ){ # no header, only rows.
                                                 $propertyNames = @()+$propertyNames;
                                                 if( (@()+$propertyNames).Count -eq 0 ){ $propertyNames = @("*"); }
-                                                $input | Format-Table -Wrap -Force -autosize -HideTableHeaders $propertyNames | StreamToStringDelEmptyLeadAndTrLines; }
+                                                $input | Format-Table -Wrap -Force -AutoSize -HideTableHeaders $propertyNames | StreamToStringDelEmptyLeadAndTrLines; }
 function StreamToTableString                  ( [String[]] $propertyNames = @() ){
                                                 # Note: For a simple string array as example  @("one","two")|StreamToTableString  it results with 4 lines "Length","------","     3","     3".
                                                 $propertyNames = @()+$propertyNames;
                                                 if( $propertyNames.Count -eq 0 ){ $propertyNames = @("*"); }
-                                                $input | Format-Table -Wrap -Force -autosize $propertyNames | StreamToStringDelEmptyLeadAndTrLines; }
+                                                $input | Format-Table -Wrap -Force -AutoSize $propertyNames | StreamToStringDelEmptyLeadAndTrLines; }
 function StreamFromCsvStrings                 ( [Char] $delimiter = ',' ){ $input | ConvertFrom-Csv -Delimiter $delimiter; }
 function StreamToCsvFile                      ( [String] $file, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM" ){
                                                 # If overwrite is false then nothing done if target already exists.
@@ -813,7 +813,7 @@ function ProcessListRunningsFormatted         (){ return [Object[]] (@()+( Proce
                                                     StreamToTableString )); }
 function ProcessListRunningsAsStringArray     (){ return [String[]] (@()+(StringSplitIntoLines (@()+(ProcessListRunnings |
                                                     Where-Object{$null -ne $_} |
-                                                    Format-Table -auto -HideTableHeaders " ",ProcessName,ProductVersion,Company |
+                                                    Format-Table -AutoSize -HideTableHeaders " ",ProcessName,ProductVersion,Company |
                                                     StreamToStringDelEmptyLeadAndTrLines)))); }
 function ProcessIsRunning                     ( [String] $processName ){ return [Boolean] ($null -ne (Get-Process -ErrorAction SilentlyContinue ($processName.Replace(".exe","")))); }
 function ProcessCloseMainWindow               ( [String] $processName ){ # enter name without exe extension.
