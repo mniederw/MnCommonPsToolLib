@@ -70,14 +70,16 @@ function OsWindowsFeatureDoUninstall          ( [String] $name ){
                                                 [String] $out = "Result: IsSuccess=$($res.Success) RequiresRestart=$($res.RestartNeeded) ExitCode=$($res.ExitCode) FeatureResult=$($res.FeatureResult)";
                                                 OutProgress $out;
                                                 if( -not $res.Success ){ throw [Exception] "Uninstall $name was not successful, please solve manually. $out"; } }
-function OsWindowsRegRunDisable               ( [String] $regItem, [Boolean] $fromHklmNotHkcu = $false ){
+function OsWindowsRegRunDisable               ( [String] $regItem, [Boolean] $fromHklmNotHkcu = $false, [Boolean] $fromRunonceNotRun = $false ){
                                                 # for future use: create key "AutorunsDisabled" and copy removed item to it
-                                                if( $fromHklmNotHkcu ){
-                                                  OutProgress "Autorun-CurrentUser-Remove: $regItem";
-                                                  Remove-ItemProperty -Path "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run" -Name $regItem -ErrorAction SilentlyContinue;
-                                                }else{
-                                                  OutProgress "Autorun-LocalMachine-Remove: $regItem";
-                                                  Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name $regItem -ErrorAction SilentlyContinue; } }
+                                                [String] $key = ""; [String] $msg = "";
+                                                if( $fromRunonceNotRun ){ if( $fromHklmNotHkcu ){ $msg = "Autorunonce-CurrentUser" ; $key = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\RunOnce"; }
+                                                                          else{                   $msg = "Autorunonce-LocalMachine"; $key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\RunOnce"            ; } }
+                                                else{                     if( $fromHklmNotHkcu ){ $msg = "Autorun-CurrentUser"     ; $key = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run"    ; }
+                                                                          else{                   $msg = "Autorun-LocalMachine"    ; $key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"                ; } }
+                                                OutProgress "$($msg)-Remove: $regItem";
+                                                Remove-ItemProperty -Path $key -Name $regItem -ErrorAction SilentlyContinue;
+                                              }
 function OsGetWindowsProductKey               (){
                                                 [String] $map = "BCDFGHJKMPQRTVWXY2346789";
                                                 [Object] $value = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").digitalproductid[0x34..0x42]; [String] $p = "";
@@ -2232,7 +2234,7 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){
                                                 Import-Module "PowerShellGet"; # provides: Set-PSRepository, Install-Module
                                                 OutProgress "List ps gallery repositories: "; Get-PSRepository;
                                                 OutProgress "List installed ps modules ";
-                                                Get-Module -ListAvailable | Sort-Object Name, Version, ModuleType | Select-Object Name, Version, ModuleType, Path;
+                                                Get-Module -ListAvailable | Sort-Object Name, Version, ModuleType | Select-Object Name, Version, ModuleType, Path | Format-Table -AutoSize;
                                                 OutProgress "Set repository PSGallery to trusted: ";
                                                 Set-PSRepository PSGallery -InstallationPolicy Trusted; # uses 14 sec
                                                 OutProgress "List of installed package providers:";
