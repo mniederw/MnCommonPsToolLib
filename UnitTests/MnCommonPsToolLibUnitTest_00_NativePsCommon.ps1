@@ -53,17 +53,17 @@ $($env:PSModulePath).Split($pathSep) | Where-Object{ $null -ne $_ } | ForEach-Ob
   #                 ":/usr/local/share/powershell/Modules"
   #                 ":/opt/microsoft/powershell/7/Modules"
 Write-Output "----- List all environment variables: ----- ";
-  Get-Variable | Sort-Object Name | Select-Object Name, Value | Format-Table -AutoSize -Wrap -Property Name, @{Name="Value";Expression={$_.Value};Alignment="Left"};
+  Get-Variable | Sort-Object Name | Select-Object Name, Value | Format-Table -AutoSize -Wrap -Property Name, @{Name="Value";Expression={$_.Value};Alignment="Left"} | Format-Table -AutoSize;
 Write-Output "----- List all aliases: ----- ";
   Get-Alias    | Sort-Object Name | Select-Object CommandType, Name, Definition, Options, Module, Version | Format-Table -AutoSize;
 Write-Output "----- List ps gallery repositories: ----- ";
   Get-PSRepository;
 Write-Output "----- List installed ps modules ----- ";
-  Get-Module -ListAvailable | Sort-Object Name, Version | Select-Object Name, Version, ModuleType, Path | Format-Table -Wrap -Force -AutoSize;  
+  Get-Module -ListAvailable | Sort-Object Name, Version | Select-Object Name, Version, ModuleType, Path | Format-Table -AutoSize;  
 Write-Output "----- List commands grouped by modules ----- ";
-  Get-Command -Module * | Group-Object Module | Select-Object Values, Count, Group;
+  Get-Command -Module * | Group-Object Module | Select-Object Values, Count, Group | Format-Table -AutoSize;
 Write-Output "----- List all currently used modules ----- ";
-  Get-Module -All | Select-Object Name, Version, ModuleType, Path; # all currently used
+  Get-Module -All | Select-Object Name, Version, ModuleType, Path | Format-Table -AutoSize; # all currently used
 Write-Output "----- end-of-list ----- ";
 
 # for future use: Get-Variable -Scope Local; Get-Variable -Scope Script; Get-Variable -Scope Global;

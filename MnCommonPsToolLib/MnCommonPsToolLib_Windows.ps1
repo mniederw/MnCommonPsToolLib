@@ -41,7 +41,7 @@ function OsWindowsPackageListInstalled        (){
                                                   (Get-ItemProperty -Path "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\*");
                                                 return $a | Select-Object DisplayVersion, Publisher, DisplayName, UninstallString; }
 function OsWindowsPackageUninstall            ( [String] $displayName ){
-                                                [PSCustomObject[]] $a = @()+((OsWindowsPackageListInstalled) | Where-Object{ $null -ne $_ } |
+                                                [PSCustomObject[]] $a = @()+(OsWindowsPackageListInstalled | Where-Object{ $null -ne $_ } |
                                                   Where-Object{ "$($_.DisplayName)" -ne "" -and $_.DisplayName -eq $displayName });
                                                 if( $a.Count -eq 0 ){ OutProgress "Uninstall `"$displayName`" already uninstalled, nothing done. "; return; }
                                                 $a | ForEach-Object{ 
@@ -70,14 +70,16 @@ function OsWindowsFeatureDoUninstall          ( [String] $name ){
                                                 [String] $out = "Result: IsSuccess=$($res.Success) RequiresRestart=$($res.RestartNeeded) ExitCode=$($res.ExitCode) FeatureResult=$($res.FeatureResult)";
                                                 OutProgress $out;
                                                 if( -not $res.Success ){ throw [Exception] "Uninstall $name was not successful, please solve manually. $out"; } }
-function OsWindowsRegRunDisable               ( [String] $regItem, [Boolean] $fromHklmNotHkcu = $false ){
+function OsWindowsRegRunDisable               ( [String] $regItem, [Boolean] $fromHklmNotHkcu = $false, [Boolean] $fromRunonceNotRun = $false ){
                                                 # for future use: create key "AutorunsDisabled" and copy removed item to it
-                                                if( $fromHklmNotHkcu ){
-                                                  OutProgress "Autorun-CurrentUser-Remove: $regItem";
-                                                  Remove-ItemProperty -Path "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run" -Name $regItem -ErrorAction SilentlyContinue;
-                                                }else{
-                                                  OutProgress "Autorun-LocalMachine-Remove: $regItem";
-                                                  Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name $regItem -ErrorAction SilentlyContinue; } }
+                                                [String] $key = ""; [String] $msg = "";
+                                                if( $fromRunonceNotRun ){ if( $fromHklmNotHkcu ){ $msg = "Autorunonce-CurrentUser" ; $key = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\RunOnce"; }
+                                                                          else{                   $msg = "Autorunonce-LocalMachine"; $key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\RunOnce"            ; } }
+                                                else{                     if( $fromHklmNotHkcu ){ $msg = "Autorun-CurrentUser"     ; $key = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run"    ; }
+                                                                          else{                   $msg = "Autorun-LocalMachine"    ; $key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"                ; } }
+                                                OutProgress "$($msg)-Remove: $regItem";
+                                                Remove-ItemProperty -Path $key -Name $regItem -ErrorAction SilentlyContinue;
+                                              }
 function OsGetWindowsProductKey               (){
                                                 [String] $map = "BCDFGHJKMPQRTVWXY2346789";
                                                 [Object] $value = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").digitalproductid[0x34..0x42]; [String] $p = "";
@@ -504,14 +506,14 @@ function ServiceListRunnings                  (){
                                                   #       + … return [String[]] (@()+(Get-Service -ErrorAction SilentlyContinue * |
                                                   Where-Object{ $_.Status -eq "Running" } |
                                                   Sort-Object Name |
-                                                  Format-Table -auto -HideTableHeaders " ",Name,DisplayName |
+                                                  Format-Table -AutoSize -HideTableHeaders " ",Name,DisplayName |
                                                   StreamToStringDelEmptyLeadAndTrLines)); }
 function ServiceListExistings                 (){ # We could also use Get-Service but members are lightly differnet;
                                                 # 2017-06 we got (RuntimeException: You cannot call a method on a null-valued expression.) so we added null check.
                                                 return [CimInstance[]](@()+(Get-CimInstance win32_service | Where-Object{$null -ne $_} | Sort-Object ProcessId,Name)); }
 function ServiceListExistingsAsStringArray    (){
                                                 return [String[]] (@()+(StringSplitIntoLines (@()+(ServiceListExistings | Where-Object{$null -ne $_} |
-                                                  Format-Table -auto -HideTableHeaders ProcessId,Name,StartMode,State | StreamToStringDelEmptyLeadAndTrLines )))); }
+                                                  Format-Table -AutoSize -HideTableHeaders ProcessId,Name,StartMode,State | StreamToStringDelEmptyLeadAndTrLines )))); }
 function ServiceNotExists                     ( [String] $serviceName ){
                                                 return [Boolean] -not (ServiceExists $serviceName); }
 function ServiceExists                        ( [String] $serviceName ){
@@ -626,7 +628,7 @@ function DriveMapTypeToString                 ( [UInt32] $driveType ){
 function DriveList                            (){
                                                 return [Object[]] (@()+(Get-CimInstance "Win32_LogicalDisk" |
                                                   Where-Object{$null -ne $_} |
-                                                  Select-Object DeviceID, FileSystem, Size, FreeSpace, VolumeName, DriveType, @{Name="DriveTypeName";Expression={(DriveMapTypeToString $_.DriveType)}}, ProviderName)); }
+                                                  Select-Object DeviceID, FileSystem, Size, FreeSpace, VolumeName, DriveType, @{Name="DriveTypeName";Expression={(DriveMapTypeToString $_.DriveType)}}, ProviderName)) | Format-Table -AutoSize; }
 function ShareGetTypeName                     ( [UInt32] $typeNr ){
                                                 return [String] $(switch($typeNr){ 0{"DiskDrive"} 1 {"PrintQueue"} 2{"Device"} 3{"IPC"}
                                                 2147483648{"DiskDriveAdmin"} 2147483649{"PrintQueueAdmin"} 2147483650{"DeviceAdmin"} 2147483651{"IPCAdmin"} default{"unknownNr=$typeNr"} }); }
@@ -947,8 +949,6 @@ function InfoGetInstalledDotNetVersion        ( [Boolean] $alsoOutInstalledClrAn
 Add-Type -TypeDefinition "public struct SvnEnvInfo {public string Url; public string Path; public string RealmPattern; public string CachedAuthorizationFile; public string CachedAuthorizationUser; public string Revision; }";
                                                 # Example: Url="https://myhost/svn/Work"; Path="D:\Work"; RealmPattern="https://myhost:443";
                                                 # CachedAuthorizationFile="$env:APPDATA\Subversion\auth\svn.simple\25ff84926a354d51b4e93754a00064d6"; CachedAuthorizationUser="myuser"; Revision="1234"
-function SvnExe                               (){ # Note: if certificate is not accepted then a pem file (for example lets-encrypt-r3.pem) can be added to file "$env:APPDATA\Subversion\servers"
-                                                return [String] ((RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseSVN" "Directory") + ".\bin\svn.exe"); }
 # Script local variable: svnLogFile
 [String] $script:svnLogFile = FsEntryGetAbsolutePath "${env:TEMP}/tmp/MnCommonPsToolLibLog/$(DateTimeNowAsStringIsoYear)/$(DateTimeNowAsStringIsoMonth)/Svn.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
 function SvnEnvInfoGet                        ( [String] $workDir ){
@@ -970,9 +970,9 @@ function SvnEnvInfoGet                        ( [String] $workDir ){
                                                 #   Last Changed Author: xy
                                                 #   Last Changed Rev: 1234
                                                 #   Last Changed Date: 2013-12-31 23:59:59 +0100 (Mi, 31 Dec 2013)
-                                                [String[]] $out = @()+(& (SvnExe) "info" $workDir); AssertRcIsOk $out;
+                                                [String[]] $out = @()+(& "svn" "info" $workDir); AssertRcIsOk $out;
                                                 FileAppendLines $svnLogFile (StringArrayInsertIndent $out 2);
-                                                [String[]] $out2 = @()+(& (SvnExe) "propget" "svn:ignore" "-R" $workDir); AssertRcIsOk $out2;
+                                                [String[]] $out2 = @()+(& "svn" "propget" "svn:ignore" "-R" $workDir); AssertRcIsOk $out2;
                                                 # Example:
                                                 #   work\Users\MyName - test?.txt
                                                 #   test2*.txt
@@ -1065,6 +1065,7 @@ function SvnGetDotSvnDir                      ( $workSubDir ){
                                                 throw [Exception] "Missing directory '.svn' within or up from the path `"$workSubDir`""; }
 function SvnAuthorizationSave                ( [String] $workDir, [String] $user ){
                                                 # If this part fails then you should clear authorization account in svn settings.
+                                                # Note: if certificate is not accepted then a pem file (for example lets-encrypt-r3.pem) can be added to file "$env:APPDATA\Subversion\servers"
                                                 $workDir = FsEntryGetAbsolutePath $workDir;
                                                 FsEntryAssertHasTrailingDirSep $workDir;
                                                 OutProgress "SvnAuthorizationSave user=$user";
@@ -1091,7 +1092,7 @@ function SvnCleanup                           ( [String] $workDir ){
                                                 FsEntryAssertHasTrailingDirSep $workDir;
                                                 FileAppendLineWithTs $svnLogFile "SvnCleanup(`"$workDir`")";
                                                 # For future alternative option: --trust-server-cert-failures unknown-ca,cn-mismatch,expired,not-yet-valid,other
-                                                [String[]] $out = @()+(& (SvnExe) "cleanup" --non-interactive $workDir); AssertRcIsOk $out;
+                                                [String[]] $out = @()+(& "svn" "cleanup" --non-interactive $workDir); AssertRcIsOk $out;
                                                 # At 2022-01 we got:
                                                 #   svn: E155009: Failed to run the WC DB work queue associated with '\\myserver\MyShare\Work', work item 363707 (sync-file-flags 102 MyDir/MyFile.ext)
                                                 #   svn: E720002: Can't set file '\\myserver\MyShare\Work\MyDir\MyFile.ext' read-write: Das System kann die angegebene Datei nicht finden.
@@ -1142,7 +1143,7 @@ function SvnStatus                            ( [String] $workDir, [Boolean] $sh
                                                 FsEntryAssertHasTrailingDirSep $workDir;
                                                 FileAppendLineWithTs $svnLogFile "SvnStatus(`"$workDir`")";
                                                 OutVerbose "SvnStatus - List pending changes";
-                                                [String[]] $out = @()+(& (SvnExe) "status" $workDir); AssertRcIsOk $out;
+                                                [String[]] $out = @()+(& "svn" "status" $workDir); AssertRcIsOk $out;
                                                 FileAppendLines $svnLogFile (StringArrayInsertIndent $out 2);
                                                 [Int32] $nrOfPendingChanges = $out.Count;
                                                 [Int32] $nrOfCommitRelevantChanges = ([String[]](@()+($out |
@@ -1162,7 +1163,7 @@ function SvnRevert                            ( [String] $workDir, [String[]] $r
                                                   FileAppendLineWithTs $svnLogFile "SvnRevert(`"$f`")";
                                                   # avoid:  svn: E155010: The node 'C:\MyWorkDir\UnexistingDir' was not found.
                                                   if( (FsEntryExists $f) ){
-                                                    [String[]] $out = @()+(& (SvnExe) "revert" "--recursive" "$f"); AssertRcIsOk $out;
+                                                    [String[]] $out = @()+(& "svn" "revert" "--recursive" "$f"); AssertRcIsOk $out;
                                                     FileAppendLines $svnLogFile (StringArrayInsertIndent $out 2);
                                                   }
                                                 } }
@@ -1170,7 +1171,7 @@ function SvnTortoiseCommit                    ( [String] $workDir ){
                                                 $workDir = FsEntryGetAbsolutePath $workDir;
                                                 FsEntryAssertHasTrailingDirSep $workDir;
                                                 FileAppendLineWithTs $svnLogFile "SvnTortoiseCommit(`"$workDir`") call checkin dialog";
-                                                [String] $tortoiseExe = (RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseSVN" "ProcPath"); # Example: "C:\Program Files\TortoiseSVN\bin\TortoiseProc.exe"
+                                                [String] $tortoiseExe = FsEntryGetAbsolutePath (RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseSVN" "ProcPath"); # Example: "C:\Program Files\TortoiseSVN\bin\TortoiseProc.exe"
                                                 Start-Process -NoNewWindow -Wait -FilePath "$tortoiseExe" -ArgumentList @("/closeonend:2","/command:commit","/path:`"$workDir`""); AssertRcIsOk; }
 function SvnUpdate                            ( [String] $workDir, [String] $user ){
                                                 $workDir = FsEntryGetAbsolutePath $workDir;
@@ -1204,9 +1205,9 @@ function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url
                                                   if( $doUpdateOnly ){ $opt = @( "update"  ) + $opt + @(       $workDir ); }
                                                   else               { $opt = @( "checkout") + $opt + @( $url, $workDir ); }
                                                   [String] $logline = $opt; $logline = $logline.Replace("--password $pw","--password ...");
-                                                  FileAppendLineWithTs $svnLogFile "`"$(SvnExe)`" $logline";
+                                                  FileAppendLineWithTs $svnLogFile "`"svn`" $logline";
                                                   try{
-                                                    & (SvnExe) $opt 2> $tmp | ForEach-Object{ FileAppendLineWithTs $svnLogFile ("  "+$_); OutProgress $_ 2; };
+                                                    & "svn" $opt 2> $tmp | ForEach-Object{ FileAppendLineWithTs $svnLogFile ("  "+$_); OutProgress $_ 2; };
                                                     [String] $encodingIfNoBom = "Default"; # Encoding Default is ANSI on windows and UTF8 on other platforms.
                                                     AssertRcIsOk (FileReadContentAsLines $tmp $encodingIfNoBom) $true;
                                                     break;
@@ -2233,7 +2234,7 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){
                                                 Import-Module "PowerShellGet"; # provides: Set-PSRepository, Install-Module
                                                 OutProgress "List ps gallery repositories: "; Get-PSRepository;
                                                 OutProgress "List installed ps modules ";
-                                                Get-Module -ListAvailable | Sort-Object Name, Version, ModuleType | Select-Object Name, Version, ModuleType, Path;
+                                                Get-Module -ListAvailable | Sort-Object Name, Version, ModuleType | Select-Object Name, Version, ModuleType, Path | Format-Table -AutoSize;
                                                 OutProgress "Set repository PSGallery to trusted: ";
                                                 Set-PSRepository PSGallery -InstallationPolicy Trusted; # uses 14 sec
                                                 OutProgress "List of installed package providers:";
@@ -2447,3 +2448,4 @@ function MnCommonPsToolLibSelfUpdate          (){
                                                 }
 
 function ToolVs2019UserFolderGetLatestUsed    (){ OutWarning "ToolVs2019UserFolderGetLatestUsed is DEPRECATED, replace it now by: ToolVsUserFolderGetLatestUsed "; return (ToolVsUserFolderGetLatestUsed); }
+function SvnExe                               (){ OutWarning "SvnExe is DEPRECATED, replace it now by (expect it in path): `"svn`" "; return "svn"; }
