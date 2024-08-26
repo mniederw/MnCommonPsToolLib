@@ -34,7 +34,7 @@
   }
   #HelpInfoURI            = '';
 
-  ModuleVersion          = '7.66';
+  ModuleVersion          = '7.67';
 
   <#
   Releasenotes
@@ -43,6 +43,7 @@
   Major version will reflect breaking changes, minor identifies extensions and third number identifies urgent bugfixes.
   Breaking changes are usually removed deprecated functions or changed behaviours.
 
+  2024-08-26  V7.67  Fix DriveFreeSpace.
   2024-08-18  V7.66  Fix FsEntryGetAbsolutePath, FsEntryListAsFileSystemInfo, DriveFreeSpace. Deprecate SvnExe. Extend OsWindowsRegRunDisable.
   2024-08-13  V7.65  Added ProcessStartByArray, ProcessStartByCmdLine. OsWindowsPackageListInstalled, OsWindowsPackageUninstall, OsWindowsRegRunDisable. Extend Doc. Improve ToolInstallNuPckMgrAndCommonPsGalMo, TaskIsDisabled, OsWindowsPackageUninstall.
   2024-08-10  V7.64  Extend Doc.
