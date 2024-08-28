@@ -543,7 +543,7 @@ function OutGetTsPrefix                       ( [Boolean] $forceTsPrefix = $fals
                                                 return [String] $(switch($forceTsPrefix -or $global:ModeOutputWithTsPrefix){($true){"$(DateTimeNowAsStringIso) "}default{""}}); }
 function OutClear                             (){ Clear-Host; }
 function OutStartTranscriptInTempDir          ( [String] $name = "MnCommonPsToolLib", [Boolean] $useHHMMSS = $false ){
-                                                 # append everything from console to logfile, return full path name of logfile. Optionally use precision by seconds for file name.
+                                                 # Append everything from console to logfile as trace info, return full path name of logfile. Optionally use precision by seconds for file name.
                                                 if( $name -eq "" ){ $name = "MnCommonPsToolLib"; }
                                                 [String] $pattern = "yyyy yyyy-MM yyyy-MM-dd";
                                                 if( $useHHMMSS ){ $pattern += "_HH'h'mm'm'ss's'"; }
