@@ -1471,7 +1471,7 @@ function FsEntryGetSize                       ( [String] $fsEntry ){ # Must exis
                                                   Where-Object{$null -ne $_} | Measure-Object -Property length -sum;
                                                 if( $null -eq $size ){ return [Int64] 0; }
                                                 return [Int64] $size.sum; }
-function DriveFreeSpace                       ( [String] $driveLetter ){ return [Int64] (Get-PSDrive $drive | Select-Object -ExpandProperty Free); } # Example: "C"
+function DriveFreeSpace                       ( [String] $driveLetter ){ return [Int64] (Get-PSDrive $driveLetter | Select-Object -ExpandProperty Free); } # Example: "C"
 function DirSep                               (){ return [Char] [IO.Path]::DirectorySeparatorChar; }
 function DirExists                            ( [String] $dir ){
                                                 FsEntryAssertHasTrailingDirSep $dir;
