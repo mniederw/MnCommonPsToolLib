@@ -71,6 +71,7 @@ function OsWindowsFeatureDoUninstall          ( [String] $name ){
                                                 OutProgress $out;
                                                 if( -not $res.Success ){ throw [Exception] "Uninstall $name was not successful, please solve manually. $out"; } }
 function OsWindowsRegRunDisable               ( [String] $regItem, [Boolean] $fromHklmNotHkcu = $false, [Boolean] $fromRunonceNotRun = $false ){
+                                                # Ignore if key not exists.
                                                 # for future use: create key "AutorunsDisabled" and copy removed item to it
                                                 [String] $key = ""; [String] $msg = "";
                                                 if( $fromRunonceNotRun ){ if( $fromHklmNotHkcu ){ $msg = "Autorunonce-CurrentUser" ; $key = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\RunOnce"; }
@@ -522,7 +523,26 @@ function ServiceAssertExists                  ( [String] $serviceName ){
                                                 OutVerbose "Assert service exists: $serviceName";
                                                 Assert (ServiceExists $serviceName) "service not exists: $serviceName"; }
 function ServiceGet                           ( [String] $serviceName ){
-                                                return [Object] (Get-Service -Name $serviceName -ErrorAction SilentlyContinue); } # Standard result is name,displayname,status.
+                                                return [Object] (Get-Service -Name $serviceName -ErrorAction SilentlyContinue); # Standard result is name,displayname,status.
+                                                # Some Service Properties:
+                                                #   ErrorControl:
+                                                #     0x3=Critical  Fail the attempted system startup. If the startup is not using the LastKnownGood control set, switch to LastKnownGood. If the startup attempt is using LastKnownGood, run a bug-check routine.
+                                                #     0x2=Severe    If the startup is not using the LastKnownGood control set, switch to LastKnownGood. If the startup attempt is using LastKnownGood, continue on in case of error.
+                                                #     0x1=Normal    If the driver fails to load or initialize, startup should proceed, but display a warning.
+                                                #     0x0=Ignore    If the driver fails to load or initialize, start up proceeds. No warning is displayed.
+                                                #   Start:
+                                                #     0x0=Boot      Loader: Kernel driver            Represents a part of the stack for the boot (startup) volume and must therefore be loaded by the Boot Loader.
+                                                #     0x1=System    Loader: I/O  subsystem           Represents a driver to be loaded at Kernel initialization.
+                                                #     0x2=Autoload  Loader: Service Control Manager  To be loaded or started automatically for all startups, regardless of service type.
+                                                #     0x3=Manual    Loader: Service Control Manager  Load on demand Available, regardless of type, but will not be started until the user starts it, (for example, by using the Devices icon in Control Panel).
+                                                #     0x4=disabled  Loader: Service Control Manager  NOT TO BE STARTED UNDER ANY CONDITIONS.
+                                                #   Type:
+                                                #     0x1   A Kernel device driver.
+                                                #     0x2   File system driver, which is also a Kernel device driver.
+                                                #     0x4   A set of arguments for an adapter.
+                                                #     0x10  A Win32 program that can be started by the Service Controller and that obeys the service control protocol. This type of Win32 service runs in a process by itself.
+                                                #     0x20  A Win32 service that can share a process with other Win32 services.
+                                                } 
 function ServiceGetState                      ( [String] $serviceName ){
                                                 [Object] $s = ServiceGet $serviceName;
                                                 if( $null -eq $s ){ return [String] ""; }
