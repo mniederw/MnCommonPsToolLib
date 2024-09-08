@@ -71,6 +71,7 @@ function OsWindowsFeatureDoUninstall          ( [String] $name ){
                                                 OutProgress $out;
                                                 if( -not $res.Success ){ throw [Exception] "Uninstall $name was not successful, please solve manually. $out"; } }
 function OsWindowsRegRunDisable               ( [String] $regItem, [Boolean] $fromHklmNotHkcu = $false, [Boolean] $fromRunonceNotRun = $false ){
+                                                # Ignore if key not exists.
                                                 # for future use: create key "AutorunsDisabled" and copy removed item to it
                                                 [String] $key = ""; [String] $msg = "";
                                                 if( $fromRunonceNotRun ){ if( $fromHklmNotHkcu ){ $msg = "Autorunonce-CurrentUser" ; $key = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\RunOnce"; }
@@ -97,6 +98,30 @@ function OsWinPowerOff                        ( [Int32] $waitSec = 60, [Boolean]
                                                 OutWarning "Warning: In $waitSec seconds calling Power-Off (forceIfScreenLocked=$forceIfScreenLocked) (use ctrl-c to abort)!";
                                                 ProcessSleepSec "$waitSec";
                                                 if( $forceIfScreenLocked -and (OsIsWinScreenLocked) ){ Stop-Computer -Force; }else{ Stop-Computer; } }
+                                                
+function OsWinCreateUser                      ( [String] $us, [String] $pw, [String] $fullName = "", [String] $descr = "", [Boolean] $denyInteractiveLogon = $false ){
+                                                Assert ($us -ne "");
+                                                if( $null -ne (Get-LocalUser -Name $us -ErrorAction SilentlyContinue) ){ OutProgress "User $us already exists, nothing done. "; return; }
+                                                OutProgress "CreateUser us=$us denyInteractiveLogon=$denyInteractiveLogon ";
+                                                # 2024-08-18 On Win11 we get the bug: https://github.com/PowerShell/PowerShell/issues/18624
+                                                #   New-LocalUser Could not load type 'Microsoft.PowerShell.Telemetry.Internal.TelemetryAPI' from assembly 'System.Management.Automation  
+                                                # workaround is:
+                                                Import-Module microsoft.powershell.localaccounts -UseWindowsPowerShell *>&1 | Out-Null;
+                                                [Object] $u = New-LocalUser -Name $us -Password (ConvertTo-SecureString $pw -AsPlainText -Force) -FullName $fullName -Description $descr -AccountNeverExpires -PasswordNeverExpires -UserMayNotChangePassword -Disabled;
+                                                if( $denyInteractiveLogon ){
+                                                  # Manually procedure would be: Call gpedit.msc and add user to: Computerkonfiguration->WindowsSettings->SecuritySettings->LokaleRichtlinien-ZuweisenVonBenutzerrechten->LokalAnmeldenVerweigern ";
+                                                  [String] $tmp = (FileGetTempFile); [String] $tmp2 = "$($tmp)2";
+                                                  & secedit /export /cfg $tmp | Out-Null; AssertRcIsOk;
+                                                  (Get-Content $tmp).Replace("SeDenyInteractiveLogonRight = ","SeDenyInteractiveLogonRight = $us,") | Set-Content $tmp2;
+                                                  & secedit /configure /db "secedit.sdb" /cfg $tmp2 /areas USER_RIGHTS | Out-Null; AssertRcIsOk;
+                                                  Remove-Item $tmp; Remove-Item $tmp2;
+                                                  Enable-LocalUser -Name $us;
+                                                }
+                                                # for future use: Add-LocalGroupMember -Group Users -Member $us;
+                                                # for future use: [Object] $gr = [Security.Principal.WindowsBuiltInRole] "Guest";
+                                                # for future use: Get-LocalUser ; # list all users
+                                                # for future use: Remove-LocalUser -Name $us;
+                                              }
 function ProcessGetNrOfCores                  (){ return [Int32] (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors; }
 function ProcessOpenAssocFile                 ( [String] $fileOrUrl ){ & "rundll32" "url.dll,FileProtocolHandler" $fileOrUrl; AssertRcIsOk; }
 function JobStart                             ( [ScriptBlock] $scr, [Object[]] $scrArgs = @(), [String] $name = "Job" ){ # Return job object of type PSRemotingJob, the returned object of the script block can later be requested.
@@ -522,7 +547,26 @@ function ServiceAssertExists                  ( [String] $serviceName ){
                                                 OutVerbose "Assert service exists: $serviceName";
                                                 Assert (ServiceExists $serviceName) "service not exists: $serviceName"; }
 function ServiceGet                           ( [String] $serviceName ){
-                                                return [Object] (Get-Service -Name $serviceName -ErrorAction SilentlyContinue); } # Standard result is name,displayname,status.
+                                                return [Object] (Get-Service -Name $serviceName -ErrorAction SilentlyContinue); # Standard result is name,displayname,status.
+                                                # Some Service Properties:
+                                                #   ErrorControl:
+                                                #     0x3=Critical  Fail the attempted system startup. If the startup is not using the LastKnownGood control set, switch to LastKnownGood. If the startup attempt is using LastKnownGood, run a bug-check routine.
+                                                #     0x2=Severe    If the startup is not using the LastKnownGood control set, switch to LastKnownGood. If the startup attempt is using LastKnownGood, continue on in case of error.
+                                                #     0x1=Normal    If the driver fails to load or initialize, startup should proceed, but display a warning.
+                                                #     0x0=Ignore    If the driver fails to load or initialize, start up proceeds. No warning is displayed.
+                                                #   Start:
+                                                #     0x0=Boot      Loader: Kernel driver            Represents a part of the stack for the boot (startup) volume and must therefore be loaded by the Boot Loader.
+                                                #     0x1=System    Loader: I/O  subsystem           Represents a driver to be loaded at Kernel initialization.
+                                                #     0x2=Autoload  Loader: Service Control Manager  To be loaded or started automatically for all startups, regardless of service type.
+                                                #     0x3=Manual    Loader: Service Control Manager  Load on demand Available, regardless of type, but will not be started until the user starts it, (for example, by using the Devices icon in Control Panel).
+                                                #     0x4=disabled  Loader: Service Control Manager  NOT TO BE STARTED UNDER ANY CONDITIONS.
+                                                #   Type:
+                                                #     0x1   A Kernel device driver.
+                                                #     0x2   File system driver, which is also a Kernel device driver.
+                                                #     0x4   A set of arguments for an adapter.
+                                                #     0x10  A Win32 program that can be started by the Service Controller and that obeys the service control protocol. This type of Win32 service runs in a process by itself.
+                                                #     0x20  A Win32 service that can share a process with other Win32 services.
+                                                } 
 function ServiceGetState                      ( [String] $serviceName ){
                                                 [Object] $s = ServiceGet $serviceName;
                                                 if( $null -eq $s ){ return [String] ""; }
@@ -2318,8 +2362,8 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){
                                                 #     And Update-Module : Das Modul 'Pester' wurde nicht mithilfe von 'Install-Module' installiert und kann folglich nicht aktualisiert werden.
                                                 # - Example: Uninstall-Module -MaximumVersion "0.9.99" -Name SqlServer;
                                                 }
-function ToolInstallWinGet                    (){
-                                                OutProgressTitle     "Install WinGet";
+function ToolWinGetSetup                      (){
+                                                OutProgressTitle "Install WinGet";
                                                 if( (ProcessIsLesserEqualPs5) ){
                                                   Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe; # Register Winget (On Win11 automatically done after first user logon)
                                                     # In Windows-Sandbox or if winget is not installed at all, then perform the following:
@@ -2336,15 +2380,21 @@ function ToolInstallWinGet                    (){
                                                     #       vor der Verwendung anzeigen. \n Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction \n
                                                     #       Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben an den Back-End-Dienst gesendet wird, 
                                                     #       damit er ordnungsgemäß funktioniert (z. B. „US“). \n Stimmen Sie allen Nutzungsbedingungen der Quelle zu? \n [Y] Ja  [N] Nein:
-                                                  Write-Output "Update WinGet, current version: $(winget --version) "; # 2024-07: v1.2.10691;
+                                                  OutProgress "Update WinGet, current version: $(winget --version) "; # 2024-07: v1.2.10691;
                                                     # call https://github.com/microsoft/winget-cli/releases
                                                     # download https://github.com/microsoft/winget-cli/releases/download/v1.8.1911/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle
                                                   Add-AppxPackage -Path 'https://github.com/microsoft/winget-cli/releases/download/v1.8.1911/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle'; # sometimes with: -ForceApplicationShutdown
                                                 }
-                                                Write-Output "Update list of WinGet current version: $(winget --version) "; # 2024-07: vv1.8.1911
-                                                winget source reset; # alternative option: --force
-                                                winget source update;
-                                                winget source list; # msstore
+                                                OutProgress "Current WinGet version: $(winget --version) "; # 2024-07: v1.8.1911
+                                                # rarely do: winget source reset --force; # reset back to msstore,winget; others are lost.
+                                                OutProgress "Update list of WinGet ";
+                                                winget source update | Where-Object{ $null -ne $_ } | ForEach-Object{ "$_".Trim(); } | 
+                                                  Where-Object{ $_ -ne "" } | Where-Object{ -not @("-","/","|","\").Contains($_) } |
+                                                  Where-Object{ $_ -ne "Alle Quellen werden aktualisiert..." } |
+                                                  Where-Object{ $_ -ne "Fertig" } |
+                                                  ForEach-Object{ OutProgress "  $_"; };
+                                                OutProgress "List WinGet Sources: ";
+                                                winget source list   | ForEach-Object{ OutProgress "  $_"; }; # msstore, winget.
                                                   #   Name    Argument                                      Anstößig
                                                   #   --------------------------------------------------------------
                                                   #   msstore https://storeedgefd.dsx.mp.microsoft.com/v9.0 false
@@ -2380,6 +2430,50 @@ function ToolInstallWinGet                    (){
                                                   #     --proxy                     Legen Sie einen Proxy fest, der für diese Ausführung verwendet werden soll.
                                                   #     --no-proxy                  Verwendung des Proxys für diese Ausführung deaktivieren
                                                   #   Weitere Hilfe finden Sie unter: „https://aka.ms/winget-command-help“
+                                              }
+function ToolWingetListInstalledPackages      ( [String] $id ){
+                                                # call the tool "winget" to list installed packages
+                                                OutProgress "List of installed packages: ";
+                                                & WinGet list --disable-interactivity --accept-source-agreements *>&1 | 
+                                                  Where-Object{ $null -ne $_ } | ForEach-Object{ "$_".Trim(); } | Where-Object{ $_ -ne "" } | Where-Object{ -not @("-","/","|","\").Contains($_) } |
+                                                  Where-Object{ $_ -ne "Die Quelle `"msstore`" erfordert, dass Sie die folgenden Vereinbarungen vor der Verwendung anzeigen." } |
+                                                  Where-Object{ $_ -ne "Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction" } |
+                                                  Where-Object{ $_ -ne "Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben an den Back-End-Dienst gesendet wird, damit er ordnungsgemäß funktioniert (z. B. `„US`“)." } |
+                                                  ForEach-Object{ OutProgress "  $_"; };
+                                              }
+function ToolWingetInstallPackage             ( [String] $id, [String] $source = "winget" ){
+                                                # call the tool "winget" to intall from a given source.
+                                                OutProgress "Install-or-Update-Package(source=$source): `"$id`" ";
+                                                # We recommend to use source=winget because otherwise we can get for example for:  winget install --verbose --disable-interactivity "Google.Chrome";
+                                                #   Die Quelle "msstore" erfordert, dass Sie die folgenden Vereinbarungen vor der Verwendung anzeigen.
+                                                #   Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction
+                                                #   Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben an den Back-End-Dienst gesendet wird, damit er ordnungsgemäß funktioniert (z. B. „US“).
+                                                #   Mindestens einer der Quellvereinbarungen wurde nicht zugestimmt. Vorgang abgebrochen. Akzeptieren Sie bitte die Quellvereinbarungen, oder entfernen Sie die entsprechenden Quellen.  
+                                                & WinGet install --verbose --source $source --disable-interactivity --id $id --accept-source-agreements *>&1 | 
+                                                  # alternative: --version 1.2.3  --all-versions  --scope user  --scope machine
+                                                  Where-Object{ $null -ne $_ } | ForEach-Object{ "$_".Trim(); } | Where-Object{ $_ -ne "" } | Where-Object{ -not @("-","/","|","\").Contains($_) } |
+                                                  Where-Object{ $_ -ne "Es wurde bereits ein vorhandenes Paket gefunden. Es wird versucht, das installierte Paket zu aktualisieren..." } |
+                                                  Where-Object{ $_ -ne "In den konfigurierten Quellen sind keine neueren Paketversionen verfügbar." } |
+                                                  Where-Object{ $_ -ne "Diese Anwendung wird von ihrem Besitzer an Sie lizenziert." } |
+                                                  Where-Object{ $_ -ne "Microsoft ist nicht verantwortlich und erteilt keine Lizenzen für Pakete von Drittanbietern." } |
+                                                  ForEach-Object{ $_.Replace("Kein verfügbares Upgrade gefunden.","Is up to date."); } |
+                                                  ForEach-Object{ OutProgress "  $_"; };
+                                                    # Example:
+                                                    #   Gefunden ...packagename... Version ...version...
+                                                    #   Download läuft https://...urlToExecutable...
+                                                    #   ████▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  9.00 MB / 54.3 MB
+                                                    #   ██████████████████████████████  54.3 MB / 54.3 MB
+                                                    #   Der Installer-Hash wurde erfolgreich überprüft
+                                                    #   Paketinstallation wird gestartet...
+                                                    #   Erfolgreich installiert
+                                              }
+function ToolWingetUninstallPackage           ( [String] $id, [String] $source = "winget" ){
+                                                # call the tool "winget" to unintall from a given source.
+                                                OutProgress "Uninstall-Package(source=$source): `"$id`" ";
+                                                & WinGet uninstall --verbose --source $source --disable-interactivity --id $id --accept-source-agreements *>&1 | 
+                                                  Where-Object{ $null -ne $_ } | ForEach-Object{ "$_".Trim(); } | Where-Object{ $_ -ne "" } | Where-Object{ -not @("-","/","|","\").Contains($_) } |
+                                                  ForEach-Object{ $_.Replace("Es wurde kein installiertes Paket gefunden, das den Eingabekriterien entspricht.","Already uninstalled, nothing done."); } |
+                                                  ForEach-Object{ OutProgress "  $_"; };
                                               }
 function ToolManuallyDownloadAndInstallProg   ( [String] $programName, [String] $programDownloadUrl, [String] $mainTargetFileMinIsoDate = "0001-01-01",
                                                   [String[]] $programExecutableOrDir = "", [String] $programConfigurations = "" ){

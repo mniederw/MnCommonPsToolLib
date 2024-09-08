@@ -543,7 +543,7 @@ function OutGetTsPrefix                       ( [Boolean] $forceTsPrefix = $fals
                                                 return [String] $(switch($forceTsPrefix -or $global:ModeOutputWithTsPrefix){($true){"$(DateTimeNowAsStringIso) "}default{""}}); }
 function OutClear                             (){ Clear-Host; }
 function OutStartTranscriptInTempDir          ( [String] $name = "MnCommonPsToolLib", [Boolean] $useHHMMSS = $false ){
-                                                 # append everything from console to logfile, return full path name of logfile. Optionally use precision by seconds for file name.
+                                                 # Append everything from console to logfile as trace info, return full path name of logfile. Optionally use precision by seconds for file name.
                                                 if( $name -eq "" ){ $name = "MnCommonPsToolLib"; }
                                                 [String] $pattern = "yyyy yyyy-MM yyyy-MM-dd";
                                                 if( $useHHMMSS ){ $pattern += "_HH'h'mm'm'ss's'"; }
@@ -2795,7 +2795,7 @@ function ToolAddLineToConfigFile              ( [String] $file, [String] $line, 
                                                 # if file not exists or line not found case sensitive in file then the line is appended.
                                                 if( FileNotExists $file ){ FileWriteFromLines $file $line; }
                                                 elseif( -not (StringArrayContains (@()+(FileReadContentAsLines $file $existingFileEncodingIfNoBom)) $line) ){ FileAppendLines $file $line; } }
-function ToolFindOppositeProfileFromPs5orPs7  (){ # If we are running PS5 then find profile of PS7 and vice versa.
+function ToolFindOppositeProfileFromPs5orPs7  (){ # If we are running PS5 then find profile of PS7 and vice versa. Used for syncing operations between environments.
                                                 # Origin profile on PS5: $HOME\Documents\PowerShell\Microsoft.PowerShell_profile.ps1
                                                 # Origin profile on PS7: $HOME\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1
                                                 # Other profiles as from ($PROFILE | select *) are generally not existing.
@@ -2952,7 +2952,7 @@ function OutSuccess                           ( [String] $line ){ OutProgressSuc
 
 if( (OsIsWindows) ){ # running under windows
   OutVerbose "$PSScriptRoot : Running on windows";
-  . "$PSScriptRoot/MnCommonPsToolLib_Windows.ps1";
+  . "$PSScriptRoot/MnCommonPsToolLib_Windows.ps1"; AssertRcIsOk;
 }else{
   OutVerbose "$PSScriptRoot : Running not on windows";
 }
