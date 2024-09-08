@@ -2361,10 +2361,12 @@ function ToolInstallWinGet                    (){
                                                     # download https://github.com/microsoft/winget-cli/releases/download/v1.8.1911/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle
                                                   Add-AppxPackage -Path 'https://github.com/microsoft/winget-cli/releases/download/v1.8.1911/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle'; # sometimes with: -ForceApplicationShutdown
                                                 }
-                                                Write-Output "Update list of WinGet current version: $(winget --version) "; # 2024-07: vv1.8.1911
-                                                winget source reset; # alternative option: --force
-                                                winget source update;
-                                                winget source list; # msstore
+                                                Write-Output "Current WinGet version: $(winget --version) "; # 2024-07: v1.8.1911
+                                                # rarely do: winget source reset --force; # reset back to msstore,winget; others are lost.
+                                                Write-Output "Update list of WinGet ";
+                                                winget source update | ForEach-Object{ OutProgress $_; };
+                                                Write-Output "List WinGet Sources: ";
+                                                winget source list   | ForEach-Object{ OutProgress $_; }; # msstore, winget.
                                                   #   Name    Argument                                      Anstößig
                                                   #   --------------------------------------------------------------
                                                   #   msstore https://storeedgefd.dsx.mp.microsoft.com/v9.0 false
