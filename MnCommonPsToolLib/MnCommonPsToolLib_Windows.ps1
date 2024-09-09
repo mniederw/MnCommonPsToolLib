@@ -127,23 +127,27 @@ function OsWindowsUpdateEnableNonOsAppUpdates (){
                                                 OutProgress "List Registered Service Manager:";
                                                 Get-WUServiceManager | Sort-Object Name | Select-Object Name, IsDefaultAUService, IsManaged, ServiceId, ServiceUrl |
                                                   StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
-                                                #   ServiceID                            IsManaged IsDefault Name
-                                                #   ---------                            --------- --------- ----
-                                                #   7971f918-a847-4430-9279-4a52d1efe18d False     True      Microsoft Update
-                                                #   8b24b027-1dee-babb-9a95-3517dfb9c552 False     False     DCat Flighting Prod
-                                                #   117cab2d-82b1-4b5a-a08c-4d62dbee7782 False     False     Windows Store
-                                                #   855e8a7c-ecb4-4ca3-b045-1dfa50104289 False     False     Windows Store (DCat Prod)
-                                                #   9482f4b4-e343-43b6-b170-9a65bc822c77 False     False     Windows Update
-                                                # Option -MicrosoftUpdate is the same as: Add-WUServiceManager -ServiceID 7971f918-a847-4430-9279-4a52d1efe18d;
-                                                #   It seams this is also for Non-OS-App-Updates, seams it requires install PSWindowsUpdate
-                                                # Confirm=false means no request before execution
-                                                Add-WUServiceManager -MicrosoftUpdate -Confirm:$false;
+                                                  #   ServiceID                            IsManaged IsDefault Name
+                                                  #   ---------                            --------- --------- ----
+                                                  #   7971f918-a847-4430-9279-4a52d1efe18d False     True      Microsoft Update
+                                                  #   8b24b027-1dee-babb-9a95-3517dfb9c552 False     False     DCat Flighting Prod
+                                                  #   117cab2d-82b1-4b5a-a08c-4d62dbee7782 False     False     Windows Store
+                                                  #   855e8a7c-ecb4-4ca3-b045-1dfa50104289 False     False     Windows Store (DCat Prod)
+                                                  #   9482f4b4-e343-43b6-b170-9a65bc822c77 False     False     Windows Update
+                                                OutProgress "List Registered Service Manager:";
+                                                Add-WUServiceManager -MicrosoftUpdate -Confirm:$false | Select-Object Name, IsDefaultAUService, IsManaged, ServiceId, ServiceUrl |
+                                                  StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
+                                                  # for future use: RegistrationStateName, ContentValidationCert, ExpirationDate, IsRegisteredWithAU, IssueDate, OffersWindowsUpdates, RedirectUrls, IsScanPackageService, CanRegisterWithAU, SetupPrefix
+                                                  # Option -MicrosoftUpdate is the same as: Add-WUServiceManager -ServiceID 7971f918-a847-4430-9279-4a52d1efe18d;
+                                                  #   It seams this is also for Non-OS-App-Updates, seams it requires install PSWindowsUpdate
+                                                  # Confirm=false means no request before execution.
                                                 OutProgress "Ok, done.";
                                               }
 function OsWindowsUpdatePackagesShowPending   (){
                                                 OutProgress "Show Pending Microsoft Windows Update Packages";
                                                 ProcessRestartInElevatedAdminMode;
-                                                Get-WindowsUpdate | Select-Object ComputerName, Status, KB, Size, Title | StreamToTableString;
+                                                Get-WindowsUpdate | Select-Object ComputerName, Status, KB, Size, Title | 
+                                                  StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
                                                 OutProgress "Ok, done.";
                                               }
 function OsWindowsUpdatePerform               ( [Boolean] $withAutoReboot = $false ){
@@ -154,11 +158,19 @@ function OsWindowsUpdatePerform               ( [Boolean] $withAutoReboot = $fal
                                                 # Install-WindowsUpdate is an alias to Get-WindowsUpdate -Install; But Install-WindowsUpdate seams not to enabled on PS7
                                                 # Alternatives: -KBArticleID "KB9876543,KB9876542" -NotKBArticleID "KB9876541" -NotCategory "Drivers" -NotTitle "OneDrive"
                                                 # for unknown reason if we use: Get-WindowsUpdate | Select-Object Status, Size, KB, Title;  then the values are empty, so we use conversion to [Object[]]
-                                                ([Object[]](Get-WindowsUpdate)) | Select-Object Status, Size, KB, Title | StreamToTableString;
+                                                ([Object[]](Get-WindowsUpdate)) | Select-Object Status, Size, KB, Title | 
+                                                  StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
                                                 OutProgress "List finished, now download and install all";
                                                 # Perform and lists all properties; later try to list: EulaAccepted,IsBeta,IsInstalled,IsMandatory,RebootRequired,IsPresent,PerUser,LastDeploymentChangeTime
                                                 Get-WindowsUpdate -Install -AcceptAll -AutoReboot:$withAutoReboot -MicrosoftUpdate:$withAutoReboot -IgnoreReboot:$(-not $withAutoReboot) |
-                                                  Select-Object X, Result, Status, Size, KB, Title | StreamToTableString;
+                                                  Select-Object X, Result, Status, Size, KB, Title | StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
+                                                  # Example:
+                                                  #   Reboot is required, but do it manually.
+                                                  #   X Result     Status  Size  KB        Title
+                                                  #   - ------     ------  ----  --        -----
+                                                  #   1 Accepted   A------ 71MB  KB890830  Windows-Tool zum Entfernen bösartiger Software x64 - v5.127 (KB890830)
+                                                  #   2 Downloaded AD----- 71MB  KB890830  Windows-Tool zum Entfernen bösartiger Software x64 - v5.127 (KB890830)
+                                                  #   3 Installed  ADI---- 71MB  KB890830  Windows-Tool zum Entfernen bösartiger Software x64 - v5.127 (KB890830)
                                                   # Example:
                                                   #   Size                            : 64MB
                                                   #   Status                          : ADR----
@@ -1050,12 +1062,12 @@ function InfoHdSpeed                          (){ # Works only on Windows
                                                 [String[]] $out2 = @()+(& "winsat.exe" "disk" "-seq" "-write" "-drive" "c"); AssertRcIsOk $out2; return [String[]] ($out1+$out2); }
 function InfoAboutNetConfig                   (){
                                                 return [String[]] @( "InfoAboutNetConfig:", ""
-                                                ,"NetGetIpConfig:"     ,(NetGetIpConfig) , ""
-                                                ,"NetGetNetView:"      ,(NetGetNetView)  , ""
-                                                ,"NetGetNetStat:"      ,(NetGetNetStat)  , ""
-                                                ,"NetGetRoute:"        ,(NetGetRoute)    , ""
-                                                ,"NetGetNbtStat:"      ,(NetGetNbtStat)  , ""
-                                                ,"NetGetAdapterSpeed:" ,(NetAdapterListAll | StreamToTableString | StreamToStringIndented)  ,"" ); }
+                                                ,"NetGetIpConfig:"     ,(NetGetIpConfig                                                  ),""
+                                                ,"NetGetNetView:"      ,(NetGetNetView                                                   ),""
+                                                ,"NetGetNetStat:"      ,(NetGetNetStat                                                   ),""
+                                                ,"NetGetRoute:"        ,(NetGetRoute                                                     ),""
+                                                ,"NetGetNbtStat:"      ,(NetGetNbtStat                                                   ),""
+                                                ,"NetGetAdapterSpeed:" ,(NetAdapterListAll | StreamToTableString | StreamToStringIndented),""); }
 function InfoGetInstalledDotNetVersion        ( [Boolean] $alsoOutInstalledClrAndRunningProc = $false ){
                                                 # Requires clrver.exe in path, for example "${env:ProgramFiles(x86)}\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.8.1 Tools\x64\clrver.exe"
                                                 if( $alsoOutInstalledClrAndRunningProc ){
@@ -2374,9 +2386,13 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){
                                                 ProcessRestartInElevatedAdminMode;
                                                 OutProgress "Import-Module PowerShellGet:";
                                                 Import-Module "PowerShellGet"; # provides: Set-PSRepository, Install-Module
-                                                OutProgress "List ps gallery repositories: "; Get-PSRepository;
+                                                OutProgress "List ps gallery repositories: ";
+                                                Get-PSRepository | Select-Object Name, Trusted, Registered, InstallationPolicy, PackageManagementProvider, SourceLocation |
+                                                  StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
+                                                  # Example: PSGallery True True Trusted NuGet https://www.powershellgallery.com/api/v2
                                                 OutProgress "List installed ps modules ";
-                                                Get-Module -ListAvailable | Sort-Object Name, Version, ModuleType | Select-Object Name, Version, ModuleType, Path | Format-Table -AutoSize;
+                                                Get-Module -ListAvailable | Sort-Object Name, Version, ModuleType | Select-Object Name, Version, ModuleType, Path | 
+                                                  StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
                                                 OutProgress "Set repository PSGallery to trusted: ";
                                                 Set-PSRepository PSGallery -InstallationPolicy Trusted; # uses 14 sec
                                                 OutProgress "List of installed package providers:";
@@ -2403,7 +2419,15 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){
                                                 # alternatives: Install-Module -Force [-MinimumVersion <String>] [-MaximumVersion <String>] [-RequiredVersion <String>]
                                                 try{
                                                   OutProgress "Install-Module -AcceptLicense -Scope AllUsers -Name $modules; ";
-                                                  Install-Module              -AcceptLicense -Scope AllUsers -Name $modules; # for future use: -Force
+                                                  Install-Module              -AcceptLicense -Scope AllUsers -Name $modules | ForEach-Object{ "$_" } |
+                                                    Where-Object{ -not $_.StartsWith("WARNING: Version ") } |
+                                                    StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
+                                                    # 2024-09: We get:
+                                                    #   WARNING: Version '2.2.1.4' of module 'PSWindowsUpdate' is already installed at 'C:\Program Files\PowerShell\Modules\PSWindowsUpdate\2.2.1.4'. 
+                                                    #     To install version '2.2.1.5', run Install-Module and add the -Force parameter, this command will install version '2.2.1.5' side-by-side with version '2.2.1.4'                                                                                  .
+                                                    #   WARNING: Version '3.4.0' of module 'Pester' is already installed at 'C:\Program Files\WindowsPowerShell\Modules\Pester\3.4.0'. 
+                                                    #     To install version '5.6.1', run Install-Module and add the -Force parameter, this command will install version '5.6.1' side-by-side with version '3.4.0'.
+                                                    # for future use: -Force
                                                 }catch{
                                                   # Install-Module : A parameter cannot be found that matches parameter name 'AcceptLicense'. ParameterBindingException
                                                   [String] $msg = $_.Exception.Message;
@@ -2416,9 +2440,12 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){
                                                 $modules = $modules | Where-Object{ (ProcessIsLesserEqualPs5) -or $_ -ne "PsReadline" }; # remove PsReadline for PS7
                                                 OutProgress "Update  modules: $modules ";
                                                 try{
-                                                  Update-Module -AcceptLicense -Scope AllUsers -Name $modules;
+                                                  Update-Module -AcceptLicense -Scope AllUsers -Name $modules | ForEach-Object{ "$_" } |
+                                                    StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
+                                                    # Example: "Module 'PowerShellGet' was not installed by using Install-Module, so it cannot be updated."
                                                 }catch{
                                                   # 2023-10: option AcceptLicense not exists ...
+                                                  # 2024-09: "Module 'PowerShellGet' was not installed by using Install-Module, so it cannot be updated."
                                                   OutWarning "Warning: Update-Module failed because $($_.Exception.Message), ignored.";
                                                   Update-Module -ErrorAction SilentlyContinue -AcceptLicense -Scope AllUsers -Name $modules;
                                                 }
@@ -2430,9 +2457,13 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){
                                                   Get-InstalledModule -Name $_.Name -AllVersions | Where-Object -Property Version -LT -Value $v | Uninstall-Module;
                                                 }
                                                 #
-                                                OutProgress "Update-Help to en-US";
-                                                (Update-Help -UICulture en-US -ErrorAction Continue *>&1) | ForEach-Object{ OutProgress "  $_"; };
-                                                OutProgress "Update-Help to current Culture: $((Get-Culture).Name) = $((Get-Culture).DisplayName)"; # Example: "de-CH"
+                                                OutProgress "Update-Help to en-US with continue-on-error ";
+                                                Update-Help -UICulture en-US -ErrorAction Continue *>&1 | ForEach-Object{ "$_" } | ForEach-Object{ OutProgress "  $_"; };
+                                                  # Example: 2024-07-23 17:09:48 Failed to update Help for the module(s) 'PSReadline, WindowsUpdateProvider' with UI culture(s) {en-US} : One or more errors occurred. (Response status code does not indicate success: 404 (Not Found).).
+                                                  #                              English-US help content is available and can be installed using: Update-Help -UICulture en-US.
+                                                  # Example: 2024-09-09 00:09:37 Failed to update Help for the module(s) 'ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate' with UI culture(s) {en-US} : One or more errors occurred. (Response status code does not indicate success: 404 (The specified blob does not exist.).).
+                                                  #                              English-US help content is available and can be installed using: Update-Help -UICulture en-US.
+                                                OutProgress "Update-Help to current Culture with continue-on-error: $((Get-Culture).Name) = $((Get-Culture).DisplayName)"; # Example: "de-CH"
                                                 (Update-Help                  -ErrorAction Continue *>&1) | ForEach-Object{ OutProgress "  $_"; };
                                                   # 2024-04: On PS7: Update-Help: Failed to update Help for the module(s) 'PSReadline, WindowsUpdateProvider' with UI culture(s) {en-US} : One or more errors occurred.
                                                   #   (Response status code does not indicate success: 404 (Not Found).). English-US help content is available and can be installed using: Update-Help -UICulture en-US.
@@ -2488,6 +2519,8 @@ function ToolWinGetSetup                      (){
                                                 OutProgress "Update list of WinGet ";
                                                 winget source update | Where-Object{ $null -ne $_ } | ForEach-Object{ "$_".Trim(); } | 
                                                   Where-Object{ $_ -ne "" } | Where-Object{ -not @("-","/","|","\").Contains($_) } |
+                                                  Where-Object{ $_ -notmatch "^\█*\▒*▒\ \ [0-9\.]+\ [KMG]B\ \/\ [0-9\.]+\ [KMG]B$" } | # ██████████████████████▒▒▒▒▒▒▒▒  1024 KB / 1.31 MB
+                                                  Where-Object{ $_ -notmatch "^\█*\▒*▒\ \ [0-9][0-9]?[0-9]?\%$"                    } | # ███▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  10%
                                                   Where-Object{ $_ -ne "Alle Quellen werden aktualisiert..." } |
                                                   Where-Object{ $_ -ne "Fertig" } |
                                                   ForEach-Object{ OutProgress "  $_"; };
@@ -2534,6 +2567,8 @@ function ToolWingetListInstalledPackages      ( [String] $id ){
                                                 OutProgress "List of installed packages: ";
                                                 & WinGet list --disable-interactivity --accept-source-agreements *>&1 | 
                                                   Where-Object{ $null -ne $_ } | ForEach-Object{ "$_".Trim(); } | Where-Object{ $_ -ne "" } | Where-Object{ -not @("-","/","|","\").Contains($_) } |
+                                                  Where-Object{ $_ -notmatch "^\█*\▒*▒\ \ [0-9\.]+\ [KMG]B\ \/\ [0-9\.]+\ [KMG]B$" } | # ██████████████████████▒▒▒▒▒▒▒▒  1024 KB / 1.31 MB
+                                                  Where-Object{ $_ -notmatch "^\█*\▒*▒\ \ [0-9][0-9]?[0-9]?\%$"                    } | # ███▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  10%
                                                   Where-Object{ $_ -ne "Die Quelle `"msstore`" erfordert, dass Sie die folgenden Vereinbarungen vor der Verwendung anzeigen." } |
                                                   Where-Object{ $_ -ne "Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction" } |
                                                   Where-Object{ $_ -ne "Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben an den Back-End-Dienst gesendet wird, damit er ordnungsgemäß funktioniert (z. B. `„US`“)." } |
@@ -2550,6 +2585,8 @@ function ToolWingetInstallPackage             ( [String] $id, [String] $source =
                                                 & WinGet install --verbose --source $source --disable-interactivity --id $id --accept-source-agreements *>&1 | 
                                                   # alternative: --version 1.2.3  --all-versions  --scope user  --scope machine
                                                   Where-Object{ $null -ne $_ } | ForEach-Object{ "$_".Trim(); } | Where-Object{ $_ -ne "" } | Where-Object{ -not @("-","/","|","\").Contains($_) } |
+                                                  Where-Object{ $_ -notmatch "^\█*\▒*▒\ \ [0-9\.]+\ [KMG]B\ \/\ [0-9\.]+\ [KMG]B$" } | # ██████████████████████▒▒▒▒▒▒▒▒  1024 KB / 1.31 MB
+                                                  Where-Object{ $_ -notmatch "^\█*\▒*▒\ \ [0-9][0-9]?[0-9]?\%$"                    } | # ███▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  10%
                                                   Where-Object{ $_ -ne "Es wurde bereits ein vorhandenes Paket gefunden. Es wird versucht, das installierte Paket zu aktualisieren..." } |
                                                   Where-Object{ $_ -ne "In den konfigurierten Quellen sind keine neueren Paketversionen verfügbar." } |
                                                   Where-Object{ $_ -ne "Diese Anwendung wird von ihrem Besitzer an Sie lizenziert." } |
@@ -2570,6 +2607,8 @@ function ToolWingetUninstallPackage           ( [String] $id, [String] $source =
                                                 OutProgress "Uninstall-Package(source=$source): `"$id`" ";
                                                 & WinGet uninstall --verbose --source $source --disable-interactivity --id $id --accept-source-agreements *>&1 | 
                                                   Where-Object{ $null -ne $_ } | ForEach-Object{ "$_".Trim(); } | Where-Object{ $_ -ne "" } | Where-Object{ -not @("-","/","|","\").Contains($_) } |
+                                                  Where-Object{ $_ -notmatch "^\█*\▒*▒\ \ [0-9\.]+\ [KMG]B\ \/\ [0-9\.]+\ [KMG]B$" } | # ██████████████████████▒▒▒▒▒▒▒▒  1024 KB / 1.31 MB
+                                                  Where-Object{ $_ -notmatch "^\█*\▒*▒\ \ [0-9][0-9]?[0-9]?\%$"                    } | # ███▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  10%
                                                   ForEach-Object{ $_.Replace("Es wurde kein installiertes Paket gefunden, das den Eingabekriterien entspricht.","Already uninstalled, nothing done."); } |
                                                   ForEach-Object{ OutProgress "  $_"; };
                                               }

@@ -43,7 +43,7 @@
   Major version will reflect breaking changes, minor identifies extensions and third number identifies urgent bugfixes.
   Breaking changes are usually removed deprecated functions or changed behaviours.
 
-  2024-09-09  V7.69  Add OsWindowsUpdateEnableNonOsAppUpdates, OsWindowsUpdatePackagesShowPending, OsWindowsUpdatePerform.
+  2024-09-09  V7.69  Add OsWindowsUpdateEnableNonOsAppUpdates, OsWindowsUpdatePackagesShowPending, OsWindowsUpdatePerform. Improve output lines.
   2024-09-08  V7.68  Extend Doc. Fix Installer by using NoProfile for Get-ExecutionPolicy. Add OsWinCreateUser, ToolWinGetSetup, ToolWingetInstallPackage, ToolWingetUninstallPackage, ToolWingetListInstalledPackages.
   2024-08-26  V7.67  Fix DriveFreeSpace.
   2024-08-18  V7.66  Fix FsEntryGetAbsolutePath, FsEntryListAsFileSystemInfo, DriveFreeSpace. Deprecate SvnExe. Extend OsWindowsRegRunDisable.
