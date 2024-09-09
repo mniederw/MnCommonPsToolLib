@@ -162,15 +162,15 @@ function OsWindowsUpdatePerform               ( [Boolean] $withAutoReboot = $fal
                                                   StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
                                                 OutProgress "List finished, now download and install all";
                                                 # Perform and lists all properties; later try to list: EulaAccepted,IsBeta,IsInstalled,IsMandatory,RebootRequired,IsPresent,PerUser,LastDeploymentChangeTime
-                                                Get-WindowsUpdate -Install -AcceptAll -AutoReboot:$withAutoReboot -MicrosoftUpdate:$withAutoReboot -IgnoreReboot:$(-not $withAutoReboot) |
+                                                Get-WindowsUpdate -Install -AcceptAll -MicrosoftUpdate -AutoReboot:$withAutoReboot -IgnoreReboot:$(-not $withAutoReboot) *>&1 |
                                                   Select-Object X, Result, Status, Size, KB, Title | StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
                                                   # Example:
                                                   #   Reboot is required, but do it manually.
                                                   #   X Result     Status  Size  KB        Title
                                                   #   - ------     ------  ----  --        -----
-                                                  #   1 Accepted   A------ 71MB  KB890830  Windows-Tool zum Entfernen bösartiger Software x64 - v5.127 (KB890830)
-                                                  #   2 Downloaded AD----- 71MB  KB890830  Windows-Tool zum Entfernen bösartiger Software x64 - v5.127 (KB890830)
-                                                  #   3 Installed  ADI---- 71MB  KB890830  Windows-Tool zum Entfernen bösartiger Software x64 - v5.127 (KB890830)
+                                                  #   1 Accepted   AD----- 128GB KB5041585 2024-08 Kumulatives Update für Windows 11 Version 23H2 für x64-basierte Systeme (KB5041585)
+                                                  #   2 Downloaded AD----- 128GB KB5041585 2024-08 Kumulatives Update für Windows 11 Version 23H2 für x64-basierte Systeme (KB5041585)
+                                                  #   3 Installed  ADR---- 128GB KB5041585 2024-08 Kumulatives Update für Windows 11 Version 23H2 für x64-basierte Systeme (KB5041585)
                                                   # Example:
                                                   #   Size                            : 64MB
                                                   #   Status                          : ADR----
@@ -1222,7 +1222,7 @@ function SvnAuthorizationSave                ( [String] $workDir, [String] $user
                                                 # Note: if certificate is not accepted then a pem file (for example lets-encrypt-r3.pem) can be added to file "$env:APPDATA\Subversion\servers"
                                                 $workDir = FsEntryGetAbsolutePath $workDir;
                                                 FsEntryAssertHasTrailingDirSep $workDir;
-                                                OutProgress "SvnAuthorizationSave user=$user";
+                                                OutProgress "SvnAuthorizationSave user=$user ";
                                                 FileAppendLineWithTs $svnLogFile "SvnAuthorizationSave(`"$workDir`")";
                                                 [String] $dotSvnDir = SvnGetDotSvnDir $workDir;
                                                 DirCopyToParentDirByAddAndOverwrite "$env:APPDATA/Subversion/auth/svn.simple/" "$dotSvnDir/OwnSvnAuthSimpleSaveUser_$user/"; }
@@ -1347,8 +1347,8 @@ function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url
                                                 [String] $tmp = (FileGetTempFile);
                                                 [Int32] $maxNrOfTries = 100; [Int32] $nrOfTries = 0;
                                                 while($true){ $nrOfTries++;
-                                                  OutProgress "SvnCheckoutAndUpdate: get all changes from $url to `"$workDir`" $(switch($doUpdateOnly){($true){''}default{'and if it not exists and then init working copy first'}}).";
-                                                  FileAppendLineWithTs $svnLogFile "SvnCheckoutAndUpdate(`"$workDir`",$url,$user)";
+                                                  OutProgress "SvnCheckoutAndUpdate: get all changes from $url to `"$workDir`" $(switch($doUpdateOnly){($true){''}default{'and if it not exists and then init working copy first'}}). ";
+                                                  FileAppendLineWithTs $svnLogFile "SvnCheckoutAndUpdate(`"$workDir`",$url,$user) ";
                                                   # For future alternative option: --trust-server-cert-failures unknown-ca,cn-mismatch,expired,not-yet-valid,other
                                                   # For future alternative option: --quite
                                                   [String[]] $opt = @( "--non-interactive", "--ignore-externals" );
@@ -1361,7 +1361,7 @@ function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url
                                                   [String] $logline = $opt; $logline = $logline.Replace("--password $pw","--password ...");
                                                   FileAppendLineWithTs $svnLogFile "`"svn`" $logline";
                                                   try{
-                                                    & "svn" $opt 2> $tmp | ForEach-Object{ FileAppendLineWithTs $svnLogFile ("  "+$_); OutProgress $_ 2; };
+                                                    & "svn" $opt 2> $tmp | ForEach-Object{ FileAppendLineWithTs $svnLogFile ("  "+$_); OutProgress "$_ " 2; };
                                                     [String] $encodingIfNoBom = "Default"; # Encoding Default is ANSI on windows and UTF8 on other platforms.
                                                     AssertRcIsOk (FileReadContentAsLines $tmp $encodingIfNoBom) $true;
                                                     break;
@@ -1396,7 +1396,7 @@ function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url
                                                                                    #        (2023-12: we had a case with a unicode name of length 237chars which did not repair; in case we get another case then do not retry anymore)
                                                     if( -not $isKnownProblemToSolveWithRetry -or $nrOfTries -ge $maxNrOfTries ){ throw [ExcMsg] $msg; }
                                                     [String] $msg2 = "Is try nr $nrOfTries of $maxNrOfTries, will do cleanup, wait 30 sec and if not reached max then retry.";
-                                                    OutWarning "Warning: $msg $msg2";
+                                                    OutWarning "Warning: $msg $msg2 ";
                                                     FileAppendLineWithTs $svnLogFile $msg2;
                                                     SvnCleanup $workDir;
                                                     ProcessSleepSec 30;
@@ -2418,8 +2418,8 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){
                                                 # https://docs.microsoft.com/en-us/powershell/scripting/how-to-use-docs?view=powershell-7.2  take lts version
                                                 # alternatives: Install-Module -Force [-MinimumVersion <String>] [-MaximumVersion <String>] [-RequiredVersion <String>]
                                                 try{
-                                                  OutProgress "Install-Module -AcceptLicense -Scope AllUsers -Name $modules; ";
-                                                  Install-Module              -AcceptLicense -Scope AllUsers -Name $modules | ForEach-Object{ "$_" } |
+                                                  OutProgress "Install-Module -AcceptLicense -Scope AllUsers -Name ($modules); ";
+                                                  Install-Module              -AcceptLicense -Scope AllUsers -Name $modules 3>&1 | ForEach-Object{ "$_" } |
                                                     Where-Object{ -not $_.StartsWith("WARNING: Version ") } |
                                                     StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
                                                     # 2024-09: We get:
@@ -2440,7 +2440,7 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){
                                                 $modules = $modules | Where-Object{ (ProcessIsLesserEqualPs5) -or $_ -ne "PsReadline" }; # remove PsReadline for PS7
                                                 OutProgress "Update  modules: $modules ";
                                                 try{
-                                                  Update-Module -AcceptLicense -Scope AllUsers -Name $modules | ForEach-Object{ "$_" } |
+                                                  Update-Module -AcceptLicense -Scope AllUsers -Name $modules 3>&1 | ForEach-Object{ "$_" } |
                                                     StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
                                                     # Example: "Module 'PowerShellGet' was not installed by using Install-Module, so it cannot be updated."
                                                 }catch{
@@ -2519,8 +2519,8 @@ function ToolWinGetSetup                      (){
                                                 OutProgress "Update list of WinGet ";
                                                 winget source update | Where-Object{ $null -ne $_ } | ForEach-Object{ "$_".Trim(); } | 
                                                   Where-Object{ $_ -ne "" } | Where-Object{ -not @("-","/","|","\").Contains($_) } |
-                                                  Where-Object{ $_ -notmatch "^\█*\▒*▒\ \ [0-9\.]+\ [KMG]B\ \/\ [0-9\.]+\ [KMG]B$" } | # ██████████████████████▒▒▒▒▒▒▒▒  1024 KB / 1.31 MB
-                                                  Where-Object{ $_ -notmatch "^\█*\▒*▒\ \ [0-9][0-9]?[0-9]?\%$"                    } | # ███▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  10%
+                                                  Where-Object{ $_ -notmatch "^\█*\▒*\ +[0-9\.]+\ [KMG]B\ \/\ +[0-9\.]+\ [KMG]B$" } | # ██████████████████████▒▒▒▒▒▒▒▒  1024 KB / 1.31 MB
+                                                  Where-Object{ $_ -notmatch "^\█*\▒*\ +[0-9][0-9]?[0-9]?\%$"                     } | # ███▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  10%
                                                   Where-Object{ $_ -ne "Alle Quellen werden aktualisiert..." } |
                                                   Where-Object{ $_ -ne "Fertig" } |
                                                   ForEach-Object{ OutProgress "  $_"; };
@@ -2567,8 +2567,8 @@ function ToolWingetListInstalledPackages      ( [String] $id ){
                                                 OutProgress "List of installed packages: ";
                                                 & WinGet list --disable-interactivity --accept-source-agreements *>&1 | 
                                                   Where-Object{ $null -ne $_ } | ForEach-Object{ "$_".Trim(); } | Where-Object{ $_ -ne "" } | Where-Object{ -not @("-","/","|","\").Contains($_) } |
-                                                  Where-Object{ $_ -notmatch "^\█*\▒*▒\ \ [0-9\.]+\ [KMG]B\ \/\ [0-9\.]+\ [KMG]B$" } | # ██████████████████████▒▒▒▒▒▒▒▒  1024 KB / 1.31 MB
-                                                  Where-Object{ $_ -notmatch "^\█*\▒*▒\ \ [0-9][0-9]?[0-9]?\%$"                    } | # ███▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  10%
+                                                  Where-Object{ $_ -notmatch "^\█*\▒*\ +[0-9\.]+\ [KMG]B\ \/\ +[0-9\.]+\ [KMG]B$" } | # ██████████████████████▒▒▒▒▒▒▒▒  1024 KB / 1.31 MB
+                                                  Where-Object{ $_ -notmatch "^\█*\▒*\ +[0-9][0-9]?[0-9]?\%$"                     } | # ███▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  10%
                                                   Where-Object{ $_ -ne "Die Quelle `"msstore`" erfordert, dass Sie die folgenden Vereinbarungen vor der Verwendung anzeigen." } |
                                                   Where-Object{ $_ -ne "Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction" } |
                                                   Where-Object{ $_ -ne "Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben an den Back-End-Dienst gesendet wird, damit er ordnungsgemäß funktioniert (z. B. `„US`“)." } |
@@ -2585,8 +2585,8 @@ function ToolWingetInstallPackage             ( [String] $id, [String] $source =
                                                 & WinGet install --verbose --source $source --disable-interactivity --id $id --accept-source-agreements *>&1 | 
                                                   # alternative: --version 1.2.3  --all-versions  --scope user  --scope machine
                                                   Where-Object{ $null -ne $_ } | ForEach-Object{ "$_".Trim(); } | Where-Object{ $_ -ne "" } | Where-Object{ -not @("-","/","|","\").Contains($_) } |
-                                                  Where-Object{ $_ -notmatch "^\█*\▒*▒\ \ [0-9\.]+\ [KMG]B\ \/\ [0-9\.]+\ [KMG]B$" } | # ██████████████████████▒▒▒▒▒▒▒▒  1024 KB / 1.31 MB
-                                                  Where-Object{ $_ -notmatch "^\█*\▒*▒\ \ [0-9][0-9]?[0-9]?\%$"                    } | # ███▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  10%
+                                                  Where-Object{ $_ -notmatch "^\█*\▒*\ +[0-9\.]+\ [KMG]B\ \/\ +[0-9\.]+\ [KMG]B$" } | # ██████████████████████▒▒▒▒▒▒▒▒  1024 KB / 1.31 MB
+                                                  Where-Object{ $_ -notmatch "^\█*\▒*\ +[0-9][0-9]?[0-9]?\%$"                     } | # ███▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  10%
                                                   Where-Object{ $_ -ne "Es wurde bereits ein vorhandenes Paket gefunden. Es wird versucht, das installierte Paket zu aktualisieren..." } |
                                                   Where-Object{ $_ -ne "In den konfigurierten Quellen sind keine neueren Paketversionen verfügbar." } |
                                                   Where-Object{ $_ -ne "Diese Anwendung wird von ihrem Besitzer an Sie lizenziert." } |
@@ -2607,8 +2607,8 @@ function ToolWingetUninstallPackage           ( [String] $id, [String] $source =
                                                 OutProgress "Uninstall-Package(source=$source): `"$id`" ";
                                                 & WinGet uninstall --verbose --source $source --disable-interactivity --id $id --accept-source-agreements *>&1 | 
                                                   Where-Object{ $null -ne $_ } | ForEach-Object{ "$_".Trim(); } | Where-Object{ $_ -ne "" } | Where-Object{ -not @("-","/","|","\").Contains($_) } |
-                                                  Where-Object{ $_ -notmatch "^\█*\▒*▒\ \ [0-9\.]+\ [KMG]B\ \/\ [0-9\.]+\ [KMG]B$" } | # ██████████████████████▒▒▒▒▒▒▒▒  1024 KB / 1.31 MB
-                                                  Where-Object{ $_ -notmatch "^\█*\▒*▒\ \ [0-9][0-9]?[0-9]?\%$"                    } | # ███▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  10%
+                                                  Where-Object{ $_ -notmatch "^\█*\▒*\ +[0-9\.]+\ [KMG]B\ \/\ +[0-9\.]+\ [KMG]B$" } | # ██████████████████████▒▒▒▒▒▒▒▒  1024 KB / 1.31 MB
+                                                  Where-Object{ $_ -notmatch "^\█*\▒*\ +[0-9][0-9]?[0-9]?\%$"                     } | # ███▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  10%
                                                   ForEach-Object{ $_.Replace("Es wurde kein installiertes Paket gefunden, das den Eingabekriterien entspricht.","Already uninstalled, nothing done."); } |
                                                   ForEach-Object{ OutProgress "  $_"; };
                                               }
