@@ -98,7 +98,6 @@ function OsWinPowerOff                        ( [Int32] $waitSec = 60, [Boolean]
                                                 OutWarning "Warning: In $waitSec seconds calling Power-Off (forceIfScreenLocked=$forceIfScreenLocked) (use ctrl-c to abort)!";
                                                 ProcessSleepSec "$waitSec";
                                                 if( $forceIfScreenLocked -and (OsIsWinScreenLocked) ){ Stop-Computer -Force; }else{ Stop-Computer; } }
-                                                
 function OsWinCreateUser                      ( [String] $us, [String] $pw, [String] $fullName = "", [String] $descr = "", [Boolean] $denyInteractiveLogon = $false ){
                                                 Assert ($us -ne "");
                                                 if( $null -ne (Get-LocalUser -Name $us -ErrorAction SilentlyContinue) ){ OutProgress "User $us already exists, nothing done. "; return; }
@@ -121,6 +120,105 @@ function OsWinCreateUser                      ( [String] $us, [String] $pw, [Str
                                                 # for future use: [Object] $gr = [Security.Principal.WindowsBuiltInRole] "Guest";
                                                 # for future use: Get-LocalUser ; # list all users
                                                 # for future use: Remove-LocalUser -Name $us;
+                                              }
+function OsWindowsUpdateEnableNonOsAppUpdates (){
+                                                OutProgress "Enable Microsoft Update for Non-OS-App-Updates";
+                                                ProcessRestartInElevatedAdminMode;
+                                                OutProgress "List Registered Service Manager:";
+                                                Get-WUServiceManager | Sort-Object Name | Select-Object Name, IsDefaultAUService, IsManaged, ServiceId, ServiceUrl |
+                                                  StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
+                                                #   ServiceID                            IsManaged IsDefault Name
+                                                #   ---------                            --------- --------- ----
+                                                #   7971f918-a847-4430-9279-4a52d1efe18d False     True      Microsoft Update
+                                                #   8b24b027-1dee-babb-9a95-3517dfb9c552 False     False     DCat Flighting Prod
+                                                #   117cab2d-82b1-4b5a-a08c-4d62dbee7782 False     False     Windows Store
+                                                #   855e8a7c-ecb4-4ca3-b045-1dfa50104289 False     False     Windows Store (DCat Prod)
+                                                #   9482f4b4-e343-43b6-b170-9a65bc822c77 False     False     Windows Update
+                                                # Option -MicrosoftUpdate is the same as: Add-WUServiceManager -ServiceID 7971f918-a847-4430-9279-4a52d1efe18d;
+                                                #   It seams this is also for Non-OS-App-Updates, seams it requires install PSWindowsUpdate
+                                                # Confirm=false means no request before execution
+                                                Add-WUServiceManager -MicrosoftUpdate -Confirm:$false;
+                                                OutProgress "Ok, done.";
+                                              }
+function OsWindowsUpdatePackagesShowPending   (){
+                                                OutProgress "Show Pending Microsoft Windows Update Packages";
+                                                ProcessRestartInElevatedAdminMode;
+                                                Get-WindowsUpdate | Select-Object ComputerName, Status, KB, Size, Title | StreamToTableString;
+                                                OutProgress "Ok, done.";
+                                              }
+function OsWindowsUpdatePerform               ( [Boolean] $withAutoReboot = $false ){
+                                                OutProgress "Perform Microsoft Windows Update (withAutoReboot=$withAutoReboot)";
+                                                ProcessRestartInElevatedAdminMode;
+                                                # for performing on remote computers use: $c = "comp1, comp2, comp3";
+                                                #   Invoke-WUJob -ComputerName $c -Script {ipmo PSWindowsUpdate; Install-WindowsUpdate -MicrosoftUpdate -AcceptAll -AutoReboot} -RunNow -Confirm:$false | Out-File "/server/share/logs/$computer-$(Get-Date -f yyyy-MM-dd)-MSUpdates.log" -Force;
+                                                # Install-WindowsUpdate is an alias to Get-WindowsUpdate -Install; But Install-WindowsUpdate seams not to enabled on PS7
+                                                # Alternatives: -KBArticleID "KB9876543,KB9876542" -NotKBArticleID "KB9876541" -NotCategory "Drivers" -NotTitle "OneDrive"
+                                                # for unknown reason if we use: Get-WindowsUpdate | Select-Object Status, Size, KB, Title;  then the values are empty, so we use conversion to [Object[]]
+                                                ([Object[]](Get-WindowsUpdate)) | Select-Object Status, Size, KB, Title | StreamToTableString;
+                                                OutProgress "List finished, now download and install all";
+                                                # Perform and lists all properties; later try to list: EulaAccepted,IsBeta,IsInstalled,IsMandatory,RebootRequired,IsPresent,PerUser,LastDeploymentChangeTime
+                                                Get-WindowsUpdate -Install -AcceptAll -AutoReboot:$withAutoReboot -MicrosoftUpdate:$withAutoReboot -IgnoreReboot:$(-not $withAutoReboot) |
+                                                  Select-Object X, Result, Status, Size, KB, Title | StreamToTableString;
+                                                  # Example:
+                                                  #   Size                            : 64MB
+                                                  #   Status                          : ADR----
+                                                  #   ComputerName                    : MYCOMPUTER
+                                                  #   KB                              : KB5032339
+                                                  #   X                               : 3
+                                                  #   ChooseResult                    : Accepted
+                                                  #   Result                          : Installed
+                                                  #   DownloadResult                  : Downloaded
+                                                  #   InstallResult                   : Installed
+                                                  #   Title                           : 2023-11 Kumulatives Update f�r .NET Framework 3.5, 4.8 und 4.8.1 f�r Windows 10 Version 22H2 f�r x64 ((KB5032339))
+                                                  #   AutoSelectOnWebSites            : True
+                                                  #   BundledUpdates                  : System.__ComObject
+                                                  #   CanRequireSource                : False
+                                                  #   Categories                      : System.__ComObject
+                                                  #   Deadline                        :
+                                                  #   DeltaCompressedContentAvailable : False
+                                                  #   DeltaCompressedContentPreferred : True
+                                                  #   Description                     : In einem Microsoft-Softwareprodukt wurde ein Sicherheitsproblem festgestellt, das Auswirkungen auf Ihr System haben k�nnte. Durch die Installation dieses Updates von Microsoft k�nnen Sie zum Schutz Ihres Systems beitragen. Eine vollst�ndige Liste der Problembehebungen in diesem Update finden Sie in dem entsprechenden Microsoft Knowledge Base-Artikel. Nach der Installation dieses Updates m�ssen Sie das System gegebenenfalls neu starten.
+                                                  #   EulaAccepted                    : True
+                                                  #   EulaText                        :
+                                                  #   HandlerID                       :
+                                                  #   Identity                        : System.__ComObject
+                                                  #   Image                           :
+                                                  #   InstallationBehavior            : System.__ComObject
+                                                  #   IsBeta                          : False
+                                                  #   IsDownloaded                    : True
+                                                  #   IsHidden                        : False
+                                                  #   IsInstalled                     : False
+                                                  #   IsMandatory                     : False
+                                                  #   IsUninstallable                 : False
+                                                  #   Languages                       : System.__ComObject
+                                                  #   LastDeploymentChangeTime        : 2023-11-14 00:00:00
+                                                  #   MaxDownloadSize                 : 67042638
+                                                  #   MinDownloadSize                 : 0
+                                                  #   MoreInfoUrls                    : System.__ComObject
+                                                  #   MsrcSeverity                    : Important
+                                                  #   RecommendedCpuSpeed             : 0
+                                                  #   RecommendedHardDiskSpace        : 0
+                                                  #   RecommendedMemory               : 0
+                                                  #   ReleaseNotes                    :
+                                                  #   SecurityBulletinIDs             : System.__ComObject
+                                                  #   SupersededUpdateIDs             : System.__ComObject
+                                                  #   SupportUrl                      : http://support.microsoft.com
+                                                  #   Type                            : 1
+                                                  #   UninstallationNotes             : Dieses Softwareupdate kann in der Systemsteuerung unter "Programme und Funktionen" unter der Option "Installierte Updates anzeigen" entfernt werden.
+                                                  #   UninstallationBehavior          : System.__ComObject
+                                                  #   UninstallationSteps             : System.__ComObject
+                                                  #   KBArticleIDs                    : System.__ComObject
+                                                  #   DeploymentAction                : 1
+                                                  #   DownloadPriority                : 2
+                                                  #   DownloadContents                : System.__ComObject
+                                                  #   RebootRequired                  : True
+                                                  #   IsPresent                       : False
+                                                  #   CveIDs                          : System.__ComObject
+                                                  #   BrowseOnly                      : False
+                                                  #   PerUser                         : False
+                                                  #   AutoSelection                   : 0
+                                                  #   AutoDownload                    : 0
+                                                OutProgress "Ok, done.";
                                               }
 function ProcessGetNrOfCores                  (){ return [Int32] (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors; }
 function ProcessOpenAssocFile                 ( [String] $fileOrUrl ){ & "rundll32" "url.dll,FileProtocolHandler" $fileOrUrl; AssertRcIsOk; }
@@ -2284,7 +2382,7 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){
                                                 OutProgress "List of installed package providers:";
                                                 Get-PackageProvider -ListAvailable | Where-Object{$null -ne $_} |
                                                   Select-Object Name, Version | # alternative: DynamicOptions
-                                                  StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
+                                                  StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; }; # example: Nuget V3.0, PowerShellGet V2.2, PowerShellGet V1.0.
                                                 OutProgress "Update NuGet"; # works asynchron
                                                 # On PS7 for "Install-PackageProvider NuGet" we got:
                                                 #   Install-PackageProvider: No match was found for the specified search criteria for the provider 'NuGet'. 
