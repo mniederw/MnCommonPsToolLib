@@ -889,7 +889,7 @@ function MountPointCreate                     ( [String] $drive, [String] $mount
                                                   }
                                                   OutProgress "$($traceInfo)Ok.";
                                                 }catch{
-                                                  # Example: System.Exception: New-SmbMapping(Z,\\spider\Transfer,spider\u0) failed because Mehrfache Verbindungen zu einem Server
+                                                  # Example: System.Exception: New-SmbMapping(Z,\\mydomain\Transfer,mydomain\myuser) failed because Mehrfache Verbindungen zu einem Server
                                                   #          oder einer freigegebenen Ressource von demselben Benutzer unter Verwendung mehrerer Benutzernamen sind nicht zulässig.
                                                   #          Trennen Sie alle früheren Verbindungen zu dem Server bzw. der freigegebenen Ressource, und versuchen Sie es erneut.
                                                   # Example: Der Netzwerkname wurde nicht gefunden.
