@@ -441,10 +441,11 @@ function DateTimeFromStringOrDateTimeValue    ( [Object] $v ){ # Used for exampl
 function ByteArraysAreEqual                   ( [Byte[]] $a1, [Byte[]] $a2 ){ if( $a1.LongLength -ne $a2.LongLength ){ return [Boolean] $false; }
                                                 for( [Int64] $i = 0; $i -lt $a1.LongLength; $i++ ){ if( $a1[$i] -ne $a2[$i] ){ return [Boolean] $false; } } return [Boolean] $true; }
 function ArrayIsNullOrEmpty                   ( [Object[]] $a ){ return [Boolean] ($null -eq $a -or $a.Count -eq 0); }
-function ConsoleHide                          (){ if( (Get-Process -ID $PID).MainWindowHandle -ne 0 ){ [Object] $p = [Console.Window]::GetConsoleWindow(); [Console.Window]::ShowWindow($p,0) | Out-Null; } } # 0=hide; Alternative: pwsh -WindowStyle Hidden {;}
-function ConsoleShow                          (){ if( (Get-Process -ID $PID).MainWindowHandle -ne 0 ){ [Object] $p = [Console.Window]::GetConsoleWindow(); [Console.Window]::ShowWindow($p,5) | Out-Null; } } # 5=nohide
-function ConsoleRestore                       (){ if( (Get-Process -ID $PID).MainWindowHandle -ne 0 ){ [Object] $p = [Console.Window]::GetConsoleWindow(); [Console.Window]::ShowWindow($p,1) | Out-Null; } } # 1=show
-function ConsoleMinimize                      (){ if( (Get-Process -ID $PID).MainWindowHandle -ne 0 ){ [Object] $p = [Console.Window]::GetConsoleWindow(); [Console.Window]::ShowWindow($p,6) | Out-Null; } } # 6=minimize
+function ConsoleSingleWindowExists            (){ return [Boolean] ((Get-Process -ID $PID).MainWindowHandle -ne 0); }
+function ConsoleHide                          (){ if( (ConsoleSingleWindowExists) ){ [Object] $p = [Console.Window]::GetConsoleWindow(); [Console.Window]::ShowWindow($p,0) | Out-Null; } } # 0=hide; Alternative: pwsh -WindowStyle Hidden {;}
+function ConsoleShow                          (){ if( (ConsoleSingleWindowExists) ){ [Object] $p = [Console.Window]::GetConsoleWindow(); [Console.Window]::ShowWindow($p,5) | Out-Null; } } # 5=nohide
+function ConsoleRestore                       (){ if( (ConsoleSingleWindowExists) ){ [Object] $p = [Console.Window]::GetConsoleWindow(); [Console.Window]::ShowWindow($p,1) | Out-Null; } } # 1=show
+function ConsoleMinimize                      (){ if( (ConsoleSingleWindowExists) ){ [Object] $p = [Console.Window]::GetConsoleWindow(); [Console.Window]::ShowWindow($p,6) | Out-Null; } } # 6=minimize
 Function ConsoleSetPos                        ( [Int32] $x, [Int32] $y ){ # if console is in a window then move to specified location
                                                 [RECT] $r = New-Object RECT; [Object] $hd = (Get-Process -ID $PID).MainWindowHandle;
                                                 if( $hd -ne 0 ){ # is 0 for ubuntu-consoles
@@ -455,7 +456,8 @@ Function ConsoleSetPos                        ( [Int32] $x, [Int32] $y ){ # if c
 function StdOutLine                           ( [String] $line ){ $Host.UI.WriteLine($line); } # Writes an stdout line in default color, normally not used, rather use OutProgressTitle because it classifies kind of output.
 function StdOutLine                           ( [String] $line ){ $Host.UI.WriteLine($line); } # Writes an stdout line in default color, normally not used, rather use OutProgressTitle because it classifies kind of output.
 function StdInWaitForAKey                     (){ StdInAssertAllowInteractions; $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") | Out-Null; } # does not work in powershell-ise, so in general do not use it, use StdInReadLine
-function ConsoleSetGuiProperties              (){ # set standard sizes which makes sense, display-hight 46 lines for HD with 125% zoom. It is performed only once per shell.
+function ConsoleSetGuiProperties              ( [Int32] $width = 150, [Int32] $height = 48 ){ # set standard sizes and colors (defaults are based on HD with 125% zoom). It is performed only once per shell.
+                                                [Int32] $bufSizeWidth = 300;
                                                 # On Ubuntu setting buffersize is not supported, so a warning is given out to verbose output.
                                                 if( -not [Boolean] (Get-Variable "consoleSetGuiProperties_DoneOnce" -Scope Script -ErrorAction SilentlyContinue) ){
                                                   $error.clear(); New-Variable -Scope Script -Name "consoleSetGuiProperties_DoneOnce" -Value $false;
@@ -473,7 +475,7 @@ function ConsoleSetGuiProperties              (){ # set standard sizes which mak
                                                 [Object] $buf = $w.buffersize;
                                                 $buf.Height = 9999;
                                                 if( $null -ne $Host.ui.RawUI.WindowSize ){
-                                                  $buf.Width = [math]::max(300,[Int32]$Host.ui.RawUI.WindowSize.Width);
+                                                  $buf.Width = [math]::max($bufSizeWidth,[Int32]$Host.ui.RawUI.WindowSize.Width);
                                                 }
                                                 try{
                                                   $w.buffersize = $buf;
@@ -488,28 +490,30 @@ function ConsoleSetGuiProperties              (){ # set standard sizes which mak
                                                 }
                                                 $w = $Host.ui.RawUI; # refresh values, maybe meanwhile windows was resized
                                                 if( $null -ne $w.WindowSize ){ # is null in case of powershell-ISE
-                                                  [Object] $m = $w.windowsize;
-                                                  $m.Height = 48;
-                                                  $m.Width = 150;
-                                                  # avoid: PSArgumentOutOfRangeException: Window cannot be wider than 147. Parameter name: value.Width Actual value was 150.
-                                                  #        PSArgumentOutOfRangeException: Window cannot be taller than 47. Parameter name: value.Height Actual value was 48.
-                                                  $m.Width  = [math]::min($m.Width ,$Host.ui.RawUI.BufferSize.Width);
-                                                  $m.Width  = [math]::min($m.Width ,$w.MaxWindowSize.Width);
-                                                  $m.Width  = [math]::min($m.Width ,$w.MaxPhysicalWindowSize.Width);
-                                                  $m.Height = [math]::min($m.Height,$host.ui.RawUI.BufferSize.Height);
-                                                  $m.Height = [math]::min($m.Height,$w.MaxWindowSize.Height);
-                                                  $m.Height = [math]::min($m.Height,$w.MaxPhysicalWindowSize.Height);
-                                                  try{
-                                                    $w.windowsize = $m;
-                                                  }catch{
-                                                    if( $_.Exception.Message.Contains("Operation is not supported on this platform.") ){
-                                                      # On Ubuntu we get: exc: "Exception setting "windowsize": "Operation is not supported on this platform.""
-                                                      OutVerbose "Warning: Ignore setting windowsize failed because $($_.Exception.Message)";
-                                                    }else{ throw; }
+                                                  if( (ConsoleSingleWindowExists) ){ # note: in WindowsTerminal (multiWindow) to change windows size makes no sense and produces newline conflicts
+                                                    [Object] $m = $w.windowsize;
+                                                    $m.Width  = $width;
+                                                    $m.Height = $height;
+                                                    # avoid: PSArgumentOutOfRangeException: Window cannot be wider than 147. Parameter name: value.Width Actual value was 150.
+                                                    #        PSArgumentOutOfRangeException: Window cannot be taller than 47. Parameter name: value.Height Actual value was 48.
+                                                    $m.Width  = [math]::min($m.Width ,$Host.ui.RawUI.BufferSize.Width);
+                                                    $m.Width  = [math]::min($m.Width ,$w.MaxWindowSize.Width);
+                                                    $m.Width  = [math]::min($m.Width ,$w.MaxPhysicalWindowSize.Width);
+                                                    $m.Height = [math]::min($m.Height,$host.ui.RawUI.BufferSize.Height);
+                                                    $m.Height = [math]::min($m.Height,$w.MaxWindowSize.Height);
+                                                    $m.Height = [math]::min($m.Height,$w.MaxPhysicalWindowSize.Height);
+                                                    try{
+                                                      $w.windowsize = $m;
+                                                    }catch{
+                                                      if( $_.Exception.Message.Contains("Operation is not supported on this platform.") ){
+                                                        # On Ubuntu we get: exc: "Exception setting "windowsize": "Operation is not supported on this platform.""
+                                                        OutVerbose "Warning: Ignore setting windowsize failed because $($_.Exception.Message)";
+                                                      }else{ throw; }
+                                                    }
+                                                    ConsoleSetPos 40 40; # little indended from top and left
                                                   }
-                                                  ConsoleSetPos 40 40; # little indended from top and left
                                                 }
-                                                $script:consoleSetGuiProperties_DoneOnce = $true; }
+                                                $script:consoleSetGuiProperties_DoneOnce = $true; Clear-Host; }
 function OutData                              ( [String] $line ){
                                                 # Output of data; are the stdout which is passed to the pipeline; redirectable by 1> .
                                                 Write-Output $line; }
@@ -1178,6 +1182,19 @@ function FsEntrySetAttributeReadOnly          ( [String] $fsEntry, [Boolean] $va
                                                 $fsEntry = FsEntryGetAbsolutePath $fsEntry;
                                                 OutProgress "FsFileSetAttributeReadOnly `"$fsEntry`" $val";
                                                 Set-ItemProperty (FsEntryEsc $fsEntry) -name IsReadOnly -value $val; }
+function FsEntryGetAttribute                  ( [String] $fsEntry, [System.IO.FileAttributes] $attr = [System.IO.FileAttributes]::None, [Boolean] $ignoreErrors = $false ){
+                                                # Errors as access denied or file not found can be ignored, it then always returns false.
+                                                # Attributes: None, ReadOnly, Hidden, System, Directory, Archive, Normal, ReparsePoint (=Sym-Link), 
+                                                #   Device, Temporary, SparseFile, Compressed, Offline, NotContentIndexed, Encrypted, IntegrityStream, NoScrubData.
+                                                [Object] $e = Get-Item -Force -ErrorAction $(switch($ignoreErrors){($true){"SilentlyContinue"}($false){"Stop"}}) $fsEntry;
+                                                return [Boolean] (($e.Attributes -band $attr) -gt 0); }
+function FsEntrySetAttribute                  ( [String] $fsEntry, [System.IO.FileAttributes] $attr, [Boolean] $val ){ # see FsEntryGetAttribute;
+                                                $fsEntry = FsEntryGetAbsolutePath $fsEntry;
+                                                [Object] $e = Get-Item -Force $fsEntry;
+                                                if( (($e.Attributes -band $attr) -gt 0) -eq $val ){ return; }
+                                                OutProgress "FsEntrySetAttribute `"$fsEntry`" $attr=$val ";
+                                                if( $val ){ $e.Attributes = $e.Attributes -bor $attr; }
+                                                else      { $e.Attributes = $e.Attributes -band -bnot $attr; } }
 function FsEntryFindFlatSingleByPattern       ( [String] $fsEntryPattern, [Boolean] $allowNotFound = $false ){
                                                 # it throws if file not found or more than one file exists. if allowNotFound is true then if return empty if not found.
                                                 [System.IO.FileSystemInfo[]] $r = @()+(Get-ChildItem -Force -ErrorAction SilentlyContinue -Path $fsEntryPattern | Where-Object{$null -ne $_});
@@ -1669,7 +1686,7 @@ function FileMove                             ( [String] $srcFile, [String] $tar
                                                 OutProgress "FileMove(Overwrite=$overwrite)$(switch($(FileExists $(FsEntryEsc $tarFile))){($true){'(TargetExists)'}default{''}}) `"$srcFile`" to `"$tarFile`" ";
                                                 FsEntryCreateParentDir $tarFile;
                                                 Move-Item -Force:$overwrite -LiteralPath $srcFile -Destination $tarFile; }
-function FileSyncContent                      ( [String] $fromFile, [String] $toFile ){ # overwrite if different
+function FileSyncContent                      ( [String] $fromFile, [String] $toFile ){ # overwrite if different or if target file not exists
                                                 if( -not (FileContentsAreEqual $fromFile $toFile) ){ FileCopy $fromFile $toFile $true; } }
 function FileGetHexStringOfHash128BitsMd5     ( [String] $srcFile ){ [String] $md = "MD5"; return [String] (get-filehash -Algorithm $md $srcFile).Hash; } # 2008: is broken. Because PSScriptAnalyzer.PSAvoidUsingBrokenHashAlgorithms we put name into a variable.
 function FileGetHexStringOfHash256BitsSha2    ( [String] $srcFile ){ return [String] (get-filehash -Algorithm "SHA256" $srcFile).Hash; } # 2017-11 ps standard is SHA256, available are: SHA1;SHA256;SHA384;SHA512;MACTripleDES;MD5;RIPEMD160
@@ -1711,7 +1728,8 @@ function PsDriveCreate                        ( [String] $drive, [String] $mount
                                                   throw [Exception] "New-PSDrive($drive,$mountPoint,$us) failed because $($_.Exception.Message)";
                                                 } }
 function CredentialStandardizeUserWithDomain  ( [String] $username ){
-                                                # Allowed username as input: "", "u0", "u0@domain", "@domain\u0", "domain\u0"   used because for unknown reasons sometimes a username like user@domain does not work, it requires domain\user.
+                                                # Allowed username formats as input: "", "user", "user@domain", "@domain\user", "domain\user".
+                                                # Used because for unknown reasons sometimes a username like user@domain does not work, it requires domain\user.
                                                 if( $username.Contains("\") -or $username.Contains("/") -or -not $username.Contains("@") ){
                                                   return [String] $username;
                                                 }
