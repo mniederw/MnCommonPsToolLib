@@ -1413,7 +1413,8 @@ function SvnPreCommitCleanupRevertAndDelFiles ( [String] $workDir, [String[]] $r
                                                   SvnCleanup $workDir;
                                                   FileDelete $svnRequiresCleanup;
                                                 }
-                                                OutProgress "Remove known unused temp, cache and log directories and files";
+                                                OutProgress "Remove known unused temp, cache and log directories and files ";
+                                                OutProgress "  Is failing when locked by programs, then terminate programs first. ";
                                                 FsEntryJoinRelativePatterns $workDir (@()+$relativeDelFsEntryPatterns) |
                                                   Where-Object{$null -ne $_} | ForEach-Object{
                                                     FsEntryListAsStringArray $_ | Where-Object{$null -ne $_} | ForEach-Object{
