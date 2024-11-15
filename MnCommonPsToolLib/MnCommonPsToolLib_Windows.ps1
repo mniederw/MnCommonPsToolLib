@@ -2515,7 +2515,6 @@ function ToolWinGetCleanLine                  ( [String] $s ){
                                                 }
 function ToolWinGetSetup                      (){
                                                 OutProgressTitle "Install WinGet to latest version ";
-                                                ProcessRestartInElevatedAdminMode;
                                                 OutProgress      "Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe; ";
                                                 if( (ProcessIsLesserEqualPs5) ){
                                                   Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe; # Register Winget (On Win11 automatically done after first user logon)
