@@ -2515,6 +2515,7 @@ function ToolWinGetCleanLine                  ( [String] $s ){
                                                 }
 function ToolWinGetSetup                      (){
                                                 OutProgressTitle "Install WinGet to latest version ";
+                                                ProcessRestartInElevatedAdminMode;
                                                 OutProgress      "Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe; ";
                                                 if( (ProcessIsLesserEqualPs5) ){
                                                   Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe; # Register Winget (On Win11 automatically done after first user logon)
@@ -2532,58 +2533,66 @@ function ToolWinGetSetup                      (){
                                                   & powershell -Command Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe;
                                                 }
                                                 OutProgress "Approve eulas by: Winget search; ";
-                                                Write-Output "y" | WinGet search | Out-Null; # default source is "msstore"; alternative option: --accept-source-agreements
+                                                Write-Output "y" | & WinGet search | Out-Null; # default source is "msstore"; alternative option: --accept-source-agreements
                                                   # Skip: Fehler beim Versuch, die Quelle zu aktualisieren: winget \n Die Quelle "msstore" erfordert, dass Sie die folgenden Verträge 
                                                   #       vor der Verwendung anzeigen. \n Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction \n
                                                   #       Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben an den Back-End-Dienst gesendet wird, 
                                                   #       damit er ordnungsgemäß funktioniert (z. B. „US“). \n Stimmen Sie allen Nutzungsbedingungen der Quelle zu? \n [Y] Ja  [N] Nein:
-                                                OutProgress "Update WinGet, current version: $(winget --version) ";
-                                                OutProgress "Update WinGet to latest by:  winget upgrade Microsoft.AppInstaller; ";
-                                                winget upgrade Microsoft.AppInstaller --disable-interactivity --accept-source-agreements |
+                                                OutProgress "WinGet current version: $(& WinGet --version) ";
+                                                OutProgress "Update WinGet to latest by:  & WinGet upgrade Microsoft.AppInstaller; ";
+                                                & WinGet upgrade Microsoft.AppInstaller --disable-interactivity --accept-source-agreements |
                                                   ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" } | ForEach-Object{ OutProgress "  $_"; };
-                                                OutProgress "Update WinGet, current version: $(winget --version) "; # 2024-11: V1.9.25180; 2024-09: V1.8.1911; 2024-07: v1.2.10691;
+                                                  # Sometimes: 2024-11: Fehler beim Durchsuchen der Quelle: winget   \n   Unerwarteter Fehler beim Ausführen des Befehls:   \n   0x8a15000f : Von der Quelle benötigte Daten fehlen
+                                                OutProgress "WinGet current version: $(& WinGet --version) "; # 2024-11: V1.9.25180; 2024-09: V1.8.1911; 2024-07: v1.2.10691;
                                                   # Alternatives: call https://github.com/microsoft/winget-cli/releases
                                                   #   Add-AppxPackage -Path 'https://github.com/microsoft/winget-cli/releases/download/v1.9.25180/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle'; # sometimes with: -ForceApplicationShutdown
                                                 OutProgress "Update list of WinGet ";
-                                                winget source update | ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" } | ForEach-Object{ OutProgress "  $_"; };
-                                                OutProgress "Note: For reset back to msstore,winget and others are lost (rarely do it):  winget source reset --force; ";
+                                                & WinGet source update | ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" } | ForEach-Object{ OutProgress "  $_"; };
                                                 OutProgress "List WinGet Sources: ";
-                                                winget source list   | ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" } | ForEach-Object{ OutProgress "  $_"; }; # msstore, winget.
+                                                [String[]] $a = winget source list | ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" };
                                                   #   Name    Argument                                      Anstößig
                                                   #   --------------------------------------------------------------
                                                   #   msstore https://storeedgefd.dsx.mp.microsoft.com/v9.0 false
                                                   #   winget  https://cdn.winget.microsoft.com/cache        false
-                                                  # winget --help
-                                                  #   Folgende Befehle sind verfügbar:
-                                                  #     install    Installiert das angegebene Paket
-                                                  #     show       Zeigt Informationen zu einem Paket an
-                                                  #     source     Verwalten von Paketquellen
-                                                  #     search     Suchen und Anzeigen grundlegender Informationen zu Paketen
-                                                  #     list       Installierte Pakete anzeigen
-                                                  #     upgrade    Zeigt verfügbare Upgrades an und führt sie aus.
-                                                  #     uninstall  Deinstalliert das angegebene Paket
-                                                  #     hash       Hilfsprogramm zum Hashen von Installationsdateien
-                                                  #     validate   Überprüft eine Manifestdatei
-                                                  #     settings   Einstellungen öffnen oder Administratoreinstellungen festlegen
-                                                  #     features   Zeigt den Status von experimentellen Features an
-                                                  #     export     Exportiert eine Liste der installierten Pakete
-                                                  #     import     Installiert alle Pakete in einer Datei
-                                                  #     pin        Paketpins verwalten
-                                                  #     configure  Konfiguriert das System in einem gewünschten Zustand
-                                                  #     download   Lädt das Installationsprogramm aus einem bestimmten Paket herunter.
-                                                  #     repair     Repariert das ausgewählte Paket
-                                                  #   Die folgenden Optionen stehen zur Verfügung:
-                                                  #     -v,--version                Version des Tools anzeigen
-                                                  #     --info                      Allgemeine Informationen zum Tool anzeigen
-                                                  #     -?,--help                   Zeigt Hilfe zum ausgewählten Befehl an
-                                                  #     --wait                      Fordert den Benutzer auf, vor dem Beenden eine beliebige Taste zu drücken
-                                                  #     --logs,--open-logs          Öffnen des Standardspeicherorts für Protokolle
-                                                  #     --verbose,--verbose-logs    Aktiviert die ausführliche Protokollierung für WinGet
-                                                  #     --nowarn,--ignore-warnings  Unterdrückt Warnungsausgaben.
-                                                  #     --disable-interactivity     Interaktive Eingabeaufforderungen deaktivieren
-                                                  #     --proxy                     Legen Sie einen Proxy fest, der für diese Ausführung verwendet werden soll.
-                                                  #     --no-proxy                  Verwendung des Proxys für diese Ausführung deaktivieren
-                                                  #   Weitere Hilfe finden Sie unter: „https://aka.ms/winget-command-help“
+                                                if( $a.Count -eq 4 -and $a[0].StartsWith("Name ") -and $a[1].StartsWith("-----") ){ $a = $a[2..($a.Length-1)] | Sort-Object; }
+                                                $a | ForEach-Object{ OutProgress "  $_"; }; # msstore, winget.
+                                                if( $a[0].StartsWith("msstore ") -and $a[1].StartsWith("winget ") ){
+                                                  OutProgress "WinGet has the two default source (msstore,winget) so we can call reset source:  winget source reset --force; ";
+                                                  & WinGet source reset --force; # requires admin perm
+                                                }else{
+                                                  OutProgress "Note: For reset back to msstore,winget and others are lost (rarely do it):  winget source reset --force; ";
+                                                }
+                                                # winget --help
+                                                #   Folgende Befehle sind verfügbar:
+                                                #     install    Installiert das angegebene Paket
+                                                #     show       Zeigt Informationen zu einem Paket an
+                                                #     source     Verwalten von Paketquellen
+                                                #     search     Suchen und Anzeigen grundlegender Informationen zu Paketen
+                                                #     list       Installierte Pakete anzeigen
+                                                #     upgrade    Zeigt verfügbare Upgrades an und führt sie aus.
+                                                #     uninstall  Deinstalliert das angegebene Paket
+                                                #     hash       Hilfsprogramm zum Hashen von Installationsdateien
+                                                #     validate   Überprüft eine Manifestdatei
+                                                #     settings   Einstellungen öffnen oder Administratoreinstellungen festlegen
+                                                #     features   Zeigt den Status von experimentellen Features an
+                                                #     export     Exportiert eine Liste der installierten Pakete
+                                                #     import     Installiert alle Pakete in einer Datei
+                                                #     pin        Paketpins verwalten
+                                                #     configure  Konfiguriert das System in einem gewünschten Zustand
+                                                #     download   Lädt das Installationsprogramm aus einem bestimmten Paket herunter.
+                                                #     repair     Repariert das ausgewählte Paket
+                                                #   Die folgenden Optionen stehen zur Verfügung:
+                                                #     -v,--version                Version des Tools anzeigen
+                                                #     --info                      Allgemeine Informationen zum Tool anzeigen
+                                                #     -?,--help                   Zeigt Hilfe zum ausgewählten Befehl an
+                                                #     --wait                      Fordert den Benutzer auf, vor dem Beenden eine beliebige Taste zu drücken
+                                                #     --logs,--open-logs          Öffnen des Standardspeicherorts für Protokolle
+                                                #     --verbose,--verbose-logs    Aktiviert die ausführliche Protokollierung für WinGet
+                                                #     --nowarn,--ignore-warnings  Unterdrückt Warnungsausgaben.
+                                                #     --disable-interactivity     Interaktive Eingabeaufforderungen deaktivieren
+                                                #     --proxy                     Legen Sie einen Proxy fest, der für diese Ausführung verwendet werden soll.
+                                                #     --no-proxy                  Verwendung des Proxys für diese Ausführung deaktivieren
+                                                #   Weitere Hilfe finden Sie unter: „https://aka.ms/winget-command-help“
                                               }
 function ToolWingetListInstalledPackages      ( [String] $id ){
                                                 # call the tool "winget" to list installed packages
