@@ -2492,8 +2492,30 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){
                                                 #     And Update-Module : Das Modul 'Pester' wurde nicht mithilfe von 'Install-Module' installiert und kann folglich nicht aktualisiert werden.
                                                 # - Example: Uninstall-Module -MaximumVersion "0.9.99" -Name SqlServer;
                                                 }
+function ToolWinGetCleanLine                  ( [String] $s ){
+                                                if( $null -eq $s ){ $s = ""; }
+                                                $s = "$s".Trim();
+                                                if( $s -ne "" -and -not @("-","/","|","\").Contains($s)                                                                    -and 
+                                                    $s -notmatch "^\█*\▒*\ +[0-9\.]+\ [KMG]B\ \/\ +[0-9\.]+\ [KMG]B$"                                                      -and # ██████████████████████▒▒▒▒▒▒▒▒  1024 KB / 1.31 MB
+                                                    $s -notmatch "^\█*\▒*\ +[0-9][0-9]?[0-9]?\%$"                                                                          -and # ███▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  10%
+                                                    $s -ne "Alle Quellen werden aktualisiert..."                                                                           -and # for: winget source update
+                                                    $s -ne "Fertig"                                                                                                        -and # for: winget source update
+                                                    $s -ne "Die Quelle `"msstore`" erfordert, dass Sie die folgenden Vereinbarungen vor der Verwendung anzeigen."          -and # for: winget list
+                                                    $s -ne "Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction"                                     -and # for: winget list
+                                                    $s -ne ("Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben " +
+                                                            "an den Back-End-Dienst gesendet wird, damit er ordnungsgemäß funktioniert (z. B. `„US`“).")                   -and # for: winget list
+                                                    $s -ne "Es wurde bereits ein vorhandenes Paket gefunden. Es wird versucht, das installierte Paket zu aktualisieren..." -and # for: winget install
+                                                    $s -ne "In den konfigurierten Quellen sind keine neueren Paketversionen verfügbar."                                    -and # for: winget install
+                                                    $s -ne "Diese Anwendung wird von ihrem Besitzer an Sie lizenziert."                                                    -and # for: winget install
+                                                    $s -ne "Microsoft ist nicht verantwortlich und erteilt keine Lizenzen für Pakete von Drittanbietern."                       # for: winget install
+                                                    ){}else{ $s = ""; }
+                                                $s = $s.Replace("Kein verfügbares Upgrade gefunden.","Is up to date.");                                                                   # for: winget install
+                                                $s = $s.Replace("Es wurde kein installiertes Paket gefunden, das den Eingabekriterien entspricht.","Already uninstalled, nothing done."); # for: winget uninstall
+                                                return [String] $s;
+                                                }
 function ToolWinGetSetup                      (){
-                                                OutProgressTitle "Install WinGet";
+                                                OutProgressTitle "Install WinGet to latest version ";
+                                                OutProgress      "Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe; ";
                                                 if( (ProcessIsLesserEqualPs5) ){
                                                   Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe; # Register Winget (On Win11 automatically done after first user logon)
                                                     # In Windows-Sandbox or if winget is not installed at all, then perform the following:
@@ -2505,28 +2527,28 @@ function ToolWinGetSetup                      (){
                                                     #   Add-AppxPackage Microsoft.VCLibs.x64.14.00.Desktop.appx
                                                     #   Add-AppxPackage Microsoft.UI.Xaml.2.8.x64.appx
                                                     #   Add-AppxPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle
-                                                  Write-Output "y" | WinGet search | Out-Null; # default source is "msstore"; alternative option: --accept-source-agreements
-                                                    # Skip: Fehler beim Versuch, die Quelle zu aktualisieren: winget \n Die Quelle "msstore" erfordert, dass Sie die folgenden Verträge 
-                                                    #       vor der Verwendung anzeigen. \n Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction \n
-                                                    #       Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben an den Back-End-Dienst gesendet wird, 
-                                                    #       damit er ordnungsgemäß funktioniert (z. B. „US“). \n Stimmen Sie allen Nutzungsbedingungen der Quelle zu? \n [Y] Ja  [N] Nein:
-                                                  OutProgress "Update WinGet, current version: $(winget --version) "; # 2024-07: v1.2.10691;
-                                                    # call https://github.com/microsoft/winget-cli/releases
-                                                    # download https://github.com/microsoft/winget-cli/releases/download/v1.8.1911/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle
-                                                  Add-AppxPackage -Path 'https://github.com/microsoft/winget-cli/releases/download/v1.8.1911/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle'; # sometimes with: -ForceApplicationShutdown
+                                                }else{
+                                                  # On pwsh we would get: Add-AppxPackage: The 'Add-AppxPackage' command was found in the module 'Appx', but the module could not be loaded due to the following error: [Operation is not supported on this platform. (0x80131539)] For more information, run 'Import-Module Appx'.
+                                                  & powershell -Command Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe;
                                                 }
-                                                OutProgress "Current WinGet version: $(winget --version) "; # 2024-07: v1.8.1911
-                                                # rarely do: winget source reset --force; # reset back to msstore,winget; others are lost.
+                                                OutProgress "Approve eulas by: Winget search; ";
+                                                Write-Output "y" | WinGet search | Out-Null; # default source is "msstore"; alternative option: --accept-source-agreements
+                                                  # Skip: Fehler beim Versuch, die Quelle zu aktualisieren: winget \n Die Quelle "msstore" erfordert, dass Sie die folgenden Verträge 
+                                                  #       vor der Verwendung anzeigen. \n Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction \n
+                                                  #       Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben an den Back-End-Dienst gesendet wird, 
+                                                  #       damit er ordnungsgemäß funktioniert (z. B. „US“). \n Stimmen Sie allen Nutzungsbedingungen der Quelle zu? \n [Y] Ja  [N] Nein:
+                                                OutProgress "Update WinGet, current version: $(winget --version) ";
+                                                OutProgress "Update WinGet to latest by:  winget upgrade Microsoft.AppInstaller; ";
+                                                winget upgrade Microsoft.AppInstaller --disable-interactivity --accept-source-agreements |
+                                                  ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" } | ForEach-Object{ OutProgress "  $_"; };
+                                                OutProgress "Update WinGet, current version: $(winget --version) "; # 2024-11: V1.9.25180; 2024-09: V1.8.1911; 2024-07: v1.2.10691;
+                                                  # Alternatives: call https://github.com/microsoft/winget-cli/releases
+                                                  #   Add-AppxPackage -Path 'https://github.com/microsoft/winget-cli/releases/download/v1.9.25180/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle'; # sometimes with: -ForceApplicationShutdown
                                                 OutProgress "Update list of WinGet ";
-                                                winget source update | Where-Object{ $null -ne $_ } | ForEach-Object{ "$_".Trim(); } | 
-                                                  Where-Object{ $_ -ne "" } | Where-Object{ -not @("-","/","|","\").Contains($_) } |
-                                                  Where-Object{ $_ -notmatch "^\█*\▒*\ +[0-9\.]+\ [KMG]B\ \/\ +[0-9\.]+\ [KMG]B$" } | # ██████████████████████▒▒▒▒▒▒▒▒  1024 KB / 1.31 MB
-                                                  Where-Object{ $_ -notmatch "^\█*\▒*\ +[0-9][0-9]?[0-9]?\%$"                     } | # ███▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  10%
-                                                  Where-Object{ $_ -ne "Alle Quellen werden aktualisiert..." } |
-                                                  Where-Object{ $_ -ne "Fertig" } |
-                                                  ForEach-Object{ OutProgress "  $_"; };
+                                                winget source update | ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" } | ForEach-Object{ OutProgress "  $_"; };
+                                                OutProgress "Note: For reset back to msstore,winget and others are lost (rarely do it):  winget source reset --force; ";
                                                 OutProgress "List WinGet Sources: ";
-                                                winget source list   | ForEach-Object{ OutProgress "  $_"; }; # msstore, winget.
+                                                winget source list   | ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" } | ForEach-Object{ OutProgress "  $_"; }; # msstore, winget.
                                                   #   Name    Argument                                      Anstößig
                                                   #   --------------------------------------------------------------
                                                   #   msstore https://storeedgefd.dsx.mp.microsoft.com/v9.0 false
@@ -2567,12 +2589,7 @@ function ToolWingetListInstalledPackages      ( [String] $id ){
                                                 # call the tool "winget" to list installed packages
                                                 OutProgress "List of installed packages: ";
                                                 & WinGet list --disable-interactivity --accept-source-agreements *>&1 | 
-                                                  Where-Object{ $null -ne $_ } | ForEach-Object{ "$_".Trim(); } | Where-Object{ $_ -ne "" } | Where-Object{ -not @("-","/","|","\").Contains($_) } |
-                                                  Where-Object{ $_ -notmatch "^\█*\▒*\ +[0-9\.]+\ [KMG]B\ \/\ +[0-9\.]+\ [KMG]B$" } | # ██████████████████████▒▒▒▒▒▒▒▒  1024 KB / 1.31 MB
-                                                  Where-Object{ $_ -notmatch "^\█*\▒*\ +[0-9][0-9]?[0-9]?\%$"                     } | # ███▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  10%
-                                                  Where-Object{ $_ -ne "Die Quelle `"msstore`" erfordert, dass Sie die folgenden Vereinbarungen vor der Verwendung anzeigen." } |
-                                                  Where-Object{ $_ -ne "Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction" } |
-                                                  Where-Object{ $_ -ne "Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben an den Back-End-Dienst gesendet wird, damit er ordnungsgemäß funktioniert (z. B. `„US`“)." } |
+                                                  ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" }
                                                   ForEach-Object{ OutProgress "  $_"; };
                                               }
 function ToolWingetInstallPackage             ( [String] $id, [String] $source = "winget" ){
@@ -2583,22 +2600,12 @@ function ToolWingetInstallPackage             ( [String] $id, [String] $source =
                                                 #   Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction
                                                 #   Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben an den Back-End-Dienst gesendet wird, damit er ordnungsgemäß funktioniert (z. B. „US“).
                                                 #   Mindestens einer der Quellvereinbarungen wurde nicht zugestimmt. Vorgang abgebrochen. Akzeptieren Sie bitte die Quellvereinbarungen, oder entfernen Sie die entsprechenden Quellen.  
-                                                & WinGet install --verbose --source $source --disable-interactivity --id $id --accept-source-agreements *>&1 | 
-                                                  # alternative: --version 1.2.3  --all-versions  --scope user  --scope machine
-                                                  Where-Object{ $null -ne $_ } | ForEach-Object{ "$_".Trim(); } | Where-Object{ $_ -ne "" } | Where-Object{ -not @("-","/","|","\").Contains($_) } |
-                                                  Where-Object{ $_ -notmatch "^\█*\▒*\ +[0-9\.]+\ [KMG]B\ \/\ +[0-9\.]+\ [KMG]B$" } | # ██████████████████████▒▒▒▒▒▒▒▒  1024 KB / 1.31 MB
-                                                  Where-Object{ $_ -notmatch "^\█*\▒*\ +[0-9][0-9]?[0-9]?\%$"                     } | # ███▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  10%
-                                                  Where-Object{ $_ -ne "Es wurde bereits ein vorhandenes Paket gefunden. Es wird versucht, das installierte Paket zu aktualisieren..." } |
-                                                  Where-Object{ $_ -ne "In den konfigurierten Quellen sind keine neueren Paketversionen verfügbar." } |
-                                                  Where-Object{ $_ -ne "Diese Anwendung wird von ihrem Besitzer an Sie lizenziert." } |
-                                                  Where-Object{ $_ -ne "Microsoft ist nicht verantwortlich und erteilt keine Lizenzen für Pakete von Drittanbietern." } |
-                                                  ForEach-Object{ $_.Replace("Kein verfügbares Upgrade gefunden.","Is up to date."); } |
+                                                & WinGet install --verbose --source $source --disable-interactivity --id $id --accept-source-agreements *>&1 | # alternative: --version 1.2.3  --all-versions  --scope user  --scope machine
+                                                  ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" }
                                                   ForEach-Object{ OutProgress "  $_"; };
                                                     # Example:
                                                     #   Gefunden ...packagename... Version ...version...
                                                     #   Download läuft https://...urlToExecutable...
-                                                    #   ████▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  9.00 MB / 54.3 MB
-                                                    #   ██████████████████████████████  54.3 MB / 54.3 MB
                                                     #   Der Installer-Hash wurde erfolgreich überprüft
                                                     #   Paketinstallation wird gestartet...
                                                     #   Erfolgreich installiert
@@ -2607,10 +2614,7 @@ function ToolWingetUninstallPackage           ( [String] $id, [String] $source =
                                                 # call the tool "winget" to unintall from a given source.
                                                 OutProgress "Uninstall-Package(source=$source): `"$id`" ";
                                                 & WinGet uninstall --verbose --source $source --disable-interactivity --id $id --accept-source-agreements *>&1 | 
-                                                  Where-Object{ $null -ne $_ } | ForEach-Object{ "$_".Trim(); } | Where-Object{ $_ -ne "" } | Where-Object{ -not @("-","/","|","\").Contains($_) } |
-                                                  Where-Object{ $_ -notmatch "^\█*\▒*\ +[0-9\.]+\ [KMG]B\ \/\ +[0-9\.]+\ [KMG]B$" } | # ██████████████████████▒▒▒▒▒▒▒▒  1024 KB / 1.31 MB
-                                                  Where-Object{ $_ -notmatch "^\█*\▒*\ +[0-9][0-9]?[0-9]?\%$"                     } | # ███▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  10%
-                                                  ForEach-Object{ $_.Replace("Es wurde kein installiertes Paket gefunden, das den Eingabekriterien entspricht.","Already uninstalled, nothing done."); } |
+                                                  ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" }
                                                   ForEach-Object{ OutProgress "  $_"; };
                                               }
 function ToolManuallyDownloadAndInstallProg   ( [String] $programName, [String] $programDownloadUrl, [String] $mainTargetFileMinIsoDate = "0001-01-01",
