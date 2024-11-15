@@ -2539,13 +2539,21 @@ function ToolWinGetSetup                      (){
                                                   #       Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben an den Back-End-Dienst gesendet wird, 
                                                   #       damit er ordnungsgemäß funktioniert (z. B. „US“). \n Stimmen Sie allen Nutzungsbedingungen der Quelle zu? \n [Y] Ja  [N] Nein:
                                                 OutProgress "WinGet current version: $(& WinGet --version) ";
-                                                OutProgress "Update WinGet to latest by:  & WinGet upgrade Microsoft.AppInstaller; ";
-                                                & WinGet upgrade Microsoft.AppInstaller --disable-interactivity --accept-source-agreements |
-                                                  ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" } | ForEach-Object{ OutProgress "  $_"; };
-                                                  # Sometimes: 2024-11: Fehler beim Durchsuchen der Quelle: winget   \n   Unerwarteter Fehler beim Ausführen des Befehls:   \n   0x8a15000f : Von der Quelle benötigte Daten fehlen
+                                                OutProgress "Update WinGet to latest (method depends on wether process is in elevated mode or not) ";
+                                                if( (ProcessIsRunningInElevatedAdminMode) ){
+                                                  # Note: Add-AppxPackage sometimes requires: -ForceApplicationShutdown
+                                                  # more see: https://github.com/microsoft/winget-cli/releases
+                                                  [String] $url = 'https://github.com/microsoft/winget-cli/releases/download/v1.9.25180/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle';
+                                                  OutProgress "  Currently in elevated-mode so we cannot use WinGet itself and so we use Add-AppxPackage. ";
+                                                  if( (ProcessIsLesserEqualPs5) ){ & Add-AppxPackage -Path $url; }else{ & powershell -Command Add-AppxPackage -Path $url; }
+                                                }else{
+                                                  OutProgress "  Currently in non-elevated-mode so update WinGet to latest by:  & WinGet upgrade Microsoft.AppInstaller; ";
+                                                  OutProgress "  Note: You have to run it under your usual account and not as admin otherwise you can get errors as: ";
+                                                  OutProgress "    Fehler beim Durchsuchen der Quelle: winget   \n   Unerwarteter Fehler beim Ausführen des Befehls:   \n   0x8a15000f : Von der Quelle benötigte Daten fehlen";
+                                                  & WinGet upgrade Microsoft.AppInstaller --disable-interactivity --accept-source-agreements |
+                                                    ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" } | ForEach-Object{ OutProgress "  $_"; };
+                                                }
                                                 OutProgress "WinGet current version: $(& WinGet --version) "; # 2024-11: V1.9.25180; 2024-09: V1.8.1911; 2024-07: v1.2.10691;
-                                                  # Alternatives: call https://github.com/microsoft/winget-cli/releases
-                                                  #   Add-AppxPackage -Path 'https://github.com/microsoft/winget-cli/releases/download/v1.9.25180/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle'; # sometimes with: -ForceApplicationShutdown
                                                 OutProgress "Update list of WinGet ";
                                                 & WinGet source update | ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" } | ForEach-Object{ OutProgress "  $_"; };
                                                 OutProgress "List WinGet Sources: ";
@@ -2556,11 +2564,12 @@ function ToolWinGetSetup                      (){
                                                   #   winget  https://cdn.winget.microsoft.com/cache        false
                                                 if( $a.Count -eq 4 -and $a[0].StartsWith("Name ") -and $a[1].StartsWith("-----") ){ $a = $a[2..($a.Length-1)] | Sort-Object; }
                                                 $a | ForEach-Object{ OutProgress "  $_"; }; # msstore, winget.
-                                                if( $a[0].StartsWith("msstore ") -and $a[1].StartsWith("winget ") ){
+                                                if( (ProcessIsRunningInElevatedAdminMode) -and $a[0].StartsWith("msstore ") -and $a[1].StartsWith("winget ") ){
                                                   OutProgress "WinGet has the two default source (msstore,winget) so we can call reset source:  winget source reset --force; ";
-                                                  & WinGet source reset --force; # requires admin perm
+                                                  & WinGet source reset --force; # requires admin mode
+                                                    # it is said we should rarely reset source, but why not?
                                                 }else{
-                                                  OutProgress "Note: For reset back to msstore,winget and others are lost (rarely do it):  winget source reset --force; ";
+                                                  OutProgress "Note: For reset back to msstore,winget and others are lost use in admin mode: winget source reset --force; ";
                                                 }
                                                 # winget --help
                                                 #   Folgende Befehle sind verfügbar:
