@@ -18,8 +18,6 @@ function UnitTest_Process(){
   ProcessCloseMainWindow "notepad99";
   ProcessKill            "notepad99";
   ProcessSleepSec 1;
-  OutProgress "ProcessListInstalledAppx";
-  [String[]] $out = ProcessListInstalledAppx; $out|Out-Null; # on linux: empty. On windows example: Microsoft.BingNews_4.34.20074.0_x64__8wekyb3d8bbwe
   Assert ((ProcessGetApplInEnvPath "curl").Length -gt 10);
   ProcessStart "tar" @("--version") | Out-Null; # any exe which should exists on all platforms
   Assert ((ProcessEnvVarGet "PATH").Length -gt 80);

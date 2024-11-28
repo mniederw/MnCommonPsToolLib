@@ -70,6 +70,15 @@ function OsWindowsFeatureDoUninstall          ( [String] $name ){
                                                 [String] $out = "Result: IsSuccess=$($res.Success) RequiresRestart=$($res.RestartNeeded) ExitCode=$($res.ExitCode) FeatureResult=$($res.FeatureResult)";
                                                 OutProgress $out;
                                                 if( -not $res.Success ){ throw [Exception] "Uninstall $name was not successful, please solve manually. $out"; } }
+function OsWindowsAppxImportModule            (){ # On pwsh the Appx module must be loaded by an internal ps5 shell.
+                                                # 2023-03: Problems using Get-AppxPackage in PS7, see end of: https://github.com/PowerShell/PowerShell/issues/13138
+                                                # We suppress the output: WARNING: Module Appx is loaded in Windows PowerShell using WinPSCompatSession remoting session;
+                                                #   please note that all input and output of commands from this module will be deserialized objects.
+                                                #   If you want to load this module into PowerShell please use 'Import-Module -SkipEditionCheck' syntax.
+                                                if( -not (ProcessIsLesserEqualPs5) ){ Import-Module -Name Appx -UseWindowsPowerShell 3> $null; } }
+function OsWindowsAppxListInstalled           (){ OsWindowsAppxImportModule;
+                                                return [String[]] (@()+(Get-AppxPackage | Where-Object{$null -ne $_} | Sort-Object PackageFullName |
+                                                  ForEach-Object{ "$($_.PackageFullName)" })); } # alternative field: Name.
 function OsWindowsRegRunDisable               ( [String] $regItem, [Boolean] $fromHklmNotHkcu = $false, [Boolean] $fromRunonceNotRun = $false ){
                                                 # Ignore if key not exists.
                                                 # for future use: create key "AutorunsDisabled" and copy removed item to it
@@ -682,16 +691,18 @@ function ServiceGetState                      ( [String] $serviceName ){
                                                 if( $null -eq $s ){ return [String] ""; }
                                                 return [String] $s.Status; }
                                                 # ServiceControllerStatus: "","ContinuePending","Paused","PausePending","Running","StartPending","Stopped","StopPending".
-function ServiceStop                          ( [String] $serviceName, [Boolean] $ignoreIfFailed = $false ){
+function ServiceStop                          ( [String] $serviceName, [Boolean] $ignoreIfFailed = $false, [Boolean] $suppressWarningIfFailed = $false ){
                                                 [String] $s = ServiceGetState $serviceName;
                                                 if( $s -eq "" -or $s -eq "stopped" ){ return; }
-                                                OutProgress "ServiceStop $serviceName $(switch($ignoreIfFailed){($true){'ignoreIfFailed'}default{''}})";
+                                                OutProgress "ServiceStop $serviceName $(switch($ignoreIfFailed){($true){'ignoreIfFailed'}default{''}}) $(switch($suppressWarningIfFailed){($true){'suppressWarningIfFailed'}default{''}})";
                                                 ProcessRestartInElevatedAdminMode;
                                                 try{ Stop-Service -Name $serviceName; } # Instead of check for stopped service we could also use -PassThru.
                                                 catch{
                                                   # Example: ServiceCommandException: Service 'Check Point Endpoint Security VPN (TracSrvWrapper)' cannot be stopped
                                                   #   due to the following error: Cannot stop TracSrvWrapper service on computer '.'.
-                                                  if( $ignoreIfFailed ){ OutWarning "Warning: Stopping service failed, ignored: $($_.Exception.Message)"; }else{ throw; }
+                                                  if( $ignoreIfFailed ){ 
+                                                    if( -not $suppressWarningIfFailed ){ OutWarning "Warning: Stopping service failed, ignored: $($_.Exception.Message)"; }
+                                                  }else{ throw; }
                                                 } }
 function ServiceStart                         ( [String] $serviceName ){
                                                 OutVerbose "Check if either service $ServiceName is running or otherwise go in elevate mode and start service";
@@ -1413,7 +1424,8 @@ function SvnPreCommitCleanupRevertAndDelFiles ( [String] $workDir, [String[]] $r
                                                   SvnCleanup $workDir;
                                                   FileDelete $svnRequiresCleanup;
                                                 }
-                                                OutProgress "Remove known unused temp, cache and log directories and files";
+                                                OutProgress "Remove known unused temp, cache and log directories and files ";
+                                                OutProgress "  Is failing when locked by programs, then terminate programs first. ";
                                                 FsEntryJoinRelativePatterns $workDir (@()+$relativeDelFsEntryPatterns) |
                                                   Where-Object{$null -ne $_} | ForEach-Object{
                                                     FsEntryListAsStringArray $_ | Where-Object{$null -ne $_} | ForEach-Object{
@@ -2491,87 +2503,117 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){
                                                 #     And Update-Module : Das Modul 'Pester' wurde nicht mithilfe von 'Install-Module' installiert und kann folglich nicht aktualisiert werden.
                                                 # - Example: Uninstall-Module -MaximumVersion "0.9.99" -Name SqlServer;
                                                 }
-function ToolWinGetSetup                      (){
-                                                OutProgressTitle "Install WinGet";
-                                                if( (ProcessIsLesserEqualPs5) ){
-                                                  Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe; # Register Winget (On Win11 automatically done after first user logon)
-                                                    # In Windows-Sandbox or if winget is not installed at all, then perform the following:
-                                                    #   $progressPreference = 'silentlyContinue'
-                                                    #   Write-Information "Downloading WinGet and its dependencies..."
-                                                    #   Invoke-WebRequest -Uri https://aka.ms/getwinget -OutFile Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle
-                                                    #   Invoke-WebRequest -Uri https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx -OutFile Microsoft.VCLibs.x64.14.00.Desktop.appx
-                                                    #   Invoke-WebRequest -Uri https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.x64.appx -OutFile Microsoft.UI.Xaml.2.8.x64.appx
-                                                    #   Add-AppxPackage Microsoft.VCLibs.x64.14.00.Desktop.appx
-                                                    #   Add-AppxPackage Microsoft.UI.Xaml.2.8.x64.appx
-                                                    #   Add-AppxPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle
-                                                  Write-Output "y" | WinGet search | Out-Null; # default source is "msstore"; alternative option: --accept-source-agreements
-                                                    # Skip: Fehler beim Versuch, die Quelle zu aktualisieren: winget \n Die Quelle "msstore" erfordert, dass Sie die folgenden Verträge 
-                                                    #       vor der Verwendung anzeigen. \n Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction \n
-                                                    #       Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben an den Back-End-Dienst gesendet wird, 
-                                                    #       damit er ordnungsgemäß funktioniert (z. B. „US“). \n Stimmen Sie allen Nutzungsbedingungen der Quelle zu? \n [Y] Ja  [N] Nein:
-                                                  OutProgress "Update WinGet, current version: $(winget --version) "; # 2024-07: v1.2.10691;
-                                                    # call https://github.com/microsoft/winget-cli/releases
-                                                    # download https://github.com/microsoft/winget-cli/releases/download/v1.8.1911/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle
-                                                  Add-AppxPackage -Path 'https://github.com/microsoft/winget-cli/releases/download/v1.8.1911/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle'; # sometimes with: -ForceApplicationShutdown
+function ToolWinGetCleanLine                  ( [String] $s ){
+                                                if( $null -eq $s ){ $s = ""; }
+                                                $s = "$s".Trim();
+                                                if( $s -ne "" -and -not @("-","/","|","\").Contains($s)                                                                    -and 
+                                                    $s -notmatch "^\█*\▒*\ +[0-9\.]+\ [KMG]B\ \/\ +[0-9\.]+\ [KMG]B$"                                                      -and # ██████████████████████▒▒▒▒▒▒▒▒  1024 KB / 1.31 MB
+                                                    $s -notmatch "^\█*\▒*\ +[0-9][0-9]?[0-9]?\%$"                                                                          -and # ███▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  10%
+                                                    $s -ne "Alle Quellen werden aktualisiert..."                                                                           -and # for: winget source update
+                                                    $s -ne "Fertig"                                                                                                        -and # for: winget source update
+                                                    $s -ne "Die Quelle `"msstore`" erfordert, dass Sie die folgenden Vereinbarungen vor der Verwendung anzeigen."          -and # for: winget list
+                                                    $s -ne "Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction"                                     -and # for: winget list
+                                                    $s -ne ("Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben " +
+                                                            "an den Back-End-Dienst gesendet wird, damit er ordnungsgemäß funktioniert (z. B. `„US`“).")                   -and # for: winget list
+                                                    $s -ne "Es wurde bereits ein vorhandenes Paket gefunden. Es wird versucht, das installierte Paket zu aktualisieren..." -and # for: winget install
+                                                    $s -ne "In den konfigurierten Quellen sind keine neueren Paketversionen verfügbar."                                    -and # for: winget install
+                                                    $s -ne "Diese Anwendung wird von ihrem Besitzer an Sie lizenziert."                                                    -and # for: winget install
+                                                    $s -ne "Microsoft ist nicht verantwortlich und erteilt keine Lizenzen für Pakete von Drittanbietern."                       # for: winget install
+                                                    ){}else{ $s = ""; }
+                                                $s = $s.Replace("Kein verfügbares Upgrade gefunden.","Is up to date.");                                                                   # for: winget install
+                                                $s = $s.Replace("Es wurde kein installiertes Paket gefunden, das den Eingabekriterien entspricht.","Already uninstalled, nothing done."); # for: winget uninstall
+                                                return [String] $s;
                                                 }
-                                                OutProgress "Current WinGet version: $(winget --version) "; # 2024-07: v1.8.1911
-                                                # rarely do: winget source reset --force; # reset back to msstore,winget; others are lost.
+function ToolWinGetSetup                      (){
+                                                OutProgressTitle "Install WinGet to latest version ";
+                                                OutProgress      "Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe; ";
+                                                OsWindowsAppxImportModule;
+                                                Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe; # Register Winget (On Win11 automatically done after first user logon)
+                                                  # In Windows-Sandbox or if winget is not installed at all, then perform the following:
+                                                  #   $progressPreference = 'silentlyContinue'
+                                                  #   Write-Information "Downloading WinGet and its dependencies..."
+                                                  #   Invoke-WebRequest -Uri https://aka.ms/getwinget -OutFile Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle
+                                                  #   Invoke-WebRequest -Uri https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx -OutFile Microsoft.VCLibs.x64.14.00.Desktop.appx
+                                                  #   Invoke-WebRequest -Uri https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.x64.appx -OutFile Microsoft.UI.Xaml.2.8.x64.appx
+                                                  #   Add-AppxPackage Microsoft.VCLibs.x64.14.00.Desktop.appx
+                                                  #   Add-AppxPackage Microsoft.UI.Xaml.2.8.x64.appx
+                                                  #   Add-AppxPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle
+                                                OutProgress "Approve eulas by: Winget search; ";
+                                                Write-Output "y" | & WinGet search | Out-Null; # default source is "msstore"; alternative option: --accept-source-agreements
+                                                  # Skip: Fehler beim Versuch, die Quelle zu aktualisieren: winget \n Die Quelle "msstore" erfordert, dass Sie die folgenden Verträge 
+                                                  #       vor der Verwendung anzeigen. \n Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction \n
+                                                  #       Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben an den Back-End-Dienst gesendet wird, 
+                                                  #       damit er ordnungsgemäß funktioniert (z. B. „US“). \n Stimmen Sie allen Nutzungsbedingungen der Quelle zu? \n [Y] Ja  [N] Nein:
+                                                OutProgress "WinGet current version: $(& WinGet --version) ";
+                                                OutProgress "Update WinGet to latest (method depends on wether process is in elevated mode or not) ";
+                                                if( (ProcessIsRunningInElevatedAdminMode) ){
+                                                  # Note: Add-AppxPackage sometimes requires: -ForceApplicationShutdown
+                                                  # more see: https://github.com/microsoft/winget-cli/releases
+                                                  [String] $url = 'https://github.com/microsoft/winget-cli/releases/download/v1.9.25180/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle';
+                                                  OutProgress "  Currently in elevated-mode so we cannot use WinGet itself and so we use Add-AppxPackage. ";
+                                                  & Add-AppxPackage -Path $url;
+                                                }else{
+                                                  OutProgress "  Currently in non-elevated-mode so update WinGet to latest by:  & WinGet upgrade Microsoft.AppInstaller; ";
+                                                  OutProgress "  Note: You have to run it under your usual account and not as admin otherwise you can get errors as: ";
+                                                  OutProgress "    Fehler beim Durchsuchen der Quelle: winget   \n   Unerwarteter Fehler beim Ausführen des Befehls:   \n   0x8a15000f : Von der Quelle benötigte Daten fehlen";
+                                                  & WinGet upgrade Microsoft.AppInstaller --disable-interactivity --accept-source-agreements |
+                                                    ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" } | ForEach-Object{ OutProgress "  $_"; };
+                                                }
+                                                OutProgress "WinGet current version: $(& WinGet --version) "; # 2024-11: V1.9.25180; 2024-09: V1.8.1911; 2024-07: v1.2.10691;
                                                 OutProgress "Update list of WinGet ";
-                                                winget source update | Where-Object{ $null -ne $_ } | ForEach-Object{ "$_".Trim(); } | 
-                                                  Where-Object{ $_ -ne "" } | Where-Object{ -not @("-","/","|","\").Contains($_) } |
-                                                  Where-Object{ $_ -notmatch "^\█*\▒*\ +[0-9\.]+\ [KMG]B\ \/\ +[0-9\.]+\ [KMG]B$" } | # ██████████████████████▒▒▒▒▒▒▒▒  1024 KB / 1.31 MB
-                                                  Where-Object{ $_ -notmatch "^\█*\▒*\ +[0-9][0-9]?[0-9]?\%$"                     } | # ███▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  10%
-                                                  Where-Object{ $_ -ne "Alle Quellen werden aktualisiert..." } |
-                                                  Where-Object{ $_ -ne "Fertig" } |
-                                                  ForEach-Object{ OutProgress "  $_"; };
+                                                & WinGet source update | ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" } | ForEach-Object{ OutProgress "  $_"; };
                                                 OutProgress "List WinGet Sources: ";
-                                                winget source list   | ForEach-Object{ OutProgress "  $_"; }; # msstore, winget.
+                                                [String[]] $a = winget source list | ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" };
                                                   #   Name    Argument                                      Anstößig
                                                   #   --------------------------------------------------------------
                                                   #   msstore https://storeedgefd.dsx.mp.microsoft.com/v9.0 false
                                                   #   winget  https://cdn.winget.microsoft.com/cache        false
-                                                  # winget --help
-                                                  #   Folgende Befehle sind verfügbar:
-                                                  #     install    Installiert das angegebene Paket
-                                                  #     show       Zeigt Informationen zu einem Paket an
-                                                  #     source     Verwalten von Paketquellen
-                                                  #     search     Suchen und Anzeigen grundlegender Informationen zu Paketen
-                                                  #     list       Installierte Pakete anzeigen
-                                                  #     upgrade    Zeigt verfügbare Upgrades an und führt sie aus.
-                                                  #     uninstall  Deinstalliert das angegebene Paket
-                                                  #     hash       Hilfsprogramm zum Hashen von Installationsdateien
-                                                  #     validate   Überprüft eine Manifestdatei
-                                                  #     settings   Einstellungen öffnen oder Administratoreinstellungen festlegen
-                                                  #     features   Zeigt den Status von experimentellen Features an
-                                                  #     export     Exportiert eine Liste der installierten Pakete
-                                                  #     import     Installiert alle Pakete in einer Datei
-                                                  #     pin        Paketpins verwalten
-                                                  #     configure  Konfiguriert das System in einem gewünschten Zustand
-                                                  #     download   Lädt das Installationsprogramm aus einem bestimmten Paket herunter.
-                                                  #     repair     Repariert das ausgewählte Paket
-                                                  #   Die folgenden Optionen stehen zur Verfügung:
-                                                  #     -v,--version                Version des Tools anzeigen
-                                                  #     --info                      Allgemeine Informationen zum Tool anzeigen
-                                                  #     -?,--help                   Zeigt Hilfe zum ausgewählten Befehl an
-                                                  #     --wait                      Fordert den Benutzer auf, vor dem Beenden eine beliebige Taste zu drücken
-                                                  #     --logs,--open-logs          Öffnen des Standardspeicherorts für Protokolle
-                                                  #     --verbose,--verbose-logs    Aktiviert die ausführliche Protokollierung für WinGet
-                                                  #     --nowarn,--ignore-warnings  Unterdrückt Warnungsausgaben.
-                                                  #     --disable-interactivity     Interaktive Eingabeaufforderungen deaktivieren
-                                                  #     --proxy                     Legen Sie einen Proxy fest, der für diese Ausführung verwendet werden soll.
-                                                  #     --no-proxy                  Verwendung des Proxys für diese Ausführung deaktivieren
-                                                  #   Weitere Hilfe finden Sie unter: „https://aka.ms/winget-command-help“
+                                                if( $a.Count -eq 4 -and $a[0].StartsWith("Name ") -and $a[1].StartsWith("-----") ){ $a = $a[2..($a.Length-1)] | Sort-Object; }
+                                                $a | ForEach-Object{ OutProgress "  $_"; }; # msstore, winget.
+                                                if( (ProcessIsRunningInElevatedAdminMode) -and $a[0].StartsWith("msstore ") -and $a[1].StartsWith("winget ") ){
+                                                  OutProgress "WinGet has the two default source (msstore,winget) so we can call reset source:  winget source reset --force; ";
+                                                  & WinGet source reset --force; # requires admin mode
+                                                    # it is said we should rarely reset source, but why not?
+                                                }else{
+                                                  OutProgress "Note: For reset back to msstore,winget and others are lost use in admin mode: winget source reset --force; ";
+                                                }
+                                                # winget --help
+                                                #   Folgende Befehle sind verfügbar:
+                                                #     install    Installiert das angegebene Paket
+                                                #     show       Zeigt Informationen zu einem Paket an
+                                                #     source     Verwalten von Paketquellen
+                                                #     search     Suchen und Anzeigen grundlegender Informationen zu Paketen
+                                                #     list       Installierte Pakete anzeigen
+                                                #     upgrade    Zeigt verfügbare Upgrades an und führt sie aus.
+                                                #     uninstall  Deinstalliert das angegebene Paket
+                                                #     hash       Hilfsprogramm zum Hashen von Installationsdateien
+                                                #     validate   Überprüft eine Manifestdatei
+                                                #     settings   Einstellungen öffnen oder Administratoreinstellungen festlegen
+                                                #     features   Zeigt den Status von experimentellen Features an
+                                                #     export     Exportiert eine Liste der installierten Pakete
+                                                #     import     Installiert alle Pakete in einer Datei
+                                                #     pin        Paketpins verwalten
+                                                #     configure  Konfiguriert das System in einem gewünschten Zustand
+                                                #     download   Lädt das Installationsprogramm aus einem bestimmten Paket herunter.
+                                                #     repair     Repariert das ausgewählte Paket
+                                                #   Die folgenden Optionen stehen zur Verfügung:
+                                                #     -v,--version                Version des Tools anzeigen
+                                                #     --info                      Allgemeine Informationen zum Tool anzeigen
+                                                #     -?,--help                   Zeigt Hilfe zum ausgewählten Befehl an
+                                                #     --wait                      Fordert den Benutzer auf, vor dem Beenden eine beliebige Taste zu drücken
+                                                #     --logs,--open-logs          Öffnen des Standardspeicherorts für Protokolle
+                                                #     --verbose,--verbose-logs    Aktiviert die ausführliche Protokollierung für WinGet
+                                                #     --nowarn,--ignore-warnings  Unterdrückt Warnungsausgaben.
+                                                #     --disable-interactivity     Interaktive Eingabeaufforderungen deaktivieren
+                                                #     --proxy                     Legen Sie einen Proxy fest, der für diese Ausführung verwendet werden soll.
+                                                #     --no-proxy                  Verwendung des Proxys für diese Ausführung deaktivieren
+                                                #   Weitere Hilfe finden Sie unter: „https://aka.ms/winget-command-help“
                                               }
 function ToolWingetListInstalledPackages      ( [String] $id ){
                                                 # call the tool "winget" to list installed packages
                                                 OutProgress "List of installed packages: ";
                                                 & WinGet list --disable-interactivity --accept-source-agreements *>&1 | 
-                                                  Where-Object{ $null -ne $_ } | ForEach-Object{ "$_".Trim(); } | Where-Object{ $_ -ne "" } | Where-Object{ -not @("-","/","|","\").Contains($_) } |
-                                                  Where-Object{ $_ -notmatch "^\█*\▒*\ +[0-9\.]+\ [KMG]B\ \/\ +[0-9\.]+\ [KMG]B$" } | # ██████████████████████▒▒▒▒▒▒▒▒  1024 KB / 1.31 MB
-                                                  Where-Object{ $_ -notmatch "^\█*\▒*\ +[0-9][0-9]?[0-9]?\%$"                     } | # ███▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  10%
-                                                  Where-Object{ $_ -ne "Die Quelle `"msstore`" erfordert, dass Sie die folgenden Vereinbarungen vor der Verwendung anzeigen." } |
-                                                  Where-Object{ $_ -ne "Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction" } |
-                                                  Where-Object{ $_ -ne "Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben an den Back-End-Dienst gesendet wird, damit er ordnungsgemäß funktioniert (z. B. `„US`“)." } |
+                                                  ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" }
                                                   ForEach-Object{ OutProgress "  $_"; };
                                               }
 function ToolWingetInstallPackage             ( [String] $id, [String] $source = "winget" ){
@@ -2582,22 +2624,12 @@ function ToolWingetInstallPackage             ( [String] $id, [String] $source =
                                                 #   Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction
                                                 #   Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben an den Back-End-Dienst gesendet wird, damit er ordnungsgemäß funktioniert (z. B. „US“).
                                                 #   Mindestens einer der Quellvereinbarungen wurde nicht zugestimmt. Vorgang abgebrochen. Akzeptieren Sie bitte die Quellvereinbarungen, oder entfernen Sie die entsprechenden Quellen.  
-                                                & WinGet install --verbose --source $source --disable-interactivity --id $id --accept-source-agreements *>&1 | 
-                                                  # alternative: --version 1.2.3  --all-versions  --scope user  --scope machine
-                                                  Where-Object{ $null -ne $_ } | ForEach-Object{ "$_".Trim(); } | Where-Object{ $_ -ne "" } | Where-Object{ -not @("-","/","|","\").Contains($_) } |
-                                                  Where-Object{ $_ -notmatch "^\█*\▒*\ +[0-9\.]+\ [KMG]B\ \/\ +[0-9\.]+\ [KMG]B$" } | # ██████████████████████▒▒▒▒▒▒▒▒  1024 KB / 1.31 MB
-                                                  Where-Object{ $_ -notmatch "^\█*\▒*\ +[0-9][0-9]?[0-9]?\%$"                     } | # ███▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  10%
-                                                  Where-Object{ $_ -ne "Es wurde bereits ein vorhandenes Paket gefunden. Es wird versucht, das installierte Paket zu aktualisieren..." } |
-                                                  Where-Object{ $_ -ne "In den konfigurierten Quellen sind keine neueren Paketversionen verfügbar." } |
-                                                  Where-Object{ $_ -ne "Diese Anwendung wird von ihrem Besitzer an Sie lizenziert." } |
-                                                  Where-Object{ $_ -ne "Microsoft ist nicht verantwortlich und erteilt keine Lizenzen für Pakete von Drittanbietern." } |
-                                                  ForEach-Object{ $_.Replace("Kein verfügbares Upgrade gefunden.","Is up to date."); } |
+                                                & WinGet install --verbose --source $source --disable-interactivity --id $id --accept-source-agreements *>&1 | # alternative: --version 1.2.3  --all-versions  --scope user  --scope machine
+                                                  ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" }
                                                   ForEach-Object{ OutProgress "  $_"; };
                                                     # Example:
                                                     #   Gefunden ...packagename... Version ...version...
                                                     #   Download läuft https://...urlToExecutable...
-                                                    #   ████▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  9.00 MB / 54.3 MB
-                                                    #   ██████████████████████████████  54.3 MB / 54.3 MB
                                                     #   Der Installer-Hash wurde erfolgreich überprüft
                                                     #   Paketinstallation wird gestartet...
                                                     #   Erfolgreich installiert
@@ -2606,10 +2638,7 @@ function ToolWingetUninstallPackage           ( [String] $id, [String] $source =
                                                 # call the tool "winget" to unintall from a given source.
                                                 OutProgress "Uninstall-Package(source=$source): `"$id`" ";
                                                 & WinGet uninstall --verbose --source $source --disable-interactivity --id $id --accept-source-agreements *>&1 | 
-                                                  Where-Object{ $null -ne $_ } | ForEach-Object{ "$_".Trim(); } | Where-Object{ $_ -ne "" } | Where-Object{ -not @("-","/","|","\").Contains($_) } |
-                                                  Where-Object{ $_ -notmatch "^\█*\▒*\ +[0-9\.]+\ [KMG]B\ \/\ +[0-9\.]+\ [KMG]B$" } | # ██████████████████████▒▒▒▒▒▒▒▒  1024 KB / 1.31 MB
-                                                  Where-Object{ $_ -notmatch "^\█*\▒*\ +[0-9][0-9]?[0-9]?\%$"                     } | # ███▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  10%
-                                                  ForEach-Object{ $_.Replace("Es wurde kein installiertes Paket gefunden, das den Eingabekriterien entspricht.","Already uninstalled, nothing done."); } |
+                                                  ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" }
                                                   ForEach-Object{ OutProgress "  $_"; };
                                               }
 function ToolManuallyDownloadAndInstallProg   ( [String] $programName, [String] $programDownloadUrl, [String] $mainTargetFileMinIsoDate = "0001-01-01",
