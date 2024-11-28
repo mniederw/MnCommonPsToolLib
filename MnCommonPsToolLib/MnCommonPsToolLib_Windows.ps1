@@ -70,6 +70,15 @@ function OsWindowsFeatureDoUninstall          ( [String] $name ){
                                                 [String] $out = "Result: IsSuccess=$($res.Success) RequiresRestart=$($res.RestartNeeded) ExitCode=$($res.ExitCode) FeatureResult=$($res.FeatureResult)";
                                                 OutProgress $out;
                                                 if( -not $res.Success ){ throw [Exception] "Uninstall $name was not successful, please solve manually. $out"; } }
+function OsWindowsAppxImportModule            (){ # On pwsh the Appx module must be loaded by an internal ps5 shell.
+                                                # 2023-03: Problems using Get-AppxPackage in PS7, see end of: https://github.com/PowerShell/PowerShell/issues/13138
+                                                # We suppress the output: WARNING: Module Appx is loaded in Windows PowerShell using WinPSCompatSession remoting session;
+                                                #   please note that all input and output of commands from this module will be deserialized objects.
+                                                #   If you want to load this module into PowerShell please use 'Import-Module -SkipEditionCheck' syntax.
+                                                if( -not (ProcessIsLesserEqualPs5) ){ Import-Module -Name Appx -UseWindowsPowerShell 3> $null; } }
+function OsWindowsAppxListInstalled           (){ OsWindowsAppxImportModule;
+                                                return [String[]] (@()+(Get-AppxPackage | Where-Object{$null -ne $_} | Sort-Object PackageFullName |
+                                                  ForEach-Object{ "$($_.PackageFullName)" })); } # alternative field: Name.
 function OsWindowsRegRunDisable               ( [String] $regItem, [Boolean] $fromHklmNotHkcu = $false, [Boolean] $fromRunonceNotRun = $false ){
                                                 # Ignore if key not exists.
                                                 # for future use: create key "AutorunsDisabled" and copy removed item to it
@@ -682,16 +691,18 @@ function ServiceGetState                      ( [String] $serviceName ){
                                                 if( $null -eq $s ){ return [String] ""; }
                                                 return [String] $s.Status; }
                                                 # ServiceControllerStatus: "","ContinuePending","Paused","PausePending","Running","StartPending","Stopped","StopPending".
-function ServiceStop                          ( [String] $serviceName, [Boolean] $ignoreIfFailed = $false ){
+function ServiceStop                          ( [String] $serviceName, [Boolean] $ignoreIfFailed = $false, [Boolean] $suppressWarningIfFailed = $false ){
                                                 [String] $s = ServiceGetState $serviceName;
                                                 if( $s -eq "" -or $s -eq "stopped" ){ return; }
-                                                OutProgress "ServiceStop $serviceName $(switch($ignoreIfFailed){($true){'ignoreIfFailed'}default{''}})";
+                                                OutProgress "ServiceStop $serviceName $(switch($ignoreIfFailed){($true){'ignoreIfFailed'}default{''}}) $(switch($suppressWarningIfFailed){($true){'suppressWarningIfFailed'}default{''}})";
                                                 ProcessRestartInElevatedAdminMode;
                                                 try{ Stop-Service -Name $serviceName; } # Instead of check for stopped service we could also use -PassThru.
                                                 catch{
                                                   # Example: ServiceCommandException: Service 'Check Point Endpoint Security VPN (TracSrvWrapper)' cannot be stopped
                                                   #   due to the following error: Cannot stop TracSrvWrapper service on computer '.'.
-                                                  if( $ignoreIfFailed ){ OutWarning "Warning: Stopping service failed, ignored: $($_.Exception.Message)"; }else{ throw; }
+                                                  if( $ignoreIfFailed ){ 
+                                                    if( -not $suppressWarningIfFailed ){ OutWarning "Warning: Stopping service failed, ignored: $($_.Exception.Message)"; }
+                                                  }else{ throw; }
                                                 } }
 function ServiceStart                         ( [String] $serviceName ){
                                                 OutVerbose "Check if either service $ServiceName is running or otherwise go in elevate mode and start service";
@@ -2516,21 +2527,17 @@ function ToolWinGetCleanLine                  ( [String] $s ){
 function ToolWinGetSetup                      (){
                                                 OutProgressTitle "Install WinGet to latest version ";
                                                 OutProgress      "Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe; ";
-                                                if( (ProcessIsLesserEqualPs5) ){
-                                                  Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe; # Register Winget (On Win11 automatically done after first user logon)
-                                                    # In Windows-Sandbox or if winget is not installed at all, then perform the following:
-                                                    #   $progressPreference = 'silentlyContinue'
-                                                    #   Write-Information "Downloading WinGet and its dependencies..."
-                                                    #   Invoke-WebRequest -Uri https://aka.ms/getwinget -OutFile Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle
-                                                    #   Invoke-WebRequest -Uri https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx -OutFile Microsoft.VCLibs.x64.14.00.Desktop.appx
-                                                    #   Invoke-WebRequest -Uri https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.x64.appx -OutFile Microsoft.UI.Xaml.2.8.x64.appx
-                                                    #   Add-AppxPackage Microsoft.VCLibs.x64.14.00.Desktop.appx
-                                                    #   Add-AppxPackage Microsoft.UI.Xaml.2.8.x64.appx
-                                                    #   Add-AppxPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle
-                                                }else{
-                                                  # On pwsh we would get: Add-AppxPackage: The 'Add-AppxPackage' command was found in the module 'Appx', but the module could not be loaded due to the following error: [Operation is not supported on this platform. (0x80131539)] For more information, run 'Import-Module Appx'.
-                                                  & powershell -Command Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe;
-                                                }
+                                                OsWindowsAppxImportModule;
+                                                Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe; # Register Winget (On Win11 automatically done after first user logon)
+                                                  # In Windows-Sandbox or if winget is not installed at all, then perform the following:
+                                                  #   $progressPreference = 'silentlyContinue'
+                                                  #   Write-Information "Downloading WinGet and its dependencies..."
+                                                  #   Invoke-WebRequest -Uri https://aka.ms/getwinget -OutFile Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle
+                                                  #   Invoke-WebRequest -Uri https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx -OutFile Microsoft.VCLibs.x64.14.00.Desktop.appx
+                                                  #   Invoke-WebRequest -Uri https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.x64.appx -OutFile Microsoft.UI.Xaml.2.8.x64.appx
+                                                  #   Add-AppxPackage Microsoft.VCLibs.x64.14.00.Desktop.appx
+                                                  #   Add-AppxPackage Microsoft.UI.Xaml.2.8.x64.appx
+                                                  #   Add-AppxPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle
                                                 OutProgress "Approve eulas by: Winget search; ";
                                                 Write-Output "y" | & WinGet search | Out-Null; # default source is "msstore"; alternative option: --accept-source-agreements
                                                   # Skip: Fehler beim Versuch, die Quelle zu aktualisieren: winget \n Die Quelle "msstore" erfordert, dass Sie die folgenden Verträge 
@@ -2544,7 +2551,7 @@ function ToolWinGetSetup                      (){
                                                   # more see: https://github.com/microsoft/winget-cli/releases
                                                   [String] $url = 'https://github.com/microsoft/winget-cli/releases/download/v1.9.25180/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle';
                                                   OutProgress "  Currently in elevated-mode so we cannot use WinGet itself and so we use Add-AppxPackage. ";
-                                                  if( (ProcessIsLesserEqualPs5) ){ & Add-AppxPackage -Path $url; }else{ & powershell -Command Add-AppxPackage -Path $url; }
+                                                  & Add-AppxPackage -Path $url;
                                                 }else{
                                                   OutProgress "  Currently in non-elevated-mode so update WinGet to latest by:  & WinGet upgrade Microsoft.AppInstaller; ";
                                                   OutProgress "  Note: You have to run it under your usual account and not as admin otherwise you can get errors as: ";

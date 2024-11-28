@@ -716,6 +716,7 @@ function OsIsWindows                          (){ return [Boolean] ([System.Envi
                                                 # for future: function OsIsLinux(){ return [Boolean] ([System.Environment]::OSVersion.Platform -eq "Unix"); } # example: Ubuntu22: Version="5.15.0.41"
 function OsIsWinVistaOrHigher                 (){ return [Boolean] ((OsIsWindows) -and [Environment]::OSVersion.Version -ge (new-object "Version" 6,0)); }
 function OsIsWin7OrHigher                     (){ return [Boolean] ((OsIsWindows) -and [Environment]::OSVersion.Version -ge (new-object "Version" 6,1)); }
+function OsIsWin11OrHigher                    (){ return [Boolean] ((OsIsWindows) -and [Environment]::OSVersion.Version -ge (new-object "Version" 10,0,22000)); }
 function OsPathSeparator                      (){ return [String] $(switch(OsIsWindows){$true{";"}default{":"}}); } # separator for PATH environment variable
 function OsPsModulePathList                   (){ # return content of $env:PSModulePath as string-array with os dependent dir separators.
                                                 # Usual entries: On Windows, PS5/PS7, scope MACHINE:
@@ -830,16 +831,6 @@ function ProcessKill                          ( [String] $processName ){ # kill 
                                                 [System.Diagnostics.Process[]] $p = Get-Process $processName.Replace(".exe","") -ErrorAction SilentlyContinue;
                                                 if( $null -ne $p ){ OutProgress "ProcessKill $processName"; $p.Kill(); } }
 function ProcessSleepSec                      ( [Int32] $sec ){ Start-Sleep -Seconds $sec; }
-function ProcessListInstalledAppx             (){ if( -not (OsIsWindows) ){ return [String[]] @(); }
-                                                  if( -not (ProcessIsLesserEqualPs5) ){
-                                                    # 2023-03: Problems using Get-AppxPackage in PS7, see end of: https://github.com/PowerShell/PowerShell/issues/13138
-                                                    Import-Module -Name Appx -UseWindowsPowerShell 3> $null;
-                                                      # We suppress the output: WARNING: Module Appx is loaded in Windows PowerShell using WinPSCompatSession remoting session;
-                                                      #   please note that all input and output of commands from this module will be deserialized objects.
-                                                      #   If you want to load this module into PowerShell please use 'Import-Module -SkipEditionCheck' syntax.
-                                                  }
-                                                  return [String[]] (@()+(Get-AppxPackage | Where-Object{$null -ne $_} |
-                                                    ForEach-Object{ "$($_.PackageFullName)" } | Sort-Object)); }
 function ProcessStart                         ( [String] $cmd, [String[]] $cmdArgs = @(), [Boolean] $careStdErrAsOut = $false, [Boolean] $traceCmd = $false ){
                                                 # Start any gui or console command including ps scripts in path and provide arguments in an array, waits for output
                                                 # and returns output as a single string. You can use StringSplitIntoLines on output to get it as lines.
@@ -2957,6 +2948,7 @@ function ToolEvalVsCodeExec                   (){ [String] $result = (ProcessFin
                                                   if( $result -eq "" ){ throw [ExcMsg] "VS Code executable was not found wether in path nor on windows at common locations for user or system programs."; }
                                                   return [String] $result; }
 
+# Deprecated functions, will be removed on next major version of this lib:
 function GetSetGlobalVar( [String] $var, [String] $val){ OutWarning "GetSetGlobalVar is DEPRECATED, replace it now by GitSetGlobalVar. ";  GitSetGlobalVar $var $val; }
 function FsEntryIsEqual ( [String] $fs1, [String] $fs2, [Boolean] $caseSensitive = $false ){ OutWarning "FsEntryIsEqual is DEPRECATED, replace it now by FsEntryPathIsEqual."; return (FsEntryPathIsEqual $fs1 $fs2); }
 function StdOutBegMsgCareInteractiveMode ( [String] $mode = "" ){ OutWarning "StdOutBegMsgCareInteractiveMode is DEPRECATED; replace it now by one or more of: StdInAskForAnswerWhenInInteractMode; OutProgress `"Minimize console`"; ConsoleMinimize;"; StdInAskForAnswerWhenInInteractMode; }
@@ -2965,6 +2957,7 @@ function ToolGetBranchCommit ( [String] $repo, [String] $branch, [String] $repoD
 function ProcessGetCommandInEnvPathOrAltPaths ( [String] $commandNameOptionalWithExtension, [String[]] $alternativePaths = @(), [String] $downloadHintMsg = ""){ OutWarning "ProcessGetCommandInEnvPathOrAltPaths is DEPRECATED; replace it now by ProcessGetApplInEnvPath which does not have alternative path anymore."; ProcessGetApplInEnvPath $commandNameOptionalWithExtension $downloadHintMsg; }
 function OutStringInColor                     ( [String] $color, [String] $line, [Boolean] $noNewLine = $true ){ OutWarning "OutStringInColor is DEPRECATED, replace it now by: OutProgress line 0 -noNewline:$noNewLine -color:$color "; OutProgress $line 0 -noNewline:$noNewLine -color:$color; }
 function OutSuccess                           ( [String] $line ){ OutProgressSuccess $line; } # deprecated
+function ProcessListInstalledAppx (){ OutWarning "ProcessListInstalledAppx is DEPRECATED, replace it now by: OsWindowsAppxListInstalled"; OsWindowsAppxListInstalled; }
 
 # ----------------------------------------------------------------------------------------------------
 

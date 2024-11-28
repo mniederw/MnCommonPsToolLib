@@ -5,9 +5,10 @@ Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version
 function UnitTest_Win_Tool(){
   OutProgress (ScriptGetCurrentFuncName);
   if( ! (OsIsWindows) ){ OutProgress "Not running on windows, so bypass test."; return; }
-    # if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){
+  OutProgress "OsWindowsAppxListInstalled"; [String[]] $out = OsWindowsAppxListInstalled; $out|Out-Null; # Example: Microsoft.BingNews_4.34.20074.0_x64__8wekyb3d8bbwe
+  # if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){
   # TODO:
-#   windows: ToolGitTortoiseCommit                    ( [String] $workDir, [String] $commitMessage = "" ){
+  #   windows: ToolGitTortoiseCommit                    ( [String] $workDir, [String] $commitMessage = "" ){
   #   ToolRdpConnect                       ( [String] $rdpfile, [String] $mstscOptions = "" ){
   #                                          # Some mstsc options: /edit /admin  (use /edit temporary to set password in .rdp file)
   #                                        }

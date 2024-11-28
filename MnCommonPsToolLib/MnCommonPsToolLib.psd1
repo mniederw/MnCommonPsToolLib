@@ -43,7 +43,7 @@
   Major version will reflect breaking changes, minor identifies extensions and third number identifies urgent bugfixes.
   Breaking changes are usually removed deprecated functions or changed behaviours.
 
-  2024-11-15  V7.71  Doc. Improve ToolWinGetSetup, ToolWingetInstallPackage, ToolWingetUninstallPackage, ToolWingetListInstalledPackages.
+  2024-11-28  V7.71  Doc. Improve ToolWinGetSetup, ToolWingetInstallPackage, ToolWingetUninstallPackage, ToolWingetListInstalledPackages. Deprecate ProcessListInstalledAppx. Add OsWindowsAppxListInstalled, OsIsWin11OrHigher.
   2024-10-06  V7.70  Add FsEntryGetAttribute, FsEntrySetAttribute. Improve ConsoleSetGuiProperties.
   2024-09-09  V7.69  Add OsWindowsUpdateEnableNonOsAppUpdates, OsWindowsUpdatePackagesShowPending, OsWindowsUpdatePerform. Improve output lines.
   2024-09-08  V7.68  Extend Doc. Fix Installer by using NoProfile for Get-ExecutionPolicy. Add OsWinCreateUser, ToolWinGetSetup, ToolWingetInstallPackage, ToolWingetUninstallPackage, ToolWingetListInstalledPackages.
