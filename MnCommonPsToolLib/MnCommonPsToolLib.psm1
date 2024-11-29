@@ -2345,9 +2345,14 @@ function GitShowBranch                        ( [String] $repoDir, [Boolean] $ge
                                                   # for future use: if( $remote -eq "" ){ throw [ExcMsg] "Cannot get default branch in repodir=`"$repoDir`" because GitShowRemoteName returned empty string."; }
                                                   #[String[]] $out = (StringSplitIntoLines (ProcessStart "git" @("-C", (FsEntryRemoveTrailingDirSep $repoDir), "--git-dir=.git", "branch", "--remotes", "--no-color" ) -traceCmd:$false));
                                                   [String[]] $out = @()+(& "git" "-C" $repoDir "--git-dir=.git" "branch" "--remotes" "--no-color"); AssertRcIsOk;
-                                                  [String] $pattern = "  origin/HEAD -> origin/";
-                                                  [String[]] $defBranch = @()+($out | Where-Object{ $_.StartsWith($pattern) } | ForEach-Object{ StringRemoveLeft $_ $pattern; });
-                                                  if( $defBranch.Count -ne 1 ){ throw [ExcMsg] "GitShowBranch(`"$repoDir`",$getDefault) failed because for (git branch --remotes) we expected a line with leading pattern `"$pattern`" but we got: `"$out`"."; }
+                                                  [String] $pattern1 = "  origin/HEAD -> origin/";
+                                                  [String] $pattern2 = "  origin/";
+                                                  [String[]] $defBranch = @()+($out | ForEach-Object{
+                                                    if(     $_.StartsWith($pattern1) ){ return [String] (StringRemoveLeft $_ $pattern1); }
+                                                    elseif( $_.StartsWith($pattern2) ){ return [String] (StringRemoveLeft $_ $pattern2); }
+                                                    else                              { return [String] ""; }
+                                                  });
+                                                  if( $defBranch.Count -ne 1 -or $defBranch[0].Length -eq 0 ){ throw [ExcMsg] "GitShowBranch(`"$repoDir`",$getDefault) failed because for (git --git-dir=.git branch --remotes) we expected a line with leading pattern `"$pattern1`" or `"$pattern2`" but we got: `"$out`"."; }
                                                   return [String] $defBranch[0];
                                                 }
                                                 #[String] $out = (ProcessStart "git" @("-C", $repoDir, "--git-dir=.git", "branch", "--no-color", "--show-current" ) -traceCmd:$false);
