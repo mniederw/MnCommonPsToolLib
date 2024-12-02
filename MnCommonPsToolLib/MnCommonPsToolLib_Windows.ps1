@@ -2547,11 +2547,16 @@ function ToolWinGetSetup                      (){
                                                 OutProgress "WinGet current version: $(& WinGet --version) ";
                                                 OutProgress "Update WinGet to latest (method depends on wether process is in elevated mode or not) ";
                                                 if( (ProcessIsRunningInElevatedAdminMode) ){
+                                                  OutProgress "  Currently in elevated-mode, so we cannot use WinGet itself and so we use Add-AppxPackage. ";
                                                   # Note: Add-AppxPackage sometimes requires: -ForceApplicationShutdown
                                                   # more see: https://github.com/microsoft/winget-cli/releases
-                                                  [String] $url = 'https://github.com/microsoft/winget-cli/releases/download/v1.9.25180/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle';
-                                                  OutProgress "  Currently in elevated-mode so we cannot use WinGet itself and so we use Add-AppxPackage. ";
-                                                  & Add-AppxPackage -Path $url;
+                                                  [String] $jsonUrl = "https://api.github.com/repos/microsoft/winget-cli/releases/latest";
+                                                  OutProgress "Download and extract latest msi installer from: $jsonUrl ";
+                                                  [Object] $apiObj = NetDownloadToString $jsonUrl | ConvertFrom-Json;
+                                                  [String] $msiUrl = ($apiObj.assets | Where-Object{ $_.Name -eq "Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle" -and $_.content_type -eq "application/octet-stream" }).browser_download_url;
+                                                    # Example: "https://github.com/microsoft/winget-cli/releases/download/v1.9.25200/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
+                                                  OutProgress "& Add-AppxPackage -Path $msiUrl; ";
+                                                  & Add-AppxPackage -Path $msiUrl;
                                                 }else{
                                                   OutProgress "  Currently in non-elevated-mode so update WinGet to latest by:  & WinGet upgrade Microsoft.AppInstaller; ";
                                                   OutProgress "  Note: You have to run it under your usual account and not as admin otherwise you can get errors as: ";
