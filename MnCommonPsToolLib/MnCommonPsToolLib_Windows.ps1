@@ -2621,6 +2621,10 @@ function ToolWingetListInstalledPackages      ( [String] $id ){
                                                   ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" }
                                                   ForEach-Object{ OutProgress "  $_"; };
                                               }
+function ToolWingetUpdateInstalledPackages    (){ # if not elevated then it will ask multiple for it
+                                                OutProgress "Upgrade all packages of winget:  winget upgrade --all --disable-interactivity --accept-source-agreements";
+                                                & WinGet upgrade --all --disable-interactivity --accept-source-agreements; # can ask multiple for elevated mode
+                                              }
 function ToolWingetInstallPackage             ( [String] $id, [String] $source = "winget" ){
                                                 # call the tool "winget" to intall from a given source.
                                                 OutProgress "Install-or-Update-Package(source=$source): `"$id`" ";
