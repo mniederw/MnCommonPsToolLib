@@ -43,7 +43,7 @@
   Major version will reflect breaking changes, minor identifies extensions and third number identifies urgent bugfixes.
   Breaking changes are usually removed deprecated functions or changed behaviours.
 
-  2024-11-29  V7.72  Improve GitShowBranch, ToolWinGetSetup.
+  2024-11-29  V7.72  Improve GitShowBranch, ToolWinGetSetup. Added ToolWingetUpdateInstalledPackages.
   2024-11-28  V7.71  Doc. Improve ToolWinGetSetup, ToolWingetInstallPackage, ToolWingetUninstallPackage, ToolWingetListInstalledPackages. Deprecate ProcessListInstalledAppx. Add OsWindowsAppxListInstalled, OsIsWin11OrHigher.
   2024-10-06  V7.70  Add FsEntryGetAttribute, FsEntrySetAttribute. Improve ConsoleSetGuiProperties.
   2024-09-09  V7.69  Add OsWindowsUpdateEnableNonOsAppUpdates, OsWindowsUpdatePackagesShowPending, OsWindowsUpdatePerform. Improve output lines.
