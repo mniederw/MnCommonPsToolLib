@@ -21,7 +21,7 @@ function UnitTest_Net(){
   OutProgress "NetDownloadToStringByCurl"; Assert ((NetDownloadToStringByCurl $url) -gt 0);
   OutProgress "NetDownloadIsSuccessful"  ; Assert (NetDownloadIsSuccessful $url);
   OutProgress "NetDownloadSite"          ; if( -not (OsIsWindows) -or "$env:GITHUB_WORKSPACE" -eq "" ){ # on linux or non-github-windows
-                                             [String] $tmpDir = DirCreateTemp "MNNds"; 
+                                             [String] $tmpDir = DirCreateTemp "MNNds";
                                              OutProgress "  We expect warnings as generic: Exceed quota. http://: Invalid host name.";
                                              NetDownloadSite $site $tmpDir -maxBytes 20000 *>&1 | Where-Object{ "$_".Trim() -ne "" } | ForEach-Object{ OutProgress "  $_"; };
                                              # Example: Warning: Ignored one or more occurrences of error category: Generic . More see logfile="/tmp/MNNds.123456//.Download.2024-08.detail.log".

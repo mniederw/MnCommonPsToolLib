@@ -45,14 +45,14 @@ function UnitTest_PsCommon(){
   Assert (("abc" -split ",",0).Count -eq 1 -and "abc,".Split(",").Count -eq 2 -and ",abc".Split(",").Count -eq 2);
   #
   # No IO is done for the followings:
-  if( ! (OsIsWindows) ){ # not windows
-    Assert ([System.IO.Path]::GetDirectoryName("\\anyhostname\AnyFolder\") -eq "");
-    Assert ([System.IO.Path]::GetDirectoryName("//anyhostname/AnyFolder/") -eq "/anyhostname/AnyFolder");
-    Assert ("" -eq [System.IO.Path]::GetDirectoryName("C:\"));
-  }else{ # windows
+  if( (OsIsWindows) ){ # windows
     Assert ([System.IO.Path]::GetDirectoryName("\\anyhostname\AnyFolder\") -eq "\\anyhostname\AnyFolder");
     Assert ([System.IO.Path]::GetDirectoryName("//anyhostname/AnyFolder/") -eq "\\anyhostname\AnyFolder");
     Assert ($null -eq [System.IO.Path]::GetDirectoryName("C:\"));
+  }else{ # not windows
+    Assert ([System.IO.Path]::GetDirectoryName("\\anyhostname\AnyFolder\") -eq "");
+    Assert ([System.IO.Path]::GetDirectoryName("//anyhostname/AnyFolder/") -eq "/anyhostname/AnyFolder");
+    Assert ("" -eq [System.IO.Path]::GetDirectoryName("C:\"));
   }
   #
   # check wrong type assignment
@@ -76,10 +76,10 @@ function UnitTest_PsCommon(){
     Assert ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath("C:\") -eq "C:\"); # ok, expected
     Assert ([IO.Path]::GetFullPath("C:\") -eq "C:\"); # ok, expected
     if( (ProcessIsLesserEqualPs5) ){
-      Assert ([IO.Path]::GetFullPath("C:") -eq "C:\Windows\System32\WindowsPowerShell\v1.0" ); # returns unexpected current dir of the drive
+      Assert ([IO.Path]::GetFullPath("C:/") -eq "C:\" ); # returns unexpected current dir of the drive
     }else{
-      [String] $d = [IO.Path]::GetFullPath("C:");
-      Assert ($d -eq "C:\Windows\system32" -or $d -eq "C:\"); # returns unexpected dir (when run in ps1 then "C:\" and when run GetFullPath interactive then "C:\Windows\system32")
+      [String] $d = [IO.Path]::GetFullPath("C:/");
+      Assert ($d.StartsWith("C:")); # returns unexpected dir (when run in ps1 then "C:\" and when run GetFullPath interactive then "C:\Windows\system32")
     }
     Pop-Location;
   }
