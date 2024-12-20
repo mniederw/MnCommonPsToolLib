@@ -25,7 +25,7 @@ function UnitTest_ScriptAnalyser(){
     ,"MnCommonPsToolLib.psm1 *WARN PSAvoidUsingWriteHost"
     ,"MnCommonPsToolLib.psm1 *WARN PSAvoidUsingPlainTextForPassword" # Parameter '$repoDirForCred' should not use String type but either SecureString or PSCredential, otherwise it increases the chance to to expose this sensitive information. in line 2429 col 129
     ,"MnCommonPsToolLib_Windows.ps1 *WARN PSAvoidUsingPlainTextForPassword" # Parameter '$secureCredentialFile' should not use String type but either SecureString or PSCredential, otherwise it increases the chance to to expose this sensitive information. in line 720 col 49
-    ,"MnCommonPsToolLibUnitTest_02_PsCommonWithLintWarnings.ps1 *WARN PSPossibleIncorrectComparisonWithNull" # $null should be on the left side of equality comparisons. in line 11 col 48
+    ,"MnCommonPsToolLibUnitTest_04_PsCommonWithLintWarnings.ps1 *WARN PSPossibleIncorrectComparisonWithNull" # $null should be on the left side of equality comparisons. in line 11 col 48
     ,"MnCommonPsToolLib.psd1 *WARN PSUseToExportFieldsInManifest" # Do not use wildcard or $null in this field. Explicitly specify a list for FunctionsToExport.   in line 15 col 30
   );
   #

@@ -44,7 +44,7 @@ function OsWindowsPackageUninstall            ( [String] $displayName ){
                                                 [PSCustomObject[]] $a = @()+(OsWindowsPackageListInstalled | Where-Object{ $null -ne $_ } |
                                                   Where-Object{ "$($_.DisplayName)" -ne "" -and $_.DisplayName -eq $displayName });
                                                 if( $a.Count -eq 0 ){ OutProgress "Uninstall `"$displayName`" already uninstalled, nothing done. "; return; }
-                                                $a | ForEach-Object{ 
+                                                $a | ForEach-Object{
                                                   [String] $uninstallCmd = $_.UninstallString; # maybe we can append option: " /quiet"
                                                   OutProgress "Uninstall-Ignoring-Errors `"$displayName`" with: `"$uninstallCmd`" ";
                                                   ProcessRestartInElevatedAdminMode;
@@ -112,15 +112,18 @@ function OsWinCreateUser                      ( [String] $us, [String] $pw, [Str
                                                 if( $null -ne (Get-LocalUser -Name $us -ErrorAction SilentlyContinue) ){ OutProgress "User $us already exists, nothing done. "; return; }
                                                 OutProgress "CreateUser us=$us denyInteractiveLogon=$denyInteractiveLogon ";
                                                 # 2024-08-18 On Win11 we get the bug: https://github.com/PowerShell/PowerShell/issues/18624
-                                                #   New-LocalUser Could not load type 'Microsoft.PowerShell.Telemetry.Internal.TelemetryAPI' from assembly 'System.Management.Automation  
+                                                #   New-LocalUser Could not load type 'Microsoft.PowerShell.Telemetry.Internal.TelemetryAPI' from assembly 'System.Management.Automation
                                                 # workaround is:
                                                 Import-Module microsoft.powershell.localaccounts -UseWindowsPowerShell *>&1 | Out-Null;
                                                 [Object] $u = New-LocalUser -Name $us -Password (ConvertTo-SecureString $pw -AsPlainText -Force) -FullName $fullName -Description $descr -AccountNeverExpires -PasswordNeverExpires -UserMayNotChangePassword -Disabled;
+                                                OutVerbose "OsWinCreateUser $u  (FullName=$fullName; Descr=$descr; Is-Disabled)";
                                                 if( $denyInteractiveLogon ){
                                                   # Manually procedure would be: Call gpedit.msc and add user to: Computerkonfiguration->WindowsSettings->SecuritySettings->LokaleRichtlinien-ZuweisenVonBenutzerrechten->LokalAnmeldenVerweigern ";
-                                                  [String] $tmp = (FileGetTempFile); [String] $tmp2 = "$($tmp)2";
+                                                  [String] $tmp = (FileGetTempFile);
+                                                  [String] $tmp2 = "$($tmp)2";
                                                   & secedit /export /cfg $tmp | Out-Null; AssertRcIsOk;
-                                                  (Get-Content $tmp).Replace("SeDenyInteractiveLogonRight = ","SeDenyInteractiveLogonRight = $us,") | Set-Content $tmp2;
+                                                  [String] $content = (FileReadContentAsString $tmp "Default").Replace("SeDenyInteractiveLogonRight = ","SeDenyInteractiveLogonRight = $us,");
+                                                  FileWriteFromString $tmp2 $content $false;
                                                   & secedit /configure /db "secedit.sdb" /cfg $tmp2 /areas USER_RIGHTS | Out-Null; AssertRcIsOk;
                                                   Remove-Item $tmp; Remove-Item $tmp2;
                                                   Enable-LocalUser -Name $us;
@@ -155,7 +158,7 @@ function OsWindowsUpdateEnableNonOsAppUpdates (){
 function OsWindowsUpdatePackagesShowPending   (){
                                                 OutProgress "Show Pending Microsoft Windows Update Packages";
                                                 ProcessRestartInElevatedAdminMode;
-                                                Get-WindowsUpdate | Select-Object ComputerName, Status, KB, Size, Title | 
+                                                Get-WindowsUpdate | Select-Object ComputerName, Status, KB, Size, Title |
                                                   StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
                                                 OutProgress "Ok, done.";
                                               }
@@ -163,11 +166,12 @@ function OsWindowsUpdatePerform               ( [Boolean] $withAutoReboot = $fal
                                                 OutProgress "Perform Microsoft Windows Update (withAutoReboot=$withAutoReboot)";
                                                 ProcessRestartInElevatedAdminMode;
                                                 # for performing on remote computers use: $c = "comp1, comp2, comp3";
-                                                #   Invoke-WUJob -ComputerName $c -Script {ipmo PSWindowsUpdate; Install-WindowsUpdate -MicrosoftUpdate -AcceptAll -AutoReboot} -RunNow -Confirm:$false | Out-File "/server/share/logs/$computer-$(Get-Date -f yyyy-MM-dd)-MSUpdates.log" -Force;
+                                                #   Invoke-WUJob -ComputerName $c -Script {ipmo PSWindowsUpdate; Install-WindowsUpdate -MicrosoftUpdate -AcceptAll -AutoReboot} -RunNow -Confirm:$false |
+                                                #     Out-File "/server/share/logs/$computer-$(Get-Date -f yyyy-MM-dd)-MSUpdates.log" -Force; # Appends nl to each line.
                                                 # Install-WindowsUpdate is an alias to Get-WindowsUpdate -Install; But Install-WindowsUpdate seams not to enabled on PS7
                                                 # Alternatives: -KBArticleID "KB9876543,KB9876542" -NotKBArticleID "KB9876541" -NotCategory "Drivers" -NotTitle "OneDrive"
                                                 # for unknown reason if we use: Get-WindowsUpdate | Select-Object Status, Size, KB, Title;  then the values are empty, so we use conversion to [Object[]]
-                                                ([Object[]](Get-WindowsUpdate)) | Select-Object Status, Size, KB, Title | 
+                                                ([Object[]](Get-WindowsUpdate)) | Select-Object Status, Size, KB, Title |
                                                   StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
                                                 OutProgress "List finished, now download and install all";
                                                 # Perform and lists all properties; later try to list: EulaAccepted,IsBeta,IsInstalled,IsMandatory,RebootRequired,IsPresent,PerUser,LastDeploymentChangeTime
@@ -685,7 +689,7 @@ function ServiceGet                           ( [String] $serviceName ){
                                                 #     0x4   A set of arguments for an adapter.
                                                 #     0x10  A Win32 program that can be started by the Service Controller and that obeys the service control protocol. This type of Win32 service runs in a process by itself.
                                                 #     0x20  A Win32 service that can share a process with other Win32 services.
-                                                } 
+                                                }
 function ServiceGetState                      ( [String] $serviceName ){
                                                 [Object] $s = ServiceGet $serviceName;
                                                 if( $null -eq $s ){ return [String] ""; }
@@ -700,7 +704,7 @@ function ServiceStop                          ( [String] $serviceName, [Boolean]
                                                 catch{
                                                   # Example: ServiceCommandException: Service 'Check Point Endpoint Security VPN (TracSrvWrapper)' cannot be stopped
                                                   #   due to the following error: Cannot stop TracSrvWrapper service on computer '.'.
-                                                  if( $ignoreIfFailed ){ 
+                                                  if( $ignoreIfFailed ){
                                                     if( -not $suppressWarningIfFailed ){ OutWarning "Warning: Stopping service failed, ignored: $($_.Exception.Message)"; }
                                                   }else{ throw; }
                                                 } }
@@ -2403,8 +2407,13 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){
                                                   StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
                                                   # Example: PSGallery True True Trusted NuGet https://www.powershellgallery.com/api/v2
                                                 OutProgress "List installed ps modules ";
-                                                Get-Module -ListAvailable | Sort-Object Name, Version, ModuleType | Select-Object Name, Version, ModuleType, Path | 
+                                                Get-Module -ListAvailable | Sort-Object Name, Version, ModuleType | Select-Object Name, Version, ModuleType, Path |
                                                   StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
+                                                if( (ProcessIsLesserEqualPs5) ){
+                                                  # On PS7 we would get: Install-PackageProvider: No match was found for the specified search criteria for the provider 'NuGet'. 
+                                                  #   The package provider requires 'PackageManagement' and 'Provider' tags. Please check if the specified package has the tags.
+                                                  Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force; # PowerShellGet requires minimum NuGet V2.8.5.201
+                                                }
                                                 OutProgress "Set repository PSGallery to trusted: ";
                                                 Set-PSRepository PSGallery -InstallationPolicy Trusted; # uses 14 sec
                                                 OutProgress "List of installed package providers:";
@@ -2413,7 +2422,7 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){
                                                   StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; }; # example: Nuget V3.0, PowerShellGet V2.2, PowerShellGet V1.0.
                                                 OutProgress "Update NuGet"; # works asynchron
                                                 # On PS7 for "Install-PackageProvider NuGet" we got:
-                                                #   Install-PackageProvider: No match was found for the specified search criteria for the provider 'NuGet'. 
+                                                #   Install-PackageProvider: No match was found for the specified search criteria for the provider 'NuGet'.
                                                 #     The package provider requires 'PackageManagement' and 'Provider' tags. Please check if the specified package has the tags.
                                                 # So we ignore errors.
                                                 Install-PackageProvider -Name NuGet -ErrorAction SilentlyContinue |
@@ -2435,16 +2444,16 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){
                                                     Where-Object{ -not $_.StartsWith("WARNING: Version ") } |
                                                     StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
                                                     # 2024-09: We get:
-                                                    #   WARNING: Version '2.2.1.4' of module 'PSWindowsUpdate' is already installed at 'C:\Program Files\PowerShell\Modules\PSWindowsUpdate\2.2.1.4'. 
+                                                    #   WARNING: Version '2.2.1.4' of module 'PSWindowsUpdate' is already installed at 'C:\Program Files\PowerShell\Modules\PSWindowsUpdate\2.2.1.4'.
                                                     #     To install version '2.2.1.5', run Install-Module and add the -Force parameter, this command will install version '2.2.1.5' side-by-side with version '2.2.1.4'                                                                                  .
-                                                    #   WARNING: Version '3.4.0' of module 'Pester' is already installed at 'C:\Program Files\WindowsPowerShell\Modules\Pester\3.4.0'. 
+                                                    #   WARNING: Version '3.4.0' of module 'Pester' is already installed at 'C:\Program Files\WindowsPowerShell\Modules\Pester\3.4.0'.
                                                     #     To install version '5.6.1', run Install-Module and add the -Force parameter, this command will install version '5.6.1' side-by-side with version '3.4.0'.
                                                     # for future use: -Force
                                                 }catch{
                                                   # Install-Module : A parameter cannot be found that matches parameter name 'AcceptLicense'. ParameterBindingException
                                                   [String] $msg = $_.Exception.Message;
                                                   OutProgress "Failed because $msg";
-                                                  OutProgress "Sometimes it failed because unknown parameter AcceptLicense, so we retry without it. ";
+                                                  OutProgress "Sometimes it failed for example on PS5 because unknown parameter AcceptLicense, so we retry without it. ";
                                                   OutProgress "Install-Module -Scope AllUsers -Name $modules; ";
                                                   Install-Module              -Scope AllUsers -Name $modules;
                                                 }
@@ -2459,7 +2468,14 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){
                                                   # 2023-10: option AcceptLicense not exists ...
                                                   # 2024-09: "Module 'PowerShellGet' was not installed by using Install-Module, so it cannot be updated."
                                                   OutWarning "Warning: Update-Module failed because $($_.Exception.Message), ignored.";
-                                                  Update-Module -ErrorAction SilentlyContinue -AcceptLicense -Scope AllUsers -Name $modules;
+                                                  OutProgress "Sometimes it failed for example on PS5 because unknown parameter AcceptLicense, so we retry without it. ";
+                                                  if( (ProcessIsLesserEqualPs5) ){ # has no scope parameter
+                                                    OutProgress "Update-Module -ErrorAction SilentlyContinue                 -Name $modules; ";
+                                                    Update-Module              -ErrorAction SilentlyContinue                 -Name $modules;
+                                                  }else{
+                                                    OutProgress "Update-Module -ErrorAction SilentlyContinue -Scope AllUsers -Name $modules; ";
+                                                    Update-Module              -ErrorAction SilentlyContinue -Scope AllUsers -Name $modules;
+                                                  }
                                                 }
                                                 #
                                                 OutProgress "Uninstall old versions of modules: ";
@@ -2506,7 +2522,7 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){
 function ToolWinGetCleanLine                  ( [String] $s ){
                                                 if( $null -eq $s ){ $s = ""; }
                                                 $s = "$s".Trim();
-                                                if( $s -ne "" -and -not @("-","/","|","\").Contains($s)                                                                    -and 
+                                                if( $s -ne "" -and -not @("-","/","|","\").Contains($s)                                                                    -and
                                                     $s -notmatch "^\█*\▒*\ +[0-9\.]+\ [KMG]B\ \/\ +[0-9\.]+\ [KMG]B$"                                                      -and # ██████████████████████▒▒▒▒▒▒▒▒  1024 KB / 1.31 MB
                                                     $s -notmatch "^\█*\▒*\ +[0-9][0-9]?[0-9]?\%$"                                                                          -and # ███▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  10%
                                                     $s -ne "Alle Quellen werden aktualisiert..."                                                                           -and # for: winget source update
@@ -2540,9 +2556,9 @@ function ToolWinGetSetup                      (){
                                                   #   Add-AppxPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle
                                                 OutProgress "Approve eulas by: Winget search; ";
                                                 Write-Output "y" | & WinGet search | Out-Null; # default source is "msstore"; alternative option: --accept-source-agreements
-                                                  # Skip: Fehler beim Versuch, die Quelle zu aktualisieren: winget \n Die Quelle "msstore" erfordert, dass Sie die folgenden Verträge 
+                                                  # Skip: Fehler beim Versuch, die Quelle zu aktualisieren: winget \n Die Quelle "msstore" erfordert, dass Sie die folgenden Verträge
                                                   #       vor der Verwendung anzeigen. \n Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction \n
-                                                  #       Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben an den Back-End-Dienst gesendet wird, 
+                                                  #       Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben an den Back-End-Dienst gesendet wird,
                                                   #       damit er ordnungsgemäß funktioniert (z. B. „US“). \n Stimmen Sie allen Nutzungsbedingungen der Quelle zu? \n [Y] Ja  [N] Nein:
                                                 OutProgress "WinGet current version: $(& WinGet --version) ";
                                                 OutProgress "Update WinGet to latest (method depends on wether process is in elevated mode or not) ";
@@ -2617,7 +2633,7 @@ function ToolWinGetSetup                      (){
 function ToolWingetListInstalledPackages      ( [String] $id ){
                                                 # call the tool "winget" to list installed packages
                                                 OutProgress "List of installed packages: ";
-                                                & WinGet list --disable-interactivity --accept-source-agreements *>&1 | 
+                                                & WinGet list --disable-interactivity --accept-source-agreements *>&1 |
                                                   ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" }
                                                   ForEach-Object{ OutProgress "  $_"; };
                                               }
@@ -2632,7 +2648,7 @@ function ToolWingetInstallPackage             ( [String] $id, [String] $source =
                                                 #   Die Quelle "msstore" erfordert, dass Sie die folgenden Vereinbarungen vor der Verwendung anzeigen.
                                                 #   Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction
                                                 #   Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben an den Back-End-Dienst gesendet wird, damit er ordnungsgemäß funktioniert (z. B. „US“).
-                                                #   Mindestens einer der Quellvereinbarungen wurde nicht zugestimmt. Vorgang abgebrochen. Akzeptieren Sie bitte die Quellvereinbarungen, oder entfernen Sie die entsprechenden Quellen.  
+                                                #   Mindestens einer der Quellvereinbarungen wurde nicht zugestimmt. Vorgang abgebrochen. Akzeptieren Sie bitte die Quellvereinbarungen, oder entfernen Sie die entsprechenden Quellen.
                                                 & WinGet install --verbose --source $source --disable-interactivity --id $id --accept-source-agreements *>&1 | # alternative: --version 1.2.3  --all-versions  --scope user  --scope machine
                                                   ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" }
                                                   ForEach-Object{ OutProgress "  $_"; };
@@ -2646,7 +2662,7 @@ function ToolWingetInstallPackage             ( [String] $id, [String] $source =
 function ToolWingetUninstallPackage           ( [String] $id, [String] $source = "winget" ){
                                                 # call the tool "winget" to unintall from a given source.
                                                 OutProgress "Uninstall-Package(source=$source): `"$id`" ";
-                                                & WinGet uninstall --verbose --source $source --disable-interactivity --id $id --accept-source-agreements *>&1 | 
+                                                & WinGet uninstall --verbose --source $source --disable-interactivity --id $id --accept-source-agreements *>&1 |
                                                   ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" }
                                                   ForEach-Object{ OutProgress "  $_"; };
                                               }

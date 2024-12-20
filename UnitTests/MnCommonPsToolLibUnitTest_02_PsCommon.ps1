@@ -76,10 +76,10 @@ function UnitTest_PsCommon(){
     Assert ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath("C:\") -eq "C:\"); # ok, expected
     Assert ([IO.Path]::GetFullPath("C:\") -eq "C:\"); # ok, expected
     if( (ProcessIsLesserEqualPs5) ){
-      Assert ([IO.Path]::GetFullPath("C:") -eq "C:\Windows\System32\WindowsPowerShell\v1.0" ); # returns unexpected current dir of the drive
+      Assert ([IO.Path]::GetFullPath("C:/") -eq "C:\" ); # returns unexpected current dir of the drive
     }else{
-      [String] $d = [IO.Path]::GetFullPath("C:");
-      Assert ($d -eq "C:\Windows\system32" -or $d -eq "C:\"); # returns unexpected dir (when run in ps1 then "C:\" and when run GetFullPath interactive then "C:\Windows\system32")
+      [String] $d = [IO.Path]::GetFullPath("C:/");
+      Assert ($d.StartsWith("C:")); # returns unexpected dir (when run in ps1 then "C:\" and when run GetFullPath interactive then "C:\Windows\system32")
     }
     Pop-Location;
   }

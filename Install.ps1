@@ -158,7 +158,8 @@ function UninstallLocalStandardAndDeveloperMode(){
     if( Test-Path -Path $PROFILE ){
       [String[]] $lines = @()+(Get-Content -Encoding UTF8 -LiteralPath $PROFILE |
         Where-Object { $_ -notmatch [regex]::Escape($profilePattern) } );
-      $lines | Set-Content -Path $PROFILE;
+        [String] $encoding = $(switch(ProcessIsLesserEqualPs5){($true){ "UTF8" }($false){ "UTF8BOM" }}); # make UTF8BOM
+        $lines | Out-File -Force -NoClobber:$false -Encoding $encoding -LiteralPath $PROFILE; # Appends to each line a nl.
     }
     OutProgress "  Remove entry from PSModulePath. ";
     [String[]] $a = @()+($env:PSModulePath.Split((OsPathSeparator),[System.StringSplitOptions]::RemoveEmptyEntries)) | Where-Object{$null -ne $_} |
