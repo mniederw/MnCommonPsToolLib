@@ -7,8 +7,8 @@ Set-StrictMode -Version Latest; $ErrorActionPreference = "Stop"; trap [Exception
   Read-Host "Press Enter to Exit"; break; }
 
 [Boolean] $is_windows = (-not (Get-Variable -Name "IsWindows" -ErrorAction SilentlyContinue) -or $IsWindows); # portable PS5/PS7
-[Boolean] $is_linux   = (-not $is_windows -and $IsLinux);
-[Boolean] $is_maxos   = (-not $is_windows -and $IsMacOS);
+[Boolean] $is_linux   = (-not $is_windows -and $IsLinux); # statements compatible for PS5
+[Boolean] $is_macos   = (-not $is_windows -and $IsMacOS); # statements compatible for PS5
 [String]  $pathSep    = $(switch($is_windows){$true{";"}default{":"}});
 
 Write-Output "----- Show Environment: ----- ";
@@ -17,7 +17,7 @@ Write-Output "Show OSVersion         = $([System.Environment]::OSVersion.Version
 Write-Output "Show OS (empty on PS5) = $(($PSVersionTable | Select-Object OS).OS      )"; # Example: "Microsoft Windows 10.0.19042" or "Linux 5.15.0-76-generic #83~20.04.1-Ubuntu SMP Wed Jun 21 20:23:31 UTC 2023"
 Write-Output "Show IsWindows         = $is_windows";                                      # Example: "False"
 Write-Output "Show IsLinux           = $is_linux";                                        # Example: "True"
-Write-Output "Show IsMacOS           = $is_maxos";                                        # Example: "False"
+Write-Output "Show IsMacOS           = $is_macos";                                        # Example: "False"
 Write-Output "Show GetTempPath()     = $([System.IO.Path]::GetTempPath())";               # Example: "/tmp/", "C:\Users\myuser\AppData\Local\Temp"
 Write-Output "Show Env:TmpDir        = $($env:TMPDIR)";                                   # Example: ""
 Write-Output "Show CurrentDir        = `"$PWD`"";                                         # Example: Local-Win10   : "D:\mywork\MyOwner\MyRepo"

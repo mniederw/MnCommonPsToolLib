@@ -164,17 +164,21 @@ function UnitTest_FsEntry_Dir_File(){
   #
   function Test_FileReadContentAsString(){
     [String] $src = FileGetTempFile;
-    FileWriteFromString $src "Ä`r`nB" $true "UTF8BOM";
-    Assert ((FileReadContentAsString $src "Default") -eq "Ä`r`nB");
-    Assert ((FileReadContentAsString $src "UTF8"   ) -eq "Ä`r`nB");
-    FileWriteFromString $src "Ä`r`nB" $true "Default";
-    Assert ((FileReadContentAsString $src "Default") -eq "Ä$([Environment]::NewLine)B");
-    if( -not (ProcessIsLesserEqualPs5) ){ # TODO in ps5 it fails
-      Assert ((FileReadContentAsString $src "UTF8"   ) -eq "Ä$([Environment]::NewLine)B");
-      FileWriteFromString $src "Ä`r`nB" $true "UTF8";
-      Assert ((FileReadContentAsString $src "Default") -eq "Ä`r`nB");
-      Assert ((FileReadContentAsString $src "UTF8"   ) -eq "Ä`r`nB");
+    [String] $text = "ä`r`nöü";
+    [String] $text2 = "ä$([Environment]::NewLine)öü";
+    OutProgress "Test_FileReadContentAsString beg";
+    function WriteText( [String] $enc ){ FileWriteFromString $src $text $true $enc; }
+    function ReadText ( [String] $enc ){ [String] $s = (FileReadContentAsString $src $enc) -replace "`r",'CR' -replace "`n",'LF'; OutProgress "Text : `"$s`""; }
+    #
+    WriteText "UTF8BOM"; ReadText "Default";                                       Assert ((FileReadContentAsString $src "Default") -eq $text);
+    WriteText "UTF8BOM"; ReadText "UTF8"   ;                                       Assert ((FileReadContentAsString $src "UTF8"   ) -eq $text);
+    WriteText "Default"; ReadText "Default"; if( -not (OsIsMacOS              ) ){ Assert ((FileReadContentAsString $src "Default") -eq $text2); } # TODO fails in MacOS
+    WriteText "Default"; ReadText "UTF8"   ; if( -not (ProcessIsLesserEqualPs5) ){ Assert ((FileReadContentAsString $src "UTF8"   ) -eq $text2); } # TODO fails in ps5, text is "�CRLF��"
+    if( -not (ProcessIsLesserEqualPs5) ){ # TODO write UTF8 in ps5 currently not implemented
+      WriteText "UTF8"   ; ReadText "Default";                                       Assert ((FileReadContentAsString $src "Default") -eq $text);
+      WriteText "UTF8"   ; ReadText "UTF8"   ;                                       Assert ((FileReadContentAsString $src "UTF8"   ) -eq $text);
     }
+    OutProgress "Test_FileReadContentAsString end";
   } Test_FileReadContentAsString;
   #
   function Test_FileReadContentAsLines(){

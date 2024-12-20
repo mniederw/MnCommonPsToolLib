@@ -722,6 +722,8 @@ function OsIsWindows                          (){ return [Boolean] ([System.Envi
                                                 # Example: Win10Pro: Version="10.0.19044.0"
                                                 # Alternative: "$($env:WINDIR)" -ne ""; In PS6 and up you can use: $IsMacOS, $IsLinux, $IsWindows.
                                                 # for future: function OsIsLinux(){ return [Boolean] ([System.Environment]::OSVersion.Platform -eq "Unix"); } # example: Ubuntu22: Version="5.15.0.41"
+function OsIsLinux                            (){ return [Boolean] (-not (OsIsWindows) -and $IsLinux); } # portable function which also works on PS5
+function OsIsMacOS                            (){ return [Boolean] (-not (OsIsWindows) -and $IsMacOS); } # portable function which also works on PS5
 function OsIsWinVistaOrHigher                 (){ return [Boolean] ((OsIsWindows) -and [Environment]::OSVersion.Version -ge (new-object "Version" 6,0)); }
 function OsIsWin7OrHigher                     (){ return [Boolean] ((OsIsWindows) -and [Environment]::OSVersion.Version -ge (new-object "Version" 6,1)); }
 function OsIsWin11OrHigher                    (){ return [Boolean] ((OsIsWindows) -and [Environment]::OSVersion.Version -ge (new-object "Version" 10,0,22000)); }

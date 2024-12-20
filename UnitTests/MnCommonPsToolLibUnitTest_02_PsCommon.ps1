@@ -45,14 +45,14 @@ function UnitTest_PsCommon(){
   Assert (("abc" -split ",",0).Count -eq 1 -and "abc,".Split(",").Count -eq 2 -and ",abc".Split(",").Count -eq 2);
   #
   # No IO is done for the followings:
-  if( ! (OsIsWindows) ){ # not windows
-    Assert ([System.IO.Path]::GetDirectoryName("\\anyhostname\AnyFolder\") -eq "");
-    Assert ([System.IO.Path]::GetDirectoryName("//anyhostname/AnyFolder/") -eq "/anyhostname/AnyFolder");
-    Assert ("" -eq [System.IO.Path]::GetDirectoryName("C:\"));
-  }else{ # windows
+  if( (OsIsWindows) ){ # windows
     Assert ([System.IO.Path]::GetDirectoryName("\\anyhostname\AnyFolder\") -eq "\\anyhostname\AnyFolder");
     Assert ([System.IO.Path]::GetDirectoryName("//anyhostname/AnyFolder/") -eq "\\anyhostname\AnyFolder");
     Assert ($null -eq [System.IO.Path]::GetDirectoryName("C:\"));
+  }else{ # not windows
+    Assert ([System.IO.Path]::GetDirectoryName("\\anyhostname\AnyFolder\") -eq "");
+    Assert ([System.IO.Path]::GetDirectoryName("//anyhostname/AnyFolder/") -eq "/anyhostname/AnyFolder");
+    Assert ("" -eq [System.IO.Path]::GetDirectoryName("C:\"));
   }
   #
   # check wrong type assignment
