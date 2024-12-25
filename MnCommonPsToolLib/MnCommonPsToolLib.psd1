@@ -34,7 +34,7 @@
   }
   #HelpInfoURI            = '';
 
-  ModuleVersion          = '7.73';
+  ModuleVersion          = '7.74';
 
   <#
   Releasenotes
@@ -43,6 +43,7 @@
   Major version will reflect breaking changes, minor identifies extensions and third number identifies urgent bugfixes.
   Breaking changes are usually removed deprecated functions or changed behaviours.
 
+  2024-12-26  V7.74  Doc PSWindowsUpdate.
   2024-12-20  V7.73  Add ToolFileNormalizeNewline. Extend StreamToCsvFile. Fix FileWriteFromString. Fixing UTF8BOM problems. Remove default arg from FileReadContentAsString, FileReadContentAsLines. Overflow args default to false.
   2024-11-29  V7.72  Improve GitShowBranch, ToolWinGetSetup. Added ToolWingetUpdateInstalledPackages.
   2024-11-28  V7.71  Doc. Improve ToolWinGetSetup, ToolWingetInstallPackage, ToolWingetUninstallPackage, ToolWingetListInstalledPackages. Deprecate ProcessListInstalledAppx. Add OsWindowsAppxListInstalled, OsIsWin11OrHigher.

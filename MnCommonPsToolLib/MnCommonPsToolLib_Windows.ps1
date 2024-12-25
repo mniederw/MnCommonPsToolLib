@@ -9,9 +9,7 @@ if( [System.Environment]::OSVersion.Platform -ne "Win32NT" ){ OutVerbose "$PSScr
 if( $null -ne (Import-Module -NoClobber -Name "ScheduledTasks" -ErrorAction Continue *>&1) ){ $error.clear(); Write-Warning "Ignored failing of Import-Module ScheduledTasks because it will fail later if a function is used from it."; } #
 if( $null -ne (Import-Module -NoClobber -Name "SmbShare"       -ErrorAction Continue *>&1) ){ $error.clear(); Write-Warning "Ignored failing of Import-Module SmbShare       because it will fail later if a function is used from it."; } # Example: Get-SMBShare, Get-SMBOpenFile, New-SMBShare, Get-SMBMapping, ...
 if( $null -ne (Import-Module -NoClobber -Name "CimCmdlets"     -ErrorAction Continue *>&1) ){ $error.clear(); Write-Warning "Ignored failing of Import-Module CimCmdlets     because it will fail later if a function is used from it."; } # Example: Get-CimInstance.
-
-
-
+# Import-Module "PSWindowsUpdate"; # Is used for some funtions but currently we do not warn if it is not loadable
 # Import-Module "SmbWitness"; # for later usage
 # Import-Module "ServerManager"; # Is not always available, requires windows-server-os or at least Win10Prof with installed RSAT. Because seldom used we do not try to load it here.
 
@@ -136,6 +134,7 @@ function OsWinCreateUser                      ( [String] $us, [String] $pw, [Str
 function OsWindowsUpdateEnableNonOsAppUpdates (){
                                                 OutProgress "Enable Microsoft Update for Non-OS-App-Updates";
                                                 ProcessRestartInElevatedAdminMode;
+                                                Import-Module PSWindowsUpdate; # for Get-WUServiceManager
                                                 OutProgress "List Registered Service Manager:";
                                                 Get-WUServiceManager | Sort-Object Name | Select-Object Name, IsDefaultAUService, IsManaged, ServiceId, ServiceUrl |
                                                   StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
@@ -151,13 +150,14 @@ function OsWindowsUpdateEnableNonOsAppUpdates (){
                                                   StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
                                                   # for future use: RegistrationStateName, ContentValidationCert, ExpirationDate, IsRegisteredWithAU, IssueDate, OffersWindowsUpdates, RedirectUrls, IsScanPackageService, CanRegisterWithAU, SetupPrefix
                                                   # Option -MicrosoftUpdate is the same as: Add-WUServiceManager -ServiceID 7971f918-a847-4430-9279-4a52d1efe18d;
-                                                  #   It seams this is also for Non-OS-App-Updates, seams it requires install PSWindowsUpdate
+                                                  #   It seams this is also for Non-OS-App-Updates
                                                   # Confirm=false means no request before execution.
                                                 OutProgress "Ok, done.";
                                               }
 function OsWindowsUpdatePackagesShowPending   (){
                                                 OutProgress "Show Pending Microsoft Windows Update Packages";
                                                 ProcessRestartInElevatedAdminMode;
+                                                Import-Module PSWindowsUpdate; # for Get-WindowsUpdate
                                                 Get-WindowsUpdate | Select-Object ComputerName, Status, KB, Size, Title |
                                                   StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
                                                 OutProgress "Ok, done.";
@@ -165,8 +165,9 @@ function OsWindowsUpdatePackagesShowPending   (){
 function OsWindowsUpdatePerform               ( [Boolean] $withAutoReboot = $false ){
                                                 OutProgress "Perform Microsoft Windows Update (withAutoReboot=$withAutoReboot)";
                                                 ProcessRestartInElevatedAdminMode;
+                                                Import-Module PSWindowsUpdate; # for Get-WindowsUpdate
                                                 # for performing on remote computers use: $c = "comp1, comp2, comp3";
-                                                #   Invoke-WUJob -ComputerName $c -Script {ipmo PSWindowsUpdate; Install-WindowsUpdate -MicrosoftUpdate -AcceptAll -AutoReboot} -RunNow -Confirm:$false |
+                                                #   Invoke-WUJob -ComputerName $c -Script {Import-Module PSWindowsUpdate; Install-WindowsUpdate -MicrosoftUpdate -AcceptAll -AutoReboot} -RunNow -Confirm:$false |
                                                 #     Out-File "/server/share/logs/$computer-$(Get-Date -f yyyy-MM-dd)-MSUpdates.log" -Force; # Appends nl to each line.
                                                 # Install-WindowsUpdate is an alias to Get-WindowsUpdate -Install; But Install-WindowsUpdate seams not to enabled on PS7
                                                 # Alternatives: -KBArticleID "KB9876543,KB9876542" -NotKBArticleID "KB9876541" -NotCategory "Drivers" -NotTitle "OneDrive"
