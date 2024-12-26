@@ -1184,9 +1184,8 @@ function SvnEnvInfoGet                        ( [String] $workDir ){
                                                   Where-Object{$null -ne $_} |
                                                   Where-Object{ (FsEntryGetFileName $_) -match "^[0-9a-f]{32}$" } |
                                                   Sort-Object));
-                                                [String] $encodingIfNoBom = "Default"; # Encoding Default is ANSI on windows and UTF8 on other platforms.
                                                 foreach( $f in $files ){
-                                                  [String[]] $lines = @()+(FileReadContentAsLines $f $encodingIfNoBom);
+                                                  [String[]] $lines = @()+(FileReadContentAsLines $f -encodingIfNoBom "Default");
                                                   # filecontent example:
                                                   #   K 8
                                                   #   passtype
@@ -1378,8 +1377,7 @@ function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url
                                                   FileAppendLineWithTs $svnLogFile "`"svn`" $logline";
                                                   try{
                                                     & "svn" $opt 2> $tmp | ForEach-Object{ FileAppendLineWithTs $svnLogFile ("  "+$_); OutProgress "$_ " 2; };
-                                                    [String] $encodingIfNoBom = "Default"; # Encoding Default is ANSI on windows and UTF8 on other platforms.
-                                                    AssertRcIsOk (FileReadContentAsLines $tmp $encodingIfNoBom) $true;
+                                                    AssertRcIsOk (FileReadContentAsLines $tmp -encodingIfNoBom "Default") $true;
                                                     break;
                                                   }catch{
                                                     # exc: "svn: E230001: Server SSL certificate verification failed: issuer is not trusted"
@@ -1759,7 +1757,7 @@ function SqlRunScriptFile                     ( [String] $sqlserver, [String] $s
                                                 if( -not $? ){
                                                   [String] $trace = "SqlRunScriptFile `"$sqlfile`" on `"$sqlserver`" failed with rc=$(ScriptGetAndClearLastRc), more see outfile";
                                                   if( -not $continueOnErr ){ throw [Exception] "$trace"; } else{ OutWarning "Warning: $trace, will continue."; }
-                                                }
+                                                }else{ AssertRcIsOk; }
                                                 FileAssertExists $outfile; }
 function SqlPerformFile                       ( [String] $connectionString, [String] $sqlFile, [String] $logFileToAppend = "", [Int32] $queryTimeoutInSec = 0, [Boolean] $showPrint = $true, [Boolean] $showRows = $true){
                                                 # Print are given out in yellow by internal verbose option; rows are currently given out only in a simple csv style without headers.
@@ -2136,8 +2134,7 @@ function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [St
                                                   # Example: "$env:APPDATA\Microsoft\Windows\Start Menu\MyPortableProg\Appl\Graphic\Manufactor ProgramName V1 en 2016.lnk"
                                                   [String] $fn = FsEntryGetFileName $f; $fn = StringRemoveRight $fn $srcFileExtMenuLink; $fn = StringRemoveRight $fn $srcFileExtMenuLinkOpt; $fn = $fn.TrimEnd();
                                                   [String] $lnkFile = FsEntryGetAbsolutePath "$m/$relBelowSrcDir/$fn.lnk";
-                                                  [String] $encodingIfNoBom = "Default"; # Encoding Default is ANSI on windows and UTF8 on other platforms.
-                                                  [String] $cmdLine = FileReadContentAsLines $f $encodingIfNoBom | Select-Object -First 1;
+                                                  [String] $cmdLine = FileReadContentAsLines $f -encodingIfNoBom "Default" | Select-Object -First 1;
                                                   [String] $addTraceInfo = "";
                                                   [Boolean] $forceRecreate = FileNotExistsOrIsOlder $lnkFile $f;
                                                   [Boolean] $ignoreIfSrcNotExists = $f.EndsWith($srcFileExtMenuLinkOpt);
@@ -2164,7 +2161,7 @@ function ToolSignDotNetAssembly               ( [String] $keySnk, [String] $srcD
                                                 $srcDllOrExe = FsEntryGetAbsolutePath $srcDllOrExe;
                                                 $tarDllOrExe = FsEntryGetAbsolutePath $tarDllOrExe;
                                                 OutProgressTitle "Sign dot-net assembly: keySnk=`"$keySnk`" srcDllOrExe=`"$srcDllOrExe`" tarDllOrExe=`"$tarDllOrExe`" overwrite=$overwrite ";
-                                                [Boolean] $execHasStrongName = ([String](& sn -vf $srcDllOrExe | Select-Object -Skip 4 )) -like "Assembly '*' is valid";
+                                                [Boolean] $execHasStrongName = ([String](& sn -vf $srcDllOrExe | Select-Object -Skip 4 )) -like "Assembly '*' is valid"; AssertRcIsOk;
                                                 [Boolean] $isDllNotExe = $srcDllOrExe.ToLower().EndsWith(".dll");
                                                 if( -not $isDllNotExe -and -not $srcDllOrExe.ToLower().EndsWith(".exe") ){
                                                   throw [Exception] "Expected ends with .dll or .exe, srcDllOrExe=`"$srcDllOrExe`""; }
@@ -2411,7 +2408,7 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){
                                                 Get-Module -ListAvailable | Sort-Object Name, Version, ModuleType | Select-Object Name, Version, ModuleType, Path |
                                                   StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
                                                 if( (ProcessIsLesserEqualPs5) ){
-                                                  # On PS7 we would get: Install-PackageProvider: No match was found for the specified search criteria for the provider 'NuGet'. 
+                                                  # On PS7 we would get: Install-PackageProvider: No match was found for the specified search criteria for the provider 'NuGet'.
                                                   #   The package provider requires 'PackageManagement' and 'Provider' tags. Please check if the specified package has the tags.
                                                   Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force; # PowerShellGet requires minimum NuGet V2.8.5.201
                                                 }
@@ -2532,13 +2529,27 @@ function ToolWinGetCleanLine                  ( [String] $s ){
                                                     $s -ne "Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction"                                     -and # for: winget list
                                                     $s -ne ("Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben " +
                                                             "an den Back-End-Dienst gesendet wird, damit er ordnungsgemäß funktioniert (z. B. `„US`“).")                   -and # for: winget list
+                                                    $s -ne "Paket-Deinstallation wird gestartet..."                                                                        -and # for: winget uninstall
                                                     $s -ne "Es wurde bereits ein vorhandenes Paket gefunden. Es wird versucht, das installierte Paket zu aktualisieren..." -and # for: winget install
                                                     $s -ne "In den konfigurierten Quellen sind keine neueren Paketversionen verfügbar."                                    -and # for: winget install
                                                     $s -ne "Diese Anwendung wird von ihrem Besitzer an Sie lizenziert."                                                    -and # for: winget install
+                                                    $s -ne "Der Installer-Hash wurde erfolgreich überprüft"                                                                -and # for: winget install
+                                                    $s -ne "Paketinstallation wird gestartet..."                                                                           -and # for: winget install
                                                     $s -ne "Microsoft ist nicht verantwortlich und erteilt keine Lizenzen für Pakete von Drittanbietern."                       # for: winget install
                                                     ){}else{ $s = ""; }
                                                 $s = $s.Replace("Kein verfügbares Upgrade gefunden.","Is up to date.");                                                                   # for: winget install
+                                                $s = $s.Replace("Erfolgreich installiert","Successful installed.");                                                                       # for: winget install
                                                 $s = $s.Replace("Es wurde kein installiertes Paket gefunden, das den Eingabekriterien entspricht.","Already uninstalled, nothing done."); # for: winget uninstall
+                                                $s = $s.Replace("Erfolgreich deinstalliert","Successful uninstalled.");                                                                   # for: winget uninstall
+                                                # Example of rest of output of updateAll:
+                                                #   (2/2) Gefunden ...packagename... [...packageid...] Version ...version...
+                                                # Example of rest of output of install:
+                                                #   Gefunden ...packagename... Version ...version...
+                                                #   Download läuft https://...urlToExecutable...
+                                                #   Successful installed.
+                                                # Example of rest of output of uninstall:
+                                                #   Uninstall-Package(source=winget): "...packagename..."
+                                                #   Already uninstalled, nothing done.
                                                 return [String] $s;
                                                 }
 function ToolWinGetSetup                      (){
@@ -2557,11 +2568,12 @@ function ToolWinGetSetup                      (){
                                                   #   Add-AppxPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle
                                                 OutProgress "Approve eulas by: Winget search; ";
                                                 Write-Output "y" | & WinGet search | Out-Null; # default source is "msstore"; alternative option: --accept-source-agreements
+                                                ScriptResetRc; # Example: OperationStopped: Last operation failed [ExitCode=-1978335230]. For the reason see the previous output.
                                                   # Skip: Fehler beim Versuch, die Quelle zu aktualisieren: winget \n Die Quelle "msstore" erfordert, dass Sie die folgenden Verträge
                                                   #       vor der Verwendung anzeigen. \n Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction \n
                                                   #       Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben an den Back-End-Dienst gesendet wird,
                                                   #       damit er ordnungsgemäß funktioniert (z. B. „US“). \n Stimmen Sie allen Nutzungsbedingungen der Quelle zu? \n [Y] Ja  [N] Nein:
-                                                OutProgress "WinGet current version: $(& WinGet --version) ";
+                                                OutProgress "WinGet current version: $(& WinGet --version) "; AssertRcIsOk;
                                                 OutProgress "Update WinGet to latest (method depends on wether process is in elevated mode or not) ";
                                                 if( (ProcessIsRunningInElevatedAdminMode) ){
                                                   OutProgress "  Currently in elevated-mode, so we cannot use WinGet itself and so we use Add-AppxPackage. ";
@@ -2573,19 +2585,21 @@ function ToolWinGetSetup                      (){
                                                   [String] $msiUrl = ($apiObj.assets | Where-Object{ $_.Name -eq "Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle" -and $_.content_type -eq "application/octet-stream" }).browser_download_url;
                                                     # Example: "https://github.com/microsoft/winget-cli/releases/download/v1.9.25200/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
                                                   OutProgress "& Add-AppxPackage -Path $msiUrl; ";
-                                                  & Add-AppxPackage -Path $msiUrl;
+                                                  & Add-AppxPackage -Path $msiUrl; AssertRcIsOk;
                                                 }else{
                                                   OutProgress "  Currently in non-elevated-mode so update WinGet to latest by:  & WinGet upgrade Microsoft.AppInstaller; ";
                                                   OutProgress "  Note: You have to run it under your usual account and not as admin otherwise you can get errors as: ";
                                                   OutProgress "    Fehler beim Durchsuchen der Quelle: winget   \n   Unerwarteter Fehler beim Ausführen des Befehls:   \n   0x8a15000f : Von der Quelle benötigte Daten fehlen";
-                                                  & WinGet upgrade Microsoft.AppInstaller --disable-interactivity --accept-source-agreements |
-                                                    ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" } | ForEach-Object{ OutProgress "  $_"; };
+                                                  [String[]] $out = & WinGet upgrade Microsoft.AppInstaller --disable-interactivity --accept-source-agreements |
+                                                    ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" }; AssertRcIsOk $out;
+                                                  $out | ForEach-Object{ OutProgress $_ 2; };
                                                 }
-                                                OutProgress "WinGet current version: $(& WinGet --version) "; # 2024-11: V1.9.25180; 2024-09: V1.8.1911; 2024-07: v1.2.10691;
+                                                OutProgress "WinGet current version: $(& WinGet --version) "; AssertRcIsOk; # 2024-11: V1.9.25180; 2024-09: V1.8.1911; 2024-07: v1.2.10691;
                                                 OutProgress "Update list of WinGet ";
-                                                & WinGet source update | ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" } | ForEach-Object{ OutProgress "  $_"; };
+                                                [String[]] $out = & WinGet source update | ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" }; AssertRcIsOk $out;
+                                                $out | ForEach-Object{ OutProgress $_ 2; };
                                                 OutProgress "List WinGet Sources: ";
-                                                [String[]] $a = winget source list | ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" };
+                                                [String[]] $a = & winget source list | ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" }; AssertRcIsOk $a;
                                                   #   Name    Argument                                      Anstößig
                                                   #   --------------------------------------------------------------
                                                   #   msstore https://storeedgefd.dsx.mp.microsoft.com/v9.0 false
@@ -2594,7 +2608,7 @@ function ToolWinGetSetup                      (){
                                                 $a | ForEach-Object{ OutProgress "  $_"; }; # msstore, winget.
                                                 if( (ProcessIsRunningInElevatedAdminMode) -and $a[0].StartsWith("msstore ") -and $a[1].StartsWith("winget ") ){
                                                   OutProgress "WinGet has the two default source (msstore,winget) so we can call reset source:  winget source reset --force; ";
-                                                  & WinGet source reset --force; # requires admin mode
+                                                  & WinGet source reset --force; AssertRcIsOk; # requires admin mode
                                                     # it is said we should rarely reset source, but why not?
                                                 }else{
                                                   OutProgress "Note: For reset back to msstore,winget and others are lost use in admin mode: winget source reset --force; ";
@@ -2634,38 +2648,43 @@ function ToolWinGetSetup                      (){
 function ToolWingetListInstalledPackages      ( [String] $id ){
                                                 # call the tool "winget" to list installed packages
                                                 OutProgress "List of installed packages: ";
-                                                & WinGet list --disable-interactivity --accept-source-agreements *>&1 |
-                                                  ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" }
-                                                  ForEach-Object{ OutProgress "  $_"; };
+                                                [String[]] $out = & WinGet list --disable-interactivity --accept-source-agreements *>&1 |
+                                                  ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" }; AssertRcIsOk $out;
+                                                $out | ForEach-Object{ OutProgress $_ 2; };
+                                                # Example: Es wurde kein anwendbares Upgrade gefunden.
+                                                # Example: In einer konfigurierten Quelle ist eine neuere Paketversion verfügbar, die jedoch nicht auf Ihr System oder Ihre Anforderungen zutrifft.
+                                                # Example: Es wurde eine neuere Version gefunden, die Installationstechnologie unterscheidet sich jedoch von der aktuellen installierten Version. Deinstallieren Sie das Paket, und installieren Sie die neuere Version.
                                               }
-function ToolWingetUpdateInstalledPackages    (){ # if not elevated then it will ask multiple for it
+function ToolWingetUpdateInstalledPackages    (){ # Ignores errors. If not elevated then it will ask multiple for it.
                                                 OutProgress "Upgrade all packages of winget:  winget upgrade --all --disable-interactivity --accept-source-agreements";
-                                                & WinGet upgrade --all --disable-interactivity --accept-source-agreements; # can ask multiple for elevated mode
+                                                & WinGet upgrade --all --disable-interactivity --accept-source-agreements | # can ask multiple for elevated mode
+                                                  ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" } | ForEach-Object{ OutProgress $_ 2; };
+                                                  # Example: Die Anwendung wird zurzeit ausgeführt. Beenden Sie die Anwendung, und versuchen Sie es noch mal.
+                                                  #          Installation fehlgeschlagen mit Exitcode: 5
+                                                  #          Mindestens 5 Paket verfügt über Versionsnummern, die nicht ermittelt werden können. Verwenden Sie „--include-unknown“, um alle Ergebnisse anzuzeigen.
+                                                  #          1 Pakete sind angeheftet und müssen explizit aktualisiert werden.
+                                                ScriptResetRc; # Example: OperationStopped: Last operation failed [ExitCode=-1978335188]. For the reason see the previous output.
                                               }
 function ToolWingetInstallPackage             ( [String] $id, [String] $source = "winget" ){
-                                                # call the tool "winget" to intall from a given source.
+                                                # Ignores erros. Call the tool "winget" to intall from a given source.
                                                 OutProgress "Install-or-Update-Package(source=$source): `"$id`" ";
                                                 # We recommend to use source=winget because otherwise we can get for example for:  winget install --verbose --disable-interactivity "Google.Chrome";
                                                 #   Die Quelle "msstore" erfordert, dass Sie die folgenden Vereinbarungen vor der Verwendung anzeigen.
                                                 #   Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction
                                                 #   Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben an den Back-End-Dienst gesendet wird, damit er ordnungsgemäß funktioniert (z. B. „US“).
                                                 #   Mindestens einer der Quellvereinbarungen wurde nicht zugestimmt. Vorgang abgebrochen. Akzeptieren Sie bitte die Quellvereinbarungen, oder entfernen Sie die entsprechenden Quellen.
-                                                & WinGet install --verbose --source $source --disable-interactivity --id $id --accept-source-agreements *>&1 | # alternative: --version 1.2.3  --all-versions  --scope user  --scope machine
-                                                  ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" }
-                                                  ForEach-Object{ OutProgress "  $_"; };
-                                                    # Example:
-                                                    #   Gefunden ...packagename... Version ...version...
-                                                    #   Download läuft https://...urlToExecutable...
-                                                    #   Der Installer-Hash wurde erfolgreich überprüft
-                                                    #   Paketinstallation wird gestartet...
-                                                    #   Erfolgreich installiert
+                                                [String[]] $out = & WinGet install --verbose --source $source --disable-interactivity --id $id --accept-source-agreements *>&1 | # alternative: --version 1.2.3  --all-versions  --scope user  --scope machine
+                                                  ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" };
+                                                ScriptResetRc; # Example: OperationStopped: Last operation failed [ExitCode=-1978335189]. For the reason see the previous output. Is up to date.
+                                                $out | ForEach-Object{ OutProgress $_ 2; };
                                               }
 function ToolWingetUninstallPackage           ( [String] $id, [String] $source = "winget" ){
-                                                # call the tool "winget" to unintall from a given source.
+                                                # Ignores errors. Call the tool "winget" to unintall from a given source.
                                                 OutProgress "Uninstall-Package(source=$source): `"$id`" ";
-                                                & WinGet uninstall --verbose --source $source --disable-interactivity --id $id --accept-source-agreements *>&1 |
-                                                  ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" }
-                                                  ForEach-Object{ OutProgress "  $_"; };
+                                                [String[]] $out = & WinGet uninstall --verbose --source $source --disable-interactivity --id $id --accept-source-agreements *>&1 |
+                                                  ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" };
+                                                ScriptResetRc; # Example: OperationStopped: Last operation failed [ExitCode=-1978335212]. For the reason see the previous output. Already uninstalled, nothing done.
+                                                $out | ForEach-Object{ OutProgress $_ 2; };
                                               }
 function ToolManuallyDownloadAndInstallProg   ( [String] $programName, [String] $programDownloadUrl, [String] $mainTargetFileMinIsoDate = "0001-01-01",
                                                   [String[]] $programExecutableOrDir = "", [String] $programConfigurations = "" ){

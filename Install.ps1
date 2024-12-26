@@ -9,6 +9,9 @@ Set-StrictMode -Version Latest; $ErrorActionPreference = "Stop"; trap [Exception
   Write-Error -ErrorAction Continue "$($_.Exception.GetType().Name): $($_.Exception.Message)${nl}$($_.InvocationInfo.PositionMessage)$nl$($_.ScriptStackTrace)";
   Read-Host "Press Enter to Exit"; break; }
 
+$Global:OutputEncoding = [Console]::OutputEncoding = [Console]::InputEncoding = [Text.UTF8Encoding]::UTF8;
+[System.Threading.Thread]::CurrentThread.CurrentUICulture = [System.Globalization.CultureInfo]::GetCultureInfo('en-US');
+
 $PSModuleAutoLoadingPreference = "none"; # disable autoloading modules
 Import-Module Microsoft.PowerShell.Management; # load: Get-ChildItem
 Import-Module Microsoft.PowerShell.Utility   ; # load: Write-Host,Write-Output
