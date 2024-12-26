@@ -73,7 +73,7 @@ function OsWindowsAppxImportModule            (){ # On pwsh the Appx module must
                                                 # We suppress the output: WARNING: Module Appx is loaded in Windows PowerShell using WinPSCompatSession remoting session;
                                                 #   please note that all input and output of commands from this module will be deserialized objects.
                                                 #   If you want to load this module into PowerShell please use 'Import-Module -SkipEditionCheck' syntax.
-                                                if( -not (ProcessIsLesserEqualPs5) ){ Import-Module -Name Appx -UseWindowsPowerShell 3> $null; } }
+                                                if( (ProcessIsLesserEqualPs5) ){ Import-Module -Name Appx; }else{ Import-Module -Name Appx -UseWindowsPowerShell 3> $null; } }
 function OsWindowsAppxListInstalled           (){ OsWindowsAppxImportModule;
                                                 return [String[]] (@()+(Get-AppxPackage | Where-Object{$null -ne $_} | Sort-Object PackageFullName |
                                                   ForEach-Object{ "$($_.PackageFullName)" })); } # alternative field: Name.
@@ -112,7 +112,7 @@ function OsWinCreateUser                      ( [String] $us, [String] $pw, [Str
                                                 # 2024-08-18 On Win11 we get the bug: https://github.com/PowerShell/PowerShell/issues/18624
                                                 #   New-LocalUser Could not load type 'Microsoft.PowerShell.Telemetry.Internal.TelemetryAPI' from assembly 'System.Management.Automation
                                                 # workaround is:
-                                                Import-Module microsoft.powershell.localaccounts -UseWindowsPowerShell *>&1 | Out-Null;
+                                                if( (ProcessIsLesserEqualPs5) ){ Import-Module microsoft.powershell.localaccounts; }else{ Import-Module microsoft.powershell.localaccounts -UseWindowsPowerShell 3> $null; }
                                                 [Object] $u = New-LocalUser -Name $us -Password (ConvertTo-SecureString $pw -AsPlainText -Force) -FullName $fullName -Description $descr -AccountNeverExpires -PasswordNeverExpires -UserMayNotChangePassword -Disabled;
                                                 OutVerbose "OsWinCreateUser $u  (FullName=$fullName; Descr=$descr; Is-Disabled)";
                                                 if( $denyInteractiveLogon ){
