@@ -118,12 +118,22 @@ function OsWinCreateUser                      ( [String] $us, [String] $pw, [Str
                                                 if( $denyInteractiveLogon ){
                                                   # Manually procedure would be: Call gpedit.msc and add user to: Computerkonfiguration->WindowsSettings->SecuritySettings->LokaleRichtlinien-ZuweisenVonBenutzerrechten->LokalAnmeldenVerweigern ";
                                                   [String] $tmp = (FileGetTempFile);
-                                                  [String] $tmp2 = "$($tmp)2";
-                                                  & secedit /export /cfg $tmp | Out-Null; AssertRcIsOk;
-                                                  [String] $content = (FileReadContentAsString $tmp "Default").Replace("SeDenyInteractiveLogonRight = ","SeDenyInteractiveLogonRight = $us,");
-                                                  FileWriteFromString $tmp2 $content $false;
-                                                  & secedit /configure /db "secedit.sdb" /cfg $tmp2 /areas USER_RIGHTS | Out-Null; AssertRcIsOk;
-                                                  Remove-Item $tmp; Remove-Item $tmp2;
+                                                  & secedit /export /cfg $tmp | Out-Null; AssertRcIsOk; # export current security policies
+                                                  # Example: "SeDenyInteractiveLogonRight = u0,Gast"
+                                                  [String[]] $currentDeniedUsers = StringSplitToArray "," ((FileReadContentAsLines $tmp "Default" | Select-String -Pattern "SeDenyInteractiveLogonRight").Line).Replace("SeDenyInteractiveLogonRight = ","");
+                                                  if( -not (StringArrayContains $currentDeniedUsers $us) ){
+                                                    [String] $tmp2 = (FileGetTempFile);
+                                                    [String] $content = "[Unicode]`r`nUnicode=yes`r`n[Privilege Rights]`r`nSeDenyInteractiveLogonRight = $us,$($currentDeniedUsers -join ',')`r`n";
+                                                    FileWriteFromString $tmp2 $content $true "Default";
+                                                    OutProgress "& secedit /configure /db 'secedit.sdb' /cfg `"$tmp2`" /areas USER_RIGHTS ; # set SeDenyInteractiveLogonRight";
+                                                    try{
+                                                      [String] $out = & secedit /configure /db 'secedit.sdb' /cfg $tmp2 /areas USER_RIGHTS 2>&1; AssertRcIsOk $out; # more in "$env:windir\security\logs\scesrv.log"
+                                                    }catch{
+                                                      OutWarning "Warning: The command to set SeDenyInteractiveLogonRight failed, is ignored, please perform this manually. ";
+                                                    }
+                                                    Remove-Item $tmp2;
+                                                  }
+                                                  Remove-Item $tmp; 
                                                   Enable-LocalUser -Name $us;
                                                 }
                                                 # for future use: Add-LocalGroupMember -Group Users -Member $us;
