@@ -841,7 +841,7 @@ function ProcessKill                          ( [String] $processName ){ # kill 
                                                 [System.Diagnostics.Process[]] $p = Get-Process $processName.Replace(".exe","") -ErrorAction SilentlyContinue;
                                                 if( $null -ne $p ){ OutProgress "ProcessKill $processName"; $p.Kill(); } }
 function ProcessSleepSec                      ( [Int32] $sec ){ Start-Sleep -Seconds $sec; }
-function ProcessStart                         ( [String] $cmd, [String[]] $cmdArgs = @(), [Boolean] $careStdErrAsOut = $false, [Boolean] $traceCmd = $false ){
+function ProcessStart                         ( [String] $cmd, [String[]] $cmdArgs = @(), [Boolean] $careStdErrAsOut = $false, [Boolean] $traceCmd = $false, [Int64] $timeoutInSec = [Int64]::MaxValue ){
                                                 # Start any gui or console command including ps scripts in path and provide arguments in an array, waits for output
                                                 # and returns output as a single string. You can use StringSplitIntoLines on output to get it as lines.
                                                 # Console input is disabled.
@@ -955,9 +955,15 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 #     at System.Management.Automation.ScriptBlock.GetContextFromTLS() ... at System.Threading.PortableThreadPool.WorkerThread.WorkerThreadStart()
                                                 #
                                                 $pr.Start() | Out-Null;
+                                                [Object] $usedTime = [System.Diagnostics.Stopwatch]::StartNew();
+                                                function ReachedTimeout(){ [Int64] $usedTimeInSec = [Int64]($usedTime.Elapsed.TotalMilliseconds) / 1000; return [Boolean] ($usedTimeInSec -ge $timeoutInSec); }
                                                 while($true){
-                                                  while( -not $pr.StandardOutput.Peek() -gt -1 ){ $bufStdOut.Append($pr.StandardOutput.ReadLine()) | Out-Null; }
-                                                  while( -not $pr.StandardError.Peek()  -gt -1 ){ $bufStdErr.Append($pr.StandardError.ReadLine())  | Out-Null; }
+                                                  if( -not $pr.HasExited -and (ReachedTimeout) ){
+                                                    $bufStdErr.Append("Reached timeout after $timeoutInSec seconds so killing process.") | Out-Null;
+                                                    $pr.Kill();
+                                                  }
+                                                  while( -not $pr.HasExited -and -not (ReachedTimeout) -and $pr.StandardOutput.Peek() -ne -1 ){ $bufStdOut.Append([Char]$pr.StandardOutput.Read()) | Out-Null; }
+                                                  while( -not $pr.HasExited -and -not (ReachedTimeout) -and $pr.StandardError.Peek()  -ne -1 ){ $bufStdErr.Append([Char]$pr.StandardError.Read())  | Out-Null; }
                                                   if( $pr.HasExited ){
                                                     $bufStdOut.Append($pr.StandardOutput.ReadToEnd()) | Out-Null;
                                                     $bufStdErr.Append($pr.StandardError.ReadToEnd())  | Out-Null;
@@ -1495,7 +1501,7 @@ function DirExists                            ( [String] $dir ){
                                                 FsEntryAssertHasTrailingDirSep $dir;
                                                 try{ return [Boolean] (Test-Path -PathType Container -LiteralPath $dir); }
                                                 catch{ throw [Exception] "$(ScriptGetCurrentFunc)($dir) failed because $($_.Exception.Message)"; } }
-function DirNotExists                         ( [String] $dir ){ AssertNotEmpty $dir "dir"; FsEntryAssertHasTrailingDirSep $dir; return [Boolean] -not (DirExists $dir); }
+function DirNotExists                         ( [String] $dir ){ FsEntryAssertHasTrailingDirSep $dir; return [Boolean] -not (DirExists $dir); }
 function DirAssertExists                      ( [String] $dir, [String] $text = "Assertion" ){
                                                 FsEntryAssertHasTrailingDirSep $dir;
                                                 if( -not (DirExists $dir) ){ throw [Exception] "$text failed because dir not exists: `"$dir`"."; } }
@@ -2191,9 +2197,9 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                 $tarDir = FsEntryGetAbsolutePath $tarDir;
                                                 OutProgress "NetDownloadSite $url ";
                                                 FsEntryAssertHasTrailingDirSep $tarDir;
-                                                [String] $logf  = "$tarDir/.Download.$(DateTimeNowAsStringIsoMonth).detail.log";
-                                                [String] $links = "$tarDir/.Download.$(DateTimeNowAsStringIsoMonth).links.log";
-                                                [String] $logf2 = "$tarDir/.Download.$(DateTimeNowAsStringIsoMonth).log";
+                                                [String] $logf  = FsEntryGetAbsolutePath "$tarDir/.Download.$(DateTimeNowAsStringIsoMonth).detail.log";
+                                                [String] $links = FsEntryGetAbsolutePath "$tarDir/.Download.$(DateTimeNowAsStringIsoMonth).links.log";
+                                                [String] $logf2 = FsEntryGetAbsolutePath "$tarDir/.Download.$(DateTimeNowAsStringIsoMonth).log";
                                                 [String] $caCert = ""; # default seams to be on windows: C:/ProgramData/ssl/ca-bundle.pem"; Maybe for future: "wget2-ca-bundle.crt";
                                                 OutProgress "  (only newer files) to `"$tarDir`"";
                                                 OutProgress "  Logfile: `"$logf`"";
@@ -2261,7 +2267,7 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                  #,"--protocol-directories"        # Force creating protocol directories. (default: off)
                                                   ,"--connect-timeout=60"          # Connect timeout in seconds. Default is none so it depends on system libraries.
                                                   ,"--dns-timeout=60"              # DNS lookup timeout in seconds. Default is none so it depends on system libraries.
-                                                 #,"--read-timeout"                # Read and write timeout in seconds. default is 900 sec.
+                                                  ,"--read-timeout=900"            # Read and write timeout in seconds. default is 900 sec.
                                                  #,"--timeout"                     # General network timeout in seconds. Same as all together: connect-timeout, dns-timeout, read-timeout
                                                   ,"--referer=$url"                # Include Referer: url in HTTP request. (default: off)
                                                 );
@@ -2424,7 +2430,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                 if( $urlOpt.Count -gt 1 ){ AssertNotEmpty $urlOpt[1] "branch is empty in sharp-char separated urlAndBranch=`"$urlAndOptionalBranch`". "; }
                                                 [String] $url = $urlOpt[0]; # repo url without branch. Example: "https://github.com/mniederw/MnCommonPsToolLib"
                                                 [String] $branch = switch($urlOpt.Count -gt 1){($true){$urlOpt[1]} default{""}}; # Example: "" or "MyBranch"
-                                                [String] $dir = FsEntryMakeTrailingDirSep (GitBuildLocalDirFromUrl $tarRootDir $urlAndOptionalBranch);
+                                                [String] $dir = FsEntryMakeTrailingDirSep (GitBuildLocalDirFromUrl $tarRootDir $urlAndOptionalBranch); AssertNotEmpty $dir;
                                                 GitAssertAutoCrLfIsDisabled;
                                                 if( $cmd -eq "CloneOrPull"  ){ if( (DirNotExists $dir) ){ $cmd = "Clone"; }else{ $cmd = "Pull" ; } }
                                                 if( $cmd -eq "CloneOrFetch" ){ if( (DirNotExists $dir) ){ $cmd = "Clone"; }else{ $cmd = "Fetch"; } }
