@@ -135,11 +135,11 @@ function UnitTest_FsEntry_Dir_File(){
   Assert ((DirSep) -eq $(switch((OsIsWindows)){($true){"\"}($false){"/"}}));
   #
   Assert ((DirExists "") -eq $false);
-  Assert ((DirExists "$HOME/MyDir/AnyUnknownFile_mm2gekmq9xzswkyzgxbwepzs") -eq $false);
+  Assert ((DirExists "$HOME/MyDir/AnyUnknownFile_mm2gekmq9xzswkyzgxbwepzs/") -eq $false);
   Assert ((DirExists $(switch((OsIsWindows)){($true){"C:\Windows\"}($false){"/home/"}})) -eq $true);
   #
   Assert ((DirNotExists ""));
-  Assert ((DirNotExists "$HOME/MyDir/AnyUnknownFile_mm2gekmq9xzswkyzgxbwepzs"));
+  Assert ((DirNotExists "$HOME/MyDir/AnyUnknownFile_mm2gekmq9xzswkyzgxbwepzs/"));
   Assert ((DirNotExists $(switch((OsIsWindows)){($true){"C:\Windows\"}($false){"/home/"}})) -eq $false);
   #
   # TODO: DirAssertExists                      ( [String] $dir, [String] $text = "Assertion" )
