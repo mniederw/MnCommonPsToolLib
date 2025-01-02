@@ -34,7 +34,7 @@
   }
   #HelpInfoURI            = '';
 
-  ModuleVersion          = '7.76';
+  ModuleVersion          = '7.77';
 
   <#
   Releasenotes
@@ -43,6 +43,7 @@
   Major version will reflect breaking changes, minor identifies extensions and third number identifies urgent bugfixes.
   Breaking changes are usually removed deprecated functions or changed behaviours.
 
+  2025-01-02  V7.77  DirNotExists allow empty string; Extend ProcessStart. Improve OsWindowsRegRunDisable.
   2024-12-26  V7.76  Fix CreateUser.
   2024-12-26  V7.75  Set utf8. Improve winget output filter.
   2024-12-26  V7.74  Doc PSWindowsUpdate. Fix OsWinCreateUser.

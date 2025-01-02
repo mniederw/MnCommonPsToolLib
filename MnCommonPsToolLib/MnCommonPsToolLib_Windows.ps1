@@ -78,14 +78,15 @@ function OsWindowsAppxListInstalled           (){ OsWindowsAppxImportModule;
                                                 return [String[]] (@()+(Get-AppxPackage | Where-Object{$null -ne $_} | Sort-Object PackageFullName |
                                                   ForEach-Object{ "$($_.PackageFullName)" })); } # alternative field: Name.
 function OsWindowsRegRunDisable               ( [String] $regItem, [Boolean] $fromHklmNotHkcu = $false, [Boolean] $fromRunonceNotRun = $false ){
-                                                # Ignore if key not exists.
-                                                # for future use: create key "AutorunsDisabled" and copy removed item to it
+                                                # Ignore if key not exists. Creates backup entry under "AutorunsDisabled".
                                                 [String] $key = ""; [String] $msg = "";
                                                 if( $fromRunonceNotRun ){ if( $fromHklmNotHkcu ){ $msg = "Autorunonce-CurrentUser" ; $key = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\RunOnce"; }
                                                                           else{                   $msg = "Autorunonce-LocalMachine"; $key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\RunOnce"            ; } }
                                                 else{                     if( $fromHklmNotHkcu ){ $msg = "Autorun-CurrentUser"     ; $key = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run"    ; }
                                                                           else{                   $msg = "Autorun-LocalMachine"    ; $key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"                ; } }
                                                 OutProgress "$($msg)-Remove: $regItem";
+                                                [String] $val = RegistryGetValueAsString $key -Name $regItem;
+                                                if( $val -ne "" ){ RegistrySetValue "$key\AutorunsDisabled" $regItem "String" $val; }
                                                 Remove-ItemProperty -Path $key -Name $regItem -ErrorAction SilentlyContinue;
                                               }
 function OsGetWindowsProductKey               (){
@@ -2072,6 +2073,7 @@ function ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [Strin
                                                 # runElevated         : the link is marked to request for run in elevated mode.
                                                 # ignoreIfSrcNotExists: if source not exists it will be silently ignored, but then the lnk file cannot be created.
                                                 # Icon: If next to the srcFile an ico file with the same filename exists then this will be taken.
+                                                AssertNotEmpty $srcFsEntry;
                                                 $workDir    = FsEntryGetAbsolutePath $workDir;
                                                 $lnkFile    = FsEntryGetAbsolutePath $lnkFile;
                                                 $srcFsEntry = FsEntryGetAbsolutePath $srcFsEntry;

@@ -32,7 +32,7 @@ function UnitTest_FsEntry_Dir_File(){
     Pop-Location;
   } Test_FsEntryGetAbsolutePath;
   #
-  # TODO: FsEntryGetUncShare                   ( [String] $fsEntry )
+  Assert ((FsEntryGetUncShare "//MyHost/MyShare/MyDir/") -eq $(switch((OsIsWindows)){($true){"\\MyHost\MyShare\"          }($false){"//MyHost/MyShare/"     }}));
   #
   # TODO: FsEntryMakeValidFileName             ( [String] $str )
   #
@@ -134,9 +134,13 @@ function UnitTest_FsEntry_Dir_File(){
   #
   Assert ((DirSep) -eq $(switch((OsIsWindows)){($true){"\"}($false){"/"}}));
   #
-  # TODO: DirExists                            ( [String] $dir )
+  Assert ((DirExists "") -eq $false);
+  Assert ((DirExists "$HOME/MyDir/AnyUnknownFile_mm2gekmq9xzswkyzgxbwepzs") -eq $false);
+  Assert ((DirExists $(switch((OsIsWindows)){($true){"C:\Windows\"}($false){"/home/"}})) -eq $true);
   #
-  # TODO: DirNotExists                         ( [String] $dir ) return [Boolean] -not (DirExists $dir); }
+  Assert ((DirNotExists ""));
+  Assert ((DirNotExists "$HOME/MyDir/AnyUnknownFile_mm2gekmq9xzswkyzgxbwepzs"));
+  Assert ((DirNotExists $(switch((OsIsWindows)){($true){"C:\Windows\"}($false){"/home/"}})) -eq $false);
   #
   # TODO: DirAssertExists                      ( [String] $dir, [String] $text = "Assertion" )
   #
