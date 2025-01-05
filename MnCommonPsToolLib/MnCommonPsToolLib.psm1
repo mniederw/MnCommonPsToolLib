@@ -2223,7 +2223,6 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                   ,"--quota=$maxBytes"            # Download quota, 0 = no quota. (default: 0)
                                                   ,"--limit-rate=$limitRateBytesPerSec" # Limit rate of download per second, 0 = no limit. (default: 0)
                                                   ,"--wait=1"                     # Wait number of seconds between downloads per thread. (default: 0)
-                                                 #,"--waitretry=10"               # Wait up to number of seconds after error per thread. (default: 10)
                                                   ,"--random-wait=1"              # Wait 0.5 up to 1.5*<--wait> seconds between downloads per thread. (default: off)
                                                  #,"--timestamping"               # Just retrieve younger files than the local ones. (default: off)
                                                   ,$(switch($ignoreSslCheck){ ($true){"--check-certificate=off"} default{""}})  # .
@@ -2270,6 +2269,7 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                   ,"--read-timeout=900"            # Read and write timeout in seconds. default is 900 sec.
                                                  #,"--timeout"                     # General network timeout in seconds. Same as all together: connect-timeout, dns-timeout, read-timeout
                                                   ,"--referer=$url"                # Include Referer: url in HTTP request. (default: off)
+                                                  ,"--max-threads=1"               # Default is 5 but it hangs, so set it to 1 and it now works.
                                                 );
                                                 # more about logon forms: http://wget.addictivecode.org/FrequentlyAskedQuestions
                                                 # backup without file conversions: wget -mirror --page-requisites --directory-prefix=c:\wget_files\example2 ftp://username:password@ftp.yourdomain.com
@@ -2285,7 +2285,7 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                 if( $wgetExe2 -ne "" ){ $wgetExe = $wgetExe2; }
                                                 FileAppendLineWithTs $logf "Push-Location `"$tarDir`"; & `"$wgetExe`" `"$url`" $opt --password=*** ; Pop-Location; ";
                                                 #FileAppendLineWithTs $logf "  Note: Ignore the error messages: Failed to parse URI ''; No CAs were found in ''; Cannot resolve URI 'mailto:...'; Nothing to do - goodbye; ";
-                                                OutProgress              "  Push-Location `"$tarDir`"; & `"$wgetExe`" `"$url`" ...opt... ";
+                                                OutProgress              "  Push-Location `"$tarDir`"; & `"$wgetExe`" `"$url`" $opt --password=*** ";
                                                 $opt += "--password=$pw";
                                                 [String] $errMsg = & $wgetExe $opt $url *>&1;
                                                 [Int32] $rc = ScriptGetAndClearLastRc; if( $rc -ne 0 ){
