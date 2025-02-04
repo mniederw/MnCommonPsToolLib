@@ -135,7 +135,7 @@ function OsWinCreateUser                      ( [String] $us, [String] $pw, [Str
                                                     }
                                                     Remove-Item $tmp2;
                                                   }
-                                                  Remove-Item $tmp; 
+                                                  Remove-Item $tmp;
                                                   Enable-LocalUser -Name $us;
                                                 }
                                                 # for future use: Add-LocalGroupMember -Group Users -Member $us;
@@ -2425,13 +2425,13 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){
                                                 # Get-InstalledModule -AllVersions  must be called with a single name otherwise we get:
                                                 #   Get-InstalledModule: The RequiredVersion, MinimumVersion, MaximumVersion, AllVersions or AllowPrerelease parameters
                                                 #   are allowed only when you specify a single name as the value of the Name parameter, without any wildcard characters.
-                                                [PSCustomObject[]] $installedModules = Get-InstalledModule | Where-Object{ $null -ne $_ -and $null -ne $_.InstalledDate } | Select-Object Name | 
-                                                  Get-InstalledModule -AllVersions | 
+                                                [PSCustomObject[]] $installedModules = Get-InstalledModule | Where-Object{ $null -ne $_ -and $null -ne $_.InstalledDate } | Select-Object Name |
+                                                  Get-InstalledModule -AllVersions |
                                                   Select-Object Name, Version, InstalledDate, UpdatedDate, Dependencies, Repository, PackageManagementProvider, InstalledLocation;
                                                 $installedModules | StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
                                                 #
                                                 OutProgress "List ps gallery repositories: ";
-                                                [PSCustomObject[]] $psRepos = Get-PSRepository | Where-Object{ $null -ne $_} | 
+                                                [PSCustomObject[]] $psRepos = Get-PSRepository | Where-Object{ $null -ne $_} |
                                                   Select-Object Name, Trusted, Registered, InstallationPolicy, PackageManagementProvider, SourceLocation;
                                                 $psRepos | StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
                                                   # Example: PSGallery True True Trusted NuGet https://www.powershellgallery.com/api/v2
@@ -2518,12 +2518,12 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){
                                                 #
                                                 OutProgress "Update-Help to en-US with continue-on-error ";
                                                 Update-Help -UICulture en-US -ErrorAction Continue *>&1 | ForEach-Object{ "$_" } | ForEach-Object{ OutProgress "  $_"; };
-                                                  # Example: 2024-07 Failed to update Help for the module(s) 
-                                                  #   'PSReadline, WindowsUpdateProvider' with UI culture(s) {en-US} : One or more errors occurred. 
+                                                  # Example: 2024-07 Failed to update Help for the module(s)
+                                                  #   'PSReadline, WindowsUpdateProvider' with UI culture(s) {en-US} : One or more errors occurred.
                                                   #   (Response status code does not indicate success: 404 (Not Found).).
                                                   #   English-US help content is available and can be installed using: Update-Help -UICulture en-US.
                                                   # Example: 2025-01 Failed to update Help for the module(s)
-                                                  #   'ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate' with UI culture(s) {en-US} : 
+                                                  #   'ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate' with UI culture(s) {en-US} :
                                                   #   One or more errors occurred. (Response status code does not indicate success: 404 (The specified blob does not exist.).).
                                                   #   English-US help content is available and can be installed using: Update-Help -UICulture en-US.
                                                 OutProgress "Update-Help to current Culture with continue-on-error: $((Get-Culture).Name) = $((Get-Culture).DisplayName)"; # Example: "de-CH"

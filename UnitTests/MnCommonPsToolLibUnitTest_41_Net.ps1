@@ -24,7 +24,7 @@ function UnitTest_Net(){
                                              [String] $tmpDir = DirCreateTemp "MNNds";
                                              OutProgress "  We expect warnings as generic: Exceed quota. http://: Invalid host name.";
                                              NetDownloadSite $site $tmpDir -maxBytes 20000 *>&1 | Where-Object{ "$_".Trim() -ne "" } | ForEach-Object{ OutProgress "  $_"; };
-                                             # Example: Warning: Ignored one or more occurrences of error category: Generic . More see logfile="/tmp/MNNds.123456//.Download.2024-08.detail.log".
+                                             # Example: Warning: Ignored one or more occurrences of category=Generic. More see logfile="/tmp/MNNds.123456//.Download.2024-08.detail.log".
                                              DirDelete $tmpDir; }
   # TODO on github windows: "wget" was not found in env-path="C:\Program Files\PowerShell\7;C:\Program Files\MongoDB\Server\5.0\bin;C:\aliyun-cli;C:\vcpkg;C:\Program Files (x86)\NSIS\;C:\tools\zstd;
   #   C:\Program Files\Mercurial\;C:\hostedtoolcache\windows\stack\2.15.1\x64;C:\cabal\bin;C:\\ghcup\bin;C:\mingw64\bin;C:\Program Files\dotnet;C:\Program Files\MySQL\MySQL Server 8.0\bin;

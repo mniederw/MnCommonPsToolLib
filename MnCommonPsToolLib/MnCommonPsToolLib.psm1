@@ -1217,10 +1217,10 @@ function FsEntryListAsFileSystemInfo          ( [String] $fsEntryPattern, [Boole
                                                 # It works with absolute or relative paths. A leading "./" for relative paths is optional.
                                                 # Wildcards on dir parts are also allowed ("dir*/*.tmp","*/*.tmp"). If no dir part is specified then it takes "./".
                                                 # Dependent on the recursive flag it work in two different modes:
-                                                # - If non-recursive then the pattern matches the fs-entries flat, 
+                                                # - If non-recursive then the pattern matches the fs-entries flat,
                                                 #   if it matches dirs ("./dir?") then they are listed flat and if it matches a file ("./f.txt") then this is listed.
                                                 #   If wildcards are used in dir parts (topdir*/dir*/f.*) then it also matches these subdirs on specified levels.
-                                                # - If recursive is specified then it splits the $fsEntryPattern (ex1: any/*.tmp; ex2: any*/Bin*/) into two parts, 
+                                                # - If recursive is specified then it splits the $fsEntryPattern (ex1: any/*.tmp; ex2: any*/Bin*/) into two parts,
                                                 #   the directory part (any/ ;any*/) which is matching flat one or more dirs (found dirs)
                                                 #   and the last specified part (ex1: *.tmp; ex2: Bin*/) which is matching deeply fs-entry-names in all found dirs.
                                                 AssertNotEmpty $fsEntryPattern "pattern";
@@ -1231,7 +1231,7 @@ function FsEntryListAsFileSystemInfo          ( [String] $fsEntryPattern, [Boole
                                                 #   In recursive mode they wrongly match only files and not directories ("*/myfile/") and
                                                 #     so dir parts ("./*/dir/" or "d1/dir/") would not be found for unknown reasons.
                                                 # On Windows very strange is that (CD "C:/Windows"; CD "C:"; Get-Item "C:";) does not list "C:/"
-                                                #   but it lists unexpectedly the current directory of that drive. 
+                                                #   but it lists unexpectedly the current directory of that drive.
                                                 #   The (Get-Item "C:/*") works as expected correctly.
                                                 # So we interpret a trailing dir-separator as it would not be present with the exception that
                                                 #   If pattern contains a trailing dir-separator then pattern "/*/" will be replaced by ("/./").
@@ -1912,7 +1912,7 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                   if( ProcessIsLesserEqualPs5 ){
                                                     # Type: ServerCertificateValidationCallback ;
                                                     Add-Type -TypeDefinition "using System;using System.Net;using System.Net.Security;using System.Security.Cryptography.X509Certificates; public class ServerCertificateValidationCallback { public static void Ignore() { ServicePointManager.ServerCertificateValidationCallback += delegate( Object obj, X509Certificate certificate, X509Chain chain, SslPolicyErrors errors ){ return true; }; } } ";
-                                                      # Since 2025-02 on PS6+ we get: Exception: (1,191): error SYSLIB0014: 'ServicePointManager' is obsolete: 'WebRequest, HttpWebRequest, ServicePoint, and WebClient are obsolete. Use HttpClient instead. 
+                                                      # Since 2025-02 on PS6+ we get: Exception: (1,191): error SYSLIB0014: 'ServicePointManager' is obsolete: 'WebRequest, HttpWebRequest, ServicePoint, and WebClient are obsolete. Use HttpClient instead.
                                                       #   Settings on ServicePointManager no longer affect SslStream or HttpClient.' (https://aka.ms/dotnet-warnings/SYSLIB0014)
                                                     [ServerCertificateValidationCallback]::Ignore();
                                                   }else{
@@ -2325,7 +2325,7 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                     8 {"ServerIssuedSomeResponse(example:404NotFound)"}
                                                     default {"Unknown(rc=$rc)"} };
                                                   if( $errMsg -ne "" ){ FileAppendLineWithTs $logf "  ErrorCategory: $err  ErrorMessage: $errMsg"; }
-                                                  OutWarning "  Warning: Ignored one or more occurrences of error category: $err $errMsg. More see logfile=`"$logf`".";
+                                                  OutWarning "  Warning: Ignored one or more occurrences of category=$err msg=`"$errMsg`". More see logfile=`"$logf`".";
                                                 }
                                                 Pop-Location;
                                                 [String] $state = "  TargetDir: $(FsEntryReportMeasureInfo "$tarDir") (BeforeStart: $stateBefore)";
@@ -2480,7 +2480,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   }elseif( $cmd -eq "Pull" ){
                                                     # Defaults: "origin";
                                                     $gitArgs = @( "-C", $dir, "--git-dir=.git", "pull", "--quiet", "--no-stat", "--no-rebase", "origin");
-                                                    # If we append the branch, then it would overwrite the default upstream branch 
+                                                    # If we append the branch, then it would overwrite the default upstream branch
                                                     # and not fetch/retrieve all available remote branches and tags which is a lack.
                                                     # If we not append the branch then it also checks for existance of an upstream branch and uses it to merge
                                                     # and it also fetches/retrieves all available remote branches and tags.
