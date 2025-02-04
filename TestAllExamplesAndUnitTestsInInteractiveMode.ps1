@@ -7,7 +7,7 @@ Set-StrictMode -Version Latest; $ErrorActionPreference = "Stop"; trap [Exception
 $Global:OutputEncoding = [Console]::OutputEncoding = [Console]::InputEncoding = [Text.UTF8Encoding]::UTF8;
 [System.Threading.Thread]::CurrentThread.CurrentUICulture = [System.Globalization.CultureInfo]::GetCultureInfo('en-US');
 
-Write-Output "----- TestAll.ps1 (running examples and all unitests) ----- ";
+Write-Output "----- TestAllExamplesAndUnitTestsInInteractiveMode.ps1 (running examples and all unitests) ----- ";
 
 Write-Output "----- Load MnCommonPsToolLib.psm1 ----- ";
 Write-Output "Assert powershell module library MnCommonPsToolLib.psm1 exists next this running script. ";
@@ -50,6 +50,6 @@ for( [Int32] $i = 0; $i -lt $ps1Files.Count; $i++ ){
   AssertRcIsOk;
 
 }
-OutProgressTitle ("----- TestAll.ps1 ended -----").PadRight(120,'-');
+OutProgressTitle ("----- TestAllExamplesAndUnitTestsInInteractiveMode.ps1 ended -----").PadRight(120,'-');
 OutProgressSuccess "Ok, done. All tests are successful. Exit after 2 seconds. ";
 ProcessSleepSec 2;
