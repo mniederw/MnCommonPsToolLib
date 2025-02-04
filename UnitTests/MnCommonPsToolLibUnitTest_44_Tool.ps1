@@ -14,7 +14,7 @@ function UnitTest_Tool(){
   function Test_ToolFileNormalizeNewline(){
     [String] $src = FileGetTempFile; FileWriteFromString $src "Ä`r`nB" $true; Assert ((FileReadContentAsString $src "Default") -eq "Ä`r`nB");
     [String] $tar = FileGetTempFile;
-    if( -not (ProcessIsLesserEqualPs5) ){ # TODO in ps5 it fails    
+    if( -not (ProcessIsLesserEqualPs5) ){ # TODO in ps5 it fails, # TODO: try to replace Default by UTF8.
       ToolFileNormalizeNewline $src $tar $true                            ; Assert ((FileReadContentAsString $tar "Default") -eq "Ä$([Environment]::NewLine)B");
       ToolFileNormalizeNewline $src $tar $true  "UTF8BOM" "`n"   "Default"; Assert ((FileReadContentAsString $tar "Default") -eq "Ä`nB");
       ToolFileNormalizeNewline $src $tar $true  "UTF8BOM" "`n"   "UTF8"   ; Assert ((FileReadContentAsString $tar "Default") -eq "Ä`nB");

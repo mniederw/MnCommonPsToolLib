@@ -4,6 +4,11 @@ Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version
 
 function UnitTest_FsEntry_Dir_File(){
   OutProgress (ScriptGetCurrentFuncName);
+  #
+  [String] $sep = switch((OsIsWindows)){($true){"\"}($false){"/"}};
+  [String] $notExistingDir  = "$HOME/MyDir/AnyUnknownFile_mm2gekmq9xzswkyzgxbwepzs/";
+  [String] $notExistingFile = "$HOME/MyDir/AnyUnknownFile_mm2gekmq9xzswkyzgxbwepzs";
+  #
   Assert         ((FsEntryGetAbsolutePath "") -eq "" );
   Assert         ((FsEntryMakeRelative "$HOME/MyDir/Dir1/File" "$HOME/MyDir/"      ).Replace("\","/") -eq   "Dir1/File");
   Assert         ((FsEntryMakeRelative "$HOME/MyDir/Dir1/File" "$HOME/MyDir/" $true).Replace("\","/") -eq "./Dir1/File");
@@ -42,7 +47,10 @@ function UnitTest_FsEntry_Dir_File(){
   #
   # TODO: FsEntryAssertHasTrailingDirSep
   #
-  # TODO: FsEntryRemoveTrailingDirSep          ( [String] $fsEntry )
+  Assert ((FsEntryRemoveTrailingDirSep "C:/") -eq "C:");
+  Assert ((FsEntryRemoveTrailingDirSep "$HOME/MyDir" )   -eq "$HOME${sep}MyDir" );
+  Assert ((FsEntryRemoveTrailingDirSep "$HOME/MyDir//" ) -eq "$HOME${sep}MyDir" );
+  #
   #
   # TODO: FsEntryMakeTrailingDirSep            ( [String] $fsEntry
   #
@@ -82,12 +90,106 @@ function UnitTest_FsEntry_Dir_File(){
   #
   # TODO: FsEntryFindFlatSingleByPattern       ( [String] $fsEntryPattern, [Boolean] $allowNotFound = $false )
   #
-  # TODO: FsEntryFsInfoFullNameDirWithBackSlash( [System.IO.FileSystemInfo] $fsInfo ) return [String] ($fsInfo.FullName+$(switch($fsInfo.PSIsContainer){($true){$(DirSep)}default{""}}));
+  # TODO: FsEntryFsInfoFullNameDirWithTrailDSep( [System.IO.FileSystemInfo] $fsInfo ) return [String] ($fsInfo.FullName+$(switch($fsInfo.PSIsContainer){($true){$(DirSep)}default{""}}));
   #
-  # TODO: FsEntryListAsFileSystemInfo          ( [String] $fsEntryPattern, [Boolean] $recursive = $true, [Boolean] $includeDirs = $true, [Boolean] $includeFiles = $true, [Boolean] $inclTopDir = $false )
-  #
-  # TODO: FsEntryListAsStringArray             ( [String] $fsEntryPattern, [Boolean] $recursive = $true, [Boolean] $includeDirs = $true, [Boolean] $includeFiles = $true, [Boolean] $inclTopDir = $false )
-  #
+  function Test_FsEntryListAsFileSystemInfo(){
+    [String]   $d = FsEntryRemoveTrailingDirSep (DirCreateTemp);
+    FileTouch "$d/f1.txt";
+    FileTouch "$d/f2.txt";
+    FileTouch "$d/d1/f1.txt";
+    FileTouch "$d/d1/f2.txt";
+    FileTouch "$d/d1/d1/f1.txt";
+    FileTouch "$d/d1/d1/f2.txt";
+    FileTouch "$d/d1/d2/f1.txt";
+    FileTouch "$d/d1/d2/f2.txt";
+    FileTouch "$d/d2/f1.txt";
+    FileTouch "$d/d2/f2.txt";
+    FileTouch "$d/d2/d1/f1.txt";
+    FileTouch "$d/d2/d1/f2.txt";
+    FileTouch "$d/d2/d2/f1.txt";
+    FileTouch "$d/d2/d2/f2.txt";
+    FileTouch "$d/d2/d3/f1.txt";
+    FileTouch "$d/d2/d3/f2.txt";
+    function ArrToStr( [System.IO.FileSystemInfo[]] $a ){
+      return ($a | Where-Object{$null -ne $_} | ForEach-Object{ (StringRemoveLeft (FsEntryFsInfoFullNameDirWithTrailDSep $_) $d) -replace "[\\/]","/"; }) -join ";";
+    }
+    function StrArrToStr( [String[]] $a ){
+      return ($a | Where-Object{$null -ne $_} | ForEach-Object{ (StringRemoveLeft $_ $d) -replace "[\\/]","/"; }) -join ";";
+    }
+    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo $notExistingFile -recursive:$false -includeDirs:$true -includeFiles:$true -inclTopDir:$true)) -eq "");
+    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo $notExistingDir  -recursive:$false -includeDirs:$true -includeFiles:$true -inclTopDir:$true)) -eq "");
+    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d"             -recursive:$false -includeDirs:$true -includeFiles:$true -inclTopDir:$true)) -eq "/;/d1/;/d2/;/f1.txt;/f2.txt");
+    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/"            -recursive:$false -includeDirs:$true -includeFiles:$true -inclTopDir:$true)) -eq "/;/d1/;/d2/;/f1.txt;/f2.txt");
+    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d1/f1.txt"   -recursive:$false -includeDirs:$true -includeFiles:$true -inclTopDir:$true)) -eq "/d1/f1.txt");
+    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d1/d2/"      -recursive:$false -includeDirs:$true -includeFiles:$true -inclTopDir:$true)) -eq "/d1/d2/;/d1/d2/f1.txt;/d1/d2/f2.txt");
+    
+    
+    
+    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d?/"         -recursive:$false -includeDirs:$true -includeFiles:$true -inclTopDir:$true)) -eq "/d1/;/d2/;/d1/;/d2/");
+    #ERROR expected: Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d?/"         -recursive:$false -includeDirs:$true -includeFiles:$true -inclTopDir:$true)) -eq "/d1/;/d2/;/d1/d1/;/d1/d2/;/d1/f1.txt;/d1/f2.txt;/d2/d1/;/d2/d2/;/d2/d3/;/d2/f1.txt;/d2/f2.txt");
+    
+    
+    
+    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d1/*1*/"     -recursive:$false -includeDirs:$true -includeFiles:$true -inclTopDir:$true)) -eq "/d1/d1/;/d1/d1/;/d1/f1.txt");
+    #ERROR expected: Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d1/*1*/"     -recursive:$false -includeDirs:$true -includeFiles:$true -inclTopDir:$true)) -eq "/d1/d1/;/d1/d1/f1.txt;/d1/d1/f2.txt;/d1/f1.txt");
+
+
+
+
+    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo $notExistingFile -recursive:$false)) -eq "");
+    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo $notExistingDir  -recursive:$false)) -eq "");
+    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d"             -recursive:$false)) -eq "/d1/;/d2/;/f1.txt;/f2.txt");
+    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/"            -recursive:$false)) -eq "/d1/;/d2/;/f1.txt;/f2.txt");
+    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d1/f1.txt"   -recursive:$false)) -eq "/d1/f1.txt");
+    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d1/d2/"      -recursive:$false)) -eq "/d1/d2/f1.txt;/d1/d2/f2.txt");
+
+
+
+    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d?/"         -recursive:$false)) -eq "/d1/;/d2/");
+    #ERROR expected: Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d?/"         -recursive:$false)) -eq "/d1/d1/;/d1/d2/;/d1/f1.txt;/d1/f2.txt;/d2/d1/;/d2/d2/;/d2/d3/;/d2/f1.txt;/d2/f2.txt");
+
+
+
+
+    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d1/*1*/"     -recursive:$false)) -eq "/d1/d1/;/d1/f1.txt");
+    #ERROR expected: Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d1/*1*/"     -recursive:$false)) -eq "/d1/d1/f1.txt;/d1/d1/f2.txt;/d1/f1.txt");
+
+
+
+
+    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d?/"         -recursive:$false -includeDirs:$false)) -eq "");
+    #ERROR expected: Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d?/"         -recursive:$false -includeDirs:$false)) -eq "/d1/f1.txt;/d1/f2.txt;/d2/f1.txt;/d2/f2.txt");
+
+
+
+
+
+
+    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo $notExistingFile -recursive:$true)) -eq "");
+    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo $notExistingDir  -recursive:$true)) -eq "");
+    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d"             -recursive:$true)) -eq "/");
+    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/"            -recursive:$true)) -eq "/");
+    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/*"           -recursive:$true)) -eq "/d1/;/d1/d1/;/d1/d1/f1.txt;/d1/d1/f2.txt;/d1/d2/;/d1/d2/f1.txt;/d1/d2/f2.txt;/d1/f1.txt;/d1/f2.txt;/d2/;/d2/d1/;/d2/d1/f1.txt;/d2/d1/f2.txt;/d2/d2/;/d2/d2/f1.txt;/d2/d2/f2.txt;/d2/d3/;/d2/d3/f1.txt;/d2/d3/f2.txt;/d2/f1.txt;/d2/f2.txt;/f1.txt;/f2.txt");
+    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/*1.txt"      -recursive:$true)) -eq "/d1/d1/f1.txt;/d1/d2/f1.txt;/d1/f1.txt;/d2/d1/f1.txt;/d2/d2/f1.txt;/d2/d3/f1.txt;/d2/f1.txt;/f1.txt");
+    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d?/*1.txt"   -recursive:$true)) -eq "/d1/d1/f1.txt;/d1/d2/f1.txt;/d1/f1.txt;/d2/d1/f1.txt;/d2/d2/f1.txt;/d2/d3/f1.txt;/d2/f1.txt");
+    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d1/*1.txt"   -recursive:$true)) -eq "/d1/d1/f1.txt;/d1/d2/f1.txt;/d1/f1.txt");
+    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/*"           -recursive:$true -includeDirs:$false)) -eq "/d1/d1/f1.txt;/d1/d1/f2.txt;/d1/d2/f1.txt;/d1/d2/f2.txt;/d1/f1.txt;/d1/f2.txt;/d2/d1/f1.txt;/d2/d1/f2.txt;/d2/d2/f1.txt;/d2/d2/f2.txt;/d2/d3/f1.txt;/d2/d3/f2.txt;/d2/f1.txt;/d2/f2.txt;/f1.txt;/f2.txt");
+    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/*"           -recursive:$true -includeFiles:$false)) -eq "/d1/;/d1/d1/;/d1/d2/;/d2/;/d2/d1/;/d2/d2/;/d2/d3/");
+    if((OsIsWindows)){ Assert ( (FsEntryListAsFileSystemInfo "C:/Windows/*.exe" -recursive:$false -includeDirs:$false).Count -gt 0); }
+    Push-Location "$d/"; Assert ( (ArrToStr (FsEntryListAsFileSystemInfo   "d1/f1.txt" -recursive:$false -includeDirs:$true -includeFiles:$true -inclTopDir:$true)) -eq "/d1/f1.txt"); Pop-Location;
+    Push-Location "$d/"; Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "./d1/f1.txt" -recursive:$false -includeDirs:$true -includeFiles:$true -inclTopDir:$true)) -eq "/d1/f1.txt"); Pop-Location;
+    Push-Location "$d/"; Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "./f1.txt"    -recursive:$false)) -eq "/f1.txt"); Pop-Location;
+    Push-Location "$d/"; Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "f1.txt"      -recursive:$false)) -eq "/f1.txt"); Pop-Location;
+    Push-Location "$d/"; Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "./f1.txt"    -recursive:$true)) -eq "/d1/d1/f1.txt;/d1/d2/f1.txt;/d1/f1.txt;/d2/d1/f1.txt;/d2/d2/f1.txt;/d2/d3/f1.txt;/d2/f1.txt;/f1.txt"); Pop-Location;
+    Push-Location "$d/"; Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "f1.txt"      -recursive:$true)) -eq "/d1/d1/f1.txt;/d1/d2/f1.txt;/d1/f1.txt;/d2/d1/f1.txt;/d2/d2/f1.txt;/d2/d3/f1.txt;/d2/f1.txt;/f1.txt"); Pop-Location;
+    #
+    # Test FsEntryListAsStringArray
+    Assert ( (StrArrToStr (FsEntryListAsStringArray "$d"        -recursive:$false -includeDirs:$true -includeFiles:$true -inclTopDir:$true)) -eq "/;/d1/;/d2/;/f1.txt;/f2.txt");
+    Assert ( (StrArrToStr (FsEntryListAsStringArray "$d/d1/d2/" -recursive:$false)) -eq "/d1/d2/f1.txt;/d1/d2/f2.txt");
+    Assert ( (StrArrToStr (FsEntryListAsStringArray "$d/*"      -recursive:$true -includeFiles:$false)) -eq "/d1/;/d1/d1/;/d1/d2/;/d2/;/d2/d1/;/d2/d2/;/d2/d3/");
+    #
+    DirDelete "$d/";
+  } Test_FsEntryListAsFileSystemInfo;
   # TODO: FsEntryDelete                        ( [String] $fsEntry )
   #
   # TODO: FsEntryDeleteToRecycleBin            ( [String] $fsEntry )
@@ -135,11 +237,11 @@ function UnitTest_FsEntry_Dir_File(){
   Assert ((DirSep) -eq $(switch((OsIsWindows)){($true){"\"}($false){"/"}}));
   #
   Assert ((DirExists "") -eq $false);
-  Assert ((DirExists "$HOME/MyDir/AnyUnknownFile_mm2gekmq9xzswkyzgxbwepzs/") -eq $false);
+  Assert ((DirExists $notExistingDir) -eq $false);
   Assert ((DirExists $(switch((OsIsWindows)){($true){"C:\Windows\"}($false){"/home/"}})) -eq $true);
   #
   Assert ((DirNotExists ""));
-  Assert ((DirNotExists "$HOME/MyDir/AnyUnknownFile_mm2gekmq9xzswkyzgxbwepzs/"));
+  Assert ((DirNotExists $notExistingDir));
   Assert ((DirNotExists $(switch((OsIsWindows)){($true){"C:\Windows\"}($false){"/home/"}})) -eq $false);
   #
   # TODO: DirAssertExists                      ( [String] $dir, [String] $text = "Assertion" )
@@ -179,7 +281,7 @@ function UnitTest_FsEntry_Dir_File(){
     WriteText "UTF8BOM"; ReadText "UTF8"   ;                                       Assert ((FileReadContentAsString $src "UTF8"   ) -eq $text0);
     WriteText "Default"; ReadText "Default";                                       Assert ((FileReadContentAsString $src "Default") -eq $text2);
     WriteText "Default"; ReadText "UTF8"   ; if( -not (ProcessIsLesserEqualPs5) ){ Assert ((FileReadContentAsString $src "UTF8"   ) -eq $text2); } # TODO fails in ps5, text is "�CRLF��"
-    if( -not (ProcessIsLesserEqualPs5) ){ # TODO write UTF8 in ps5 currently not implemented
+    if( -not (ProcessIsLesserEqualPs5) ){
       WriteText "UTF8"   ; ReadText "Default";                                       Assert ((FileReadContentAsString $src "Default") -eq $text0);
       WriteText "UTF8"   ; ReadText "UTF8"   ;                                       Assert ((FileReadContentAsString $src "UTF8"   ) -eq $text0);
     }

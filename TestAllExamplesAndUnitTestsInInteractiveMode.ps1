@@ -12,7 +12,9 @@ Write-Output "----- TestAll.ps1 (running examples and all unitests) ----- ";
 Write-Output "----- Load MnCommonPsToolLib.psm1 ----- ";
 Write-Output "Assert powershell module library MnCommonPsToolLib.psm1 exists next this running script. ";
 Push-Location $PSScriptRoot; Pop-Location;
-Test-Path -Path "$PSScriptRoot/MnCommonPsToolLib/MnCommonPsToolLib.psm1" | Should -Be $true;
+if( -not (Test-Path -Path "$PSScriptRoot/MnCommonPsToolLib/MnCommonPsToolLib.psm1") ){
+  throw [Exception] "Missing file: `"$PSScriptRoot/MnCommonPsToolLib/MnCommonPsToolLib.psm1`" ";
+}
 
 Write-Output "Extend PSModulePath by PSScriptRoot";
 [Boolean] $is_windows = (-not (Get-Variable -Name "IsWindows" -ErrorAction SilentlyContinue) -or $IsWindows); # portable PS5/PS7

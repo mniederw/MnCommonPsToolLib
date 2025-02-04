@@ -122,10 +122,11 @@ function OsWinCreateUser                      ( [String] $us, [String] $pw, [Str
                                                   & secedit /export /cfg $tmp | Out-Null; AssertRcIsOk; # export current security policies
                                                   # Example: "SeDenyInteractiveLogonRight = u0,Gast"
                                                   [String[]] $currentDeniedUsers = StringSplitToArray "," ((FileReadContentAsLines $tmp "Default" | Select-String -Pattern "SeDenyInteractiveLogonRight").Line).Replace("SeDenyInteractiveLogonRight = ","");
+                                                    # TODO: try to replace Default by UTF8.
                                                   if( -not (StringArrayContains $currentDeniedUsers $us) ){
                                                     [String] $tmp2 = (FileGetTempFile);
                                                     [String] $content = "[Unicode]`r`nUnicode=yes`r`n[Privilege Rights]`r`nSeDenyInteractiveLogonRight = $us,$($currentDeniedUsers -join ',')`r`n";
-                                                    FileWriteFromString $tmp2 $content $true "Default";
+                                                    FileWriteFromString $tmp2 $content $true "Default"; # TODO: try to replace Default by UTF8.
                                                     OutProgress "& secedit /configure /db 'secedit.sdb' /cfg `"$tmp2`" /areas USER_RIGHTS ; # set SeDenyInteractiveLogonRight";
                                                     try{
                                                       [String] $out = & secedit /configure /db 'secedit.sdb' /cfg $tmp2 /areas USER_RIGHTS 2>&1; AssertRcIsOk $out; # more in "$env:windir\security\logs\scesrv.log"
@@ -1064,7 +1065,7 @@ function InfoAboutSystemInfo                  (){ # Works only on Windows
                                                 $result += "OS-SerialNumber: "+(Get-CimInstance Win32_OperatingSystem|Select-Object -ExpandProperty SerialNumber);
                                                 $result += @( "", "", "List of associations of fileextensions to a filetypes:"   , (& "cmd.exe" "/c" "ASSOC") ); AssertRcIsOk;
                                                 $result += @( "", "", "List of associations of filetypes to executable programs:", (& "cmd.exe" "/c" "FTYPE") ); AssertRcIsOk;
-                                                $result += @( "", "", "List of DefaultAppAssociations:"                          , (FileReadContentAsString $f "Default") );
+                                                $result += @( "", "", "List of DefaultAppAssociations:"                          , (FileReadContentAsString $f "Default") ); # TODO: try to replace Default by UTF8.
                                                 $result += @( "", "", "List of windows feature enabling states:"                 , (& "Dism.exe" "/online" "/Get-Features") ); AssertRcIsOk;
                                                 # For future use:
                                                 # - powercfg /lastwake
@@ -1196,7 +1197,7 @@ function SvnEnvInfoGet                        ( [String] $workDir ){
                                                   Where-Object{ (FsEntryGetFileName $_) -match "^[0-9a-f]{32}$" } |
                                                   Sort-Object));
                                                 foreach( $f in $files ){
-                                                  [String[]] $lines = @()+(FileReadContentAsLines $f -encodingIfNoBom "Default");
+                                                  [String[]] $lines = @()+(FileReadContentAsLines $f -encodingIfNoBom "Default"); # TODO: try to replace Default by UTF8.
                                                   # filecontent example:
                                                   #   K 8
                                                   #   passtype
@@ -1388,7 +1389,7 @@ function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url
                                                   FileAppendLineWithTs $svnLogFile "`"svn`" $logline";
                                                   try{
                                                     & "svn" $opt 2> $tmp | ForEach-Object{ FileAppendLineWithTs $svnLogFile ("  "+$_); OutProgress "$_ " 2; };
-                                                    AssertRcIsOk (FileReadContentAsLines $tmp -encodingIfNoBom "Default") $true;
+                                                    AssertRcIsOk (FileReadContentAsLines $tmp -encodingIfNoBom "Default") $true; # TODO: try to replace Default by UTF8.
                                                     break;
                                                   }catch{
                                                     # exc: "svn: E230001: Server SSL certificate verification failed: issuer is not trusted"
@@ -2146,7 +2147,7 @@ function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [St
                                                   # Example: "$env:APPDATA\Microsoft\Windows\Start Menu\MyPortableProg\Appl\Graphic\Manufactor ProgramName V1 en 2016.lnk"
                                                   [String] $fn = FsEntryGetFileName $f; $fn = StringRemoveRight $fn $srcFileExtMenuLink; $fn = StringRemoveRight $fn $srcFileExtMenuLinkOpt; $fn = $fn.TrimEnd();
                                                   [String] $lnkFile = FsEntryGetAbsolutePath "$m/$relBelowSrcDir/$fn.lnk";
-                                                  [String] $cmdLine = FileReadContentAsLines $f -encodingIfNoBom "Default" | Select-Object -First 1;
+                                                  [String] $cmdLine = FileReadContentAsLines $f -encodingIfNoBom "Default" | Select-Object -First 1; # TODO: try to replace Default by UTF8.
                                                   [String] $addTraceInfo = "";
                                                   [Boolean] $forceRecreate = FileNotExistsOrIsOlder $lnkFile $f;
                                                   [Boolean] $ignoreIfSrcNotExists = $f.EndsWith($srcFileExtMenuLinkOpt);
@@ -2388,7 +2389,7 @@ function ToolInstallOrUpdate                  ( [String] $installMedia, [String]
                                                 } }
 function ToolInstallNuPckMgrAndCommonPsGalMo  (){
                                                 OutProgressTitle     "Install or actualize Nuget Package Manager and from PSGallery some common ps modules: ";
-                                                [String[]] $modules = @(
+                                                [String[]] $moduleNames = @(
                                                   # Predefined on Win  : Microsoft.PowerShell.Core          ; # Std     : Where-Object
                                                   # Predefined on Linux: Microsoft.PowerShell.PSResourceGet ; # Std     : ?
                                                   # Predefined         : Microsoft.PowerShell.Utility       ; # Std     : Write-Output
@@ -2407,86 +2408,106 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){
                                                   # for future use: Microsoft.EntityFrameworkCore.Tools
                                                   # Import-Module Microsoft.PowerShell.Host;"; # seams to be required once for vs-code-terminal-pwsh
                                                    );
-                                                OutProgress "  InstallModules: $modules. And Update-Help. ";
-                                                OutProgress "  Needs about 1 min.";
+                                                OutProgress "Install or update modules and its help: ";
+                                                OutProgress "  $moduleNames ";
                                                 ProcessRestartInElevatedAdminMode;
                                                 OutProgress "Import-Module PowerShellGet:";
                                                 Import-Module "PowerShellGet"; # provides: Set-PSRepository, Install-Module
+                                                #
+                                                OutProgress "List of available ps modules for import to current session ";
+                                                [PSCustomObject[]] $availableModules = Get-Module -ListAvailable | Where-Object{ $null -ne $_ } |
+                                                  Sort-Object Name, Version, ModuleType | Select-Object Name, Version, ModuleType, Path;
+                                                $availableModules | StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
+                                                OutProgress "List of imported modules in current session:";
+                                                Get-Module | Sort-Object Name | Select-Object Name,ModuleType,Version,Path |
+                                                  StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
+                                                OutProgress "List of installed modules (having an installdate):"; # only on PS5 we found the modules "Azure*" having no installdate.
+                                                # Get-InstalledModule -AllVersions  must be called with a single name otherwise we get:
+                                                #   Get-InstalledModule: The RequiredVersion, MinimumVersion, MaximumVersion, AllVersions or AllowPrerelease parameters
+                                                #   are allowed only when you specify a single name as the value of the Name parameter, without any wildcard characters.
+                                                [PSCustomObject[]] $installedModules = Get-InstalledModule | Where-Object{ $null -ne $_ -and $null -ne $_.InstalledDate } | Select-Object Name | 
+                                                  Get-InstalledModule -AllVersions | 
+                                                  Select-Object Name, Version, InstalledDate, UpdatedDate, Dependencies, Repository, PackageManagementProvider, InstalledLocation;
+                                                $installedModules | StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
+                                                #
                                                 OutProgress "List ps gallery repositories: ";
-                                                Get-PSRepository | Select-Object Name, Trusted, Registered, InstallationPolicy, PackageManagementProvider, SourceLocation |
-                                                  StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
+                                                [PSCustomObject[]] $psRepos = Get-PSRepository | Where-Object{ $null -ne $_} | 
+                                                  Select-Object Name, Trusted, Registered, InstallationPolicy, PackageManagementProvider, SourceLocation;
+                                                $psRepos | StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
                                                   # Example: PSGallery True True Trusted NuGet https://www.powershellgallery.com/api/v2
-                                                OutProgress "List installed ps modules ";
-                                                Get-Module -ListAvailable | Sort-Object Name, Version, ModuleType | Select-Object Name, Version, ModuleType, Path |
-                                                  StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
+                                                #
+                                                OutProgress "List of installed package providers:";
+                                                [PSCustomObject[]] $pckProviders = Get-PackageProvider -ListAvailable | Where-Object{ $null -ne $_ } | Sort-Object Name, Version |
+                                                  Select-Object Name, Version; # alternative: DynamicOptions
+                                                $pckProviders | StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
+                                                  # example: Nuget V3.0, PowerShellGet V2.2, PowerShellGet V1.0.
+                                                #
+                                                OutProgress "Make sure we have package provider NuGet in minimum version 2.8.5.201 ";
                                                 if( (ProcessIsLesserEqualPs5) ){
                                                   # On PS7 we would get: Install-PackageProvider: No match was found for the specified search criteria for the provider 'NuGet'.
                                                   #   The package provider requires 'PackageManagement' and 'Provider' tags. Please check if the specified package has the tags.
-                                                  Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force; # PowerShellGet requires minimum NuGet V2.8.5.201
+                                                  # PowerShellGet requires minimum NuGet V2.8.5.201; Needs 2-4 sec.
+                                                  OutProgress "Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force; ";
+                                                               Install-PackageProvider -Name NuGet -MinimumVersion 2.8.5.201 -Force | Select-Object Name, Version, Status, Source |
+                                                    StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
                                                 }
-                                                OutProgress "Set repository PSGallery to trusted: ";
-                                                Set-PSRepository PSGallery -InstallationPolicy Trusted; # uses 14 sec
-                                                OutProgress "List of installed package providers:";
-                                                Get-PackageProvider -ListAvailable | Where-Object{$null -ne $_} |
-                                                  Select-Object Name, Version | # alternative: DynamicOptions
-                                                  StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; }; # example: Nuget V3.0, PowerShellGet V2.2, PowerShellGet V1.0.
+                                                OutProgress "Make sure ps repo PSGallary is trusted ";
+                                                [PSCustomObject] $psGallery = $psRepos | Where-Object{ $_.Name -eq "PSGallery" };
+                                                if( $null -ne $psGallery -and $psGallery.InstallationPolicy -ne "Trusted" ){
+                                                  OutProgress "Set repository PSGallery to trusted: ";
+                                                  Set-PSRepository PSGallery -InstallationPolicy Trusted; # uses 14 sec
+                                                }
                                                 OutProgress "Update NuGet"; # works asynchron
                                                 # On PS7 for "Install-PackageProvider NuGet" we got:
                                                 #   Install-PackageProvider: No match was found for the specified search criteria for the provider 'NuGet'.
                                                 #     The package provider requires 'PackageManagement' and 'Provider' tags. Please check if the specified package has the tags.
                                                 # So we ignore errors.
-                                                Install-PackageProvider -Name NuGet -ErrorAction SilentlyContinue |
+                                                Install-PackageProvider -Name NuGet -ErrorAction SilentlyContinue | Where-Object{ $null -ne $_} |
                                                   Select-Object Name, Version, Status, Source |
-                                                  StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
-                                                OutProgress "List of modules:";
-                                                Get-Module | Sort-Object Name | Select-Object Name,ModuleType,Version,Path |
-                                                  StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
-                                                OutProgress "List of installed modules having an installdate:";
-                                                Get-InstalledModule | Where-Object{$null -ne $_ -and $null -ne $_.InstalledDate } |
-                                                  Select-Object Name | Get-InstalledModule -AllVersions |
-                                                  Select-Object Name, Version, InstalledDate, UpdatedDate, Dependencies, Repository, PackageManagementProvider, InstalledLocation |
-                                                  StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
+                                                  StreamToTableString | StreamToStringIndented | Where-Object{ $_.Trim() -ne ""} | ForEach-Object{ OutProgress $_; }; # Needs 1 sec.
                                                 # https://docs.microsoft.com/en-us/powershell/scripting/how-to-use-docs?view=powershell-7.2  take lts version
                                                 # alternatives: Install-Module -Force [-MinimumVersion <String>] [-MaximumVersion <String>] [-RequiredVersion <String>]
-                                                try{
-                                                  OutProgress "Install-Module -AcceptLicense -Scope AllUsers -Name ($modules); ";
-                                                  Install-Module              -AcceptLicense -Scope AllUsers -Name $modules 3>&1 | ForEach-Object{ "$_" } |
-                                                    Where-Object{ -not $_.StartsWith("WARNING: Version ") } |
-                                                    StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
-                                                    # 2024-09: We get:
-                                                    #   WARNING: Version '2.2.1.4' of module 'PSWindowsUpdate' is already installed at 'C:\Program Files\PowerShell\Modules\PSWindowsUpdate\2.2.1.4'.
-                                                    #     To install version '2.2.1.5', run Install-Module and add the -Force parameter, this command will install version '2.2.1.5' side-by-side with version '2.2.1.4'                                                                                  .
-                                                    #   WARNING: Version '3.4.0' of module 'Pester' is already installed at 'C:\Program Files\WindowsPowerShell\Modules\Pester\3.4.0'.
-                                                    #     To install version '5.6.1', run Install-Module and add the -Force parameter, this command will install version '5.6.1' side-by-side with version '3.4.0'.
-                                                    # for future use: -Force
-                                                }catch{
-                                                  # Install-Module : A parameter cannot be found that matches parameter name 'AcceptLicense'. ParameterBindingException
-                                                  [String] $msg = $_.Exception.Message;
-                                                  OutProgress "Failed because $msg";
-                                                  OutProgress "Sometimes it failed for example on PS5 because unknown parameter AcceptLicense, so we retry without it. ";
-                                                  OutProgress "Install-Module -Scope AllUsers -Name $modules; ";
-                                                  Install-Module              -Scope AllUsers -Name $modules;
-                                                }
-                                                # 2024-03: On PS7 we would get: Update-Module: Module 'PsReadline' was not installed by using Install-Module, so it cannot be updated.
-                                                $modules = $modules | Where-Object{ (ProcessIsLesserEqualPs5) -or $_ -ne "PsReadline" }; # remove PsReadline for PS7
-                                                OutProgress "Update  modules: $modules ";
-                                                try{
-                                                  Update-Module -AcceptLicense -Scope AllUsers -Name $modules 3>&1 | ForEach-Object{ "$_" } |
+                                                OutProgress "Install or update required modules ";
+                                                function InstallOrUpdateModule( [String] $module ){
+                                                  [Boolean] $isNotInstalled = (@()+($installedModules | Where-Object{ $null -ne $_ -and $_.Name -eq $module })).Count -eq 0;
+                                                  [String[]] $out = @();
+                                                  if( $isNotInstalled ){
+                                                    if( (ProcessIsLesserEqualPs5) ){ # has no AcceptLicense option
+                                                      OutProgress "Install-Module                -Scope AllUsers -Name $module; ";
+                                                      $out =       Install-Module                -Scope AllUsers -Name $module 3>&1;
+                                                    }else{
+                                                      OutProgress "Install-Module -AcceptLicense -Scope AllUsers -Name $module; ";
+                                                      $out =       Install-Module -AcceptLicense -Scope AllUsers -Name $module 3>&1;
+                                                    }
+                                                    $out | ForEach-Object{ "$_" } | Where-Object{ -not $_.StartsWith("WARNING: Version ") } |
+                                                      StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
+                                                      # 2024-09: We get:
+                                                      #   WARNING: Version '2.2.1.4' of module 'PSWindowsUpdate' is already installed at 'C:\Program Files\PowerShell\Modules\PSWindowsUpdate\2.2.1.4'.
+                                                      #     To install version '2.2.1.5', run Install-Module and add the -Force parameter, this command will install version '2.2.1.5' side-by-side with version '2.2.1.4'                                                                                  .
+                                                      #   WARNING: Version '3.4.0' of module 'Pester' is already installed at 'C:\Program Files\WindowsPowerShell\Modules\Pester\3.4.0'.
+                                                      #     To install version '5.6.1', run Install-Module and add the -Force parameter, this command will install version '5.6.1' side-by-side with version '3.4.0'.
+                                                      # for future use: PowerShellGet -Force
+                                                      #   2025-01: but we get: WARNING: The version '1.4.8.1' of module 'PackageManagement' is currently in use. Retry the operation after closing the applications.
+                                                  }
+                                                  if( -not (ProcessIsLesserEqualPs5) -and $module -eq "PsReadline" ){
+                                                    # 2024-03: On PS7 we would get: Update-Module: Module 'PsReadline' was not installed by using Install-Module, so it cannot be updated.
+                                                    OutProgress "On PS7 we cannot update PsReadline because it was not installed by using Install-Module ";
+                                                    return;
+                                                  }
+                                                  OutProgress "Update module: $module ";
+                                                  [String[]] $out = @();
+                                                  if( (ProcessIsLesserEqualPs5) ){ # has no scope parameter
+                                                    OutProgress "Update-Module -ErrorAction SilentlyContinue                                -Name $module; ";
+                                                    $out =       Update-Module -ErrorAction SilentlyContinue                                -Name $module 3>&1;
+                                                  }else{
+                                                    OutProgress "Update-Module -ErrorAction SilentlyContinue -AcceptLicense -Scope AllUsers -Name $module; ";
+                                                    $out =       Update-Module -ErrorAction SilentlyContinue -AcceptLicense -Scope AllUsers -Name $module 3>&1;
+                                                  }
+                                                  $out | ForEach-Object{ "$_" } |
                                                     StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
                                                     # Example: "Module 'PowerShellGet' was not installed by using Install-Module, so it cannot be updated."
-                                                }catch{
-                                                  # 2023-10: option AcceptLicense not exists ...
-                                                  # 2024-09: "Module 'PowerShellGet' was not installed by using Install-Module, so it cannot be updated."
-                                                  OutWarning "Warning: Update-Module failed because $($_.Exception.Message), ignored.";
-                                                  OutProgress "Sometimes it failed for example on PS5 because unknown parameter AcceptLicense, so we retry without it. ";
-                                                  if( (ProcessIsLesserEqualPs5) ){ # has no scope parameter
-                                                    OutProgress "Update-Module -ErrorAction SilentlyContinue                 -Name $modules; ";
-                                                    Update-Module              -ErrorAction SilentlyContinue                 -Name $modules;
-                                                  }else{
-                                                    OutProgress "Update-Module -ErrorAction SilentlyContinue -Scope AllUsers -Name $modules; ";
-                                                    Update-Module              -ErrorAction SilentlyContinue -Scope AllUsers -Name $modules;
-                                                  }
                                                 }
+                                                $moduleNames | Where-Object{ $null -ne $_ } | ForEach-Object{ InstallOrUpdateModule $_; };
                                                 #
                                                 OutProgress "Uninstall old versions of modules: ";
                                                 Get-InstalledModule | ForEach-Object {
@@ -2497,23 +2518,20 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){
                                                 #
                                                 OutProgress "Update-Help to en-US with continue-on-error ";
                                                 Update-Help -UICulture en-US -ErrorAction Continue *>&1 | ForEach-Object{ "$_" } | ForEach-Object{ OutProgress "  $_"; };
-                                                  # Example: 2024-07-23 17:09:48 Failed to update Help for the module(s) 'PSReadline, WindowsUpdateProvider' with UI culture(s) {en-US} : One or more errors occurred. (Response status code does not indicate success: 404 (Not Found).).
-                                                  #                              English-US help content is available and can be installed using: Update-Help -UICulture en-US.
-                                                  # Example: 2024-09-09 00:09:37 Failed to update Help for the module(s) 'ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate' with UI culture(s) {en-US} : One or more errors occurred. (Response status code does not indicate success: 404 (The specified blob does not exist.).).
-                                                  #                              English-US help content is available and can be installed using: Update-Help -UICulture en-US.
+                                                  # Example: 2024-07 Failed to update Help for the module(s) 
+                                                  #   'PSReadline, WindowsUpdateProvider' with UI culture(s) {en-US} : One or more errors occurred. 
+                                                  #   (Response status code does not indicate success: 404 (Not Found).).
+                                                  #   English-US help content is available and can be installed using: Update-Help -UICulture en-US.
+                                                  # Example: 2025-01 Failed to update Help for the module(s)
+                                                  #   'ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate' with UI culture(s) {en-US} : 
+                                                  #   One or more errors occurred. (Response status code does not indicate success: 404 (The specified blob does not exist.).).
+                                                  #   English-US help content is available and can be installed using: Update-Help -UICulture en-US.
                                                 OutProgress "Update-Help to current Culture with continue-on-error: $((Get-Culture).Name) = $((Get-Culture).DisplayName)"; # Example: "de-CH"
-                                                (Update-Help                  -ErrorAction Continue *>&1) | ForEach-Object{ OutProgress "  $_"; };
-                                                  # 2024-04: On PS7: Update-Help: Failed to update Help for the module(s) 'PSReadline, WindowsUpdateProvider' with UI culture(s) {en-US} : One or more errors occurred.
-                                                  #   (Response status code does not indicate success: 404 (Not Found).). English-US help content is available and can be installed using: Update-Help -UICulture en-US.
-                                                  # 2024-03: On PS5: Fehler beim Aktualisieren von Hilfe für die Module "HostNetworkingService, PSReadline, WindowsUpdateProvider"
-                                                  #   mit den Benutzeroberflächenkulturen {de-DE}: Die XML-Datei "HelpInfo" für die Benutzeroberflächenkultur de-DE kann nicht abgerufen werden.
-                                                  #   Stellen Sie sicher, dass die HelpInfoUri-Eigenschaft im Modulmanifest gültig ist, oder überprüfen Sie die Netzwerkverbindung, und führen Sie den Befehl dann erneut aus.
-                                                  # 2022-02: update-help : Failed to update Help for the module(s) 'ConfigDefender, PSReadline' with UI culture(s) {en-US} :
-                                                  #   Unable to retrieve the HelpInfo XML file for UI culture en-US.
-                                                  #   Make sure the HelpInfoUri property in the module manifest is valid or check your network connection and then try the command again.
+                                                Update-Help -ErrorAction Continue *>&1 | ForEach-Object{ OutProgress "  $_"; };
+                                                  # same errors as with en-US
                                                 #
                                                 OutProgress "List of installed modules having an installdate:";
-                                                Get-InstalledModule | Where-Object{$null -ne $_ -and $null -ne $_.InstalledDate } |
+                                                Get-InstalledModule | Where-Object{ $null -ne $_ -and $null -ne $_.InstalledDate } |
                                                   Select-Object Name | Get-InstalledModule -AllVersions |
                                                   Select-Object Name, Version, InstalledDate, UpdatedDate, Dependencies, Repository, PackageManagementProvider, InstalledLocation |
                                                   StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
