@@ -34,7 +34,7 @@
   }
   #HelpInfoURI            = '';
 
-  ModuleVersion          = '7.78';
+  ModuleVersion          = '7.79';
 
   <#
   Releasenotes
@@ -43,6 +43,7 @@
   Major version will reflect breaking changes, minor identifies extensions and third number identifies urgent bugfixes.
   Breaking changes are usually removed deprecated functions or changed behaviours.
 
+  2025-02-04  V7.79  Suppress warning. Improve FsEntryListAsFileSystemInfo Rename FsEntryFsInfoFullNameDirWithBackSlash to FsEntryFsInfoFullNameDirWithTrailDSep. Prepare for default utf8. Modify install nuget.
   2025-01-05  V7.78  Improve NetDownloadSite.
   2025-01-02  V7.77  DirNotExists allow empty string; Extend ProcessStart. Improve OsWindowsRegRunDisable.
   2024-12-26  V7.76  Fix CreateUser.

@@ -81,7 +81,8 @@ jobs:
       - name: Test all
         shell: pwsh
         run: |
-          & "./TestAll.ps1";
+          echo "Run ./TestAllExamplesAndUnitTestsInInteractiveMode.ps1 with closed input-stream.";
+          & "./TestAllExamplesAndUnitTestsInInteractiveMode.ps1";
 
   Merge:
     runs-on: ubuntu-latest  # must run on linux because tool for creating pr

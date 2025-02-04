@@ -150,8 +150,6 @@ GlobalVariablesInit;
 Add-Type -Name Window -Namespace Console -MemberDefinition '[DllImport("Kernel32.dll")] public static extern IntPtr GetConsoleWindow(); [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, Int32 nCmdShow);';
 # Function: [Window]::GetWindowRect ; Function: [Window]::MoveWindow ; Type: RECT ;
 Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class Window { [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect); [DllImport("User32.dll")] public extern static bool MoveWindow(IntPtr handle, int x, int y, int width, int height, bool redraw); } public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }';
-# Type: ServerCertificateValidationCallback ;
-Add-Type -TypeDefinition "using System;using System.Net;using System.Net.Security;using System.Security.Cryptography.X509Certificates; public class ServerCertificateValidationCallback { public static void Ignore() { ServicePointManager.ServerCertificateValidationCallback += delegate( Object obj, X509Certificate certificate, X509Chain chain, SslPolicyErrors errors ){ return true; }; } } ";
 Add-Type -WarningAction SilentlyContinue -TypeDefinition "using System; public class ExcMsg : Exception { public ExcMsg(String s):base(s){} } ";
   # Used for error messages which have a text which will be exact enough so no additionally information as stackdump or data are nessessary. Is handled in our StdErrHandleExc.
   # Note: we need to suppress the warning: The generated type defines no public methods or properties
@@ -597,7 +595,7 @@ function AssertIsEmpty                        ( [String] $s, [String] $varName =
 function AssertNotEmpty                       ( [String] $s, [String] $varName = "given value"){
                                                 Assert ($s -ne "") "not allowed empty string for $(ScriptGetCurrentFuncChain)$varName."; }
 function AssertRcIsOk                         ( [String[]] $linesToOutProgress = "", [Boolean] $useLinesAsExcMessage = $false,
-                                                [String] $logFileToOutProgress = "", [String] $encodingIfNoBom = "Default" ){
+                                                [String] $logFileToOutProgress = "", [String] $encodingIfNoBom = "Default" ){ # TODO change this to UTF8
                                                 # Asserts success status of last statement and wether code of last exit or native command was zero.
                                                 # In case it was not ok it optionally outputs given progress information and throws.
                                                 # Only nonempty progress lines are given out.
@@ -739,7 +737,7 @@ function OsPsModulePathList                   (){ # return content of $env:PSMod
                                                 #   $HOME\Documents\PowerShell\Modules\
                                                 #   C:\Program Files\PowerShell\Modules\
                                                 #   c:\program files\powershell\7\Modules\
-                                                # Note: If a single backslash is part of the PSModulePath then autocompletion is very slow (2017-08).
+                                                # Note: If a single dir-separator is part of the PSModulePath then autocompletion is very slow (2017-08).
                                                 return [String[]] (@()+(([Environment]::GetEnvironmentVariable("PSModulePath","Machine").
                                                   Split((OsPathSeparator),[System.StringSplitOptions]::RemoveEmptyEntries)) | Where-Object{$null -ne $_} |
                                                   ForEach-Object{ FsEntryMakeTrailingDirSep $_ })); }
@@ -1093,7 +1091,7 @@ function FsEntryEsc                           ( [String] $fsentry ){ # Escaping 
                                                 return [String] [Management.Automation.WildcardPattern]::Escape($fsentry); }
 function FsEntryUnifyDirSep                   ( [String] $fsEntry ){ return [String] ($fsEntry -replace "[\\/]",(DirSep)); }
 function FsEntryGetAbsolutePath               ( [String] $fsEntry ){ # Works without IO, so no check to file system; does not remove a trailing dir-separator. Return empty for empty input.
-                                                # Convert dir-separators slashes or backslashes to correct os dependent dir separators.
+                                                # Convert dir-separators (slashes or backslashes) to correct os dependent dir-separators.
                                                 # On windows for entries as "C:" it returns "C:\".
                                                 # Note: We cannot use (Resolve-Path -LiteralPath $fsEntry) because it will throw if path not exists,
                                                 # see http://stackoverflow.com/questions/3038337/powershell-resolve-path-that-might-not-exist
@@ -1143,9 +1141,9 @@ function FsEntryHasTrailingDirSep             ( [String] $fsEntry ){ return [Boo
 function FsEntryAssertHasTrailingDirSep       ( [String] $fsEntry ){ if( $fsEntry -eq "" -or (FsEntryHasTrailingDirSep $fsEntry) ){ return; }
                                                 OutWarning "Warning: For specifying a dir it expects a trailing dir separator for: `"$fsEntry`". NOTE: In MnCommonPsToolLib V7.x this is only a warning, but in next version this will throw! "; return;
                                                 throw [Exception] "For specifying a dir it expects a trailing dir separator for: `"$fsEntry`""; }
-function FsEntryRemoveTrailingDirSep          ( [String] $fsEntry ){ [String] $r = $fsEntry;
+function FsEntryRemoveTrailingDirSep          ( [String] $fsEntry ){ [String] $r = FsEntryGetAbsolutePath $fsEntry;
                                                 if( $r -ne "" ){ while( FsEntryHasTrailingDirSep $r ){ $r = $r.Remove($r.Length-1); }
-                                                if( $r -eq "" ){ $r = $fsEntry; } } return [String] (FsEntryGetAbsolutePath $r); }
+                                                if( $r -eq "" ){ $r = $fsEntry; } } return [String] $r; }
 function FsEntryRelativeMakeTrailingDirSep    ( [String] $fsEntry ){ return [String] ($fsEntry + $(switch($fsEntry -ne "" -and -not (FsEntryHasTrailingDirSep $fsEntry)){($true){(DirSep)}($false){""}})); } # if fsEntry is empty then it returns empty.
 function FsEntryMakeTrailingDirSep            ( [String] $fsEntry ){ return [String] (FsEntryGetAbsolutePath (FsEntryRelativeMakeTrailingDirSep $fsEntry)); }
 function FsEntryJoinRelativePatterns          ( [String] $rootDir, [String[]] $relativeFsEntriesPatternsSemicolonSeparated ){
@@ -1168,7 +1166,7 @@ function FsEntryGetFileExtension              ( [String] $fsEntry ){
 function FsEntryGetDrive                      ( [String] $fsEntry ){ # Example: "C:"
                                                 return [String] (Split-Path -Qualifier (FsEntryGetAbsolutePath $fsEntry)); }
 function FsEntryIsDir                         ( [String] $fsEntry ){ return [Boolean] (Get-Item -Force -LiteralPath $fsEntry).PSIsContainer; } # empty string not allowed
-function FsEntryGetParentDir                  ( [String] $fsEntry ){ # Returned path contains trailing backslash; for c:\ or \\mach\share it returns empty string;
+function FsEntryGetParentDir                  ( [String] $fsEntry ){ # Returned path contains trailing dir-separator; for c:\ or \\mach\share it returns empty string;
                                                 return [String] (FsEntryMakeTrailingDirSep (Split-Path -LiteralPath (FsEntryGetAbsolutePath $fsEntry))); }
 function FsEntryExists                        ( [String] $fsEntry ){ return [Boolean] (Test-Path -LiteralPath $fsEntry); }
 function FsEntryNotExists                     ( [String] $fsEntry ){
@@ -1208,61 +1206,73 @@ function FsEntryFindFlatSingleByPattern       ( [String] $fsEntryPattern, [Boole
                                                 if( $r.Count -eq 0 ){ if( $allowNotFound ){ return [String] ""; } throw [Exception] "No file exists: `"$fsEntryPattern`""; }
                                                 if( $r.Count -gt 1 ){ throw [Exception] "More than one file exists: `"$fsEntryPattern`""; }
                                                 return [String] $r[0].FullName; }
-function FsEntryFsInfoFullNameDirWithBackSlash( [System.IO.FileSystemInfo] $fsInfo ){ # TODO later rename this function
+function FsEntryFsInfoFullNameDirWithTrailDSep( [System.IO.FileSystemInfo] $fsInfo ){
                                                 return [String] ($fsInfo.FullName+$(switch($fsInfo.PSIsContainer){($true){$(DirSep)}default{""}})); }
 function FsEntryListAsFileSystemInfo          ( [String] $fsEntryPattern, [Boolean] $recursive = $true, [Boolean] $includeDirs = $true, [Boolean] $includeFiles = $true, [Boolean] $inclTopDir = $false ){
                                                 # List entries specified by a pattern, which applies to files and directories and which can contain wildards (*,?).
+                                                # Examples for fsEntryPattern: "C:/*.tmp", "./dir/*.tmp", "dir/te?*.tmp", "*/dir/*.tmp", "dir/*", "./bin/", "bin/", "f*.tmp" .
                                                 # Internally it uses Get-Item and Get-ChildItem.
-                                                # If inclTopDir is true (and includeDirs is true and no wildcards are used and so a single dir is specified) then the dir itself is included.
-                                                # Examples for fsEntryPattern: "C:\*.tmp", ".\dir\*.tmp", "dir\te?*.tmp", "*\dir\*.tmp", "dir\*", "bin\".
-                                                # Output is unsorted. Ignores case and access denied conditions. If not found an entry then an empty array is returned.
-                                                # It works with absolute or relative paths. A leading ".\" for relative paths is optional.
-                                                # If recursive is specified then it applies pattern matching of last specified part (.\*.tmp;.\Bin\) in each sub dir.
-                                                # Wildcards on parent dir parts are also allowed ("dir*\*.tmp","*\*.tmp").
-                                                # It work as intuitive as possible, but here are more detail specifications:
-                                                #   If no wildcards are used then behaviour is the following:
-                                                #     In non-recursive mode and if pattern matches a file (".\f.txt") then it is listed,
-                                                #     and if pattern matches a dir (".\dir") its content is listed flat.
-                                                #     In recursive mode the last backslash separated part of the pattern ("f.txt" or "dir") is searched in two steps,
-                                                #     first if it matches a file (".\f.txt") then it is listed, and if matches a dir (".\dir") then its content is listed deeply,
-                                                #     second if pattern was not yet found then it searches for it recursively and lists the found entries but even if it is a dir then its content is not listed.
-                                                # Trailing backslashes:  Are handled in powershell quite curious:
-                                                #   In non-recursive mode they are handled as they are not present, so files are also matched ("*\myfile\").
-                                                #   In recursive mode they wrongly match only files and not directories ("*\myfile\") and
-                                                #   so parent dir parts (".\*\dir\" or "d1\dir\") would not be found for unknown reasons.
-                                                #   On Windows very strange is that (CD "C:\Windows"; CD "C:"; Get-Item "C:";) does not list "C:\" but it lists unexpectedly
-                                                #   the current directory of that drive. The (Get-Item "C:\*") works as expected correctly.
-                                                #   So we interpret a trailing backslash as it would not be present with the exception that
-                                                #     If pattern contains a trailing backslash then pattern "\*\" will be replaced by ("\.\").
-                                                #   If pattern is a drive as "C:" or "C:\" then it is converted to "C:\*" to avoid the unexpected listing of current dir of that drive.
+                                                # If inclTopDir and includeDirs are true and a single dir is specified then the dir itself is included.
+                                                # Output is unsorted. Ignores access denied conditions. If not found an entry then an empty array is returned.
+                                                # It works with absolute or relative paths. A leading "./" for relative paths is optional.
+                                                # Wildcards on dir parts are also allowed ("dir*/*.tmp","*/*.tmp"). If no dir part is specified then it takes "./".
+                                                # Dependent on the recursive flag it work in two different modes:
+                                                # - If non-recursive then the pattern matches the fs-entries flat,
+                                                #   if it matches dirs ("./dir?") then they are listed flat and if it matches a file ("./f.txt") then this is listed.
+                                                #   If wildcards are used in dir parts (topdir*/dir*/f.*) then it also matches these subdirs on specified levels.
+                                                # - If recursive is specified then it splits the $fsEntryPattern (ex1: any/*.tmp; ex2: any*/Bin*/) into two parts,
+                                                #   the directory part (any/ ;any*/) which is matching flat one or more dirs (found dirs)
+                                                #   and the last specified part (ex1: *.tmp; ex2: Bin*/) which is matching deeply fs-entry-names in all found dirs.
                                                 AssertNotEmpty $fsEntryPattern "pattern";
                                                 [String] $pa = $fsEntryPattern;
-                                                [Boolean] $trailingBackslashMode = (FsEntryHasTrailingDirSep $pa);
-                                                if( $trailingBackslashMode ){
+                                                OutVerbose "FsEntryListAsFileSystemInfo `"$pa`" recursive=$recursive includeDirs=$includeDirs includeFiles=$includeFiles";
+                                                # Trailing dir-separators for Get-ChildItem:  Are handled in powershell quite curious:
+                                                #   In non-recursive mode they are handled as they are not present, so files are also matched ("*/myfile/").
+                                                #   In recursive mode they wrongly match only files and not directories ("*/myfile/") and
+                                                #     so dir parts ("./*/dir/" or "d1/dir/") would not be found for unknown reasons.
+                                                # On Windows very strange is that (CD "C:/Windows"; CD "C:"; Get-Item "C:";) does not list "C:/"
+                                                #   but it lists unexpectedly the current directory of that drive.
+                                                #   The (Get-Item "C:/*") works as expected correctly.
+                                                # So we interpret a trailing dir-separator as it would not be present with the exception that
+                                                #   If pattern contains a trailing dir-separator then pattern "/*/" will be replaced by ("/./").
+                                                #   If pattern is a drive as "C:" or "C:/" then it is converted to "C:/*" to avoid the unexpected listing of current dir of that drive.
+                                                [Boolean] $trailingDirSepMode = (FsEntryHasTrailingDirSep $pa);
+                                                if( $trailingDirSepMode ){
                                                   $pa = FsEntryRemoveTrailingDirSep $pa;
                                                 }
-                                                OutVerbose "FsEntryListAsFileSystemInfo `"$pa`" recursive=$recursive includeDirs=$includeDirs includeFiles=$includeFiles";
-                                                [System.IO.FileSystemInfo[]] $result = @();
-                                                if( $trailingBackslashMode -and ($pa.Contains("\*\") -or $pa.Contains("/*/")) ){
+                                                if( $trailingDirSepMode -and ($pa.Contains("\*\") -or $pa.Contains("/*/")) ){
                                                   # enable that ".\*\dir\" can also find dir as top dir
                                                   $pa = $pa.Replace("\*\","\.\").Replace("/*/","/./"); # Otherwise Get-ChildItem would find dirs.
                                                 }
-                                                if( $pa -match "^[a-z]\:[\/\\]?$" ){ $pa = "$($pa[0]):$(DirSep)*"; }
+                                                if( $pa -match "^[a-z]\:[\/\\]?$" ){ $pa = "$($pa[0]):$(DirSep)*"; } # from "C:" or "C:/" make "C:/"
+                                                #
+                                                [System.IO.FileSystemInfo[]] $result = @();
                                                 if( $inclTopDir -and $includeDirs -and -not ($pa -eq "*" -or $pa.EndsWith("$(DirSep)*")) ){
                                                   $result += @()+((Get-Item -Force -ErrorAction SilentlyContinue -Path $pa) |
                                                     Where-Object{$null -ne $_} | Where-Object{ $_.PSIsContainer });
                                                 }
+                                                [Object] $incl = "*"; # is an object because we require a nullable string
+                                                if( $recursive ){
+                                                  if( -not ($pa.Contains("\") -or $pa.Contains("/")) ){
+                                                    $pa = "./$pa";
+                                                  }
+                                                  $incl = Split-Path -Path $pa -Leaf;
+                                                  $pa   = Split-Path -Path $pa;
+                                                }else{
+                                                  $incl = $null;
+                                                }
                                                 try{
-                                                  $result += (@()+(Get-ChildItem -Force -ErrorAction SilentlyContinue -Recurse:$recursive -Path $pa |
+                                                  OutVerbose      "Get-ChildItem -Force -ErrorAction SilentlyContinue -Recurse:`$$recursive -Path `"$pa`" -Include `"$incl`" ; # includeDirs=$includeDirs includeFiles=$includeFiles ";
+                                                  $result += (@()+(Get-ChildItem -Force -ErrorAction SilentlyContinue -Recurse:$recursive   -Path   $pa   -Include   $incl |
                                                     Where-Object{$null -ne $_} |
                                                     Where-Object{ ($includeDirs -and $includeFiles) -or ($includeDirs -and $_.PSIsContainer) -or ($includeFiles -and -not $_.PSIsContainer) }));
                                                 }catch [System.UnauthorizedAccessException] { # BUG: why is this not handled by SilentlyContinue?
-                                                  OutWarning "Warning: Ignoring UnauthorizedAccessException for Get-ChildItem -Force -ErrorAction SilentlyContinue -Recurse:$recursive -Path `"$pa`"";
+                                                  OutWarning "Warning: Ignoring UnauthorizedAccessException for Get-ChildItem -Force -ErrorAction SilentlyContinue -Recurse:`$$recursive -Path `"$pa`"";
                                                 } return [System.IO.FileSystemInfo[]] $result; }
 function FsEntryListAsStringArray             ( [String] $fsEntryPattern, [Boolean] $recursive = $true, [Boolean] $includeDirs = $true, [Boolean] $includeFiles = $true, [Boolean] $inclTopDir = $false ){
-                                                # Output of directories will have a trailing backslash. more see FsEntryListAsFileSystemInfo.
+                                                # Output of directories will have a trailing dir-separator. more see FsEntryListAsFileSystemInfo.
                                                 return [String[]] (@()+(FsEntryListAsFileSystemInfo $fsEntryPattern $recursive $includeDirs $includeFiles $inclTopDir | Where-Object{$null -ne $_} |
-                                                  ForEach-Object{ FsEntryFsInfoFullNameDirWithBackSlash $_} )); }
+                                                  ForEach-Object{ FsEntryFsInfoFullNameDirWithTrailDSep $_} )); }
 function FsEntryDelete                        ( [String] $fsEntry ){ # depends strongly on trailing dir separator
                                                 if( (FsEntryHasTrailingDirSep $fsEntry) ){ DirDelete $fsEntry; }else{ FileDelete $fsEntry; } }
 function FsEntryDeleteToRecycleBin            ( [String] $fsEntry ){
@@ -1470,7 +1480,7 @@ function FsEntryResetTs                       ( [String] $fsEntry, [Boolean] $re
                                                 FsEntryAssertExists $fsEntry; [Boolean] $inclDirs = $true;
                                                 if( -not (FsEntryIsDir $fsEntry) ){ $recursive = $false; $inclDirs = $false; }
                                                 FsEntryListAsFileSystemInfo $fsEntry $recursive $true $true $true | Where-Object{$null -ne $_} | ForEach-Object{
-                                                  [String] $f = $(FsEntryFsInfoFullNameDirWithBackSlash $_);
+                                                  [String] $f = $(FsEntryFsInfoFullNameDirWithTrailDSep $_);
                                                   OutProgress "Set $(DateTimeAsStringIso $ts) of $(DateTimeAsStringIso $_.LastWriteTime) $f";
                                                   try{ $_.LastWriteTime = $ts; $_.CreationTime = $ts; $_.LastAccessTime = $ts;
                                                   }catch{
@@ -1499,9 +1509,10 @@ function DriveFreeSpace                       ( [String] $driveLetter ){ return 
 function DirSep                               (){ return [Char] [IO.Path]::DirectorySeparatorChar; }
 function DirExists                            ( [String] $dir ){
                                                 FsEntryAssertHasTrailingDirSep $dir;
+                                                if( $dir -eq "" ){ return [Boolean] $false; }
                                                 try{ return [Boolean] (Test-Path -PathType Container -LiteralPath $dir); }
                                                 catch{ throw [Exception] "$(ScriptGetCurrentFunc)($dir) failed because $($_.Exception.Message)"; } }
-function DirNotExists                         ( [String] $dir ){ FsEntryAssertHasTrailingDirSep $dir; return [Boolean] -not (DirExists $dir); }
+function DirNotExists                         ( [String] $dir ){ return [Boolean] -not (DirExists $dir); }
 function DirAssertExists                      ( [String] $dir, [String] $text = "Assertion" ){
                                                 FsEntryAssertHasTrailingDirSep $dir;
                                                 if( -not (DirExists $dir) ){ throw [Exception] "$text failed because dir not exists: `"$dir`"."; } }
@@ -1562,12 +1573,12 @@ function FileNotExistsOrIsOlder               ( [String] $ftar, [String] $fsrc )
                                                 return [Boolean] -not (FileExistsAndIsNewer $ftar $fsrc); }
 function FileReadContentAsString              ( [String] $file, [String] $encodingIfNoBom ){
                                                 # Note: encodingIfNoBom is in general "Default" or "UTF8" and has no default argument because this value is essential to work on multiplatforms.
-                                                # Encoding "Default" is ansi on windows and utf8 on other platforms.
+                                                # Encoding "Default" is ansi on windows and utf8 on other platforms, so this is not consistent and so should not be used.
                                                 # In future also on windows the default will be UTF8 to support multi platform compatibility.
                                                 return [String] (Get-Content -Raw -Encoding $encodingIfNoBom -LiteralPath $file); }
 function FileReadContentAsLines               ( [String] $file, [String] $encodingIfNoBom ){
                                                 # Note: encodingIfNoBom is in general "Default" or "UTF8" and has no default argument because this value is essential to work on multiplatforms.
-                                                # Encoding "Default" is ansi on windows and utf8 on other platforms.
+                                                # Encoding "Default" is ansi on windows and utf8 on other platforms, so this is not consistent and so should not be used.
                                                 # In future also on windows the default will be UTF8 to support multi platform compatibility.
                                                 OutVerbose "FileReadContentAsLines $encodingIfNoBom `"$file`" ";
                                                 return [String[]] (@()+(Get-Content -Encoding $encodingIfNoBom -LiteralPath $file)); }
@@ -1579,7 +1590,12 @@ function FileWriteFromString                  ( [String] $file, [String] $conten
                                                 $file = FsEntryGetAbsolutePath $file;
                                                 if( -not $quiet ){ OutProgress "WriteFile$(switch($overwrite){($true){'-ByOverwrite'}($false){''}}) $file"; }
                                                 FsEntryCreateParentDir $file;
-                                                if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8" ){ throw [Exception] "FileWriteFromString with UTF8 (NO-BOM) on PS5.1 or lower is not yet implemented."; } # TODO
+                                                if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8" ){
+                                                  # FileWriteFromString with UTF8 (NO-BOM) on PS5.1 or lower is not natively supported. So we apply a workaround
+                                                  $utf8NoBomEncoding = New-Object System.Text.UTF8Encoding($false);
+                                                  [System.IO.File]::WriteAllText($file, $content, $utf8NoBomEncoding);
+                                                  return;
+                                                }
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
                                                 Out-File -NoNewline -Force -NoClobber:$(-not $overwrite) -Encoding $encoding -Inputobject $content -LiteralPath $file; }
                                                 # alternative: Set-Content -Encoding $encoding -Path (FsEntryEsc $file) -Value $content; but this would lock file,
@@ -1608,7 +1624,7 @@ function FileAppendLines                      ( [String] $file, [String[]] $line
 function FileGetTempFile                      (){ return [String] [System.IO.Path]::GetTempFileName(); } # Example on linux: "/tmp/tmpFN3Gnz.tmp"; on windows: C:\Windows\Temp\tmpE3B6.tmp
 function FileDelTempFile                      ( [String] $file ){ FileDelete $file -traceCmd:$false; } # As FileDelete but no progress msg.
 function FileReadEncoding                     ( [String] $file ){
-                                                # read BOM = Byte order mark.
+                                                # read BOM = Byte order mark. Note: There exists no BOM for ANSI!
                                                 [Byte[]] $b = Get-Content -Encoding Byte -ReadCount 4 -TotalCount 4 -LiteralPath $file; # works also when lesser than 4 bytes
                                                 if($b.Length -ge 3 -and $b[0] -eq 0xef -and $b[1] -eq 0xbb -and $b[2] -eq 0xbf                     ){ return [String] "UTF8"             ; } # codepage=65001;
                                                 if($b.Length -ge 2 -and $b[0] -eq 0xff -and $b[1] -eq 0xfe                                         ){ return [String] "UTF16LittleEndian"; } # codepage= 1200;
@@ -1679,7 +1695,7 @@ function FileDelete                           ( [String] $file, [Boolean] $ignor
                                                     return; #
                                                   }catch [System.UnauthorizedAccessException] { # Example: Access to the path '$HOME/Desktop/desktop.ini' is denied.
                                                     if( -not $ignoreAccessDenied ){ throw; }
-                                                    OutWarning "Warning: Ignoring UnauthorizedAccessException for Remove-Item -Force:$ignoreReadonly -LiteralPath `"$file`""; return;
+                                                    OutWarning "Warning: Ignoring UnauthorizedAccessException for Remove-Item -Force:`$$ignoreReadonly -LiteralPath `"$file`""; return;
                                                   }catch{ # exc: IOException: The process cannot access the file '$HOME\myprog.lnk' because it is being used by another process.
                                                     [Boolean] $isUsedByAnotherProc = $_.Exception -is [System.IO.IOException] -and
                                                       $_.Exception.Message.Contains("The process cannot access the file ") -and
@@ -1710,7 +1726,7 @@ function FileUpdateItsHashSha2FileIfNessessary( [String] $srcFile ){ # srcFile.s
                                                 [String] $hashSrc = FileGetHexStringOfHash512BitsSha2 $srcFile;
                                                 [String] $hashTar = $(switch((FileNotExists $hashTarFile) -or (FileGetSize $hashTarFile) -gt 8200){
                                                   ($true){""}
-                                                  default{(FileReadContentAsString $hashTarFile "Default").TrimEnd()}
+                                                  default{(FileReadContentAsString $hashTarFile "UTF8").TrimEnd()}
                                                 });
                                                 if( $hashSrc -eq $hashTar ){
                                                   OutProgress "File is up to date, nothing done with `"$hashTarFile`".";
@@ -1771,9 +1787,9 @@ function CredentialRemoveFile                 ( [String] $secureCredentialFile )
                                                 OutProgress "CredentialRemoveFile `"$secureCredentialFile`"";
                                                 FileDelete $secureCredentialFile; }
 function CredentialReadFromFile               ( [String] $secureCredentialFile ){
-                                                [String[]] $s = (@()+(StringSplitIntoLines (FileReadContentAsString $secureCredentialFile "Default")));
+                                                [String[]] $s = (@()+(StringSplitIntoLines (FileReadContentAsString $secureCredentialFile "Default"))); # TODO change Default to UTF8
                                                 try{ [String] $us = $s[0]; [System.Security.SecureString] $pwSecure = CredentialGetSecureStrFromHexString $s[1];
-                                                  # alternative: New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $User, (Get-Content -Encoding "Default" -LiteralPath $secureCredentialFile | ConvertTo-SecureString)
+                                                  # alternative: New-Object -TypeName System.Management.Automation.PSCredential -ArgumentList $User, (Get-Content -Encoding "UTF8" -LiteralPath $secureCredentialFile | ConvertTo-SecureString)
                                                   return [System.Management.Automation.PSCredential] (New-Object System.Management.Automation.PSCredential((CredentialStandardizeUserWithDomain $us), $pwSecure));
                                                 }catch{ throw [Exception] "Credential file `"$secureCredentialFile`" has not expected format for decoding credentials, maybe you changed password of current user or current machine id, in that case you may remove it and retry"; } }
 function CredentialCreate                     ( [String] $username = "", [String] $password = "", [String] $accessShortDescription = "" ){
@@ -1893,7 +1909,15 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                   # Note: This alternative is now obsolete (see https://msdn.microsoft.com/en-us/library/system.net.servicepointmanager.certificatepolicy(v=vs.110).aspx):
                                                   #   Add-Type -TypeDefinition "using System.Net; using System.Security.Cryptography.X509Certificates; public class TrustAllCertsPolicy : ICertificatePolicy { public bool CheckValidationResult( ServicePoint srvPoint, X509Certificate certificate, WebRequest request, int certificateProblem){ return true; } } ";
                                                   #   [System.Net.ServicePointManager]::CertificatePolicy = New-Object TrustAllCertsPolicy;
-                                                  [ServerCertificateValidationCallback]::Ignore();
+                                                  if( ProcessIsLesserEqualPs5 ){
+                                                    # Type: ServerCertificateValidationCallback ;
+                                                    Add-Type -TypeDefinition "using System;using System.Net;using System.Net.Security;using System.Security.Cryptography.X509Certificates; public class ServerCertificateValidationCallback { public static void Ignore() { ServicePointManager.ServerCertificateValidationCallback += delegate( Object obj, X509Certificate certificate, X509Chain chain, SslPolicyErrors errors ){ return true; }; } } ";
+                                                      # Since 2025-02 on PS6+ we get: Exception: (1,191): error SYSLIB0014: 'ServicePointManager' is obsolete: 'WebRequest, HttpWebRequest, ServicePoint, and WebClient are obsolete. Use HttpClient instead.
+                                                      #   Settings on ServicePointManager no longer affect SslStream or HttpClient.' (https://aka.ms/dotnet-warnings/SYSLIB0014)
+                                                    [ServerCertificateValidationCallback]::Ignore();
+                                                  }else{
+                                                    # 2025-02: TODO how to ignore it for PS7+; docu means to use HttpClient.
+                                                  }
                                                   # Known Bug: We currently do not restore this option so it will influence all following calls.
                                                   # Maybe later we use: -SkipCertificateCheck for PS7
                                                   # TODO find another solution which does reset and is multithreading safe
@@ -2301,16 +2325,16 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                     8 {"ServerIssuedSomeResponse(example:404NotFound)"}
                                                     default {"Unknown(rc=$rc)"} };
                                                   if( $errMsg -ne "" ){ FileAppendLineWithTs $logf "  ErrorCategory: $err  ErrorMessage: $errMsg"; }
-                                                  OutWarning "  Warning: Ignored one or more occurrences of error category: $err $errMsg. More see logfile=`"$logf`".";
+                                                  OutWarning "  Warning: Ignored one or more occurrences of category=$err msg=`"$errMsg`". More see logfile=`"$logf`".";
                                                 }
                                                 Pop-Location;
                                                 [String] $state = "  TargetDir: $(FsEntryReportMeasureInfo "$tarDir") (BeforeStart: $stateBefore)";
                                                 FileAppendLineWithTs $logf $state;
                                                 OutProgress $state; FileAppendLineWithTs $logf "-".PadRight(99,'-');
                                                 [String[]] $lnkLines = @()+(FileReadContentAsLines $logf "Default" | Where-Object{ $_ -match "^Adding\ URL\:\ .*" } |
-                                                  ForEach-Object{ StringRemoveLeft $_ "Adding URL: " $false; } | Sort-Object | Select-Object -Unique );
+                                                  ForEach-Object{ StringRemoveLeft $_ "Adding URL: " $false; } | Sort-Object | Select-Object -Unique ); # TODO: try to replace Default by UTF8.
                                                 FileWriteFromLines $links $lnkLines $true;
-                                                [String[]] $logLines = @()+(FileReadContentAsLines $logf "Default" |
+                                                [String[]] $logLines = @()+(FileReadContentAsLines $logf "Default" | # TODO: try to replace Default by UTF8.
                                                   Where-Object{ $_ -ne "Failed to parse URI ''" } |
                                                   Where-Object{ $_ -ne "No CAs were found in ''" } |
                                                   Where-Object{ $_ -ne "Nothing to do - goodbye" } |
@@ -2452,11 +2476,15 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   }elseif( $cmd -eq "Fetch" ){
                                                      # Writes to stderr: From https://github.com/myrepo  * branch  HEAD  -> FETCH_HEAD.
                                                     $gitArgs = @( "-C", $dir, "--git-dir=.git", "fetch", "--quiet", $url);
-                                                    if( $branch -ne "" ){ $gitArgs += @( $branch ); }
+                                                    # we not perform the following (reason see in pull command): if( $branch -ne "" ){ $gitArgs += @( $branch ); }
                                                   }elseif( $cmd -eq "Pull" ){
                                                     # Defaults: "origin";
                                                     $gitArgs = @( "-C", $dir, "--git-dir=.git", "pull", "--quiet", "--no-stat", "--no-rebase", "origin");
-                                                    if( $branch -ne "" ){ $gitArgs += @( $branch ); }
+                                                    # If we append the branch, then it would overwrite the default upstream branch
+                                                    # and not fetch/retrieve all available remote branches and tags which is a lack.
+                                                    # If we not append the branch then it also checks for existance of an upstream branch and uses it to merge
+                                                    # and it also fetches/retrieves all available remote branches and tags.
+                                                    # So we assert current branch with a previous command and not perform: if( $branch -ne "" ){ $gitArgs += @( $branch ); }
                                                   }elseif( $cmd -eq "Revert" ){
                                                     GitCmd "Fetch" $tarRootDir $urlAndOptionalBranch $errorAsWarning;
                                                     $gitArgs = @( "-C", $dir, "--git-dir=.git", "reset", "--hard"); # alternative option: --hard origin/master
@@ -2704,7 +2732,8 @@ function GitCloneOrPullUrls                   ( [String[]] $listOfRepoUrls, [Str
                                                       FileAppendLine $using:tmp $msg;
                                                     }
                                                   } } | Wait-Job | Remove-Job;
-                                                  [String] $errMsg = (FileReadContentAsString $tmp "Default"); FileDelTempFile $tmp;
+                                                  [String] $errMsg = (FileReadContentAsString $tmp "Default"); # TODO: try to replace Default by UTF8.
+                                                  FileDelTempFile $tmp;
                                                   if( $errMsg -ne "" ){ $errorLines += $errMsg; }
                                                 }
                                                 # alternative not yet works because vars: $listOfRepoUrls | Where-Object{$null -ne $_} | ForEachParallel -MaxThreads 10 { GitCmd "CloneOrPull" $tarRootDirOfAllRepos $_ $errorAsWarning; } }
@@ -2833,7 +2862,7 @@ function ToolFileNormalizeNewline             ( [String] $src, [String] $tar, [B
                                                 [String] $content = StringReplaceNewlines (FileReadContentAsString $src $srcEncodingIfNoBom) $sep;
                                                 OutProgress "ToolFileNormalizeNewline overwrite=$overwrite sepSize=$($sep.Length) read(encoding=$srcEncodingIfNoBom) `"$src`" and write(encoding=$encoding) `"$tar`" ";
                                                 FileWriteFromString $tar $content $overwrite $encoding; }
-function ToolAddLineToConfigFile              ( [String] $file, [String] $line, [String] $existingFileEncodingIfNoBom = "Default" ){
+function ToolAddLineToConfigFile              ( [String] $file, [String] $line, [String] $existingFileEncodingIfNoBom = "Default" ){ # TODO: try to replace Default by UTF8.
                                                 # if file not exists or line not found case sensitive in file then the line is appended.
                                                 if( FileNotExists $file ){ FileWriteFromLines $file $line; }
                                                 elseif( -not (StringArrayContains (@()+(FileReadContentAsLines $file $existingFileEncodingIfNoBom)) $line) ){ FileAppendLines $file $line; } }
@@ -2987,6 +3016,7 @@ function ProcessGetCommandInEnvPathOrAltPaths ( [String] $commandNameOptionalWit
 function OutStringInColor                     ( [String] $color, [String] $line, [Boolean] $noNewLine = $true ){ OutWarning "OutStringInColor is DEPRECATED, replace it now by: OutProgress line 0 -noNewline:$noNewLine -color:$color "; OutProgress $line 0 -noNewline:$noNewLine -color:$color; }
 function OutSuccess                           ( [String] $line ){ OutProgressSuccess $line; } # deprecated
 function ProcessListInstalledAppx (){ OutWarning "ProcessListInstalledAppx is DEPRECATED, replace it now by: OsWindowsAppxListInstalled"; OsWindowsAppxListInstalled; }
+function FsEntryFsInfoFullNameDirWithBackSlash( [System.IO.FileSystemInfo] $fsInfo ){ OutWarning "FsEntryFsInfoFullNameDirWithBackSlash is DEPRECATED, replace it now by: FsEntryFsInfoFullNameDirWithTrailDSep"; return (FsEntryFsInfoFullNameDirWithTrailDSep $fsInfo); }
 
 # ----------------------------------------------------------------------------------------------------
 
