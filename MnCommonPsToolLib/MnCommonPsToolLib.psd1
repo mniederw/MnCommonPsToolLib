@@ -5,9 +5,9 @@
   GUID                   = 'b0d61b3d-cd52-4b36-82e1-df89c8476128';
   Author                 = 'Marc Niederwieser';
   CompanyName            = 'Private, Marc Niederwieser, Switzerland.';
-  Copyright              = 'Copyright © by Marc Niederwieser, Switzerland, 2013-2024. Licensed under GPL3.';
-  Description            = 'Common Powershell Tool Library for PS5 and PS7 and works on multiplatforms (Windows, Linux and OSX)';
-  PowerShellVersion      = '5.1';
+  Copyright              = 'Copyright © by Marc Niederwieser, Switzerland, 2013-2025. Licensed under GPL3.';
+  Description            = 'Common Powershell Tool Library for PS5.1 and PS7 and works on multiplatforms (Windows, Linux and OSX)';
+  PowerShellVersion      = '5.1'; # minimum version
   VariablesToExport      = '*';
   DotNetFrameworkVersion = '4.0';
   ClrVersion             = '4.0';
@@ -34,7 +34,7 @@
   }
   #HelpInfoURI            = '';
 
-  ModuleVersion          = '7.79';
+  ModuleVersion          = '7.80';
 
   <#
   Releasenotes
@@ -43,6 +43,7 @@
   Major version will reflect breaking changes, minor identifies extensions and third number identifies urgent bugfixes.
   Breaking changes are usually removed deprecated functions or changed behaviours.
 
+  2025-02-05  V7.80  Improve install nuget. Improve StreamToTableString.
   2025-02-04  V7.79  Suppress warning. Improve FsEntryListAsFileSystemInfo Rename FsEntryFsInfoFullNameDirWithBackSlash to FsEntryFsInfoFullNameDirWithTrailDSep. Prepare for default utf8. Modify install nuget.
   2025-01-05  V7.78  Improve NetDownloadSite.
   2025-01-02  V7.77  DirNotExists allow empty string; Extend ProcessStart. Improve OsWindowsRegRunDisable.

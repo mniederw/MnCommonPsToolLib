@@ -671,8 +671,8 @@ function StreamAllProperties                  (){ $input | Select-Object *; }
 function StreamAllPropertyTypes               (){ $input | Get-Member -Type Property; }
 function StreamFilterWhitespaceLines          (){ $input | Where-Object{ StringIsFilled $_ }; }
 function StreamToNull                         (){ $input | Out-Null; }
-function StreamToString                       (){ $input | Out-String -Width 999999999; }  # separated by os depended newlines
-function StreamToStringDelEmptyLeadAndTrLines (){ $input | Out-String -Width 999999999 | ForEach-Object{ $_ -replace "[ \f\t\v]]+\r\n","\r\n" -replace "^(\r\n)+","" -replace "(\r\n)+$","" }; }
+function StreamToString                       (){ $input | Out-String -Width 999999999; }  # separated by os dependent newlines, can return empty string
+function StreamToStringDelEmptyLeadAndTrLines (){ $input | Out-String -Width 999999999 | ForEach-Object{ $_ -replace "[ \f\t\v]]+\r\n","\r\n" -replace "^(\r\n)+","" -replace "(\r\n)+$","" }; } # can return empty string
 function StreamToGridView                     (){ $input | Out-GridView -Title "TableData"; }
 function StreamToCsvStrings                   (){ $input | ConvertTo-Csv -NoTypeInformation; }
                                                 # Note: For a simple string array as example  @("one","two")|StreamToCsvStrings  it results with 3 lines "Length","3","3".
@@ -688,11 +688,18 @@ function StreamToDataRowsString               ( [String[]] $propertyNames = @() 
                                                 $propertyNames = @()+$propertyNames;
                                                 if( (@()+$propertyNames).Count -eq 0 ){ $propertyNames = @("*"); }
                                                 $input | Format-Table -Wrap -Force -AutoSize -HideTableHeaders $propertyNames | StreamToStringDelEmptyLeadAndTrLines; }
-function StreamToTableString                  ( [String[]] $propertyNames = @() ){
-                                                # Note: For a simple string array as example  @("one","two")|StreamToTableString  it results with 4 lines "Length","------","     3","     3".
+function StreamToTableString                  ( [String[]] $propertyNames = @() ){ # propertyNames can be comma separated.
+                                                # Note: For a simple string array as example  @("one","two")|StreamToTableString  it would results with 4 lines "Length","------","     3","     3".
+                                                #   Because it treats each string as an object and selects the default property which is its length (what a mess).
+                                                #   So we fix this by creating a list of object containing values.
                                                 $propertyNames = @()+$propertyNames;
                                                 if( $propertyNames.Count -eq 0 ){ $propertyNames = @("*"); }
-                                                $input | Format-Table -Wrap -Force -AutoSize $propertyNames | StreamToStringDelEmptyLeadAndTrLines; }
+                                                [PSCustomObject[]] $arr = @( $input ); # convert to an array which is not null.
+                                                if( $arr.Count -gt 0 -and $arr[0] -is [String] ){
+                                                  $arr = $arr | ForEach-Object { [PSCustomObject]@{ Value = $_ } };
+                                                }
+                                                $arr | Format-Table -Wrap -Force -AutoSize $propertyNames | StreamToStringDelEmptyLeadAndTrLines;
+                                                }
 function StreamFromCsvStrings                 ( [Char] $delimiter = ',' ){ $input | ConvertFrom-Csv -Delimiter $delimiter; }
 function StreamToCsvFile                      ( [String] $file, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM", [Boolean] $forceLf = $false ){
                                                 # Option forceLf: Writes LF and not CRLF.
@@ -1895,7 +1902,7 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                 # Alternative on PS5 and PS7: Invoke-RestMethod -Uri "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/main/MnCommonPsToolLib/MnCommonPsToolLib.psm1" -OutFile "$env:TEMP/tmp/p.tmp";
                                                 $tarFile = FsEntryGetAbsolutePath $tarFile;
                                                 OutProgress "NetDownloadFile $url";
-                                                OutProgress "  (onlyIfNewer=$onlyIfNewer) to `"$tarFile`" ";
+                                                OutProgress "  $(switch($onlyIfNewer){($true){"(onlyIfNewer=$onlyIfNewer) "}($false){" "}})to `"$tarFile`" ";
                                                 Assert (-not (FsEntryHasTrailingDirSep $tarFile));
                                                 [String] $authMethod = "Basic"; # Current implemented authMethods: "Basic".
                                                 AssertNotEmpty $url "url"; # alternative check: -or $url.EndsWith("/")
@@ -2926,11 +2933,13 @@ function ToolCreate7zip                       ( [String] $srcDirOrFile, [String]
                                                 OutProgress "$Prog7ZipExe $arguments";
                                                 [String] $out = (& $Prog7ZipExe $arguments); AssertRcIsOk $out; }
 function ToolUnzip                            ( [String] $srcZipFile, [String] $tarDir ){ # tarDir is created if it not exists, no overwriting, requires System.IO.Compression.
+                                                FsEntryAssertHasTrailingDirSep $tarDir;
                                                 Add-Type -AssemblyName "System.IO.Compression.FileSystem";
-                                                $srcZipFile = FsEntryGetAbsolutePath $srcZipFile; $tarDir = FsEntryGetAbsolutePath $tarDir;
+                                                $srcZipFile = FsEntryGetAbsolutePath $srcZipFile;
+                                                $tarDir = FsEntryGetAbsolutePath $tarDir;
                                                 OutProgress "Unzip `"$srcZipFile`" to `"$tarDir`"";
                                                 # alternative: in PS5 there is: Expand-Archive zipfile -DestinationPath tardir
-                                                [System.IO.Compression.ZipFile]::ExtractToDirectory($srcZipFile, $tarDir); }
+                                                [System.IO.Compression.ZipFile]::ExtractToDirectory($srcZipFile,$tarDir); }
 function ToolGithubApiDownloadLatestReleaseDir( [String] $repoUrl ){
                                                 # Creates a unique temp dir, downloads zip, return folder of extracted zip; You should remove dir after usage.
                                                 # Latest release is the most recent non-prerelease, non-draft release, sorted by its last commit-date.
