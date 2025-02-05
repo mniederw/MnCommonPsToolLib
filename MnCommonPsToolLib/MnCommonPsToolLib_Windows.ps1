@@ -2747,18 +2747,38 @@ function ToolWingetUpdateInstalledPackages    (){ # Ignores errors. If not eleva
                                                   #          1 Pakete sind angeheftet und müssen explizit aktualisiert werden.
                                                 ScriptResetRc; # Example: OperationStopped: Last operation failed [ExitCode=-1978335188]. For the reason see the previous output.
                                               }
-function ToolWingetInstallPackage             ( [String] $id, [String] $source = "winget" ){
-                                                # Ignores erros. Call the tool "winget" to intall from a given source.
-                                                OutProgress "Install-or-Update-Package(source=$source): `"$id`" ";
+function ToolWingetInstallPackage             ( [String] $id, [String] $source = "winget", [Boolean] $canRetry = $false ){
+                                                # Ignores errors. Call the tool "winget" to intall from a given source.
+                                                # If canRetry and install-result is not up-to-date then it tries an uninstall and again an install.
+                                                OutProgress "Install-or-Update-Package(source=$source$(switch($canRetry){($true){',canRetry'}($false){''}})): `"$id`" ";
                                                 # We recommend to use source=winget because otherwise we can get for example for:  winget install --verbose --disable-interactivity "Google.Chrome";
                                                 #   Die Quelle "msstore" erfordert, dass Sie die folgenden Vereinbarungen vor der Verwendung anzeigen.
                                                 #   Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction
                                                 #   Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben an den Back-End-Dienst gesendet wird, damit er ordnungsgemäß funktioniert (z. B. „US“).
                                                 #   Mindestens einer der Quellvereinbarungen wurde nicht zugestimmt. Vorgang abgebrochen. Akzeptieren Sie bitte die Quellvereinbarungen, oder entfernen Sie die entsprechenden Quellen.
-                                                [String[]] $out = & WinGet install --verbose --source $source --disable-interactivity --id $id --accept-source-agreements *>&1 | # alternative: --version 1.2.3  --all-versions  --scope user  --scope machine
+                                                [String[]] $out = & WinGet install --verbose --source $source --disable-interactivity --id $id --accept-source-agreements *>&1 | # alternatives: --version 1.2.3  --all-versions  --scope user  --scope machine
                                                   ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" };
-                                                ScriptResetRc; # Example: OperationStopped: Last operation failed [ExitCode=-1978335189]. For the reason see the previous output. Is up to date.
+                                                [Int32] $rc = ScriptGetAndClearLastRc; # Example: OperationStopped: Last operation failed [ExitCode=-1978335189]. For the reason see the previous output. Is up to date.
                                                 $out | ForEach-Object{ OutProgress $_ 2; };
+                                                if( $rc -ne -1978335189 -and $rc -ne 0 ){ # Is up to date.
+                                                  OutProgress "rc=$rc; Program is not up-to-date. Retry=$canRetry; " 2;
+                                                  if( $canRetry ){
+                                                    ToolWingetUninstallPackage $id $source;
+                                                    ToolWingetInstallPackage $id $source $false;
+                                                  }
+                                                }
+                                                # 2025-02: winget install "Microsoft.OpenJDK.21";
+                                                #            Es wurde bereits ein vorhandenes Paket gefunden. Es wird versucht, das installierte Paket zu aktualisieren...
+                                                #            Es wurde kein anwendbares Upgrade gefunden.
+                                                #            In einer konfigurierten Quelle ist eine neuere Paketversion verfügbar, die jedoch nicht auf Ihr System oder Ihre Anforderungen zutrifft.
+                                                #          Solution which worked: winget uninstall "Microsoft.OpenJDK.21"; winget install "Microsoft.OpenJDK.21";
+                                                # 2025-02: winget install "TrackerSoftware.PDF-XChangeEditor";
+                                                #            Es wurde kein anwendbares Upgrade gefunden.
+                                                #            In einer konfigurierten Quelle ist eine neuere Paketversion verfügbar,
+                                                #            die jedoch nicht auf Ihr System oder Ihre Anforderungen zutrifft.
+                                                #          Solution which worked: winget uninstall "TrackerSoftware.PDF-XChangeEditor"; winget install "TrackerSoftware.PDF-XChangeEditor";
+                                                # 2025-02: winget install "Discord.Discord"
+                                                #            rc=-1978334956; Das Paket kann nicht mit winget aktualisiert werden. Verwenden Sie die vom Herausgeber bereitgestellte Methode zum Aktualisieren dieses Pakets.
                                               }
 function ToolWingetUninstallPackage           ( [String] $id, [String] $source = "winget" ){
                                                 # Ignores errors. Call the tool "winget" to unintall from a given source.
