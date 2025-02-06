@@ -77,7 +77,7 @@ if( ((test-path "variable:LASTEXITCODE") -and $null -ne $LASTEXITCODE -and $LAST
 # We strongly recommended that callers of this script perform after the import-module statement the following statements:
 #   Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 # In ALL scripts which are not using this module we stongly recommend the following line:
-Set-StrictMode -Version Latest; $ErrorActionPreference = "Stop"; trap [Exception] { $nl = [Environment]::NewLine;
+Set-StrictMode -Version Latest; $ErrorActionPreference = "Stop"; trap [Exception] { $nl = [Environment]::NewLine; Write-Progress -Activity " " -Status " " -Completed;
   Write-Error -ErrorAction Continue "$($_.Exception.GetType().Name): $($_.Exception.Message)${nl}$($_.InvocationInfo.PositionMessage)$nl$($_.ScriptStackTrace)";
   Read-Host "Press Enter to Exit"; break; }
 
@@ -119,7 +119,7 @@ function GlobalVariablesInit(){
   #   $global:InformationPreference   SilentlyContinue   # Available: Stop, Inquire, Continue, SilentlyContinue.
   #   $global:VerbosePreference       SilentlyContinue   # Available: Stop, Inquire, Continue(=show verbose and continue), SilentlyContinue(=default=no verbose).
   #   $global:DebugPreference         SilentlyContinue   # Available: Stop, Inquire, Continue, SilentlyContinue.
-  #   $global:ProgressPreference      Continue           # Available: Stop, Inquire, Continue, SilentlyContinue.
+  #   $global:ProgressPreference      Continue           # Available: Stop, Inquire, Continue, SilentlyContinue. Used for progress bar.
   #   $global:WarningPreference       Continue           # Available: Stop, Inquire, Continue, SilentlyContinue. Can be overridden in each command by [-WarningAction actionPreference]
   #   $global:ConfirmPreference       High               # Available: None, Low, Medium, High.
   #   $global:WhatIfPreference        False              # Available: False, True.
@@ -456,11 +456,13 @@ function StdOutLine                           ( [String] $line ){ $Host.UI.Write
 function StdInWaitForAKey                     (){ StdInAssertAllowInteractions; $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") | Out-Null; } # does not work in powershell-ise, so in general do not use it, use StdInReadLine
 function ConsoleSetGuiProperties              ( [Int32] $width = 150, [Int32] $height = 48 ){ # set standard sizes and colors (defaults are based on HD with 125% zoom). It is performed only once per shell.
                                                 [Int32] $bufSizeWidth = 300;
+                                                Write-Progress -Activity " " -Status " " -Completed; # clear any open progress bar.
                                                 # On Ubuntu setting buffersize is not supported, so a warning is given out to verbose output.
                                                 if( -not [Boolean] (Get-Variable "consoleSetGuiProperties_DoneOnce" -Scope Script -ErrorAction SilentlyContinue) ){
                                                   $error.clear(); New-Variable -Scope Script -Name "consoleSetGuiProperties_DoneOnce" -Value $false;
                                                 }
                                                 if( $script:consoleSetGuiProperties_DoneOnce ){ return; }
+                                                $global:ProgressPreference = "SilentlyContinue"; # 2025-02: we have to switch off the progress bar because it too often hangs.
                                                 [Object] $w = $Host.ui.RawUI;
                                                 $w.windowtitle = "$PSCommandPath - PS-V$($Host.Version.ToString()) $(switch(ProcessIsRunningInElevatedAdminMode){($true){'- Elevated Admin Mode'}default{'';}})";
                                                 $w.foregroundcolor = "Gray";
@@ -567,6 +569,7 @@ function StdOutRedLineAndPerformExit          ( [String] $line, [Int32] $delayIn
 function StdErrHandleExc                      ( [System.Management.Automation.ErrorRecord] $er, [Int32] $delayInSec = 1 ){
                                                 # Output full error information in red lines and then either wait for pressing enter or otherwise
                                                 # if interactions are globally disallowed then wait for specified delay.
+                                                Write-Progress -Activity " " -Status " " -Completed; # clear progress bar
                                                 [String] $msg = "$(StringFromErrorRecord $er)";
                                                 OutError $msg;
                                                 if( -not $global:ModeDisallowInteractions ){
@@ -671,8 +674,8 @@ function StreamAllProperties                  (){ $input | Select-Object *; }
 function StreamAllPropertyTypes               (){ $input | Get-Member -Type Property; }
 function StreamFilterWhitespaceLines          (){ $input | Where-Object{ StringIsFilled $_ }; }
 function StreamToNull                         (){ $input | Out-Null; }
-function StreamToString                       (){ $input | Out-String -Width 999999999; }  # separated by os depended newlines
-function StreamToStringDelEmptyLeadAndTrLines (){ $input | Out-String -Width 999999999 | ForEach-Object{ $_ -replace "[ \f\t\v]]+\r\n","\r\n" -replace "^(\r\n)+","" -replace "(\r\n)+$","" }; }
+function StreamToString                       (){ $input | Out-String -Width 999999999; }  # separated by os dependent newlines, can return empty string
+function StreamToStringDelEmptyLeadAndTrLines (){ $input | Out-String -Width 999999999 | ForEach-Object{ $_ -replace "[ \f\t\v]]+\r\n","\r\n" -replace "^(\r\n)+","" -replace "(\r\n)+$","" }; } # can return empty string
 function StreamToGridView                     (){ $input | Out-GridView -Title "TableData"; }
 function StreamToCsvStrings                   (){ $input | ConvertTo-Csv -NoTypeInformation; }
                                                 # Note: For a simple string array as example  @("one","two")|StreamToCsvStrings  it results with 3 lines "Length","3","3".
@@ -688,11 +691,18 @@ function StreamToDataRowsString               ( [String[]] $propertyNames = @() 
                                                 $propertyNames = @()+$propertyNames;
                                                 if( (@()+$propertyNames).Count -eq 0 ){ $propertyNames = @("*"); }
                                                 $input | Format-Table -Wrap -Force -AutoSize -HideTableHeaders $propertyNames | StreamToStringDelEmptyLeadAndTrLines; }
-function StreamToTableString                  ( [String[]] $propertyNames = @() ){
-                                                # Note: For a simple string array as example  @("one","two")|StreamToTableString  it results with 4 lines "Length","------","     3","     3".
+function StreamToTableString                  ( [String[]] $propertyNames = @() ){ # propertyNames can be comma separated.
+                                                # Note: For a simple string array as example  @("one","two")|StreamToTableString  it would results with 4 lines "Length","------","     3","     3".
+                                                #   Because it treats each string as an object and selects the default property which is its length (what a mess).
+                                                #   So we fix this by creating a list of object containing values.
                                                 $propertyNames = @()+$propertyNames;
                                                 if( $propertyNames.Count -eq 0 ){ $propertyNames = @("*"); }
-                                                $input | Format-Table -Wrap -Force -AutoSize $propertyNames | StreamToStringDelEmptyLeadAndTrLines; }
+                                                [PSCustomObject[]] $arr = @( $input ); # convert to an array which is not null.
+                                                if( $arr.Count -gt 0 -and $arr[0] -is [String] ){
+                                                  $arr = $arr | ForEach-Object { [PSCustomObject]@{ Value = $_ } };
+                                                }
+                                                $arr | Format-Table -Wrap -Force -AutoSize $propertyNames | StreamToStringDelEmptyLeadAndTrLines;
+                                                }
 function StreamFromCsvStrings                 ( [Char] $delimiter = ',' ){ $input | ConvertFrom-Csv -Delimiter $delimiter; }
 function StreamToCsvFile                      ( [String] $file, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM", [Boolean] $forceLf = $false ){
                                                 # Option forceLf: Writes LF and not CRLF.
@@ -1895,7 +1905,7 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                 # Alternative on PS5 and PS7: Invoke-RestMethod -Uri "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/main/MnCommonPsToolLib/MnCommonPsToolLib.psm1" -OutFile "$env:TEMP/tmp/p.tmp";
                                                 $tarFile = FsEntryGetAbsolutePath $tarFile;
                                                 OutProgress "NetDownloadFile $url";
-                                                OutProgress "  (onlyIfNewer=$onlyIfNewer) to `"$tarFile`" ";
+                                                OutProgress "  $(switch($onlyIfNewer){($true){"(onlyIfNewer=$onlyIfNewer) "}($false){" "}})to `"$tarFile`" ";
                                                 Assert (-not (FsEntryHasTrailingDirSep $tarFile));
                                                 [String] $authMethod = "Basic"; # Current implemented authMethods: "Basic".
                                                 AssertNotEmpty $url "url"; # alternative check: -or $url.EndsWith("/")
@@ -2926,11 +2936,13 @@ function ToolCreate7zip                       ( [String] $srcDirOrFile, [String]
                                                 OutProgress "$Prog7ZipExe $arguments";
                                                 [String] $out = (& $Prog7ZipExe $arguments); AssertRcIsOk $out; }
 function ToolUnzip                            ( [String] $srcZipFile, [String] $tarDir ){ # tarDir is created if it not exists, no overwriting, requires System.IO.Compression.
+                                                FsEntryAssertHasTrailingDirSep $tarDir;
                                                 Add-Type -AssemblyName "System.IO.Compression.FileSystem";
-                                                $srcZipFile = FsEntryGetAbsolutePath $srcZipFile; $tarDir = FsEntryGetAbsolutePath $tarDir;
+                                                $srcZipFile = FsEntryGetAbsolutePath $srcZipFile;
+                                                $tarDir = FsEntryGetAbsolutePath $tarDir;
                                                 OutProgress "Unzip `"$srcZipFile`" to `"$tarDir`"";
                                                 # alternative: in PS5 there is: Expand-Archive zipfile -DestinationPath tardir
-                                                [System.IO.Compression.ZipFile]::ExtractToDirectory($srcZipFile, $tarDir); }
+                                                [System.IO.Compression.ZipFile]::ExtractToDirectory($srcZipFile,$tarDir); }
 function ToolGithubApiDownloadLatestReleaseDir( [String] $repoUrl ){
                                                 # Creates a unique temp dir, downloads zip, return folder of extracted zip; You should remove dir after usage.
                                                 # Latest release is the most recent non-prerelease, non-draft release, sorted by its last commit-date.

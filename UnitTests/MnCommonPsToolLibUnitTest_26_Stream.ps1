@@ -28,6 +28,12 @@ function UnitTest_Stream(){
   # TODO: Seems to run endless:   OutProgress "StreamToFirstPropMultiColumnString"   ; $obj | StreamToFirstPropMultiColumnString ;
   OutProgress "StreamToDataRowsString"               ; $obj | StreamToDataRowsString ;
   OutProgress "StreamToTableString"                  ; $obj | StreamToTableString ;
+    # TODO @()            | StreamToTableString *;
+    # TODO @( "aa", "bb") | StreamToTableString *;
+    # TODO @( "")         | StreamToTableString *;
+    # TODO ""             | StreamToTableString *;
+    # TODO $null          | StreamToTableString *;
+    # TODO Get-Process    | Select-Object -First 2 | StreamToTableString Id,ProcessName;
   OutProgress "StreamFromCsvStrings"                 ; $obj | StreamFromCsvStrings ;
   if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){  OutProgress "StreamToGridView"                     ; $obj | StreamToGridView ; }
   if( -not (ProcessIsLesserEqualPs5) ){ # TODO: later remove this if. Used as long as we get: FileWriteFromLines with UTF8 (NO-BOM) on PS5.1 or lower is not yet implemented.
