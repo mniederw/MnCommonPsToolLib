@@ -77,7 +77,7 @@ if( ((test-path "variable:LASTEXITCODE") -and $null -ne $LASTEXITCODE -and $LAST
 # We strongly recommended that callers of this script perform after the import-module statement the following statements:
 #   Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 # In ALL scripts which are not using this module we stongly recommend the following line:
-Set-StrictMode -Version Latest; $ErrorActionPreference = "Stop"; trap [Exception] { $nl = [Environment]::NewLine;
+Set-StrictMode -Version Latest; $ErrorActionPreference = "Stop"; trap [Exception] { $nl = [Environment]::NewLine; Write-Progress -Activity " " -Status " " -Completed;
   Write-Error -ErrorAction Continue "$($_.Exception.GetType().Name): $($_.Exception.Message)${nl}$($_.InvocationInfo.PositionMessage)$nl$($_.ScriptStackTrace)";
   Read-Host "Press Enter to Exit"; break; }
 
@@ -119,7 +119,7 @@ function GlobalVariablesInit(){
   #   $global:InformationPreference   SilentlyContinue   # Available: Stop, Inquire, Continue, SilentlyContinue.
   #   $global:VerbosePreference       SilentlyContinue   # Available: Stop, Inquire, Continue(=show verbose and continue), SilentlyContinue(=default=no verbose).
   #   $global:DebugPreference         SilentlyContinue   # Available: Stop, Inquire, Continue, SilentlyContinue.
-  #   $global:ProgressPreference      Continue           # Available: Stop, Inquire, Continue, SilentlyContinue.
+  #   $global:ProgressPreference      Continue           # Available: Stop, Inquire, Continue, SilentlyContinue. Used for progress bar.
   #   $global:WarningPreference       Continue           # Available: Stop, Inquire, Continue, SilentlyContinue. Can be overridden in each command by [-WarningAction actionPreference]
   #   $global:ConfirmPreference       High               # Available: None, Low, Medium, High.
   #   $global:WhatIfPreference        False              # Available: False, True.
@@ -456,11 +456,13 @@ function StdOutLine                           ( [String] $line ){ $Host.UI.Write
 function StdInWaitForAKey                     (){ StdInAssertAllowInteractions; $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") | Out-Null; } # does not work in powershell-ise, so in general do not use it, use StdInReadLine
 function ConsoleSetGuiProperties              ( [Int32] $width = 150, [Int32] $height = 48 ){ # set standard sizes and colors (defaults are based on HD with 125% zoom). It is performed only once per shell.
                                                 [Int32] $bufSizeWidth = 300;
+                                                Write-Progress -Activity " " -Status " " -Completed; # clear any open progress bar.
                                                 # On Ubuntu setting buffersize is not supported, so a warning is given out to verbose output.
                                                 if( -not [Boolean] (Get-Variable "consoleSetGuiProperties_DoneOnce" -Scope Script -ErrorAction SilentlyContinue) ){
                                                   $error.clear(); New-Variable -Scope Script -Name "consoleSetGuiProperties_DoneOnce" -Value $false;
                                                 }
                                                 if( $script:consoleSetGuiProperties_DoneOnce ){ return; }
+                                                $global:ProgressPreference = "SilentlyContinue"; # 2025-02: we have to switch off the progress bar because it too often hangs.
                                                 [Object] $w = $Host.ui.RawUI;
                                                 $w.windowtitle = "$PSCommandPath - PS-V$($Host.Version.ToString()) $(switch(ProcessIsRunningInElevatedAdminMode){($true){'- Elevated Admin Mode'}default{'';}})";
                                                 $w.foregroundcolor = "Gray";
@@ -567,6 +569,7 @@ function StdOutRedLineAndPerformExit          ( [String] $line, [Int32] $delayIn
 function StdErrHandleExc                      ( [System.Management.Automation.ErrorRecord] $er, [Int32] $delayInSec = 1 ){
                                                 # Output full error information in red lines and then either wait for pressing enter or otherwise
                                                 # if interactions are globally disallowed then wait for specified delay.
+                                                Write-Progress -Activity " " -Status " " -Completed; # clear progress bar
                                                 [String] $msg = "$(StringFromErrorRecord $er)";
                                                 OutError $msg;
                                                 if( -not $global:ModeDisallowInteractions ){

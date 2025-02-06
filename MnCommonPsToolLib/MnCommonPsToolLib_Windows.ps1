@@ -2574,6 +2574,7 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  ( [Boolean] $includeUpdateHelp = $
                                                 if( $includeUpdateHelp ){
                                                   OutProgress "Update-Help to en-US with continue-on-error ";
                                                   Update-Help -UICulture en-US -ErrorAction Continue *>&1 | ForEach-Object{ "$_" } | ForEach-Object{ OutProgress "  $_"; };
+                                                  Write-Progress -Activity " " -Status " " -Completed;
                                                     # Example: 2024-07 Failed to update Help for the module(s)
                                                     #   'PSReadline, WindowsUpdateProvider' with UI culture(s) {en-US} : One or more errors occurred.
                                                     #   (Response status code does not indicate success: 404 (Not Found).).
@@ -2584,6 +2585,7 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  ( [Boolean] $includeUpdateHelp = $
                                                     #   English-US help content is available and can be installed using: Update-Help -UICulture en-US.
                                                   OutProgress "Update-Help to current Culture with continue-on-error: $((Get-Culture).Name) = $((Get-Culture).DisplayName)"; # Example: "de-CH"
                                                   Update-Help -ErrorAction Continue *>&1 | ForEach-Object{ OutProgress "  $_"; };
+                                                  Write-Progress -Activity " " -Status " " -Completed;
                                                     # same errors as with en-US
                                                 }
                                                 # Some Infos:
@@ -2638,16 +2640,17 @@ function ToolWinGetSetup                      (){
                                                 OutProgressTitle "Install WinGet to latest version ";
                                                 OutProgress      "Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe; ";
                                                 OsWindowsAppxImportModule;
-                                                Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe; # Register Winget (On Win11 automatically done after first user logon)
+                                                Add-AppxPackage -RegisterByFamilyName -MainPackage "Microsoft.DesktopAppInstaller_8wekyb3d8bbwe"; # Register Winget (On Win11 automatically done after first user logon)
+                                                  Write-Progress -Activity " " -Status " " -Completed;
                                                   # In Windows-Sandbox or if winget is not installed at all, then perform the following:
-                                                  #   $progressPreference = 'silentlyContinue'
-                                                  #   Write-Information "Downloading WinGet and its dependencies..."
-                                                  #   Invoke-WebRequest -Uri https://aka.ms/getwinget -OutFile Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle
-                                                  #   Invoke-WebRequest -Uri https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx -OutFile Microsoft.VCLibs.x64.14.00.Desktop.appx
-                                                  #   Invoke-WebRequest -Uri https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.x64.appx -OutFile Microsoft.UI.Xaml.2.8.x64.appx
-                                                  #   Add-AppxPackage Microsoft.VCLibs.x64.14.00.Desktop.appx
-                                                  #   Add-AppxPackage Microsoft.UI.Xaml.2.8.x64.appx
-                                                  #   Add-AppxPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle
+                                                  #   $progressPreference = "SilentlyContinue";
+                                                  #   Write-Information "Downloading WinGet and its dependencies...";
+                                                  #   Invoke-WebRequest -Uri "https://aka.ms/getwinget" -OutFile "Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle";
+                                                  #   Invoke-WebRequest -Uri "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx" -OutFile "Microsoft.VCLibs.x64.14.00.Desktop.appx";
+                                                  #   Invoke-WebRequest -Uri "https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.x64.appx" -OutFile "Microsoft.UI.Xaml.2.8.x64.appx";
+                                                  #   Add-AppxPackage "Microsoft.VCLibs.x64.14.00.Desktop.appx";
+                                                  #   Add-AppxPackage "Microsoft.UI.Xaml.2.8.x64.appx";
+                                                  #   Add-AppxPackage "Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle";
                                                 OutProgress "Approve eulas by: Winget search; ";
                                                 Write-Output "y" | & WinGet search | Out-Null; # default source is "msstore"; alternative option: --accept-source-agreements
                                                 ScriptResetRc; # Example: OperationStopped: Last operation failed [ExitCode=-1978335230]. For the reason see the previous output.
@@ -2668,6 +2671,7 @@ function ToolWinGetSetup                      (){
                                                     # Example: "https://github.com/microsoft/winget-cli/releases/download/v1.9.25200/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
                                                   OutProgress "& Add-AppxPackage -Path $msiUrl; ";
                                                   & Add-AppxPackage -Path $msiUrl; AssertRcIsOk;
+                                                  Write-Progress -Activity " " -Status " " -Completed;
                                                 }else{
                                                   OutProgress "  Currently in non-elevated-mode so update WinGet to latest by:  & WinGet upgrade Microsoft.AppInstaller; ";
                                                   OutProgress "  Note: You have to run it under your usual account and not as admin otherwise you can get errors as: ";
