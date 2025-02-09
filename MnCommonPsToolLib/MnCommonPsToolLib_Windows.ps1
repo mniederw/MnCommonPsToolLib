@@ -2542,7 +2542,12 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  ( [Boolean] $includeUpdateHelp = $
                                                 Get-InstalledModule | ForEach-Object {
                                                   [String] $v = $_.Version;
                                                   OutProgress "  Uninstall all older versions than $($_.Name.PadRight(32,' ')) V$v ";
-                                                  Get-InstalledModule -Name $_.Name -AllVersions | Where-Object -Property Version -LT -Value $v | Uninstall-Module;
+                                                  Get-InstalledModule -Name $_.Name -AllVersions | Where-Object -Property Version -LT -Value $v | ForEach-Object{
+                                                    try{ Uninstall-Module -Name $_; 
+                                                    }catch{ # Example: Exception: Module 'PSReadLine' is in currently in use or you don't have the required permissions.
+                                                      ScriptResetRc; OutWarning "Warning: Ignoring: $($_.Exception.Message)";
+                                                    }
+                                                  }
                                                 }
                                                 #
                                                 [String] $v1001PathOfModulePowerShellGet = ""+(Get-Module -ListAvailable -Name "PowerShellGet" | 
@@ -2605,8 +2610,8 @@ function ToolWinGetCleanLine                  ( [String] $s ){
                                                 if( $null -eq $s ){ $s = ""; }
                                                 $s = "$s".Trim();
                                                 if( $s -ne "" -and -not @("-","/","|","\").Contains($s)                                                                    -and
-                                                    $s -notmatch "^\█*\▒*\ +[0-9\.]+\ [KMG]B\ \/\ +[0-9\.]+\ [KMG]B$"                                                      -and # ██████████████████████▒▒▒▒▒▒▒▒  1024 KB / 1.31 MB
-                                                    $s -notmatch "^\█*\▒*\ +[0-9][0-9]?[0-9]?\%$"                                                                          -and # ███▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  10%
+                                                    $s -notmatch "^\█*\▒*\¦*\ +[0-9\.]+\ [KMG]B\ \/\ +[0-9\.]+\ [KMG]B$"                                                      -and # ██████████████████████▒▒▒▒▒▒▒▒  1024 KB / 1.31 MB
+                                                    $s -notmatch "^\█*\▒*\¦*\ +[0-9][0-9]?[0-9]?\%$"                                                                          -and # ███▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  10%
                                                     $s -ne "Alle Quellen werden aktualisiert..."                                                                           -and # for: winget source update
                                                     $s -ne "Fertig"                                                                                                        -and # for: winget source update
                                                     $s -ne "Die Quelle `"msstore`" erfordert, dass Sie die folgenden Vereinbarungen vor der Verwendung anzeigen."          -and # for: winget list
@@ -2625,12 +2630,19 @@ function ToolWinGetCleanLine                  ( [String] $s ){
                                                 $s = $s.Replace("Erfolgreich installiert","Successful installed.");                                                                       # for: winget install
                                                 $s = $s.Replace("Es wurde kein installiertes Paket gefunden, das den Eingabekriterien entspricht.","Already uninstalled, nothing done."); # for: winget uninstall
                                                 $s = $s.Replace("Erfolgreich deinstalliert","Successful uninstalled.");                                                                   # for: winget uninstall
-                                                # Example of rest of output of updateAll:
+                                                # 2025-01: Example of rest of output of updateAll:
                                                 #   (2/2) Gefunden ...packagename... [...packageid...] Version ...version...
-                                                # Example of rest of output of install:
+                                                # 2025-01: Example of rest of output of install:
                                                 #   Gefunden ...packagename... Version ...version...
                                                 #   Download läuft https://...urlToExecutable...
                                                 #   Successful installed.
+                                                # 2025-02: Example of rest of output of install which fails:
+                                                #   Sie haben die Installation abgebrochen.
+                                                #   Installation fehlgeschlagen mit Exitcode: 1602
+                                                #   Das Installationsprotokoll ist verfügbar unter: C:\Users\myuser\AppData\Local\Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\LocalState\DiagOutputDir\WinGet-Microsoft.PowerShell.7.5.0.0-2025-02-09-12-02-09.818.log
+                                                # 2025-02: Example of rest of output of install which fails ("Blizzard.BattleNet"):
+                                                #   Für dieses Paket ist ein Installationsspeicherort erforderlich
+                                                #   Der Installationsspeicherort ist für das Paket erforderlich, wurde jedoch nicht angegeben.
                                                 # Example of rest of output of uninstall:
                                                 #   Uninstall-Package(source=winget): "...packagename..."
                                                 #   Already uninstalled, nothing done.
@@ -2771,18 +2783,22 @@ function ToolWingetInstallPackage             ( [String] $id, [String] $source =
                                                     ToolWingetInstallPackage $id $source $false;
                                                   }
                                                 }
-                                                # 2025-02: winget install "Microsoft.OpenJDK.21";
+                                                # 2025-02: winget install $id;
                                                 #            Es wurde bereits ein vorhandenes Paket gefunden. Es wird versucht, das installierte Paket zu aktualisieren...
                                                 #            Es wurde kein anwendbares Upgrade gefunden.
                                                 #            In einer konfigurierten Quelle ist eine neuere Paketversion verfügbar, die jedoch nicht auf Ihr System oder Ihre Anforderungen zutrifft.
-                                                #          Solution which worked: winget uninstall "Microsoft.OpenJDK.21"; winget install "Microsoft.OpenJDK.21";
-                                                # 2025-02: winget install "TrackerSoftware.PDF-XChangeEditor";
+                                                #          Solution which worked: winget uninstall $id; winget install $id;
+                                                # 2025-02: winget install $id;
                                                 #            Es wurde kein anwendbares Upgrade gefunden.
                                                 #            In einer konfigurierten Quelle ist eine neuere Paketversion verfügbar,
                                                 #            die jedoch nicht auf Ihr System oder Ihre Anforderungen zutrifft.
-                                                #          Solution which worked: winget uninstall "TrackerSoftware.PDF-XChangeEditor"; winget install "TrackerSoftware.PDF-XChangeEditor";
+                                                #          Solution which worked: winget uninstall $id; winget install $id;
                                                 # 2025-02: winget install "Discord.Discord"
                                                 #            rc=-1978334956; Das Paket kann nicht mit winget aktualisiert werden. Verwenden Sie die vom Herausgeber bereitgestellte Methode zum Aktualisieren dieses Pakets.
+                                                # 2025-02: ToolWingetInstallPackage "Microsoft.Powershell"
+                                                #            Es wurde eine neuere Version gefunden, die Installationstechnologie unterscheidet sich jedoch von der aktuellen installierten Version. Deinstallieren Sie das Paket, und installieren Sie die neuere Version.
+                                                # 2025-02: ToolWingetInstallPackage "Blizzard.BattleNet"
+                                                #            rc=-1978335137; Program is not up-to-date. Retry=False;
                                               }
 function ToolWingetUninstallPackage           ( [String] $id, [String] $source = "winget" ){
                                                 # Ignores errors. Call the tool "winget" to unintall from a given source.
