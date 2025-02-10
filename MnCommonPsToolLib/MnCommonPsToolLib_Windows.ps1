@@ -2022,7 +2022,7 @@ function ToolHibernateModeEnable              (){
                                                 if( (OsIsHibernateEnabled) ){
                                                   OutProgress "Ok, is enabled.";
                                                 }elseif( (DriveFreeSpace 'C') -le ((OsInfoMainboardPhysicalMemorySum) * 1.3) ){
-                                                  OutWarning "Warning: Cannot enable hibernate because has not enought hd-space (RAM=$(OsInfoMainboardPhysicalMemorySum),DriveC-Free=$(DriveFreeSpace 'C'); ignored.";
+                                                  OutWarning "Warning: Cannot enable hibernate because has not enought hd-space (RAM=$(OsInfoMainboardPhysicalMemorySum),DriveC-Free=$(DriveFreeSpace 'C'),expect RAM*1.3); ignored. You can manually try by: powercfg -HIBERNATE ON; ";
                                                 }else{
                                                   ProcessRestartInElevatedAdminMode;
                                                   & "$env:SystemRoot/System32/powercfg.exe" "-HIBERNATE" "ON"; AssertRcIsOk;

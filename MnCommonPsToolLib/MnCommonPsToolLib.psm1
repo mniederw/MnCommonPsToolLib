@@ -518,13 +518,14 @@ function OutData                              ( [String] $line ){
                                                 # Output of data; are the stdout which is passed to the pipeline; redirectable by 1> .
                                                 Write-Output $line; }
 function OutError                             ( [String] $line, [Int32] $indentLevel = 1 ){
-                                                # Writes a line in red. Is currently not redirectable by *> . In future we want write it to the stderr by Write-Error so it will then be redirectable by 2> .
-                                                [String] $p = "Error: "; if( (StringLeft $line $p.Length) -eq $p ){ StringRemoveLeftNr $line $p.Length; }
-                                                # Note: We do not use the following because it generates more than one line on ps5: Write-Error -Message $line -Category NotSpecified;
+                                                # Writes a line in red. Is currently not redirectable by *> .
+                                                # In future we want to write it to the stderr by Write-Error so then it could be be redirectable by '2>'
+                                                # but it generates more than one line on ps5, Example: Write-Error -Message $line -Category NotSpecified;
+                                                [String] $p = "Error: "; if( (StringLeft $line $p.Length) -eq $p ){ $line = StringRemoveLeftNr $line $p.Length; }
                                                 $Host.UI.WriteErrorLine("$(OutGetTsPrefix)$("  "*$indentLevel)$line"); }
 function OutWarning                           ( [String] $line, [Int32] $indentLevel = 1 ){
                                                 # Writes in yellow; redirectable by 3> .
-                                                [String] $p = "Warning: "; if( (StringLeft $line $p.Length) -eq $p ){ StringRemoveLeftNr $line $p.Length; }
+                                                [String] $p = "Warning: "; if( (StringLeft $line $p.Length) -eq $p ){ $line = StringRemoveLeftNr $line $p.Length; }
                                                 OutProgressText "$(OutGetTsPrefix)$("  "*$indentLevel)";
                                                 Write-Warning $line; } # todo: suppress prefix
 function OutProgress                          ( [String] $line, [Int32] $indentLevel = 1, [Boolean] $noNewLine = $false, [String] $color = "Gray" ){
