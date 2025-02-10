@@ -31,10 +31,10 @@ function UnitTest_Git(){
   try{
     GitMerge $repoDir "main";
   }catch{
-    # 2024-03 on github we get: failed with rc=128  Committer identity unknown *** Please tell me who you are.
+    # 2024-03 on github action we get: failed with rc=128  Committer identity unknown *** Please tell me who you are.
     #   Run   git config --global user.email "you@example.com"   git config --global user.name "Your Name" to set your account's default identity.
     #   Omit --global to set the identity only in this repository. fatal: empty ident name (for <runner@fv-az1538-315.upsp13a5k4ou3ds4kr34xzh2lh.cx.internal.cloudapp.net>) not allowed
-    OutWarning "Warning: Ignore exceptions for GitMerge because probably missing committer name: $_ ";
+    OutWarning "Warning: Ignore exceptions for GitMerge (probably on github action) because probably missing committer name: $_ ";
   }
   GitListCommitComments "$repoDir/tmp/" $repoDir;
   GitAssertAutoCrLfIsDisabled;
