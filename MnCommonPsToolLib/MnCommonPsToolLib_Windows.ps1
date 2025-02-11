@@ -2578,8 +2578,7 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  ( [Boolean] $includeUpdateHelp = $
                                                 #
                                                 if( $includeUpdateHelp ){
                                                   OutProgress "Update-Help to en-US with continue-on-error ";
-                                                  Update-Help -UICulture en-US -ErrorAction Continue *>&1 | ForEach-Object{ "$_" } | ForEach-Object{ OutProgress "  $_"; };
-                                                  Write-Progress -Activity " " -Status " " -Completed;
+                                                  [String] $out = Update-Help -UICulture en-US -ErrorAction Continue *>&1 | ForEach-Object{ "$_"; };
                                                     # Example: 2024-07 Failed to update Help for the module(s)
                                                     #   'PSReadline, WindowsUpdateProvider' with UI culture(s) {en-US} : One or more errors occurred.
                                                     #   (Response status code does not indicate success: 404 (Not Found).).
@@ -2588,10 +2587,18 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  ( [Boolean] $includeUpdateHelp = $
                                                     #   'ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate' with UI culture(s) {en-US} :
                                                     #   One or more errors occurred. (Response status code does not indicate success: 404 (The specified blob does not exist.).).
                                                     #   English-US help content is available and can be installed using: Update-Help -UICulture en-US.
-                                                  OutProgress "Update-Help to current Culture with continue-on-error: $((Get-Culture).Name) = $((Get-Culture).DisplayName)"; # Example: "de-CH"
-                                                  Update-Help -ErrorAction Continue *>&1 | ForEach-Object{ OutProgress "  $_"; };
+                                                  [String] $knownErrMsg =  "Failed to update Help for the module(s) 'ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate' with UI culture(s) {en-US} : ";
+                                                           $knownErrMsg += "One or more errors occurred. (Response status code does not indicate success: 404 (The requested content does not exist.).).`r`n";
+                                                           $knownErrMsg += "English-US help content is available and can be installed using: Update-Help -UICulture en-US.";
+                                                  if( $out -eq $knownErrMsg ){ $out = "Got known response 404=NotFound for en-US of: ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate. "; }
                                                   Write-Progress -Activity " " -Status " " -Completed;
-                                                    # same errors as with en-US
+                                                  OutProgress "  $out";
+                                                  OutProgress "Update-Help to current Culture with continue-on-error: $((Get-Culture).Name) = $((Get-Culture).DisplayName)"; # Example: "de-CH"
+                                                  [String] $out = Update-Help -ErrorAction Continue *>&1 | ForEach-Object{ "$_"; };
+                                                    # Usually we get the same errors as with en-US
+                                                  if( $out -eq $knownErrMsg ){ $out = "Got known response 404=NotFound for en-US of: ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate. "; }
+                                                  Write-Progress -Activity " " -Status " " -Completed;
+                                                  OutProgress "  $out";
                                                 }
                                                 # Some Infos:
                                                 # - Install-Module -Force -Name myModule; # 2021-12: Paralled installed V1.0.0.1 and V2.2.5
@@ -2743,7 +2750,7 @@ function ToolWinGetSetup                      (){
                                                 #     --no-proxy                  Verwendung des Proxys für diese Ausführung deaktivieren
                                                 #   Weitere Hilfe finden Sie unter: „https://aka.ms/winget-command-help“
                                               }
-function ToolWingetListInstalledPackages      ( [String] $id ){
+function ToolWingetListInstalledPackages      (){
                                                 # call the tool "winget" to list installed packages
                                                 OutProgress "List of installed packages: ";
                                                 [String[]] $out = & WinGet list --disable-interactivity --accept-source-agreements *>&1 |
