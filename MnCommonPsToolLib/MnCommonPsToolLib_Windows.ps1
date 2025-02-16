@@ -2587,7 +2587,7 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  ( [Boolean] $includeUpdateHelp = $
                                                     #   'ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate' with UI culture(s) {en-US} :
                                                     #   One or more errors occurred. (Response status code does not indicate success: 404 (The specified blob does not exist.).).
                                                     #   English-US help content is available and can be installed using: Update-Help -UICulture en-US.
-                                                  [String] $knownErrMsg =  "Failed to update Help for the module(s) 'ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate' with UI culture(s) {en-US} : ";
+                                                  [String] $knownErrMsg =  "Failed to update Help for the module(s) 'ConfigDefender, ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate' with UI culture(s) {en-US} : ";
                                                            $knownErrMsg += "One or more errors occurred. (Response status code does not indicate success: 404 (The requested content does not exist.).).`r`n";
                                                            $knownErrMsg += "English-US help content is available and can be installed using: Update-Help -UICulture en-US.";
                                                   if( $out -eq $knownErrMsg ){ $out = "Got known response 404=NotFound for en-US of: ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate. "; }
@@ -2621,6 +2621,7 @@ function ToolWinGetCleanLine                  ( [String] $s ){
                                                     $s -notmatch "^\█*\▒*\¦*\ +[0-9][0-9]?[0-9]?\%$"                                                                          -and # ███▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  10%
                                                     $s -ne "Alle Quellen werden aktualisiert..."                                                                           -and # for: winget source update
                                                     $s -ne "Fertig"                                                                                                        -and # for: winget source update
+                                                    $s -ne "Alle Quellen werden zurückgesetzt...Fertig"                                                                    -and # for: winget source reset
                                                     $s -ne "Die Quelle `"msstore`" erfordert, dass Sie die folgenden Vereinbarungen vor der Verwendung anzeigen."          -and # for: winget list
                                                     $s -ne "Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction"                                     -and # for: winget list
                                                     $s -ne ("Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben " +
@@ -2655,69 +2656,93 @@ function ToolWinGetCleanLine                  ( [String] $s ){
                                                 #   Already uninstalled, nothing done.
                                                 return [String] $s;
                                                 }
-function ToolWinGetSetup                      (){
-                                                OutProgressTitle "Install WinGet to latest version ";
-                                                OutProgress      "Add-AppxPackage -RegisterByFamilyName -MainPackage Microsoft.DesktopAppInstaller_8wekyb3d8bbwe; ";
-                                                OsWindowsAppxImportModule;
-                                                Add-AppxPackage -RegisterByFamilyName -MainPackage "Microsoft.DesktopAppInstaller_8wekyb3d8bbwe"; # Register Winget (On Win11 automatically done after first user logon)
-                                                  Write-Progress -Activity " " -Status " " -Completed;
-                                                  # In Windows-Sandbox or if winget is not installed at all, then perform the following:
-                                                  #   $progressPreference = "SilentlyContinue";
-                                                  #   Write-Information "Downloading WinGet and its dependencies...";
-                                                  #   Invoke-WebRequest -Uri "https://aka.ms/getwinget" -OutFile "Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle";
-                                                  #   Invoke-WebRequest -Uri "https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx" -OutFile "Microsoft.VCLibs.x64.14.00.Desktop.appx";
-                                                  #   Invoke-WebRequest -Uri "https://github.com/microsoft/microsoft-ui-xaml/releases/download/v2.8.6/Microsoft.UI.Xaml.2.8.x64.appx" -OutFile "Microsoft.UI.Xaml.2.8.x64.appx";
-                                                  #   Add-AppxPackage "Microsoft.VCLibs.x64.14.00.Desktop.appx";
-                                                  #   Add-AppxPackage "Microsoft.UI.Xaml.2.8.x64.appx";
-                                                  #   Add-AppxPackage "Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle";
-                                                OutProgress "Approve eulas by: Winget search; ";
-                                                Write-Output "y" | & WinGet search | Out-Null; # default source is "msstore"; alternative option: --accept-source-agreements
-                                                ScriptResetRc; # Example: OperationStopped: Last operation failed [ExitCode=-1978335230]. For the reason see the previous output.
-                                                  # Skip: Fehler beim Versuch, die Quelle zu aktualisieren: winget \n Die Quelle "msstore" erfordert, dass Sie die folgenden Verträge
-                                                  #       vor der Verwendung anzeigen. \n Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction \n
-                                                  #       Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben an den Back-End-Dienst gesendet wird,
-                                                  #       damit er ordnungsgemäß funktioniert (z. B. „US“). \n Stimmen Sie allen Nutzungsbedingungen der Quelle zu? \n [Y] Ja  [N] Nein:
-                                                OutProgress "WinGet current version: $(& WinGet --version) "; AssertRcIsOk;
-                                                OutProgress "Update WinGet to latest (method depends on wether process is in elevated mode or not) ";
-                                                if( (ProcessIsRunningInElevatedAdminMode) ){
-                                                  OutProgress "  Currently in elevated-mode, so we cannot use WinGet itself and so we use Add-AppxPackage. ";
-                                                  # Note: Add-AppxPackage sometimes requires: -ForceApplicationShutdown
-                                                  # more see: https://github.com/microsoft/winget-cli/releases
-                                                  [String] $jsonUrl = "https://api.github.com/repos/microsoft/winget-cli/releases/latest";
-                                                  OutProgress "Download and extract latest msi installer from: $jsonUrl ";
-                                                  [Object] $apiObj = NetDownloadToString $jsonUrl | ConvertFrom-Json;
-                                                  [String] $msiUrl = ($apiObj.assets | Where-Object{ $_.Name -eq "Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle" -and $_.content_type -eq "application/octet-stream" }).browser_download_url;
-                                                    # Example: "https://github.com/microsoft/winget-cli/releases/download/v1.9.25200/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
-                                                  OutProgress "& Add-AppxPackage -Path $msiUrl; ";
-                                                  & Add-AppxPackage -Path $msiUrl; AssertRcIsOk;
-                                                  Write-Progress -Activity " " -Status " " -Completed;
-                                                }else{
-                                                  OutProgress "  Currently in non-elevated-mode so update WinGet to latest by:  & WinGet upgrade Microsoft.AppInstaller; ";
-                                                  OutProgress "  Note: You have to run it under your usual account and not as admin otherwise you can get errors as: ";
-                                                  OutProgress "    Fehler beim Durchsuchen der Quelle: winget   \n   Unerwarteter Fehler beim Ausführen des Befehls:   \n   0x8a15000f : Von der Quelle benötigte Daten fehlen";
-                                                  [String[]] $out = & WinGet upgrade Microsoft.AppInstaller --disable-interactivity --accept-source-agreements |
-                                                    ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" }; AssertRcIsOk $out;
+function ToolWinGetSetup                      (){ # install and update winget; update sources; if elevated it works for all users otherwise for current user; requires minimum: Windows 10 1709 (build 16299) 
+                                                function WingetVersion(){
+                                                  [String] $wingetVersionString = & WinGet --version; AssertRcIsOk; # 2025-02: v1.9.25200; 2024-11: V1.9.25180; 2024-09: V1.8.1911; 2024-07: v1.2.10691;
+                                                  return [System.Version] ($wingetVersionString -replace "^v","");
+                                                }
+                                                function WingetIsVeryOld (){ return [Boolean] (WingetVersion) -lt ([System.Version]"1.6"); }
+                                                function WinGetApproveEulas(){
+                                                  OutProgress "Make sure eulas are approved by: Winget search; ";
+                                                  Write-Output "y" | & WinGet search | Out-Null; # default source is "msstore"; alternative option: --accept-source-agreements
+                                                  ScriptResetRc; # Example: OperationStopped: Last operation failed [ExitCode=-1978335230]. For the reason see the previous output.
+                                                    # Skip: Fehler beim Versuch, die Quelle zu aktualisieren: winget \n Die Quelle "msstore" erfordert, dass Sie die folgenden Verträge
+                                                    #       vor der Verwendung anzeigen. \n Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction \n
+                                                    #       Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben an den Back-End-Dienst gesendet wird,
+                                                    #       damit er ordnungsgemäß funktioniert (z. B. „US“). \n Stimmen Sie allen Nutzungsbedingungen der Quelle zu? \n [Y] Ja  [N] Nein:
+                                                }
+                                                function WinGetSourcesListAndReset(){
+                                                  OutProgress "List WinGet Sources: ";
+                                                  [String[]] $a = & winget source list | ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" }; AssertRcIsOk $a;
+                                                    #   Name    Argument                                      Anstößig
+                                                    #   --------------------------------------------------------------
+                                                    #   msstore https://storeedgefd.dsx.mp.microsoft.com/v9.0 false
+                                                    #   winget  https://cdn.winget.microsoft.com/cache        false
+                                                  if( $a.Count -eq 4 -and $a[0].StartsWith("Name ") -and $a[1].StartsWith("-----") ){ $a = $a[2..($a.Length-1)] | Sort-Object; }
+                                                  $a | ForEach-Object{ OutProgress "  $_"; }; # msstore, winget.
+                                                  if( (ProcessIsRunningInElevatedAdminMode) -and $a[0].StartsWith("msstore ") -and $a[1].StartsWith("winget ") ){
+                                                    OutProgress "WinGet has the two default source (msstore,winget) so we can safely call reset source:  winget source reset --force; ";
+                                                    & WinGet source reset --force | ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" } | ForEach-Object{ OutProgress $_ 2; };
+                                                    AssertRcIsOk; # requires admin mode
+                                                  }else{
+                                                    OutProgress "Note: For reset back to msstore,winget use in admin mode: winget source reset --force; ";
+                                                  }
+                                                }
+                                                function WinGetSourcesUpdate(){
+                                                  OutProgress "Update WinGet sources ";
+                                                  [String[]] $out = & WinGet source update | ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" }; AssertRcIsOk $out;
                                                   $out | ForEach-Object{ OutProgress $_ 2; };
                                                 }
-                                                OutProgress "WinGet current version: $(& WinGet --version) "; AssertRcIsOk; # 2024-11: V1.9.25180; 2024-09: V1.8.1911; 2024-07: v1.2.10691;
-                                                OutProgress "Update list of WinGet ";
-                                                [String[]] $out = & WinGet source update | ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" }; AssertRcIsOk $out;
-                                                $out | ForEach-Object{ OutProgress $_ 2; };
-                                                OutProgress "List WinGet Sources: ";
-                                                [String[]] $a = & winget source list | ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" }; AssertRcIsOk $a;
-                                                  #   Name    Argument                                      Anstößig
-                                                  #   --------------------------------------------------------------
-                                                  #   msstore https://storeedgefd.dsx.mp.microsoft.com/v9.0 false
-                                                  #   winget  https://cdn.winget.microsoft.com/cache        false
-                                                if( $a.Count -eq 4 -and $a[0].StartsWith("Name ") -and $a[1].StartsWith("-----") ){ $a = $a[2..($a.Length-1)] | Sort-Object; }
-                                                $a | ForEach-Object{ OutProgress "  $_"; }; # msstore, winget.
-                                                if( (ProcessIsRunningInElevatedAdminMode) -and $a[0].StartsWith("msstore ") -and $a[1].StartsWith("winget ") ){
-                                                  OutProgress "WinGet has the two default source (msstore,winget) so we can call reset source:  winget source reset --force; ";
-                                                  & WinGet source reset --force; AssertRcIsOk; # requires admin mode
-                                                    # it is said we should rarely reset source, but why not?
-                                                }else{
-                                                  OutProgress "Note: For reset back to msstore,winget and others are lost use in admin mode: winget source reset --force; ";
+                                                OutProgressTitle "Setup WinGet by install and update it to latest version (method depends on wether process is in elevated mode or not) ";
+                                                OsWindowsAppxImportModule;
+                                                # on win11 usually user must be logged in once to enable winget, otherwise we must install it now
+                                                if( (ProcessFindExecutableInPath "winget") -eq "" -or (WingetIsVeryOld) ){
+                                                  [String] $pckName = "Microsoft.DesktopAppInstaller_8wekyb3d8bbwe";
+                                                  [String] $msixName = "$pckName.msixbundle";
+                                                  [String] $urlMsix = "https://github.com/microsoft/winget-cli/releases/latest/download/$msixName"; # 225 MB; alternative: "https://aka.ms/getwinget"
+                                                  if( (WingetIsVeryOld) ){
+                                                    Add-AppxPackage -Path $urlMsix; #  -ForceApplicationShutdown;
+                                                      AssertRcIsOk; Write-Progress -Activity " " -Status " " -Completed;
+                                                    # alternative: Invoke-WebRequest -Uri $urlMsix -OutFile $msixName; Add-AppxPackage $msixName;
+                                                  }elseif( (ProcessIsRunningInElevatedAdminMode) ){
+                                                    OutProgress "Currently in elevated-mode , so we cannot use WinGet itself and so we use Add-AppxPackage. ";
+                                                    # Note: Add-AppxPackage sometimes requires: -ForceApplicationShutdown
+                                                    # more see: https://github.com/microsoft/winget-cli/releases
+                                                    [String] $jsonUrl = "https://api.github.com/repos/microsoft/winget-cli/releases/latest";
+                                                    OutProgress "Download and extract latest msi installer from: $jsonUrl ";
+                                                    [Object] $apiObj = NetDownloadToString $jsonUrl | ConvertFrom-Json;
+                                                    [String] $msiUrl = ($apiObj.assets | Where-Object{ $_.Name -eq $pckName -and $_.content_type -eq "application/octet-stream" }).browser_download_url;
+                                                      # Example: "https://github.com/microsoft/winget-cli/releases/download/v1.9.25200/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle"
+                                                    OutProgress "Add-AppxPackage -Path $msiUrl; ";
+                                                    Add-AppxPackage -Path $msiUrl;
+                                                      AssertRcIsOk; Write-Progress -Activity " " -Status " " -Completed;
+                                                    if( $false ){ # we currently not perform actions for new users
+                                                      OutProgress "Add appx package that will install for each new user to the os. ";
+                                                      [String] $tmpMsix = (FileGetTempFile); # alternative name: DesktopAppInstaller.msixbundle
+                                                      Invoke-webrequest $urlMsix -OutFile $tmpMsix;
+                                                      Add-ProvisionedAppPackage -online -skiplicense -PackagePath $tmpMsix;
+                                                        AssertRcIsOk; Write-Progress -Activity " " -Status " " -Completed;
+                                                      Remove-Item $tmpMsix;
+                                                    }
+                                                  }else{
+                                                    OutProgress "Currently not in elevated-mode, so we use Add-AppxPackage for install it for current user. ";
+                                                    OutProgress "Add-AppxPackage -RegisterByFamilyName -MainPackage $pckName; ";
+                                                    # Register Winget (On Win11 automatically done after first user logon) for current user
+                                                    Add-AppxPackage -RegisterByFamilyName -MainPackage $pckName;
+                                                      # alternative option: -ForceApplicationShutdown
+                                                      AssertRcIsOk; Write-Progress -Activity " " -Status " " -Completed;
+                                                  }
+                                                  # Alternative to install winget without microsoft store which is also required on windows sandboxes
+                                                  #   Install-PackageProvider -Name NuGet -Force -ErrorAction SilentlyContinue | Out-Null;
+                                                  #   [String] $instScope = "CurrentUser; $scope = "AllUsers; # choose scope
+                                                  #   Install-Module -Name Microsoft.WinGet.Client -Force -Repository PSGallery -Scope $instScope -ErrorAction SilentlyContinue | Out-Null; # Installing WinGet PowerShell module from PSGallery
+                                                  #   Repair-WinGetPackageManager -ErrorAction SilentlyContinue; # bootstrap WinGet;
                                                 }
+                                                OutProgress "WinGet current version: V$(WingetVersion) "; 
+                                                WinGetApproveEulas;
+                                                WinGetSourcesListAndReset;
+                                                WinGetSourcesUpdate;
+                                                ToolWingetInstallPackage "Microsoft.AppInstaller";
                                                 # winget --help
                                                 #   Folgende Befehle sind verfügbar:
                                                 #     install    Installiert das angegebene Paket
@@ -2771,15 +2796,23 @@ function ToolWingetUpdateInstalledPackages    (){ # Ignores errors. If not eleva
                                                 ScriptResetRc; # Example: OperationStopped: Last operation failed [ExitCode=-1978335188]. For the reason see the previous output.
                                               }
 function ToolWingetInstallPackage             ( [String] $id, [String] $source = "winget", [Boolean] $canRetry = $false ){
-                                                # Ignores errors. Call the tool "winget" to intall from a given source.
+                                                # Call the tool "winget" to intall from a given source.
+                                                # Id can be specifed by blanks separated version.
+                                                # Ignores errors.
+                                                # If it is elevated then it installs it in machine scope, otherwise in user scope.
                                                 # If canRetry and install-result is not up-to-date then it tries an uninstall and again an install.
-                                                OutProgress "Install-or-Update-Package(source=$source$(switch($canRetry){($true){',canRetry'}($false){''}})): `"$id`" ";
+                                                [String] $instScope = switch(ProcessIsRunningInElevatedAdminMode){($true){"Machine"}($false){"User"}};
+                                                [String[]] $a = ($id -split "\s+");
+                                                $id = $a[0];
+                                                [String] $pckVersion = switch($a.Count -le 1){($true){""}($false){$a[1]}};
+                                                if( $a.Count -gt 2 ){ throw [Exception] "ToolWingetInstallPackage(id=`"$id`") unknown third blanks separated part: `"$a[2]`""; }
+                                                OutProgress "Install-or-Update-Package(source=$source,scope=$instScope$(switch($canRetry){($true){',canRetry'}($false){''}})): `"$id`" $pckVersion ";
                                                 # We recommend to use source=winget because otherwise we can get for example for:  winget install --verbose --disable-interactivity "Google.Chrome";
                                                 #   Die Quelle "msstore" erfordert, dass Sie die folgenden Vereinbarungen vor der Verwendung anzeigen.
                                                 #   Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction
                                                 #   Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben an den Back-End-Dienst gesendet wird, damit er ordnungsgemäß funktioniert (z. B. „US“).
                                                 #   Mindestens einer der Quellvereinbarungen wurde nicht zugestimmt. Vorgang abgebrochen. Akzeptieren Sie bitte die Quellvereinbarungen, oder entfernen Sie die entsprechenden Quellen.
-                                                [String[]] $out = & WinGet install --verbose --source $source --disable-interactivity --id $id --accept-source-agreements *>&1 | # alternatives: --version 1.2.3  --all-versions  --scope user  --scope machine
+                                                [String[]] $out = & WinGet install --version $pckVersion --verbose --source $source --disable-interactivity --id $id --accept-source-agreements *>&1 | # alternatives: --version 1.2.3  --all-versions  --scope user  --scope machine
                                                   ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" };
                                                 [Int32] $rc = ScriptGetAndClearLastRc; # Example: OperationStopped: Last operation failed [ExitCode=-1978335189]. For the reason see the previous output. Is up to date.
                                                 $out | ForEach-Object{ OutProgress $_ 2; };
@@ -2787,7 +2820,7 @@ function ToolWingetInstallPackage             ( [String] $id, [String] $source =
                                                   OutProgress "rc=$rc; Program is not up-to-date. Retry=$canRetry; " 2;
                                                   if( $canRetry ){
                                                     ToolWingetUninstallPackage $id $source;
-                                                    ToolWingetInstallPackage $id $source $false;
+                                                    ToolWingetInstallPackage $id $source $false $pckVersion;
                                                   }
                                                 }
                                                 # 2025-02: winget install $id;
