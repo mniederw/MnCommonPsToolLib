@@ -2805,7 +2805,7 @@ function ToolWingetInstallPackage             ( [String] $id, [String] $source =
                                                 [String[]] $a = ($id -split "\s+");
                                                 $id = $a[0];
                                                 [String] $pckVersion = switch($a.Count -le 1){($true){""}($false){$a[1]}};
-                                                if( $a.Count -ge 2 ){ throw [Exception] "ToolWingetInstallPackage(id=`"$id`") unknown third blanks separated part: `"$a[2]`""; }
+                                                if( $a.Count -gt 2 ){ throw [Exception] "ToolWingetInstallPackage(id=`"$id`") unknown third blanks separated part: `"$a[2]`""; }
                                                 OutProgress "Install-or-Update-Package(source=$source,scope=$instScope$(switch($canRetry){($true){',canRetry'}($false){''}})): `"$id`" $pckVersion ";
                                                 # We recommend to use source=winget because otherwise we can get for example for:  winget install --verbose --disable-interactivity "Google.Chrome";
                                                 #   Die Quelle "msstore" erfordert, dass Sie die folgenden Vereinbarungen vor der Verwendung anzeigen.
