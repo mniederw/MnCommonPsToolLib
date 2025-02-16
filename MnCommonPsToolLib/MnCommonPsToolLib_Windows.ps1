@@ -2796,17 +2796,23 @@ function ToolWingetUpdateInstalledPackages    (){ # Ignores errors. If not eleva
                                                 ScriptResetRc; # Example: OperationStopped: Last operation failed [ExitCode=-1978335188]. For the reason see the previous output.
                                               }
 function ToolWingetInstallPackage             ( [String] $id, [String] $source = "winget", [Boolean] $canRetry = $false ){
-                                                # Ignores errors. Call the tool "winget" to intall from a given source.
+                                                # Call the tool "winget" to intall from a given source.
+                                                # Id can be specifed by blanks separated version.
+                                                # Ignores errors.
                                                 # If it is elevated then it installs it in machine scope, otherwise in user scope.
                                                 # If canRetry and install-result is not up-to-date then it tries an uninstall and again an install.
                                                 [String] $instScope = switch(ProcessIsRunningInElevatedAdminMode){($true){"Machine"}($false){"User"}};
-                                                OutProgress "Install-or-Update-Package(source=$source,scope=$instScope$(switch($canRetry){($true){',canRetry'}($false){''}})): `"$id`" ";
+                                                [String[]] $a = ($id -split "\s+");
+                                                $id = $a[0];
+                                                [String] $pckVersion = switch($a.Count -le 1){($true){""}($false){$a[1]}};
+                                                if( $a.Count -ge 2 ){ throw [Exception] "ToolWingetInstallPackage(id=`"$id`") unknown third blanks separated part: `"$a[2]`""; }
+                                                OutProgress "Install-or-Update-Package(source=$source,scope=$instScope$(switch($canRetry){($true){',canRetry'}($false){''}})): `"$id`" $pckVersion ";
                                                 # We recommend to use source=winget because otherwise we can get for example for:  winget install --verbose --disable-interactivity "Google.Chrome";
                                                 #   Die Quelle "msstore" erfordert, dass Sie die folgenden Vereinbarungen vor der Verwendung anzeigen.
                                                 #   Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction
                                                 #   Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben an den Back-End-Dienst gesendet wird, damit er ordnungsgemäß funktioniert (z. B. „US“).
                                                 #   Mindestens einer der Quellvereinbarungen wurde nicht zugestimmt. Vorgang abgebrochen. Akzeptieren Sie bitte die Quellvereinbarungen, oder entfernen Sie die entsprechenden Quellen.
-                                                [String[]] $out = & WinGet install --verbose --source $source --disable-interactivity --id $id --accept-source-agreements *>&1 | # alternatives: --version 1.2.3  --all-versions  --scope user  --scope machine
+                                                [String[]] $out = & WinGet install --version $pckVersion --verbose --source $source --disable-interactivity --id $id --accept-source-agreements *>&1 | # alternatives: --version 1.2.3  --all-versions  --scope user  --scope machine
                                                   ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" };
                                                 [Int32] $rc = ScriptGetAndClearLastRc; # Example: OperationStopped: Last operation failed [ExitCode=-1978335189]. For the reason see the previous output. Is up to date.
                                                 $out | ForEach-Object{ OutProgress $_ 2; };
@@ -2814,7 +2820,7 @@ function ToolWingetInstallPackage             ( [String] $id, [String] $source =
                                                   OutProgress "rc=$rc; Program is not up-to-date. Retry=$canRetry; " 2;
                                                   if( $canRetry ){
                                                     ToolWingetUninstallPackage $id $source;
-                                                    ToolWingetInstallPackage $id $source $false;
+                                                    ToolWingetInstallPackage $id $source $false $pckVersion;
                                                   }
                                                 }
                                                 # 2025-02: winget install $id;

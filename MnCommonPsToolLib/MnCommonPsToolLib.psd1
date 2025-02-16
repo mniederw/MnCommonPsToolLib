@@ -43,7 +43,7 @@
   Major version will reflect breaking changes, minor identifies extensions and third number identifies urgent bugfixes.
   Breaking changes are usually removed deprecated functions or changed behaviours.
 
-  2025-02-16  V7.83  Improve ToolWinGetSetup.
+  2025-02-16  V7.83  Improve ToolWinGetSetup, ToolWingetInstallPackage.
   2025-02-10  V7.82  Fix ToolWingetListInstalledPackages. Improve ToolInstallNuPckMgrAndCommonPsGalMo.
   2025-02-09  V7.81  Improve ToolInstallNuPckMgrAndCommonPsGalMo, ToolWinGetCleanLine. Fix OutError, OutWarning.
   2025-02-05  V7.80  Improve install nuget. Improve StreamToTableString, ToolWingetInstallPackage.
