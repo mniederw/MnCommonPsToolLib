@@ -531,7 +531,7 @@ function OutWarning                           ( [String] $line, [Int32] $indentL
 function OutProgress                          ( [String] $line, [Int32] $indentLevel = 1, [Boolean] $noNewLine = $false, [String] $color = "Gray" ){
                                                 # Used for tracing changing actions; wraps Write-Host or Write-Information; if noNewLine is true then no TsPrefix. redirecable by 6> .
                                                 if( $global:ModeHideOutProgress ){ return; }
-                                                Write-Host -ForegroundColor $color -noNewline:$noNewLine "$(switch($noNewLine){($true){''}($false){OutGetTsPrefix}})$("  "*$indentLevel)$line"; }
+                                                Write-Host -ForegroundColor $color -noNewline:$noNewLine "$(OutGetTsPrefix)$("  "*$indentLevel)$line" <# old: "$(switch($noNewLine){($true){''}($false){OutGetTsPrefix}})$("  "*$indentLevel)$line"#>; }
 function OutProgressText                      ( [String] $str, [String] $color = "Gray" ){ OutProgress $str -indentLevel:0 -noNewLine:$true -color:$color; }
 function OutProgressTitle                     ( [String] $line ){ OutProgress $line -indentLevel:0 -color:$global:InfoLineColor; }
 function OutProgressSuccess                   ( [String] $line ){ OutProgress $line -color:"Green"; }
