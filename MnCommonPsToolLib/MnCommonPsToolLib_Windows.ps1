@@ -2587,7 +2587,7 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  ( [Boolean] $includeUpdateHelp = $
                                                     #   'ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate' with UI culture(s) {en-US} :
                                                     #   One or more errors occurred. (Response status code does not indicate success: 404 (The specified blob does not exist.).).
                                                     #   English-US help content is available and can be installed using: Update-Help -UICulture en-US.
-                                                  [String] $knownErrMsg =  "Failed to update Help for the module(s) 'ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate' with UI culture(s) {en-US} : ";
+                                                  [String] $knownErrMsg =  "Failed to update Help for the module(s) 'ConfigDefender, ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate' with UI culture(s) {en-US} : ";
                                                            $knownErrMsg += "One or more errors occurred. (Response status code does not indicate success: 404 (The requested content does not exist.).).`r`n";
                                                            $knownErrMsg += "English-US help content is available and can be installed using: Update-Help -UICulture en-US.";
                                                   if( $out -eq $knownErrMsg ){ $out = "Got known response 404=NotFound for en-US of: ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate. "; }
