@@ -1881,6 +1881,11 @@ function NetPingHostIsConnectable             ( [String] $hostName, [Boolean] $d
                                                 try{ [System.Net.Dns]::GetHostByName($hostName); }catch{ OutVerbose "Ignoring GetHostByName($hostName) failed because $($_.Exception.Message)"; }
                                                 # nslookup $hostName -ErrorAction SilentlyContinue | out-null;
                                                 return [Boolean] (Test-Connection -ComputerName $hostName -BufferSize 16 -Count 1 -ErrorAction SilentlyContinue -quiet); }
+function NetRequestStatusCode                 ( [String] $url ){ # is fast, only access head, usually return 200=OK or 404=NotFound;
+                                                [Int32] $statusCode = -1;
+                                                try{ $statusCode = (Invoke-WebRequest -Uri $url -UseBasicParsing -Method Head -ErrorAction Stop).StatusCode;
+                                                }catch{ $statusCode = $_.Exception.Response.StatusCode; }
+                                                return [Int32] $statusCode; }
 function NetWebRequestLastModifiedFailSafe    ( [String] $url ){ # Requests metadata from a downloadable file. Return DateTime.MaxValue in case of any problem
                                                 [net.WebResponse] $resp = $null;
                                                 try{
@@ -2456,6 +2461,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                 AssertNotEmpty $tarRootDir "tarRootDir";
                                                 FsEntryAssertHasTrailingDirSep $tarRootDir;
                                                 $tarRootDir = FsEntryGetAbsolutePath $tarRootDir;
+                                                DirCreate $tarRootDir;
                                                 if( @("Clone","Fetch","Pull","CloneOrPull","CloneOrFetch","Revert") -notcontains $cmd ){
                                                   throw [Exception] "Expected one of (Clone,Fetch,Pull,CloneOrPull,CloneOrFetch,Revert) instead of: $cmd"; }
                                                 if( ($urlAndOptionalBranch -split "/",0)[-1] -notmatch "^[A-Za-z0-9]+[A-Za-z0-9._-]*(#[A-Za-z0-9]+[A-Za-z0-9._-]*)?`$" ){
@@ -2719,8 +2725,10 @@ function GitDisableAutoCrLf                   (){ # set this as default for glob
                                                 GitSetGlobalVar "core.autocrlf" $val;
                                                 GitSetGlobalVar "core.autocrlf" $val $true; }
 function GitCloneOrPullUrls                   ( [String[]] $listOfRepoUrls, [String] $tarRootDirOfAllRepos, [Boolean] $errorAsWarning = $false ){
-                                                # Works later multithreaded and errors are written out, collected and throwed at the end.
+                                                # Works multithreaded and errors are written out and also collected and throwed at the end.
                                                 # If you want single threaded then call it with only one item in the list.
+                                                # The first item is always first performed synchron in case some authentication has to be entered
+                                                # which can be reused for the following multithreaded calls.
                                                 $listOfRepoUrls = @()+$listOfRepoUrls;
                                                 $tarRootDirOfAllRepos = FsEntryGetAbsolutePath $tarRootDirOfAllRepos;
                                                 FsEntryAssertHasTrailingDirSep $tarRootDirOfAllRepos;
@@ -2732,18 +2740,22 @@ function GitCloneOrPullUrls                   ( [String[]] $listOfRepoUrls, [Str
                                                     [String] $msg = "Error: $($_.Exception.Message)"; OutError $msg; $errorLines += $msg;
                                                   }
                                                 }
-                                                if( $listOfRepoUrls.Count -eq 1 ){ GetOne $listOfRepoUrls[0]; }
-                                                else{
-                                                  [String] $tmp = (FileGetTempFile);
-                                                  $listOfRepoUrls | ForEach-Object { Start-ThreadJob -ThrottleLimit 8 -StreamingHost $host -ScriptBlock {
-                                                    try{
-                                                      GitCmd "CloneOrPull" $using:tarRootDirOfAllRepos $using:_ $using:errorAsWarning;
-                                                    }catch{
-                                                      [String] $msg = "Error: $($_.Exception.Message)"; OutError $msg;
-                                                      FileAppendLine $using:tmp $msg;
-                                                    }
-                                                  } } | Wait-Job | Remove-Job;
-                                                  [String] $errMsg = (FileReadContentAsString $tmp "Default"); # TODO: try to replace Default by UTF8.
+                                                if( $listOfRepoUrls.Count -ge 1 ){
+                                                  GetOne $listOfRepoUrls[0];
+                                                }
+                                                if( $listOfRepoUrls.Count -ge 2 ){
+                                                  [String] $tmp = (FileGetTempFile); # temp file because in mt block we cannot write a variable from outer scope
+                                                  $listOfRepoUrls | Select-Object -Skip 1 | ForEach-Object { 
+                                                    Start-ThreadJob -ThrottleLimit 8 -StreamingHost $host -ScriptBlock {
+                                                      try{
+                                                        GitCmd "CloneOrPull" $using:tarRootDirOfAllRepos $using:_ $using:errorAsWarning;
+                                                      }catch{
+                                                        [String] $msg = "Error: $($_.Exception.Message)"; OutError $msg;
+                                                        FileAppendLine $using:tmp $msg;
+                                                      }
+                                                    } 
+                                                  } | Wait-Job | Remove-Job;
+                                                  [String] $errMsg = (FileReadContentAsString $tmp "UTF8");
                                                   FileDelTempFile $tmp;
                                                   if( $errMsg -ne "" ){ $errorLines += $errMsg; }
                                                 }
