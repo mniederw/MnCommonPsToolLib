@@ -2912,6 +2912,7 @@ function MnCommonPsToolLibSelfUpdate          (){
                                                 [String]  $url     = "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/master/$moduleName/${moduleName}.psd1";
                                                 ToolPerformFileUpdateAndIsActualized $modFile $url $requireElevatedAdminMode $doWaitIfFailed $additionalOkUpdMsg $assertFilePreviouslyExists $performPing | Out-Null;
                                                 OutProgress "Current-MnCommonPsToolLibVersion: V$((Get-Module -Name MnCommonPsToolLib -ListAvailable).Version)";
+                                                Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1" -Force; 
                                                 }
 
 function ToolVs2019UserFolderGetLatestUsed    (){ OutWarning "ToolVs2019UserFolderGetLatestUsed is DEPRECATED, replace it now by: ToolVsUserFolderGetLatestUsed "; return (ToolVsUserFolderGetLatestUsed); }
