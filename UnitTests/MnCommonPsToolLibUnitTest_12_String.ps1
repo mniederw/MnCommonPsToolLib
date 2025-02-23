@@ -79,6 +79,10 @@ function UnitTest_String(){
   Assert         ((StringArrayIsEqual                @("a","b") @("b","a") $true       ) -eq $true );
   Assert         ((StringArrayIsEqual                @("a","b") @("b","c") $true       ) -eq $false);
   Assert         ([String](StringArrayDblQuoteItems  @("a","b")                        ) -eq [String]@("`"a`"","`"b`""));
+  Assert         ((StringArrayGetMaxItemLength $null        ) -eq 0);
+  Assert         ((StringArrayGetMaxItemLength @()          ) -eq 0);
+  Assert         ((StringArrayGetMaxItemLength @("ab")      ) -eq 2);
+  Assert         ((StringArrayGetMaxItemLength @("ab","cde")) -eq 3);
   Assert         ((StringNormalizeAsVersion          ""                       ) -eq ""                       );
   Assert         ((StringNormalizeAsVersion          "a"                      ) -eq "a"                      );
   Assert         ((StringNormalizeAsVersion          "0"                      ) -eq "00000"                  );
