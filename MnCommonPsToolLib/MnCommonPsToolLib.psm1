@@ -318,7 +318,7 @@ function StringArrayIsEqual                   ( [String[]] $a, [String[]] $b, [B
                                                 } return [Boolean] $true; }
 function StringArrayDblQuoteItems             ( [String[]] $a ){ # surround each item by double quotes
                                                 return [String[]] (@()+($a | Where-Object{$null -ne $_} | ForEach-Object { "`"$_`"" })); }
-function StringArrayGetMaxItemLength          ( [String[]] $lines ){ return [Int32] ($lines | Measure-Object -Property Length -Maximum).Maximum; }
+function StringArrayGetMaxItemLength          ( [String[]] $lines ){ return [Int32] ((@("")+$lines) | Where-Object{$null -ne $_} | Measure-Object -Property Length -Maximum).Maximum; }
 function StringNormalizeAsVersion             ( [String] $versionString ){
                                                 # For comparison the first 4 dot separated parts are cared and the rest after a blank is ignored.
                                                 # Each component which begins with a digit is filled with leading zeros to a length of 5
