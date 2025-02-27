@@ -318,6 +318,7 @@ function StringArrayIsEqual                   ( [String[]] $a, [String[]] $b, [B
                                                 } return [Boolean] $true; }
 function StringArrayDblQuoteItems             ( [String[]] $a ){ # surround each item by double quotes
                                                 return [String[]] (@()+($a | Where-Object{$null -ne $_} | ForEach-Object { "`"$_`"" })); }
+function StringArrayGetMaxItemLength          ( [String[]] $lines ){ return [Int32] ((@("")+$lines) | Where-Object{$null -ne $_} | Measure-Object -Property Length -Maximum).Maximum; }
 function StringNormalizeAsVersion             ( [String] $versionString ){
                                                 # For comparison the first 4 dot separated parts are cared and the rest after a blank is ignored.
                                                 # Each component which begins with a digit is filled with leading zeros to a length of 5
@@ -601,7 +602,7 @@ function AssertNotEmpty                       ( [String] $s, [String] $varName =
 function AssertRcIsOk                         ( [String[]] $linesToOutProgress = "", [Boolean] $useLinesAsExcMessage = $false,
                                                 [String] $logFileToOutProgress = "", [String] $encodingIfNoBom = "Default" ){ # TODO change this to UTF8
                                                 # Asserts success status of last statement and wether code of last exit or native command was zero.
-                                                # In case it was not ok it optionally outputs given progress information and throws.
+                                                # In case it was not ok it optionally outputs given progress information, it internally reset the rc and throws.
                                                 # Only nonempty progress lines are given out.
                                                 # Argument linesToOutProgress can also be called with a single string;
                                                 # if logFileToOutProgress is given than the lines are given out.

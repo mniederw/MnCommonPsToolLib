@@ -2742,7 +2742,7 @@ function ToolWinGetSetup                      (){ # install and update winget; u
                                                 WinGetApproveEulas;
                                                 WinGetSourcesListAndReset;
                                                 WinGetSourcesUpdate;
-                                                ToolWingetInstallPackage "Microsoft.AppInstaller";
+                                                ToolWingetInstallPackage "Microsoft.AppInstaller" -scope:User; # only works for scope User.
                                                 # winget --help
                                                 #   Folgende Befehle sind verfügbar:
                                                 #     install    Installiert das angegebene Paket
@@ -2777,33 +2777,61 @@ function ToolWinGetSetup                      (){ # install and update winget; u
                                               }
 function ToolWingetListInstalledPackages      (){
                                                 # call the tool "winget" to list installed packages
-                                                OutProgress "List of installed packages: ";
-                                                [String[]] $out = & WinGet list --disable-interactivity --accept-source-agreements *>&1 |
-                                                  ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" }; AssertRcIsOk $out;
-                                                $out | ForEach-Object{ OutProgress $_ 2; };
+                                                OutProgress "List of installed packages of scope [User,$(switch(ProcessIsRunningInElevatedAdminMode){($true){''}($false){'but not '}})Machine]: ";
+                                                [String[]] $out1 = & WinGet list --disable-interactivity --accept-source-agreements --scope User *>&1 |
+                                                  ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" }; AssertRcIsOk $out1;
+                                                [String[]] $out2 = @();
+                                                if( (ProcessIsRunningInElevatedAdminMode) ){
+                                                  [String[]] $out2 = & WinGet list --disable-interactivity --accept-source-agreements --scope Machine *>&1 |
+                                                  ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" }; AssertRcIsOk $out2;
+                                                }
+                                                [Int32] $len = StringArrayGetMaxItemLength ($out1+$out2);
+                                                $out1 = $out1 | Where-Object{ $_ -ne "" } | ForEach-Object{ "$($_.PadRight($len)) User    "; };
+                                                $out2 = $out2 | Where-Object{ $_ -ne "" } | ForEach-Object{ "$($_.PadRight($len)) Machine "; };
+                                                $out1 | Where-Object{ $_ -ne "" } | Select-Object -First 1 | ForEach-Object{ OutProgress $_ 2; };
+                                                $out2 | Where-Object{ $_ -ne "" } | Select-Object -First 1 | ForEach-Object{ OutProgress $_ 2; };
+                                                OutProgress "$('-'*$len)-------- " 2;
+                                                (($out1 | Select-Object -Skip 2) + ($out2 | Select-Object -Skip 2)) | Sort-Object | Where-Object{ $_ -ne "" } | ForEach-Object{ OutProgress $_ 2; };
                                                 # Example: Es wurde kein anwendbares Upgrade gefunden.
                                                 # Example: In einer konfigurierten Quelle ist eine neuere Paketversion verfügbar, die jedoch nicht auf Ihr System oder Ihre Anforderungen zutrifft.
                                                 # Example: Es wurde eine neuere Version gefunden, die Installationstechnologie unterscheidet sich jedoch von der aktuellen installierten Version. Deinstallieren Sie das Paket, und installieren Sie die neuere Version.
                                               }
-function ToolWingetUpdateInstalledPackages    (){ # Ignores errors. If not elevated then it will ask multiple for it.
-                                                OutProgress "Upgrade all packages of winget:  winget upgrade --all --disable-interactivity --accept-source-agreements";
-                                                & WinGet upgrade --all --disable-interactivity --accept-source-agreements | # can ask multiple for elevated mode
+function ToolWingetListUpgradablePackages     ( [String] $scope = "Auto" ){
+                                                # Note: for evaluated scope=Machine it also performs scope=User.
+                                                [String] $instScope = $scope; if( $scope -eq "Auto" ){ $instScope = switch(ProcessIsRunningInElevatedAdminMode){($true){"Machine"}($false){"User"}}; }
+                                                OutProgress "List all upgradable packages of winget:  winget upgrade --scope $instScope --include-unknown --disable-interactivity --accept-source-agreements ";
+                                                & WinGet upgrade --scope $instScope --include-unknown --disable-interactivity --accept-source-agreements | # can ask multiple for elevated mode; alternative: --skip-dependencies
+                                                  ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" } | ForEach-Object{ OutProgress $_ 2; };
+                                                ScriptResetRc;
+                                                if( $instScope -eq "Machine" ){
+                                                  ToolWingetListUpgradablePackages "User";
+                                                }
+                                              }
+function ToolWingetUpdateInstalledPackages    ( [String] $scope = "Auto" ){
+                                                # Note: for evaluated scope=Machine it also performs scope=User.
+                                                # Ignores errors. If not elevated then it will ask multiple for it.
+                                                # Scope is one of: "User","Machine","Auto"(depends on elevated admin mode).
+                                                [String] $instScope = $scope; if( $scope -eq "Auto" ){ $instScope = switch(ProcessIsRunningInElevatedAdminMode){($true){"Machine"}($false){"User"}}; }
+                                                OutProgress "Upgrade all packages of winget:  winget upgrade --scope $instScope --include-unknown --disable-interactivity --accept-source-agreements --all ";
+                                                & WinGet upgrade --scope $instScope --include-unknown --disable-interactivity --accept-source-agreements --all | # can ask multiple for elevated mode; alternative: --skip-dependencies
                                                   ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" } | ForEach-Object{ OutProgress $_ 2; };
                                                   # Example: Die Anwendung wird zurzeit ausgeführt. Beenden Sie die Anwendung, und versuchen Sie es noch mal.
                                                   #          Installation fehlgeschlagen mit Exitcode: 5
                                                   #          Mindestens 5 Paket verfügt über Versionsnummern, die nicht ermittelt werden können. Verwenden Sie „--include-unknown“, um alle Ergebnisse anzuzeigen.
                                                   #          1 Pakete sind angeheftet und müssen explizit aktualisiert werden.
                                                 ScriptResetRc; # Example: OperationStopped: Last operation failed [ExitCode=-1978335188]. For the reason see the previous output.
+                                                if( $instScope -eq "Machine" ){
+                                                  ToolWingetUpdateInstalledPackages "User";
+                                                }
                                               }
-function ToolWingetInstallPackage             ( [String] $id, [String] $source = "winget", [Boolean] $canRetry = $false ){
-                                                # Call the tool "winget" to intall from a given source.
-                                                # Id can be specifed by blanks separated version.
-                                                # Ignores errors.
-                                                # If it is elevated then it installs it in machine scope, otherwise in user scope.
+function ToolWingetInstallPackage             ( [String] $idAndOptionalBlankSepVersion, [String] $source = "winget", [Boolean] $canRetry = $false, [String] $scope = "Auto" ){
+                                                # Call the tool "winget" to intall from a given source. Ignores errors.
+                                                # Id can be specifed by optional blanks separated version.
+                                                # Scope is one of: "User","Machine","Auto"(depends on elevated admin mode).
                                                 # If canRetry and install-result is not up-to-date then it tries an uninstall and again an install.
-                                                [String] $instScope = switch(ProcessIsRunningInElevatedAdminMode){($true){"Machine"}($false){"User"}};
-                                                [String[]] $a = ($id -split "\s+");
-                                                $id = $a[0];
+                                                [String] $instScope = $scope; if( $scope -eq "Auto" ){ $instScope = switch(ProcessIsRunningInElevatedAdminMode){($true){"Machine"}($false){"User"}}; }
+                                                [String[]] $a = ($idAndOptionalBlankSepVersion -split "\s+");
+                                                [String] $id = $a[0];
                                                 [String] $pckVersion = switch($a.Count -le 1){($true){""}($false){$a[1]}};
                                                 if( $a.Count -gt 2 ){ throw [Exception] "ToolWingetInstallPackage(id=`"$id`") unknown third blanks separated part: `"$a[2]`""; }
                                                 OutProgress "Install-or-Update-Package(source=$source,scope=$instScope$(switch($canRetry){($true){',canRetry'}($false){''}})): `"$id`" $pckVersion ";
@@ -2812,15 +2840,15 @@ function ToolWingetInstallPackage             ( [String] $id, [String] $source =
                                                 #   Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction
                                                 #   Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben an den Back-End-Dienst gesendet wird, damit er ordnungsgemäß funktioniert (z. B. „US“).
                                                 #   Mindestens einer der Quellvereinbarungen wurde nicht zugestimmt. Vorgang abgebrochen. Akzeptieren Sie bitte die Quellvereinbarungen, oder entfernen Sie die entsprechenden Quellen.
-                                                [String[]] $out = & WinGet install --version $pckVersion --verbose --source $source --disable-interactivity --id $id --accept-source-agreements *>&1 | # alternatives: --version 1.2.3  --all-versions  --scope user  --scope machine
+                                                [String[]] $out = & WinGet install --verbose --disable-interactivity --accept-source-agreements --scope $instScope --source $source --id $id --version $pckVersion *>&1 | # alternatives: --all-versions
                                                   ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" };
                                                 [Int32] $rc = ScriptGetAndClearLastRc; # Example: OperationStopped: Last operation failed [ExitCode=-1978335189]. For the reason see the previous output. Is up to date.
                                                 $out | ForEach-Object{ OutProgress $_ 2; };
                                                 if( $rc -ne -1978335189 -and $rc -ne 0 ){ # Is up to date.
                                                   OutProgress "rc=$rc; Program is not up-to-date. Retry=$canRetry; " 2;
                                                   if( $canRetry ){
-                                                    ToolWingetUninstallPackage $id $source;
-                                                    ToolWingetInstallPackage $id $source $false $pckVersion;
+                                                    ToolWingetUninstallPackage $idAndOptionalBlankSepVersion $source $scope;
+                                                    ToolWingetInstallPackage   $idAndOptionalBlankSepVersion $source $false $scope;
                                                   }
                                                 }
                                                 # 2025-02: winget install $id;
@@ -2840,10 +2868,17 @@ function ToolWingetInstallPackage             ( [String] $id, [String] $source =
                                                 # 2025-02: ToolWingetInstallPackage "Blizzard.BattleNet"
                                                 #            rc=-1978335137; Program is not up-to-date. Retry=False;
                                               }
-function ToolWingetUninstallPackage           ( [String] $id, [String] $source = "winget" ){
-                                                # Ignores errors. Call the tool "winget" to unintall from a given source.
-                                                OutProgress "Uninstall-Package(source=$source): `"$id`" ";
-                                                [String[]] $out = & WinGet uninstall --verbose --source $source --disable-interactivity --id $id --accept-source-agreements *>&1 |
+function ToolWingetUninstallPackage           ( [String] $idAndOptionalBlankSepVersion, [String] $source = "winget", [String] $scope = "Auto" ){
+                                                # Call the tool "winget" to uninstall from a given source. Ignores errors.
+                                                # Id can be specifed by optional blanks separated version.
+                                                # Scope is one of: "User","Machine","Auto"(depends on elevated admin mode).
+                                                [String] $instScope = $scope; if( $scope -eq "Auto" ){ $instScope = switch(ProcessIsRunningInElevatedAdminMode){($true){"Machine"}($false){"User"}}; }
+                                                [String[]] $a = ($idAndOptionalBlankSepVersion -split "\s+");
+                                                [String] $id = $a[0];
+                                                [String] $pckVersion = switch($a.Count -le 1){($true){""}($false){$a[1]}};
+                                                if( $a.Count -gt 2 ){ throw [Exception] "ToolWingetInstallPackage(id=`"$id`") unknown third blanks separated part: `"$a[2]`""; }
+                                                OutProgress "UnInstall-Package(source=$source,scope=$instScope): `"$id`" $pckVersion ";
+                                                [String[]] $out = & WinGet uninstall --verbose --disable-interactivity --accept-source-agreements --scope $instScope --source $source --id $id --version $pckVersion *>&1 |
                                                   ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" };
                                                 ScriptResetRc; # Example: OperationStopped: Last operation failed [ExitCode=-1978335212]. For the reason see the previous output. Already uninstalled, nothing done.
                                                 $out | ForEach-Object{ OutProgress $_ 2; };
