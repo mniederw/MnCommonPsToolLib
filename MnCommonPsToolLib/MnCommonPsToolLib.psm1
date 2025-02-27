@@ -602,7 +602,7 @@ function AssertNotEmpty                       ( [String] $s, [String] $varName =
 function AssertRcIsOk                         ( [String[]] $linesToOutProgress = "", [Boolean] $useLinesAsExcMessage = $false,
                                                 [String] $logFileToOutProgress = "", [String] $encodingIfNoBom = "Default" ){ # TODO change this to UTF8
                                                 # Asserts success status of last statement and wether code of last exit or native command was zero.
-                                                # In case it was not ok it optionally outputs given progress information and throws.
+                                                # In case it was not ok it optionally outputs given progress information, it internally reset the rc and throws.
                                                 # Only nonempty progress lines are given out.
                                                 # Argument linesToOutProgress can also be called with a single string;
                                                 # if logFileToOutProgress is given than the lines are given out.
