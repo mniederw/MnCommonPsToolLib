@@ -34,7 +34,7 @@
   }
   #HelpInfoURI            = '';
 
-  ModuleVersion          = '7.86';
+  ModuleVersion          = '7.87';
 
   <#
   Releasenotes
@@ -43,6 +43,7 @@
   Major version will reflect breaking changes, minor identifies extensions and third number identifies urgent bugfixes.
   Breaking changes are usually removed deprecated functions or changed behaviours.
 
+  2025-03-07  V7.87  Add GitInitGlobalConfig, Improve ToolInstallNuPckMgrAndCommonPsGalMo.
   2025-02-23  V7.86  Add StringArrayGetMaxItemLength, ToolWingetListUpgradablePackages. Adapt ToolWinGetSetup. Improve ToolWingetListInstalledPackages, ToolWingetUpdateInstalledPackages, ToolWingetInstallPackage, ToolWingetUninstallPackage.
   2025-02-20  V7.85  Improve MnCommonPsToolLibSelfUpdate.
   2025-02-19  V7.84  Improve mt behaviour for GitCloneOrPullUrls. Add NetRequestStatusCode.

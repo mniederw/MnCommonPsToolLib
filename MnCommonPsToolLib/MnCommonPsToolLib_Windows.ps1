@@ -2387,7 +2387,7 @@ function ToolInstallOrUpdate                  ( [String] $installMedia, [String]
                                                 }else{
                                                   OutProgress "Is up-to-date: `"$installMedia`"";
                                                 } }
-function ToolInstallNuPckMgrAndCommonPsGalMo  ( [Boolean] $includeUpdateHelp = $false ){ # runs in about 12-90 sec; help requires about 2 minutes.
+function ToolInstallNuPckMgrAndCommonPsGalMo  (){ # runs in about 12-90 sec and if nessessary then the update help requires about 2 minutes.
                                                 OutProgressTitle     "Install or actualize Nuget Package Manager and from PSGallery some common ps modules: ";
                                                 [String[]] $moduleNames = @(
                                                   # Predefined on Win  : Microsoft.PowerShell.Core          ; # Std     : Where-Object
@@ -2576,29 +2576,39 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  ( [Boolean] $includeUpdateHelp = $
                                                   DirDelete $v1001PathOfModulePackageManagement;
                                                 }
                                                 #
-                                                if( $includeUpdateHelp ){
+                                                function HasKnowErrMsg( [String] $msg ){
+                                                  # Example: 2024-07 Failed to update Help for the module(s)
+                                                  #   'PSReadline, WindowsUpdateProvider' with UI culture(s) {en-US} : One or more errors occurred.
+                                                  #   (Response status code does not indicate success: 404 (Not Found).).
+                                                  #   English-US help content is available and can be installed using: Update-Help -UICulture en-US.
+                                                  # Example: 2025-01: Got known response 404=NotFound for en-US of: ConfigDefender, ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate.
+                                                  # Example: 2025-01 Failed to update Help for the module(s)
+                                                  #   'ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate' with UI culture(s) {en-US} :
+                                                  #   One or more errors occurred. (Response status code does not indicate success: 404 (The specified blob does not exist.).).
+                                                  #   English-US help content is available and can be installed using: Update-Help -UICulture en-US.
+                                                  # Example: 2025-02: Got known response 404=NotFound for en-US of: ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate.
+                                                  return [Boolean] ($msg.StartsWith("Failed to update Help for the module(s) '") -and
+                                                    $msg.StartsWith("ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate") -and
+                                                    $msg.StartsWith("(Response status code does not indicate success: 404 (The requested content does not exist.)") -and
+                                                    $msg.StartsWith("Update-Help -UICulture en-US."));
+                                                }
+                                                [DateTime] $lastModuleUpdateTs = (Get-Module -ListAvailable | Where-Object { $null -ne $_.HelpInfoUri } | Select-Object Name,Version,ModuleType,HelpInfoUri,Path | 
+                                                  Foreach-Object { FsEntryGetLastModified $_.Path } | Measure-Object -Maximum).Maximum; # Example: 77 modules
+                                                [String] $touchFile = "$env:APPDATA/MnCommonPsToolLib/TouchFile.PsUpdateHelp.tmp";
+                                                OutProgress "Update-Help check if run is nessessary by comparing lastModifiedAt(`"$touchFile`") with lastModuleUpdateTs=$(DateTimeNowAsStringIso $lastModuleUpdateTs) ";
+                                                if( (FileNotExists $touchFile) -or (FsEntryGetLastModified $touchFile) -lt $lastModuleUpdateTs ){
                                                   OutProgress "Update-Help to en-US with continue-on-error ";
                                                   [String] $out = Update-Help -UICulture en-US -ErrorAction Continue *>&1 | ForEach-Object{ "$_"; };
-                                                    # Example: 2024-07 Failed to update Help for the module(s)
-                                                    #   'PSReadline, WindowsUpdateProvider' with UI culture(s) {en-US} : One or more errors occurred.
-                                                    #   (Response status code does not indicate success: 404 (Not Found).).
-                                                    #   English-US help content is available and can be installed using: Update-Help -UICulture en-US.
-                                                    # Example: 2025-01 Failed to update Help for the module(s)
-                                                    #   'ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate' with UI culture(s) {en-US} :
-                                                    #   One or more errors occurred. (Response status code does not indicate success: 404 (The specified blob does not exist.).).
-                                                    #   English-US help content is available and can be installed using: Update-Help -UICulture en-US.
-                                                  [String] $knownErrMsg =  "Failed to update Help for the module(s) 'ConfigDefender, ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate' with UI culture(s) {en-US} : ";
-                                                           $knownErrMsg += "One or more errors occurred. (Response status code does not indicate success: 404 (The requested content does not exist.).).`r`n";
-                                                           $knownErrMsg += "English-US help content is available and can be installed using: Update-Help -UICulture en-US.";
-                                                  if( $out -eq $knownErrMsg ){ $out = "Got known response 404=NotFound for en-US of: ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate. "; }
+                                                  if( (HasKnowErrMsg $out) ){ $out = "Got known response 404=NotFound for en-US of: ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate. "; }
                                                   Write-Progress -Activity " " -Status " " -Completed;
                                                   OutProgress "  $out";
                                                   OutProgress "Update-Help to current Culture with continue-on-error: $((Get-Culture).Name) = $((Get-Culture).DisplayName)"; # Example: "de-CH"
                                                   [String] $out = Update-Help -ErrorAction Continue *>&1 | ForEach-Object{ "$_"; };
                                                     # Usually we get the same errors as with en-US
-                                                  if( $out -eq $knownErrMsg ){ $out = "Got known response 404=NotFound for en-US of: ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate. "; }
+                                                  if( (HasKnowErrMsg $out) ){ $out = "Got known response 404=NotFound for en-US of: ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate. "; }
                                                   Write-Progress -Activity " " -Status " " -Completed;
                                                   OutProgress "  $out";
+                                                  FileTouch $touchFile;
                                                 }
                                                 # Some Infos:
                                                 # - Install-Module -Force -Name myModule; # 2021-12: Paralled installed V1.0.0.1 and V2.2.5

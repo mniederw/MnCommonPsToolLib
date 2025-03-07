@@ -2788,6 +2788,55 @@ function GitCloneOrPullUrls                   ( [String[]] $listOfRepoUrls, [Str
                                                 if( $errorLines.Count ){ throw [ExcMsg] (StringArrayConcat $errorLines); } }
                                                 function GithubPrepareCommand                 (){ # otherwise we would get: "A new release of gh is available: 2.7.0 → v2.31.0\nhttps://github.com/cli/cli/releases/tag/v2.31.0"
                                                 ProcessEnvVarSet "GH_NO_UPDATE_NOTIFIER" "1" -traceCmd:$false; }
+function GitInitGlobalConfig                  (){ # if git is installed the init its configuration
+                                                if( (ProcessFindExecutableInPath "git") -eq "" ){ OutProgress "Ok, nothing done because git is not installed."; return; }
+                                                OutProgress "Init git to usual config ";
+                                                [String] $credHlp = switch(OsIsWindows){($true){"manager"}($false){"store"}};
+                                                GitDisableAutoCrLf                           ; # make sure: core.autocrlf = false
+                                                GitSetGlobalVar "core.fileMode" "false"      ; # ignore executable-bit for diffs; 
+                                                                                               # default is true, honor executable bit of a file if fs system supports it.
+                                                                                               # Use false to not trust file modes and ignore the executable bit differences between the index and the working tree;
+                                                                                               # useful for filesystems having no file modes like FAT.
+                                                                                               # we also recommend for each repo: git config --local core.fileMode false
+                                                GitSetGlobalVar "diff.renamelimit" "12000"   ; # default value is 100, we increase value to avoid for (git log) warning: inexact rename detection was skipped due to too many files.
+                                                                                               # required values for git repos: gnuwget/wget2 11000, CosmosOS/Cosmos 1900, usual repos 1300.
+                                                GitSetGlobalVar "core.pager" "cat"           ; # [cat,less] use cat for pager; "less" would stop after a page
+                                                GitSetGlobalVar "core.fscache" "true"        ; # Enable additional caching of file system data for some operations.
+                                                GitSetGlobalVar "core.symlinks" "false"      ; # Usually use false for symbolic links are checked out as small plain files that contain the link text.
+                                                GitSetGlobalVar "init.defaultBranch" "main"  ; # For new repos
+                                                GitSetGlobalVar "credential.helper" $credHlp ; # "manager" usually for windows (avoids the warning about manager-core renaming);
+                                                                                               # "store" means save pw in $HOME/.git-credentials;
+                                                                                               # "cache --timeout=999999999" means store in ram 31 years in seconds;
+                                                                                               # More: "helper-selector", "!`".../mingw64/bin/git-credential-manager.exe`""
+                                                                                               # For remove stored pw use: git config --global --unset credential.helper;
+                                                                                               # For remove pw in ram for a repo: git credential reject https://github.com/myuser/myrepo.git;
+                                                                                               # For remove current cached password info use: git credential-cache exit ;
+                                                                                               # Example content for ".git-credentials": https://myuser:ghp_MyPATword...@github.com
+                                                # log.abbrevcommit          = yes            ; # abbreviate some log outs.
+                                                # core.abbrev               = 8              ; # object name abbreviation length, min is 4, can also be auto.
+                                                # rebase.autosquash         = true           ; # auto modify the todo list when commit msg is one of "squash! …", "fixup! …" or "amend! …".
+                                                # format.pretty             = oneline        ; # one log line per commit, is standard pretty format for commands as log, show, whatchanged.
+                                                # diff.astextplain.textconv = astextplain    ; # converts *.doc,*.pdf,*.rtf to textfiles before generating diff.
+                                                # color.interactive         = auto           ; # [always,auto=true,never] use colors for prompts, auto means only when out to terminal. Default is auto.
+                                                # color.ui                  = auto
+                                                # help.format               = html
+                                                # pull.rebase               = false
+                                                # gui.trustmtime            = true
+                                                # filter.lfs.clean          = git-lfs clean -- %f
+                                                # filter.lfs.smudge         = git-lfs smudge -- %f
+                                                # filter.lfs.process        = git-lfs filter-process
+                                                # filter.lfs.required       = true
+                                                # core.editor               = "'${env:ProgramFiles(x86)}/Notepad++/notepad++.exe' -multiInst -notabbar -nosession -noPlugin"
+                                                # http.sslBackend           = openssl
+                                                # http.sslCAInfo            = $env:ProgramFiles/Git/mingw64/etc/ssl/certs/ca-bundle.crt
+                                                # user.name                 = "johndoe"
+                                                # user.email                = john.doe@example.com
+                                                if( (ProcessIsRunningInElevatedAdminMode) ){
+                                                  # Set git system config, ecommended is the same content as global config without user.name and user.email
+                                                  # but if global config is proper setup then its not relevant because global (=per-user) overwrites system properties.
+                                                  GitSetGlobalVar "core.autocrlf" "false" -useSystemNotGlobal:$true; # this is strongly recommended to never use autocrlf
+                                                }
+                                                OutProgress "Ok, done."; }
 function GithubAuthStatus                     (){
                                                GithubPrepareCommand;
                                                [String] $out = (ProcessStart "gh" @("auth", "status") -careStdErrAsOut:$true -traceCmd:$true);
