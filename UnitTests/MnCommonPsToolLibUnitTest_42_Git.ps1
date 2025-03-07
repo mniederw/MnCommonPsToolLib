@@ -7,7 +7,7 @@ function UnitTest_Git(){
   #
   GitSetGlobalVar "core.pager" "cat"; # use cat for pager because waiting for keyboard is in most cases not neccessary
   #
-  if( (OsIsWindows) ){ GitDisableAutoCrLf; } # on github initial settings are systemwide AutoCrLf.
+  GitDisableAutoCrLf; # on git for windows initial settings are systemwide AutoCrLf which produces problems.
   #
   [String] $d = DirCreateTemp;
   [String] $repoDir = (FsEntryGetAbsolutePath "$d/mniederw/MnCommonPsToolLib#main/");
@@ -39,7 +39,7 @@ function UnitTest_Git(){
   GitListCommitComments "$repoDir/tmp/" $repoDir;
   GitAssertAutoCrLfIsDisabled;
   if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){ GitSetGlobalVar "mygitglobalvar" "myvalue"; }
-  GitDisableAutoCrLf;
+  GitInitGlobalConfig;
   # TODO LATER NOT YET IMPLEMENTED GitBranchRecreate ( [String] $repoUrlWithFromBranch, [String] $toBranch )
   DirDelete $d;
 }
