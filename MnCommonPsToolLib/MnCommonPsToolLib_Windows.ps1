@@ -771,6 +771,14 @@ function ServiceMapHiddenToCurrentName        ( [String] $serviceName ){
                                                   Select-Object -First 1);
                                                 if( $result -eq "" ){ $result = $serviceName;}
                                                 return [String] $result; }
+function ServiceDisable                       ( [String] $serviceName, [Boolean] $useLikeOperator = $false ){
+                                                if( $useLikeOperator ){
+                                                  ServiceListExistings | Where-Object{ $_.Name -like $serviceName } | ForEach-Object{ ServiceDisable $_.Name $false; }
+                                                  return;
+                                                }
+                                                if( -not (ServiceExists $serviceName) ){ return; }
+                                                ServiceStop $serviceName;
+                                                ServiceSetStartType $serviceName "Disabled"; }
 function TaskList                             (){
                                                 Get-ScheduledTask | Where-Object{$null -ne $_} |
                                                   Select-Object @{Name="Name";Expression={($_.TaskPath+$_.TaskName)}}, State, Author, Description |
