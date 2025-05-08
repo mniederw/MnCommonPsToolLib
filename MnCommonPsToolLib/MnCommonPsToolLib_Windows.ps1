@@ -15,11 +15,12 @@ if( $null -ne (Import-Module -NoClobber -Name "CimCmdlets"     -ErrorAction Cont
 
 # Set some self defined constant global variables
 if( $null -eq (Get-Variable -Scope Global -ErrorAction SilentlyContinue -Name AllUsersMenuDir) ){ # check wether last variable already exists because reload safe
-  New-Variable -option Constant -scope Global -name UserQuickLaunchDir           -Value ([String](FsEntryGetAbsolutePath "$env:APPDATA/Microsoft/Internet Explorer/Quick Launch/"));
-  New-Variable -option Constant -scope Global -name UserSendToDir                -Value ([String](FsEntryGetAbsolutePath "$env:APPDATA/Microsoft/Windows/SendTo/"));
-  New-Variable -option Constant -scope Global -name UserMenuDir                  -Value ([String](FsEntryGetAbsolutePath "$env:APPDATA/Microsoft/Windows/Start Menu/"));
-  New-Variable -option Constant -scope Global -name UserMenuStartupDir           -Value ([String](FsEntryGetAbsolutePath "$env:APPDATA/Microsoft/Windows/Start Menu/Programs/Startup/"));
-  New-Variable -option Constant -scope Global -name AllUsersMenuDir              -Value ([String](FsEntryGetAbsolutePath "$env:ALLUSERSPROFILE/Microsoft/Windows/Start Menu/"));
+  New-Variable -option Constant -scope Global -name UserQuickLaunchDir      -Value ([String](FsEntryGetAbsolutePath "$env:APPDATA/Microsoft/Internet Explorer/Quick Launch/"));
+  New-Variable -option Constant -scope Global -name UserSendToDir           -Value ([String](FsEntryGetAbsolutePath "$env:APPDATA/Microsoft/Windows/SendTo/"));
+  New-Variable -option Constant -scope Global -name UserMenuDir             -Value ([String](FsEntryGetAbsolutePath "$env:APPDATA/Microsoft/Windows/Start Menu/"));
+  New-Variable -option Constant -scope Global -name UserMenuStartupDir      -Value ([String](FsEntryGetAbsolutePath "$env:APPDATA/Microsoft/Windows/Start Menu/Programs/Startup/"));
+  New-Variable -option Constant -scope Global -name AllUsersMenuDir         -Value ([String](FsEntryGetAbsolutePath "$env:ALLUSERSPROFILE/Microsoft/Windows/Start Menu/"));
+  New-Variable -option Constant -scope Global -name AllUsersMenuStartupDir  -Value ([String](FsEntryGetAbsolutePath "$env:ALLUSERSPROFILE/Microsoft/Windows/Start Menu/Programs/Startup/"));
 }
 
 function OsIs64BitOs                          (){ return [Boolean] (Get-CimInstance -Class Win32_OperatingSystem -ErrorAction SilentlyContinue).OSArchitecture -eq "64-Bit"; }
@@ -2551,9 +2552,11 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){ # runs in about 12-90 sec and 
                                                   [String] $v = $_.Version;
                                                   OutProgress "  Uninstall all older versions than $($_.Name.PadRight(32,' ')) V$v ";
                                                   Get-InstalledModule -Name $_.Name -AllVersions | Where-Object -Property Version -LT -Value $v | ForEach-Object{
-                                                    try{ Uninstall-Module -Name $_; 
+                                                    [String] $moduleName = $_.Name;
+                                                    [String] $moduleVersion = $_.Version;
+                                                    try{ Uninstall-Module -Name $moduleName -RequiredVersion $moduleVersion -Force;
                                                     }catch{ # Example: Exception: Module 'PSReadLine' is in currently in use or you don't have the required permissions.
-                                                      ScriptResetRc; OutWarning "Warning: Ignoring: $($_.Exception.Message)";
+                                                      ScriptResetRc; OutWarning "Warning: Ignoring the failure of (Uninstall-Module -Name $moduleName  -RequiredVersion $moduleVersion -Force) by: $($_.Exception.Message)";
                                                     }
                                                   }
                                                 }

@@ -34,7 +34,7 @@
   }
   #HelpInfoURI            = '';
 
-  ModuleVersion          = '7.88';
+  ModuleVersion          = '7.89';
 
   <#
   Releasenotes
@@ -43,6 +43,7 @@
   Major version will reflect breaking changes, minor identifies extensions and third number identifies urgent bugfixes.
   Breaking changes are usually removed deprecated functions or changed behaviours.
 
+  2025-05-07  V7.89  Add AllUsersMenuStartupDir, Improve ToolInstallNuPckMgrAndCommonPsGalMo.
   2025-04-02  V7.88  Add ServiceDisable.
   2025-03-07  V7.87  Add GitInitGlobalConfig, Improve ToolInstallNuPckMgrAndCommonPsGalMo.
   2025-02-23  V7.86  Add StringArrayGetMaxItemLength, ToolWingetListUpgradablePackages. Adapt ToolWinGetSetup. Improve ToolWingetListInstalledPackages, ToolWingetUpdateInstalledPackages, ToolWingetInstallPackage, ToolWingetUninstallPackage.
