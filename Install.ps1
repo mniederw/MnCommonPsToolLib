@@ -52,6 +52,10 @@ function DirExists                            ( [String] $dir ){ try{ return [Bo
 function DirListDirs                          ( [String] $dir ){ return [String[]] (@()+(Get-ChildItem -Force -Directory -LiteralPath $dir | ForEach-Object{ $_.FullName })); }
 function DirHasFiles                          ( [String] $dir, [String] $filePattern ){
                                                 return [Boolean] ($null -ne (Get-ChildItem -Force -Recurse -File -ErrorAction SilentlyContinue -Path "$dir/$filePattern")); }
+function FileExists                           ( [String] $file ){ 
+                                                [String] $f2 = FsEntryGetAbsolutePath $file; if( Test-Path -PathType Leaf -LiteralPath $f2 ){ return [Boolean] $true; }
+                                                return [Boolean] [System.IO.File]::Exists($f2); }
+function FileNotExists                        ( [String] $file ){ return [Boolean] -not (FileExists $file); }
 function ScriptGetTopCaller                   (){ [String] $f = $global:MyInvocation.MyCommand.Definition.Trim();
                                                 if( $f -eq "" -or $f -eq "ScriptGetTopCaller" ){ return ""; }
                                                 if( $f.StartsWith("&") ){ $f = $f.Substring(1,$f.Length-1).Trim(); }
@@ -111,14 +115,23 @@ function SetAllEnvsExecutionPolicy            ( [String] $mode = "Bypass" ){ # F
                                                   [String] $exe = "`"$ps7Or5Exe`"".PadRight(59);
                                                   [String] $msg = "Set-ExecutionPolicy for $exe";
                                                   if( (FileNotExists $ps7Or5Exe) ){ OutProgress "$($msg): Nothing to set because exe not exists "; return; }
-                                                  [String] $modeLocalMachine = & $ps7Or5Exe -ExecutionPolicy $mode -NoProfile -Command Get-Executionpolicy -Scope LocalMachine;
-                                                  [String] $modeCurrentUser  = & $ps7Or5Exe -ExecutionPolicy $mode -NoProfile -Command Get-Executionpolicy -Scope CurrentUser;
+                                                  [String] $modeLocalMachine = & $ps7Or5Exe -ExecutionPolicy Bypass -NoProfile -Command Get-Executionpolicy -Scope LocalMachine;
+                                                  [String] $modeCurrentUser  = & $ps7Or5Exe -ExecutionPolicy Bypass -NoProfile -Command Get-Executionpolicy -Scope CurrentUser;
                                                   if( $modeLocalMachine -eq $mode -and ($modeCurrentUser -eq $mode -or $modeCurrentUser -eq "Undefined") ){
                                                     OutProgress "  $($msg): already up to date."; return;
                                                   }
                                                   ProcessRestartInElevatedAdminMode;
                                                   OutProgress "$msg";
-                                                  & $ps7Or5Exe -ExecutionPolicy Bypass -NoProfile -Command { Set-Executionpolicy -Scope LocalMachine -Force $mode; Set-Executionpolicy -Scope CurrentUser -Force Undefined; };
+                                                  & $ps7Or5Exe -ExecutionPolicy Bypass -NoProfile -Command {
+                                                    param($mode); 
+                                                    try{ Set-Executionpolicy -Scope LocalMachine -Force $mode     -ErrorAction SilentlyContinue; }catch{} $error.clear();
+                                                    try{ Set-Executionpolicy -Scope CurrentUser  -Force Undefined -ErrorAction SilentlyContinue; }catch{} $error.clear();
+                                                  } -Args $mode;
+                                                  # Note: for others than Bypass as RemoteSigned we get the following but it works:
+                                                  #   Set-ExecutionPolicy: PowerShell updated your execution policy successfully, but the setting is overridden by a policy defined at a more specific scope.
+                                                  #   Due to the override, your shell will retain its current effective execution policy of Bypass. 
+                                                  #   Type "Get-ExecutionPolicy -List" to view your execution policy settings. For more information please see "Get-Help Set-ExecutionPolicy".
+                                                  #   Recommendation: Contact your system administrator.
                                                 }
                                                 SetExecPolicyToBypassIfNotSet "$env:SystemDrive\Program Files\PowerShell\7\pwsh.EXE"          ;
                                                 SetExecPolicyToBypassIfNotSet "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe";
@@ -301,7 +314,7 @@ function Menu(){
     OutProgress     "By using this software you agree with the terms of GPL3. ";
     OutProgress     "";
     OutProgress     "Current environment:";
-    OutProgressText "    Current installation modes            = "; OutProgressText -color:Green (CurrentInstallationModes); OutProgress "";
+    OutProgressText "    Current installation modes              = "; OutProgressText -color:Green (CurrentInstallationModes); OutProgress "";
     OutProgress     "  PsVersion                               = `"$psVersion`" on Platform=$([System.Environment]::OSVersion.Platform). ";
     OutProgress     "  Current-User                            = `"$env:USERNAME`". ";
     OutProgress     "  CurrentProcessExecutionPolicy           = $(Get-Executionpolicy -Scope Process). ";
