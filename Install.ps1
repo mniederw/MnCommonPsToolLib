@@ -105,6 +105,27 @@ function AddToPsModulePath                    ( [String] $dir ){
                                                   OutProgress "To system var PsModulePath appending `"$dir`". ";
                                                   OsPsModulePathAdd $dir;
                                                 } }
+function SetAllEnvsExecutionPolicy            ( [String] $mode = "Bypass" ){ # For ps5/7-32/64bit set scope LocalMachine to mode and CurrentUser to Undefined; In general use modes: "Bypass", "RemoteSigned".
+                                                OutProgress "Set-Executionpolicy for scope LocalMachine to $mode and scope CurrentUser to Undefined if not yet set. ";
+                                                function SetExecPolicyToBypassIfNotSet( [String] $ps7Or5Exe ){
+                                                  [String] $exe = "`"$ps7Or5Exe`"".PadRight(59);
+                                                  [String] $msg = "Set-ExecutionPolicy for $exe";
+                                                  if( (FileNotExists $ps7Or5Exe) ){ OutProgress "$($msg): Nothing to set because exe not exists "; return; }
+                                                  [String] $modeLocalMachine = & $ps7Or5Exe -ExecutionPolicy $mode -NoProfile -Command Get-Executionpolicy -Scope LocalMachine;
+                                                  [String] $modeCurrentUser  = & $ps7Or5Exe -ExecutionPolicy $mode -NoProfile -Command Get-Executionpolicy -Scope CurrentUser;
+                                                  if( $modeLocalMachine -eq $mode -and ($modeCurrentUser -eq $mode -or $modeCurrentUser -eq "Undefined") ){
+                                                    OutProgress "  $($msg): already up to date."; return;
+                                                  }
+                                                  ProcessRestartInElevatedAdminMode;
+                                                  OutProgress "$msg";
+                                                  & $ps7Or5Exe -ExecutionPolicy Bypass -NoProfile -Command { Set-Executionpolicy -Scope LocalMachine -Force $mode; Set-Executionpolicy -Scope CurrentUser -Force Undefined; };
+                                                }
+                                                SetExecPolicyToBypassIfNotSet "$env:SystemDrive\Program Files\PowerShell\7\pwsh.EXE"          ;
+                                                SetExecPolicyToBypassIfNotSet "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe";
+                                                SetExecPolicyToBypassIfNotSet "$env:SystemRoot\SysWOW64\WindowsPowerShell\v1.0\powershell.exe";
+                                              }
+                                                
+                                                
 
 # see https://docs.microsoft.com/en-us/powershell/scripting/developer/module/installing-a-powershell-module
 [String]   $moduleRootDirCurrUserLinux = "$HOME/.local/share/powershell/Modules/";
@@ -209,22 +230,6 @@ function InstallInLocalDeveloperMode(){
     Add-Content -Path $PROFILE -Value "`$env:PSModulePath += `"$(OsPathSeparator)$srcRootDir`"; $profilePattern";
     . $PROFILE;
   }
-}
-
-function SetAllEnvsExecutionPolicyToBypass(){
-  ProcessRestartInElevatedAdminMode;
-  OutProgress "Set-Executionpolicy Bypass. ";
-  if( $ps7Exists ){ & "$env:SystemDrive\Program Files\PowerShell\7\pwsh.EXE"           -ExecutionPolicy Bypass -NoProfile -Command { Set-Executionpolicy -Scope LocalMachine -Force Bypass; Set-Executionpolicy -Scope CurrentUser -Force Undefined; }; }
-                    & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -ExecutionPolicy Bypass -NoProfile -Command { Set-Executionpolicy -Scope LocalMachine -Force Bypass; Set-Executionpolicy -Scope CurrentUser -Force Undefined; };
-                    & "$env:SystemRoot\SysWOW64\WindowsPowerShell\v1.0\powershell.exe" -ExecutionPolicy Bypass -NoProfile -Command { Set-Executionpolicy -Scope LocalMachine -Force Bypass; Set-Executionpolicy -Scope CurrentUser -Force Undefined; };
-}
-
-function SetAllEnvsExecutionPolicyToRemoteSigned(){
-  ProcessRestartInElevatedAdminMode;
-  OutProgress "Set-Executionpolicy RemoteSigned. ";
-  if( $ps7Exists ){ & "$env:SystemDrive\Program Files\PowerShell\7\pwsh.EXE"           -ExecutionPolicy Bypass -NoProfile -Command { Set-Executionpolicy -Scope LocalMachine -Force RemoteSigned; Set-Executionpolicy -Scope CurrentUser -Force Undefined; }; }
-                    & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -ExecutionPolicy Bypass -NoProfile -Command { Set-Executionpolicy -Scope LocalMachine -Force RemoteSigned; Set-Executionpolicy -Scope CurrentUser -Force Undefined; };
-                    & "$env:SystemRoot\SysWOW64\WindowsPowerShell\v1.0\powershell.exe" -ExecutionPolicy Bypass -NoProfile -Command { Set-Executionpolicy -Scope LocalMachine -Force RemoteSigned; Set-Executionpolicy -Scope CurrentUser -Force Undefined; };
 }
 
 function ShowHelpInfo(){
@@ -365,8 +370,8 @@ function Menu(){
     elseif( $sel -eq "N" ){ UninstallAllModes; }
     elseif( $sel -eq "U" -and (OsIsWindows) ){ SelfUpdate; }
     elseif( $sel -eq "W" -and (OsIsWindows) ){ AddToPsModulePath $ps5WinModuleDir; AddToPsModulePath $ps5ModuleDir; }
-    elseif( $sel -eq "B" -and (OsIsWindows) ){ SetAllEnvsExecutionPolicyToBypass; }
-    elseif( $sel -eq "R" -and (OsIsWindows) ){ SetAllEnvsExecutionPolicyToRemoteSigned; }
+    elseif( $sel -eq "B" -and (OsIsWindows) ){ SetAllEnvsExecutionPolicy "Bypass"; }
+    elseif( $sel -eq "R" -and (OsIsWindows) ){ SetAllEnvsExecutionPolicy "RemoteSigned"; }
     elseif( $sel -eq "H" ){ ShowHelpInfo; }
     elseif( $sel -eq "Q" ){ OutProgress "Quit. "; return; }
     else{ OutWarning "Unknown selection: `"$sel`" "; }
