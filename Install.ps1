@@ -214,17 +214,17 @@ function InstallInLocalDeveloperMode(){
 function SetAllEnvsExecutionPolicyToBypass(){
   ProcessRestartInElevatedAdminMode;
   OutProgress "Set-Executionpolicy Bypass. ";
-  if( $ps7Exists ){ & "$env:SystemDrive\Program Files\PowerShell\7\pwsh.EXE"           -NoProfile -Command { Set-Executionpolicy Bypass; }; }
-                    & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command { Set-Executionpolicy Bypass; };
-                    & "$env:SystemRoot\SysWOW64\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command { Set-Executionpolicy Bypass; };
+  if( $ps7Exists ){ & "$env:SystemDrive\Program Files\PowerShell\7\pwsh.EXE"           -ExecutionPolicy Bypass -NoProfile -Command { Set-Executionpolicy -Scope LocalMachine -Force Bypass; Set-Executionpolicy -Scope CurrentUser -Force Undefined; }; }
+                    & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -ExecutionPolicy Bypass -NoProfile -Command { Set-Executionpolicy -Scope LocalMachine -Force Bypass; Set-Executionpolicy -Scope CurrentUser -Force Undefined; };
+                    & "$env:SystemRoot\SysWOW64\WindowsPowerShell\v1.0\powershell.exe" -ExecutionPolicy Bypass -NoProfile -Command { Set-Executionpolicy -Scope LocalMachine -Force Bypass; Set-Executionpolicy -Scope CurrentUser -Force Undefined; };
 }
 
 function SetAllEnvsExecutionPolicyToRemoteSigned(){
   ProcessRestartInElevatedAdminMode;
   OutProgress "Set-Executionpolicy RemoteSigned. ";
-  if( $ps7Exists ){ & "$env:SystemDrive\Program Files\PowerShell\7\pwsh.EXE"           -NoProfile -Command { Set-Executionpolicy RemoteSigned }; }
-                    & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command { Set-Executionpolicy RemoteSigned };
-                    & "$env:SystemRoot\SysWOW64\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -Command { Set-Executionpolicy RemoteSigned };
+  if( $ps7Exists ){ & "$env:SystemDrive\Program Files\PowerShell\7\pwsh.EXE"           -ExecutionPolicy Bypass -NoProfile -Command { Set-Executionpolicy -Scope LocalMachine -Force RemoteSigned; Set-Executionpolicy -Scope CurrentUser -Force Undefined; }; }
+                    & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -ExecutionPolicy Bypass -NoProfile -Command { Set-Executionpolicy -Scope LocalMachine -Force RemoteSigned; Set-Executionpolicy -Scope CurrentUser -Force Undefined; };
+                    & "$env:SystemRoot\SysWOW64\WindowsPowerShell\v1.0\powershell.exe" -ExecutionPolicy Bypass -NoProfile -Command { Set-Executionpolicy -Scope LocalMachine -Force RemoteSigned; Set-Executionpolicy -Scope CurrentUser -Force Undefined; };
 }
 
 function ShowHelpInfo(){
@@ -296,23 +296,33 @@ function Menu(){
     OutProgress     "By using this software you agree with the terms of GPL3. ";
     OutProgress     "";
     OutProgress     "Current environment:";
-    OutProgressText "    Current installation modes         = "; OutProgressText -color:Green (CurrentInstallationModes); OutProgress "";
-    OutProgress     "  PsVersion                          = `"$psVersion`" on Platform=$([System.Environment]::OSVersion.Platform). ";
-    OutProgress     "  Current-User                       = `"$env:USERNAME`". ";
-    OutProgress     "  IsInElevatedAdminMode              = $(ProcessIsRunningInElevatedAdminMode). ";
-    OutProgress     "  SrcRootDir                         = `"$srcRootDir`". ";
-    OutProgress     "  Powershell User Profile            = `"$PROFILE`". ";
+    OutProgressText "    Current installation modes            = "; OutProgressText -color:Green (CurrentInstallationModes); OutProgress "";
+    OutProgress     "  PsVersion                               = `"$psVersion`" on Platform=$([System.Environment]::OSVersion.Platform). ";
+    OutProgress     "  Current-User                            = `"$env:USERNAME`". ";
+    OutProgress     "  CurrentProcessExecutionPolicy           = $(Get-Executionpolicy -Scope Process). ";
+    OutProgress     "  IsInElevatedAdminMode                   = $(ProcessIsRunningInElevatedAdminMode). ";
+    OutProgress     "  SrcRootDir                              = `"$srcRootDir`". ";
+    OutProgress     "  Powershell User Profile                 = `"$PROFILE`". ";
     if( (OsIsWindows) ){
-      OutProgress   "  Ps5WinModDir                       = `"$ps5WinModuleDir`". ";
-      OutProgress   "  Ps5ModuleDir                       = `"$ps5ModuleDir`".    ";
-      OutProgress   "  PsModuleFolder(allUsers,64bit)     = `"$tarRootDir64bit`". ";
-      OutProgress   "  PsModuleFolder(allUsers,32bit)     = `"$tarRootDir32bit`". ";
-      OutProgress   "  Executionpolicy-PS7                = $(switch($ps7Exists){($true){& "$env:SystemDrive\Program Files\PowerShell\7\pwsh.EXE" -NoProfile -Command Get-Executionpolicy}($false){"Is-not-installed"}}).";
-      OutProgress   "  Executionpolicy-PS5-64bit          = $(& "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"                  -NoProfile -Command Get-Executionpolicy).";
-      OutProgress   "  Executionpolicy-PS5-32bit          = $(& "$env:SystemRoot\SysWOW64\WindowsPowerShell\v1.0\powershell.exe"                  -NoProfile -Command Get-Executionpolicy).";
-      OutProgress   "  ShellSessionIs64not32Bit           = $(ShellSessionIs64not32Bit). ";
-      OutProgress   "  PsModulePath contains Ps5WinModDir = $(OsPsModulePathContains $ps5WinModuleDir). ";
-      OutProgress   "  PsModulePath contains Ps5ModuleDir = $(OsPsModulePathContains $ps5ModuleDir). ";
+      OutProgress   "  Ps5WinModDir                            = `"$ps5WinModuleDir`". ";
+      OutProgress   "  Ps5ModuleDir                            = `"$ps5ModuleDir`".    ";
+      OutProgress   "  PsModuleFolder(allUsers,64bit)          = `"$tarRootDir64bit`". ";
+      OutProgress   "  PsModuleFolder(allUsers,32bit)          = `"$tarRootDir32bit`". ";
+      OutProgress   "  ExecutionPolicy-PS7-------MachinePolicy = $(switch($ps7Exists){($true){& "$env:SystemDrive\Program Files\PowerShell\7\pwsh.EXE" -ExecutionPolicy Bypass -NoProfile -Command Get-Executionpolicy -Scope MachinePolicy}($false){"Is-not-installed"}}).";
+      OutProgress   "  ExecutionPolicy-PS5-64bit-MachinePolicy = $(& "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"                  -ExecutionPolicy Bypass -NoProfile -Command Get-Executionpolicy -Scope MachinePolicy).";
+      OutProgress   "  ExecutionPolicy-PS5-32bit-MachinePolicy = $(& "$env:SystemRoot\SysWOW64\WindowsPowerShell\v1.0\powershell.exe"                  -ExecutionPolicy Bypass -NoProfile -Command Get-Executionpolicy -Scope MachinePolicy).";
+      OutProgress   "  ExecutionPolicy-PS7-------UserPolicy    = $(switch($ps7Exists){($true){& "$env:SystemDrive\Program Files\PowerShell\7\pwsh.EXE" -ExecutionPolicy Bypass -NoProfile -Command Get-Executionpolicy -Scope UserPolicy   }($false){"Is-not-installed"}}).";
+      OutProgress   "  ExecutionPolicy-PS5-64bit-UserPolicy    = $(& "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"                  -ExecutionPolicy Bypass -NoProfile -Command Get-Executionpolicy -Scope UserPolicy   ).";
+      OutProgress   "  ExecutionPolicy-PS5-32bit-UserPolicy    = $(& "$env:SystemRoot\SysWOW64\WindowsPowerShell\v1.0\powershell.exe"                  -ExecutionPolicy Bypass -NoProfile -Command Get-Executionpolicy -Scope UserPolicy   ).";
+      OutProgress   "  ExecutionPolicy-PS7-------CurrentUser   = $(switch($ps7Exists){($true){& "$env:SystemDrive\Program Files\PowerShell\7\pwsh.EXE" -ExecutionPolicy Bypass -NoProfile -Command Get-Executionpolicy -Scope CurrentUser  }($false){"Is-not-installed"}}).";
+      OutProgress   "  ExecutionPolicy-PS5-64bit-CurrentUser   = $(& "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"                  -ExecutionPolicy Bypass -NoProfile -Command Get-Executionpolicy -Scope CurrentUser  ).";
+      OutProgress   "  ExecutionPolicy-PS5-32bit-CurrentUser   = $(& "$env:SystemRoot\SysWOW64\WindowsPowerShell\v1.0\powershell.exe"                  -ExecutionPolicy Bypass -NoProfile -Command Get-Executionpolicy -Scope CurrentUser  ).";
+      OutProgress   "  ExecutionPolicy-PS7-------LocalMachine  = $(switch($ps7Exists){($true){& "$env:SystemDrive\Program Files\PowerShell\7\pwsh.EXE" -ExecutionPolicy Bypass -NoProfile -Command Get-Executionpolicy -Scope LocalMachine }($false){"Is-not-installed"}}).";
+      OutProgress   "  ExecutionPolicy-PS5-64bit-LocalMachine  = $(& "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"                  -ExecutionPolicy Bypass -NoProfile -Command Get-Executionpolicy -Scope LocalMachine ).";
+      OutProgress   "  ExecutionPolicy-PS5-32bit-LocalMachine  = $(& "$env:SystemRoot\SysWOW64\WindowsPowerShell\v1.0\powershell.exe"                  -ExecutionPolicy Bypass -NoProfile -Command Get-Executionpolicy -Scope LocalMachine ).";
+      OutProgress   "  ShellSessionIs64not32Bit                = $(ShellSessionIs64not32Bit). ";
+      OutProgress   "  PsModulePath contains Ps5WinModDir      = $(OsPsModulePathContains $ps5WinModuleDir). ";
+      OutProgress   "  PsModulePath contains Ps5ModuleDir      = $(OsPsModulePathContains $ps5ModuleDir). ";
       if( ! (ShellSessionIs64not32Bit) ){
         OutWarning "Your current session is 32bit, it is recommended to generally use 64bit! ";
       }
@@ -339,8 +349,8 @@ function Menu(){
     if( (OsIsWindows) ){
       OutProgress     "U = When installed in standard mode do update from web. "; # in future do download and also switch to standard mode.
       OutProgress     "W = Add Ps5WinModDir and Ps5ModuleDir to system PsModulePath environment variable. ";
-      OutProgress     "B = Elevate and Configure Execution Policy to Bypass       for environment ps7, ps5-64bit and ps5-32bit. ";
-      OutProgress     "R = Elevate and Configure Execution Policy to RemoteSigned for environment ps7, ps5-64bit and ps5-32bit. ";
+      OutProgress     "B = Elevate and Configure Execution Policy to Bypass       for environment ps7, ps5-64bit and ps5-32bit and LocalMach and CurrUser. ";
+      OutProgress     "R = Elevate and Configure Execution Policy to RemoteSigned for environment ps7, ps5-64bit and ps5-32bit and LocalMach and CurrUser. ";
     }
     OutProgress     "H = Show help info. ";
     OutProgress     "Q = Quit. ";
