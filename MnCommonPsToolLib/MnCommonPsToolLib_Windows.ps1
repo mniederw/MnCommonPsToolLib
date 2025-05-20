@@ -14,7 +14,7 @@ if( $null -ne (Import-Module -NoClobber -Name "CimCmdlets"     -ErrorAction Cont
 # Import-Module "ServerManager"; # Is not always available, requires windows-server-os or at least Win10Prof with installed RSAT. Because seldom used we do not try to load it here.
 
 # Set some self defined constant global variables
-if( $null -eq (Get-Variable -Scope Global -ErrorAction SilentlyContinue -Name AllUsersMenuDir) ){ # check wether last variable already exists because reload safe
+if( $null -eq (Get-Variable -Scope Global -ErrorAction SilentlyContinue -Name AllUsersMenuDir) ){ # check whether last variable already exists because reload safe
   New-Variable -option Constant -scope Global -name UserQuickLaunchDir      -Value ([String](FsEntryGetAbsolutePath "$env:APPDATA/Microsoft/Internet Explorer/Quick Launch/"));
   New-Variable -option Constant -scope Global -name UserSendToDir           -Value ([String](FsEntryGetAbsolutePath "$env:APPDATA/Microsoft/Windows/SendTo/"));
   New-Variable -option Constant -scope Global -name UserMenuDir             -Value ([String](FsEntryGetAbsolutePath "$env:APPDATA/Microsoft/Windows/Start Menu/"));
@@ -262,7 +262,7 @@ function OsWindowsUpdatePerform               ( [Boolean] $withAutoReboot = $fal
 function ProcessGetNrOfCores                  (){ return [Int32] (Get-CimInstance Win32_ComputerSystem).NumberOfLogicalProcessors; }
 function ProcessOpenAssocFile                 ( [String] $fileOrUrl ){ & "rundll32" "url.dll,FileProtocolHandler" $fileOrUrl; AssertRcIsOk; }
 function JobStart                             ( [ScriptBlock] $scr, [Object[]] $scrArgs = @(), [String] $name = "Job" ){ # Return job object of type PSRemotingJob, the returned object of the script block can later be requested.
-                                                [Object[]] $scrArgs2 = $(switch(ArrayIsNullOrEmpty $scrArgs){($true){$null}($false){$scrArgs}}); # TODO test wether this is nessessary.
+                                                [Object[]] $scrArgs2 = $(switch(ArrayIsNullOrEmpty $scrArgs){($true){$null}($false){$scrArgs}}); # TODO test whether this is nessessary.
                                                 return [System.Management.Automation.Job] (Start-Job -name $name -ScriptBlock $scr -ArgumentList $scrArgs2); }
 function JobGet                               ( [String] $id ){ return [System.Management.Automation.Job] (Get-Job -Id $id); } # Return job object.
 function JobGetState                          ( [String] $id ){ return [String] (JobGet $id).State; } # NotStarted, Running, Completed, Stopped, Failed, and Blocked.
@@ -1766,7 +1766,7 @@ function SqlGetCmdExe                         (){
                                                     ForEach-Object{ ((RegistryGetValueAsString $_ "Path")+"sqlcmd.EXE") } |
                                                     Where-Object{ (FileExists $_) } | Select-Object -First 1; # Example: "C:\Program Files\Microsoft SQL Server\130\Tools\Binn\sqlcmd.EXE"
                                                 }
-                                                if( $result -eq "" ){ throw [ExcMsg] "Cannot find sqlcmd.exe wether in path nor is any Sql Server 2022, 2019, 2016, 2014, 2012 or 2008 installed. "; }
+                                                if( $result -eq "" ){ throw [ExcMsg] "Cannot find sqlcmd.exe whether in path nor is any Sql Server 2022, 2019, 2016, 2014, 2012 or 2008 installed. "; }
                                                 return [String] $result; }
 function SqlRunScriptFile                     ( [String] $sqlserver, [String] $sqlfile, [String] $outFile, [Boolean] $continueOnErr ){ # old style. It is recommended to use: SqlPerformFile
                                                 $sqlfile = FsEntryGetAbsolutePath $sqlfile;
@@ -2314,7 +2314,7 @@ function ToolOsWindowsResetSystemFileIntegrity(){ # uses about 4 min
 function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $url, [Boolean] $requireElevatedAdminMode = $false,
                                                   [Boolean] $doWaitIfFailed = $false, [String] $additionalOkUpdMsg = "",
                                                   [Boolean] $assertFilePreviouslyExists = $true, [Boolean] $performPing = $true ){
-                                                # Check if target file exists, checking wether host is reachable by ping, downloads the file, check for differences,
+                                                # Check if target file exists, checking whether host is reachable by ping, downloads the file, check for differences,
                                                 # check for admin mode, overwriting the file and a success message is given out.
                                                 # Otherwise if it failed it will output a warning message and optionally wait for pressing enter key.
                                                 # It returns true if the file is now actualized.
@@ -2335,7 +2335,7 @@ function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $
                                                     $hashInstalled = FileGetHexStringOfHash512BitsSha2 $targetFile;
                                                   }
                                                   if( $performPing ){
-                                                    OutProgress "Checking host of url wether it is reachable by ping";
+                                                    OutProgress "Checking host of url whether it is reachable by ping";
                                                     [String] $hostname = (NetExtractHostName $url);
                                                     if( -not (NetPingHostIsConnectable $hostname) ){
                                                       throw [Exception] "Host $hostname is not pingable.";
@@ -2366,7 +2366,7 @@ function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $
                                                   return [Boolean] $false;
                                                 } }
 function ToolInstallOrUpdate                  ( [String] $installMedia, [String] $mainTargetFileMinIsoDate, [String] $mainTargetRelFile, [String] $installDirsSemicSep, [String] $installHints = "" ){
-                                                # Check if a main target file exists in one of the installDirs and wether it has a minimum expected date.
+                                                # Check if a main target file exists in one of the installDirs and whether it has a minimum expected date.
                                                 # If not it will be installed or updated by calling installmedia asynchronously which is in general a half automatic installation procedure.
                                                 # Example: ToolInstallOrUpdate "Freeware\NetworkClient\Browser\OpenSource-MPL2 Firefox V89.0 64bit multilang 2021.exe" "2021-05-27" "firefox.exe" "$env:ProgramFiles\Mozilla Firefox ; C:\Prg\Network\Browser\OpenSource-MPL2 Firefox\" "Not install autoupdate";
                                                 $installMedia   = FsEntryGetAbsolutePath $installMedia;
@@ -2714,7 +2714,7 @@ function ToolWinGetSetup                      (){ # install and update winget; u
                                                   [String[]] $out = & WinGet source update | ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" }; AssertRcIsOk $out;
                                                   $out | ForEach-Object{ OutProgress $_ 2; };
                                                 }
-                                                OutProgressTitle "Setup WinGet by install and update it to latest version (method depends on wether process is in elevated mode or not) ";
+                                                OutProgressTitle "Setup WinGet by install and update it to latest version (method depends on whether process is in elevated mode or not) ";
                                                 OsWindowsAppxImportModule;
                                                 # on win11 usually user must be logged in once to enable winget, otherwise we must install it now
                                                 if( (ProcessFindExecutableInPath "winget") -eq "" -or (WingetIsVeryOld) ){
