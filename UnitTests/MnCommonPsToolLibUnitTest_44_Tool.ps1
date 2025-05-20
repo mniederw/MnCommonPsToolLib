@@ -63,6 +63,6 @@ function UnitTest_Tool(){
     ,"Some issues need review, and may require choosing"
     ,"a different dependency."
   ) );
-  if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){ Assert (FileExists (ToolEvalVsCodeExec)); }
+  if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){ Assert (FileExists (ToolEvalExecForVsCode)); }
 }
 UnitTest_Tool;

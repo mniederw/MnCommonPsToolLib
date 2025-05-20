@@ -65,7 +65,7 @@ function UnitTest_KnowBugsOrDesignErrors(){
   #
   #
   # A powershell function returning an empty array is compatible with returning $null.
-  #     But nevertheless it is essential wether it returns an empty array or null because
+  #     But nevertheless it is essential whether it returns an empty array or null because
   #     when adding the result of the call to an empty array then it results in count =0 or =1.
   #     see https://stackoverflow.com/questions/18476634/powershell-doesnt-return-an-empty-array-as-an-array
   #       function ReturnEmptyArray(){ return [String[]] @(); }

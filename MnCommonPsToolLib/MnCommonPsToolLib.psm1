@@ -155,7 +155,7 @@ Add-Type -WarningAction SilentlyContinue -TypeDefinition "using System; public c
   # Note: we need to suppress the warning: The generated type defines no public methods or properties
 
 # Set some self defined constant global variables
-if( $null -eq (Get-Variable -Scope Global -ErrorAction SilentlyContinue -Name ComputerName) -or $null -eq $global:InfoLineColor ){ # check wether last variables already exists because reload safe
+if( $null -eq (Get-Variable -Scope Global -ErrorAction SilentlyContinue -Name ComputerName) -or $null -eq $global:InfoLineColor ){ # check whether last variables already exists because reload safe
   New-Variable -option Constant -Scope Global -name CurrentMonthAndWeekIsoString -Value ([String]((Get-Date -format "yyyy-MM-")+(Get-Date -uformat "W%V")));
   New-Variable -option Constant -Scope Global -name InfoLineColor                -Value $(switch($Host.Name -eq "Windows PowerShell ISE Host"){($true){"Gray"}default{"White"}}); # ise is white so we need a contrast color
   New-Variable -option Constant -Scope Global -name ComputerName                 -Value $([System.Environment]::MachineName.ToLower()); # provide unified lowercase ComputerName
@@ -601,7 +601,7 @@ function AssertNotEmpty                       ( [String] $s, [String] $varName =
                                                 Assert ($s -ne "") "not allowed empty string for $(ScriptGetCurrentFuncChain)$varName."; }
 function AssertRcIsOk                         ( [String[]] $linesToOutProgress = "", [Boolean] $useLinesAsExcMessage = $false,
                                                 [String] $logFileToOutProgress = "", [String] $encodingIfNoBom = "Default" ){ # TODO change this to UTF8
-                                                # Asserts success status of last statement and wether code of last exit or native command was zero.
+                                                # Asserts success status of last statement and whether code of last exit or native command was zero.
                                                 # In case it was not ok it optionally outputs given progress information, it internally reset the rc and throws.
                                                 # Only nonempty progress lines are given out.
                                                 # Argument linesToOutProgress can also be called with a single string;
@@ -1746,6 +1746,7 @@ function FileUpdateItsHashSha2FileIfNessessary( [String] $srcFile ){ # srcFile.s
                                                   Out-File -NoNewline -Encoding "UTF8" -LiteralPath $hashTarFile -Inputobject $hashSrc;
                                                   OutProgress "Created `"$hashTarFile`".";
                                                 } }
+function FileFindFirstExisting                ( [String[]] $files ){ foreach( $i in $files ){ if( FileExists $i ) { return [String] (FsEntryGetAbsolutePath $i); } } return [String] ""; }
 function PsDriveListAll                       (){
                                                 OutVerbose "List PsDrives";
                                                 return [Object[]] (@()+(Get-PSDrive -PSProvider FileSystem |
@@ -2224,7 +2225,7 @@ function NetDownloadToStringByCurl            ( [String] $url, [String] $us = ""
                                                 NetDownloadFileByCurl $url $tmp $us $pw $ignoreSslCheck $onlyIfNewer;
                                                 [String] $result = (FileReadContentAsString $tmp $encodingIfNoBom);
                                                 FileDelTempFile $tmp; return [String] $result; }
-function NetDownloadIsSuccessful              ( [String] $url ){ # test wether an url is downloadable or not;
+function NetDownloadIsSuccessful              ( [String] $url ){ # test whether an url is downloadable or not;
                                                 [Boolean] $res = $false;
                                                 try{ [Boolean] $ignoreSslCheck = $true;
                                                   NetDownloadToString $url "" "" $ignoreSslCheck *>&1 | Out-Null; $res = $true;
@@ -2454,7 +2455,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                 #                   Same as delete folder and clone, but faster.
                                                 # Target-Dir: see GitBuildLocalDirFromUrl.
                                                 # The urlAndOptionalBranch defines a repo url optionally with a sharp-char separated branch name (allowed chars: A-Z,a-z,0-9,.,_,-).
-                                                # If the branch name is specified with that form then it is also checked wether
+                                                # If the branch name is specified with that form then it is also checked whether
                                                 # We assert that no AutoCrLf git attribute option is used.
                                                 # Pull-No-Rebase: We generally use no-rebase for pull because commit history should not be modified.
                                                 # Example: GitCmd Clone "C:\WorkGit" "https://github.com/mniederw/MnCommonPsToolLib"
@@ -3070,15 +3071,54 @@ function ToolNpmFilterIgnorableInstallMessages( [String[]] $out ){
                                                 );
                                                 return [String] (@()+($out | Where-Object{$null -ne $_} | ForEach-Object{$_.Trim()} | Where-Object{ $_ -ne "" } |
                                                 Where-Object{ -not (($_ -match ('^('+($ignoreLinesRegex -join "|")+')$')) -and $_.Length -lt 110) })); }
-function ToolEvalVsCodeExec                   (){ [String] $result = (ProcessFindExecutableInPath "code");
-                                                if( $result -eq "" -and (OsIsWindows) ){
-                                                  if( (FileExists "$env:LOCALAPPDATA\Programs\Microsoft VS Code\bin\Code.cmd") ){ # user
-                                                    $result =     "$env:LOCALAPPDATA\Programs\Microsoft VS Code\bin\Code.cmd";
-                                                  }elseif( (FileExists "$env:ProgramFiles\Microsoft VS Code\Code.exe") ){ # system
-                                                    $result =          "$env:ProgramFiles\Microsoft VS Code\Code.exe";
-                                                  }
+function ToolEvalExecForVsCode                ( [Boolean] $returnEmptyIfNotFound = $false ){ # return full path of command line callable executable of VS-Code
+                                                [String] $result = (ProcessFindExecutableInPath "code");
+                                                if( $result -eq "" -and (OsIsMacOS) ){
+                                                  $result = FileFindFirstExisting @(
+                                                     "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code"                 # System-specific Built-in CLI launcher script
+                                                    ,"$HOME/Applications/Visual Studio Code.app/Contents/Resources/app/bin/code"            # User  -specific Built-in CLI launcher script
+                                                    ,"/usr/local/bin/code"                                                                  # Shell-command wrapper for (Intel/Homebrew)
+                                                    ,"/opt/homebrew/bin/code"                                                               # Shell-command wrapper for (Apple Silicon/Homebrew)
+                                                    ,"/Applications/Visual Studio Code - Insiders.app/Contents/Resources/app/bin/code"      # System-specific Built-in CLI launcher script for prereleases
+                                                    ,"$HOME/Applications/Visual Studio Code - Insiders.app/Contents/Resources/app/bin/code" # User  -specific Built-in CLI launcher script for prereleases
+                                                  );
+                                                }elseif( $result -eq "" -and (OsIsWindows) ){
+                                                  $result = FileFindFirstExisting @(
+                                                     "$env:LOCALAPPDATA/Programs/Microsoft VS Code/bin/Code.cmd" # user
+                                                    ,"$env:ProgramFiles/Microsoft VS Code/Code.exe"              # system
+                                                  );
                                                 }
-                                                if( $result -eq "" ){ throw [ExcMsg] "VS Code executable was not found wether in path nor on windows at common locations for user or system programs."; }
+                                                if( $result -eq "" -and -not $returnEmptyIfNotFound ){
+                                                  throw [ExcMsg] "VS-Code executable was not found whether in path nor on windows at common locations for user or system programs.";
+                                                }
+                                                return [String] $result; }
+function ToolEvalExecForWindsurf              ( [Boolean] $returnEmptyIfNotFound = $false ){ # return full path of command line callable executable of Windsurf
+                                                [String] $result = (ProcessFindExecutableInPath "windsurf");
+                                                if( $result -eq "" -and (OsIsMacOS) ){
+                                                  $result = FileFindFirstExisting @(
+                                                     "/Applications/Windsurf.app/Contents/Resources/app/bin/windsurf"                # System-specific Built-in CLI launcher script
+                                                    ,"$HOME/Applications/Visual Studio Code.app/Contents/Resources/app/bin/windsurf" # User  -specific Built-in CLI launcher script
+                                                    ,"/usr/local/bin/windsurf"                                                       # Shell-command wrapper for (Intel/Homebrew)
+                                                    ,"/opt/homebrew/bin/windsurf"                                                    # Shell-command wrapper for (Apple Silicon/Homebrew)
+                                                  );
+                                                  # # If not found, try to find any Windsurf.app using a more generic approach
+                                                  # "$HOME/Library/Caches/com.exafunction.windsurf.ShipIt/update.mZaCvHb/Windsurf.app"
+                                                  # if($result -eq "") {
+                                                  #   $foundApps = @(Get-ChildItem -Path "$HOME/Library/Caches/com.exafunction.windsurf.ShipIt" -Recurse -Filter "Windsurf.app" -Directory -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName)
+                                                  #   if($foundApps.Count -gt 0) {
+                                                  #     $result = $foundApps[0]
+                                                  #   }
+                                                  # }
+                                                }elseif( $result -eq "" -and (OsIsWindows) ){
+                                                  $result = FileFindFirstExisting @(
+                                                     "$env:LOCALAPPDATA\Programs\Windsurf\bin\windsurf.cmd" # user
+                                                    ,"$env:ProgramFiles\Windsurf\bin\windsurf.cmd"          # system
+                                                    ,"${env:ProgramFiles(x86)}\Windsurf\bin\windsurf.cmd"   # system 32bit
+                                                  );
+                                                }
+                                                if( $result -eq "" -and -not $returnEmptyIfNotFound ){
+                                                  throw [ExcMsg] "Windsurf executable was not found whether in path nor on windows at common locations for user or system programs.";
+                                                }
                                                 return [String] $result; }
 
 # Deprecated functions, will be removed on next major version of this lib:
@@ -3092,6 +3132,7 @@ function OutStringInColor                     ( [String] $color, [String] $line,
 function OutSuccess                           ( [String] $line ){ OutProgressSuccess $line; } # deprecated
 function ProcessListInstalledAppx (){ OutWarning "ProcessListInstalledAppx is DEPRECATED, replace it now by: OsWindowsAppxListInstalled"; OsWindowsAppxListInstalled; }
 function FsEntryFsInfoFullNameDirWithBackSlash( [System.IO.FileSystemInfo] $fsInfo ){ OutWarning "FsEntryFsInfoFullNameDirWithBackSlash is DEPRECATED, replace it now by: FsEntryFsInfoFullNameDirWithTrailDSep"; return (FsEntryFsInfoFullNameDirWithTrailDSep $fsInfo); }
+function ToolEvalVsCodeExec                   ( [Boolean] $returnEmptyIfNotFound = $false ){ OutWarning "ToolEvalVsCodeExec is DEPRECATED, replace it now by: ToolEvalExecForVsCode"; ToolEvalExecForVsCode $returnEmptyIfNotFound; }
 
 # ----------------------------------------------------------------------------------------------------
 

@@ -60,7 +60,7 @@ function UnitTest_Win_Tool(){
   #   ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $url, [Boolean] $requireElevatedAdminMode = $false,
   #                                            [Boolean] $doWaitIfFailed = $false, [String] $additionalOkUpdMsg = "",
   #                                            [Boolean] $assertFilePreviouslyExists = $true, [Boolean] $performPing = $true ){
-  #                                          # Check if target file exists, checking wether host is reachable by ping, downloads the file, check for differences,
+  #                                          # Check if target file exists, checking whether host is reachable by ping, downloads the file, check for differences,
   #                                          # check for admin mode, overwriting the file and a success message is given out.
   #                                          # Otherwise if it failed it will output a warning message and optionally wait for pressing enter key.
   #                                          # It returns true if the file is now actualized.
