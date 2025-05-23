@@ -29,7 +29,7 @@ function UnitTest_Git(){
   GitSwitch $repoDir "trunk";
   GitAdd "$repoDir/Readme.txt";
   try{
-    GitMerge $repoDir "main";
+    [Boolean] $hasNoConflicts = GitMerge $repoDir "main";
   }catch{
     # 2024-03 on github action we get: failed with rc=128  Committer identity unknown *** Please tell me who you are.
     #   To set your account's default identity run:  git config --global user.email "you@example.com"; git config --global user.name "Your Name";
