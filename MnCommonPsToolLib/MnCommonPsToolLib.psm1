@@ -2382,12 +2382,14 @@ function GitShowUrl                           ( [String] $repoDir ){
                                                 # Example: return "https://github.com/mniederw/MnCommonPsToolLib"
                                                 AssertNotEmpty $repoDir "repoDir";
                                                 FsEntryAssertHasTrailingDirSep $repoDir;
+                                                $repoDir = FsEntryGetAbsolutePath $repoDir;
                                                 [String] $out = (& "git" "--git-dir=$repoDir/.git" "config" "remote.origin.url"); AssertRcIsOk $out;
                                                 return [String] $out; }
 function GitShowRemoteName                    ( [String] $repoDir ){
                                                 # Example: return "origin"
                                                 AssertNotEmpty $repoDir "repoDir";
                                                 FsEntryAssertHasTrailingDirSep $repoDir;
+                                                $repoDir = FsEntryGetAbsolutePath $repoDir;
                                                 [String] $out = (& "git" "--git-dir=$repoDir/.git" "remote"); AssertRcIsOk $out;
                                                 return [String] $out; }
 function GitShowRepo                          ( [String] $repoDir ){ # return owner and reponame separated with a slash.
@@ -2404,6 +2406,7 @@ function GitShowBranch                        ( [String] $repoDir, [Boolean] $ge
                                                 # If getDefault is specified then it returns in general main or master.
                                                 AssertNotEmpty $repoDir "repoDir";
                                                 FsEntryAssertHasTrailingDirSep $repoDir;
+                                                $repoDir = FsEntryGetAbsolutePath $repoDir;
                                                 if( $getDefault ){
                                                   # for future use: [String] $remote = (GitShowRemoteName $repoDir); # Example: "origin"
                                                   # for future use: if( $remote -eq "" ){ throw [ExcMsg] "Cannot get default branch in repodir=`"$repoDir`" because GitShowRemoteName returned empty string."; }
@@ -2426,6 +2429,7 @@ function GitShowChanges                       ( [String] $repoDir ){
                                                 # return changed, deleted and new files or dirs. Per entry one line prefixed with a change code.
                                                 AssertNotEmpty $repoDir "repoDir";
                                                 FsEntryAssertHasTrailingDirSep $repoDir;
+                                                $repoDir = FsEntryGetAbsolutePath $repoDir;
                                                 [String] $out = (ProcessStart "git" @("-C", $repoDir, "--git-dir=.git", "status", "--short") -traceCmd:$false);
                                                 return [String[]] (@()+(StringSplitIntoLines $out |
                                                   Where-Object{$null -ne $_} |
@@ -2435,6 +2439,7 @@ function GitBranchList                        ( [String] $repoDir, [Boolean] $re
                                                 # example: @("main","origin/main","origin/trunk");
                                                 AssertNotEmpty $repoDir "repoDir";
                                                 FsEntryAssertHasTrailingDirSep $repoDir;
+                                                $repoDir = FsEntryGetAbsolutePath $repoDir;
                                                 [String[]] $opt = @("-C", $repoDir, "branch", "--all" ); if( $remotesOnly ){ $opt += "--remotes"; }
                                                 [String[]] $result = @()+((StringSplitIntoLines (ProcessStart "git" $opt)) | ForEach-Object{ StringRemoveLeftNr $_ 2 } |
                                                   ForEach-Object{ if( $_.StartsWith("remotes/") ){ StringRemoveLeftNr $_ "remotes/".Length; }else{ $_; } } |
@@ -2546,6 +2551,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   # 2023-01: exc: Clone rc=128 remote: Repository not found.\nfatal: repository 'https://github.com/mniederw/UnknownRepo/' not found
                                                   # 2023-01: exc:              fatal: Not a git repository: 'D:/WorkGit/mniederw/UnknownRepo/.git'
                                                   # 2023-01: exc:              error: unknown option `anyUnknownOption'
+                                                  # 2025-05: exc: Clone rc=128 error: RPC failed; curl 92 HTTP/2 stream 7   : CANCEL (err 8) - error: 730 bytes of body are still expected - fetch-pack: unexpected disconnect while reading sideband packet - fatal: early EOF - fatal: fetch-pack: invalid index-pack output
                                                   # 2023-01: exc: Pull  rc=128 fatal: refusing to merge unrelated histories
                                                   # 2023-01: exc: Pull  rc=128 error: Pulling is not possible because you have unmerged files. - hint: Fix them up in the work tree, and then use 'git add/rm <file>' - fatal: Exiting because of an unresolved conflict. - hint: as appropriate to mark resolution and make a commit.
                                                   # 2023-01: exc: Pull  rc=128 fatal: Exiting because of an unresolved conflict. - error: Pulling is not possible because you have unmerged files. - hint: as appropriate to mark resolution and make a commit. - hint: Fix them up in the work tree, and then use 'git add/rm <file>'
@@ -2574,24 +2580,26 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   if( -not $errorAsWarning ){ throw [ExcMsg] $msg; }
                                                   OutWarning "Warning: $msg";
                                                 } }
-
 function GitSwitch                            ( [String] $repoDir, [String] $branch ){
                                                 AssertNotEmpty $repoDir "repoDir";
                                                 FsEntryAssertHasTrailingDirSep $repoDir;
+                                                $repoDir = FsEntryGetAbsolutePath $repoDir;
                                                 ProcessStart "git" @("-C", $repoDir, "switch", $branch) -careStdErrAsOut:$true -traceCmd:$true | Out-Null; }
 function GitAdd                               ( [String] $fsEntryToAdd ){
                                                 AssertNotEmpty $fsEntryToAdd "fsEntryToAdd";
                                                 [String] $repoDir = FsEntryGetAbsolutePath "$(FsEntryFindInParents $fsEntryToAdd ".git")/../"; # not trailing slash allowed
                                                 ProcessStart "git" @("-C", $repoDir, "add", $fsEntryToAdd) -traceCmd:$true | Out-Null; }
 function GitMerge                             ( [String] $repoDir, [String] $branch, [Boolean] $errorAsWarning = $false ){
-                                                # merge branch (remotes/origin) into current repodir, no-commit, no-fast-forward
+                                                # merge branch (remotes/origin) into current repodir, no-commit, no-fast-forward. It returns true if merge was performed without any conflict.
                                                 AssertNotEmpty $repoDir "repoDir";
                                                 FsEntryAssertHasTrailingDirSep $repoDir;
                                                 AssertNotEmpty $branch "branch";
+                                                $repoDir = FsEntryGetAbsolutePath $repoDir;
                                                 try{
                                                   [String] $out = (ProcessStart "git" @("-C", $repoDir, "--git-dir=.git", "merge", "--no-commit", "--no-ff", "remotes/origin/$branch") -careStdErrAsOut:$true -traceCmd:$false);
                                                   # Example output to console but not to stdout:
                                                   #   Auto-merging MyDir/MyFile.txt
+                                                  #   Removing MyDir/MyFile.txt
                                                   #   CONFLICT (content): Merge conflict in MyDir/MyFile.txt
                                                   #   CONFLICT (rename/delete): MyDir/MyFile.txt renamed to MyDir2/MyFile.txt in HEAD, but deleted in remotes/origin/mybranch
                                                   #   CONFLICT (modify/delete): MyDir/MyFile.txt deleted in remotes/origin/mybranch and modified in HEAD.  Version HEAD of MyDir/MyFile.txt left in tree.
@@ -2599,9 +2607,12 @@ function GitMerge                             ( [String] $repoDir, [String] $bra
                                                   #   Automatic merge failed; fix conflicts and then commit the result.
                                                   #   Automatic merge went well; stopped before committing as requested
                                                   OutProgress "  $out";
+                                                  if( $out.Contains("Automatic merge failed;") ){ throw [Exception] "AUTOMATIC_MERGE_FAILED_AND_HAS_CONFLICTS"; }
+                                                  return $true;
                                                 }catch{
-                                                  if( -not $errorAsWarning ){ throw [Exception] "Merge failed, fix conflicts manually: $($_.Exception.Message)"; }
+                                                  if( -not $errorAsWarning ){ throw [Exception] "Merge failed, fix conflicts manually: $($_.Exception.Message)."; }
                                                   OutWarning "Warning: Merge of branch $branch into `"$repoDir`" failed, fix conflicts manually. ";
+                                                  return $false;
                                                 } }
 function GitListCommitComments                ( [String] $tarDir, [String] $localRepoDir, [String] $fileExtension = ".tmp",
                                                   [String] $prefix = "Log.", [Int32] $doOnlyIfOlderThanAgeInDays = 14 ){
