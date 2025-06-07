@@ -1636,8 +1636,13 @@ function FileAppendLines                      ( [String] $file, [String[]] $line
 function FileGetTempFile                      (){ return [String] [System.IO.Path]::GetTempFileName(); } # Example on linux: "/tmp/tmpFN3Gnz.tmp"; on windows: C:\Windows\Temp\tmpE3B6.tmp
 function FileDelTempFile                      ( [String] $file ){ FileDelete $file -traceCmd:$false; } # As FileDelete but no progress msg.
 function FileReadEncoding                     ( [String] $file ){
-                                                # read BOM = Byte order mark. Note: There exists no BOM for ANSI!
-                                                [Byte[]] $b = Get-Content -Encoding Byte -ReadCount 4 -TotalCount 4 -LiteralPath $file; # works also when lesser than 4 bytes
+                                                # read BOM = Byte order mark. Note: There exists no BOM for ANSI! Works also if file size is lesser than 4 bytes.
+                                                # Note: This cannot be used anymore because it not works for PS7: [Byte[]] $b = Get-Content -Encoding Byte -ReadCount 4 -TotalCount 4 -LiteralPath $file; 
+                                                [System.IO.FileStream] $fs = [System.IO.File]::OpenRead($file); 
+                                                [Byte[]] $b = New-Object Byte[] 4; 
+                                                [Int32] $nrOfBytesRead = $fs.Read($b, 0, 4); 
+                                                $fs.Close(); 
+                                                [Byte[]] $b = if($nrOfBytesRead -gt 0){ $b[0..($nrOfBytesRead - 1)] }else{ @() };
                                                 if($b.Length -ge 3 -and $b[0] -eq 0xef -and $b[1] -eq 0xbb -and $b[2] -eq 0xbf                     ){ return [String] "UTF8"             ; } # codepage=65001;
                                                 if($b.Length -ge 2 -and $b[0] -eq 0xff -and $b[1] -eq 0xfe                                         ){ return [String] "UTF16LittleEndian"; } # codepage= 1200;
                                                 if($b.Length -ge 2 -and $b[0] -eq 0xfe -and $b[1] -eq 0xff                                         ){ return [String] "UTF16BigEndian"   ; } # codepage= 1201;
@@ -2228,8 +2233,9 @@ function NetDownloadToStringByCurl            ( [String] $url, [String] $us = ""
 function NetDownloadIsSuccessful              ( [String] $url ){ # test whether an url is downloadable or not;
                                                 [Boolean] $res = $false;
                                                 try{ [Boolean] $ignoreSslCheck = $true;
-                                                  NetDownloadToString $url "" "" $ignoreSslCheck *>&1 | Out-Null; $res = $true;
-                                                }catch{ OutVerbose "NetDownloadIsSuccessful: Ignoring expected behaviour that NetDownloadToString $url failed because $($_.Exception.Message)"; }
+                                                  [String] $out = NetDownloadToString $url "" "" $ignoreSslCheck *>&1 | ForEach-Object{ "$_"; };
+                                                  $res = $true;
+                                                }catch{ OutVerbose "NetDownloadIsSuccessful: Ignoring expected behaviour that NetDownloadToString $url failed because $($_.Exception.Message)"; ScriptResetRc; }
                                                 return [Boolean] $res; }
 function NetDownloadSite                      ( [String] $url, [String] $tarDir, [Int32] $level = 999,
                                                   [Int32] $maxBytes = 0, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false,
@@ -2551,16 +2557,17 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                   # 2023-01: exc: Clone rc=128 remote: Repository not found.\nfatal: repository 'https://github.com/mniederw/UnknownRepo/' not found
                                                   # 2023-01: exc:              fatal: Not a git repository: 'D:/WorkGit/mniederw/UnknownRepo/.git'
                                                   # 2023-01: exc:              error: unknown option `anyUnknownOption'
-                                                  # 2025-05: exc: Clone rc=128 error: RPC failed; curl 92 HTTP/2 stream 7   : CANCEL (err 8) - error: 730 bytes of body are still expected - fetch-pack: unexpected disconnect while reading sideband packet - fatal: early EOF - fatal: fetch-pack: invalid index-pack output
                                                   # 2023-01: exc: Pull  rc=128 fatal: refusing to merge unrelated histories
                                                   # 2023-01: exc: Pull  rc=128 error: Pulling is not possible because you have unmerged files. - hint: Fix them up in the work tree, and then use 'git add/rm <file>' - fatal: Exiting because of an unresolved conflict. - hint: as appropriate to mark resolution and make a commit.
                                                   # 2023-01: exc: Pull  rc=128 fatal: Exiting because of an unresolved conflict. - error: Pulling is not possible because you have unmerged files. - hint: as appropriate to mark resolution and make a commit. - hint: Fix them up in the work tree, and then use 'git add/rm <file>'
-                                                  # 2024-03: exc: Pull  rc=1   fatal: couldn't find remote ref HEAD    (in case the repo contains no content)
                                                   # 2023-01: exc:              error: Your local changes to the following files would be overwritten by merge:   (Then the lines: "        ...file..." "Aborting" "Please commit your changes or stash them before you merge.")
                                                   # 2023-01: exc:              error: The following untracked working tree files would be overwritten by merge:   (Then the lines: "        ....file..." "Please move or remove them before you merge." "Aborting")
                                                   # 2023-01: exc: Pull  rc=1   Auto-merging dir1/file1  CONFLICT (add/add): Merge conflict in dir1/file1  Automatic merge failed; fix conflicts and then commit the result.\nwarning: Cannot merge binary files: dir1/file1 (HEAD vs. ab654...)
-                                                  # 2023-01: exc: Pull  rc=1   fatal: unable to access 'https://github.com/anyUser/anyGitRepo/': Failed to connect to github.com port 443: Timed out
                                                   # 2023-01: exc: Pull  rc=1   fatal: TaskCanceledException encountered. -    Eine Aufgabe wurde abgebrochen. - bash: /dev/tty: No such device or address - error: failed to execute prompt script (exit code 1) - fatal: could not read Username for 'https://github.com': No such file or directory
+                                                  # 2024-03: exc: Pull  rc=1   fatal: couldn't find remote ref HEAD    (in case the repo contains no content)
+                                                  # Errors which could solved probably by a retry:
+                                                  # 2023-01: exc: Pull  rc=1   fatal: unable to access 'https://github.com/anyUser/anyGitRepo/': Failed to connect to github.com port 443: Timed out
+                                                  # 2025-05: exc: Clone rc=128 error: RPC failed; curl 92 HTTP/2 stream 7   : CANCEL (err 8) - error: 730 bytes of body are still expected - fetch-pack: unexpected disconnect while reading sideband packet - fatal: early EOF - fatal: fetch-pack: invalid index-pack output
                                                   $msg = "$(ScriptGetCurrentFunc)($cmd,$tarRootDir,$url) failed because $(StringReplaceNewlines $($_.Exception.Message) ' - ')";
                                                   ScriptResetRc;
                                                   if( $cmd -eq "Pull" -and ( $msg.Contains("error: Your local changes to the following files would be overwritten by merge:") -or
