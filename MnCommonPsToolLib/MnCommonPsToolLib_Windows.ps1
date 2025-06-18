@@ -2491,6 +2491,7 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){ # runs in about 12-90 sec and 
                                                   #   PowerShellGet is a package provider for PowerShell PackageManagement (also known as OneGet).
                                                 #
                                                 OutProgress "Make sure we have package provider NuGet in minimum version 2.8.5.201 ";
+                                                # for future use: nuget.exe update -self;
                                                 if( (ProcessIsLesserEqualPs5) ){
                                                   # On PS7 we would get: Install-PackageProvider: No match was found for the specified search criteria for the provider 'NuGet'.
                                                   #   The package provider requires 'PackageManagement' and 'Provider' tags. Please check if the specified package has the tags.
@@ -2892,12 +2893,11 @@ function ToolWingetInstallPackage             ( [String] $idAndOptionalBlankSepV
                                                 #            In einer konfigurierten Quelle ist eine neuere Paketversion verfügbar,
                                                 #            die jedoch nicht auf Ihr System oder Ihre Anforderungen zutrifft.
                                                 #          Solution which worked: winget uninstall $id; winget install $id;
-                                                # 2025-02: winget install "Discord.Discord"
-                                                #            rc=-1978334956; Das Paket kann nicht mit winget aktualisiert werden. Verwenden Sie die vom Herausgeber bereitgestellte Methode zum Aktualisieren dieses Pakets.
-                                                # 2025-02: ToolWingetInstallPackage "Microsoft.Powershell"
-                                                #            Es wurde eine neuere Version gefunden, die Installationstechnologie unterscheidet sich jedoch von der aktuellen installierten Version. Deinstallieren Sie das Paket, und installieren Sie die neuere Version.
-                                                # 2025-02: ToolWingetInstallPackage "Blizzard.BattleNet"
-                                                #            rc=-1978335137; Program is not up-to-date. Retry=False;
+                                                # 2025-02: "Disc"       : rc=-1978334956: Das Paket kann nicht mit winget aktualisiert werden. Verwenden Sie die vom Herausgeber bereitgestellte Methode zum Aktualisieren dieses Pakets.
+                                                # 2025-02: "MsPs"       : Es wurde eine neuere Version gefunden, die Installationstechnologie unterscheidet sich jedoch von der aktuellen installierten Version. Deinstallieren Sie das Paket, und installieren Sie die neuere Version.
+                                                # 2025-02: "BlBaNet"    : rc=-1978335137:
+                                                # 2025-06: "GIM"        : rc=-1978335212: Es wurde kein Paket gefunden, das den Eingabekriterien entspricht.
+                                                # 2025-06: "MsSQLSvMaSt": rc=-1978335216: Es wurde kein anwendbarer Installer gefunden. Weitere Informationen finden Sie in den Protokollen.
                                               }
 function ToolWingetUninstallPackage           ( [String] $idAndOptionalBlankSepVersion, [String] $source = "winget", [String] $scope = "Auto" ){
                                                 # Call the tool "winget" to uninstall from a given source. Ignores errors.
