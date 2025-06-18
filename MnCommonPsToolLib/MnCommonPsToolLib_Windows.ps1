@@ -532,15 +532,25 @@ function RegistrySetValue                     ( [String] $key, [String] $name, [
                                                   Set-ItemProperty -Path $key -Name $name -Type $type -Value $val;
                                                 }catch{ # Example: SecurityException: Requested registry access is not allowed.
                                                   throw [Exception] "$(ScriptGetCurrentFunc)($key,$name) failed because $($_.Exception.Message) (often it requires elevated mode)"; } }
-function RegistryImportFile                   ( [String] $regFile ){
+function RegistryImportFile                   ( [String] $regFile ){ # regFile should have [ANSI,UTF16-LE-BOM] and does not work with UTF8-BOM.
                                                 $regFile = (FsEntryGetAbsolutePath $regFile);
                                                 OutProgress "RegistryImportFile `"$regFile`""; FileAssertExists $regFile;
-                                                try{ <# unbelievable, it writes success to stderr #>
-                                                  & "$env:SystemRoot/System32/reg.exe" "IMPORT" $regFile *>&1 | Out-Null; AssertRcIsOk;
+                                                [String] $out = "";
+                                                try{
+                                                  # unbelievable, it writes success to stderr.
+                                                  $out = & "$env:SystemRoot/System32/reg.exe" "IMPORT" $regFile *>&1 | ForEach-Object{ "$_"; };
+                                                    # Example: FEHLER: Die angegebene Datei ist keine Registrierungsdatei. Es können nur Registrierungsdateien importiert werden.
+                                                  AssertRcIsOk;
                                                 }catch{ <# ignore always: System.Management.Automation.RemoteException Der Vorgang wurde erfolgreich beendet. #>
+                                                  [String] $m = $_.Exception.Message;
                                                   [String[]] $expectedMsgs = @( "Der Vorgang wurde erfolgreich beendet.", "The operation completed successfully." );
-                                                  if( $expectedMsgs -notcontains $_.Exception.Message ){
-                                                    throw [Exception] "$(ScriptGetCurrentFunc)(`"$regFile`") failed. We expected an exc but this must match one of [$(StringArrayDblQuoteItems $expectedMsgs)] but we got: `"$($_.Exception.Message)`"";
+                                                  if( $expectedMsgs -notcontains $m ){
+                                                    $out += " Note: For reg.exe it does not work if the file has UTF8-BOM, you can run (FileReadEncoding file) for test it. ";
+                                                    [String] $excMsg = switch($m -eq "Last operation failed [ExitCode=1]. For the reason see the previous output. "){
+                                                      ($true){"The command (`"$($env:SystemRoot)/System32/reg.exe`" IMPORT `"$regFile`") returned $out."}
+                                                      ($false){"We expected an exception but this must match one of [$(StringArrayDblQuoteItems $expectedMsgs)] but we got: `"$m`"."}
+                                                    };
+                                                    throw [Exception] "$(ScriptGetCurrentFunc)(`"$regFile`") failed. $excMsg";
                                                   }
                                                   ScriptResetRc; } }
 function RegistryKeyGetAcl                    ( [String] $key ){
@@ -2481,6 +2491,7 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){ # runs in about 12-90 sec and 
                                                   #   PowerShellGet is a package provider for PowerShell PackageManagement (also known as OneGet).
                                                 #
                                                 OutProgress "Make sure we have package provider NuGet in minimum version 2.8.5.201 ";
+                                                # for future use: nuget.exe update -self;
                                                 if( (ProcessIsLesserEqualPs5) ){
                                                   # On PS7 we would get: Install-PackageProvider: No match was found for the specified search criteria for the provider 'NuGet'.
                                                   #   The package provider requires 'PackageManagement' and 'Provider' tags. Please check if the specified package has the tags.
@@ -2882,12 +2893,11 @@ function ToolWingetInstallPackage             ( [String] $idAndOptionalBlankSepV
                                                 #            In einer konfigurierten Quelle ist eine neuere Paketversion verfügbar,
                                                 #            die jedoch nicht auf Ihr System oder Ihre Anforderungen zutrifft.
                                                 #          Solution which worked: winget uninstall $id; winget install $id;
-                                                # 2025-02: winget install "Discord.Discord"
-                                                #            rc=-1978334956; Das Paket kann nicht mit winget aktualisiert werden. Verwenden Sie die vom Herausgeber bereitgestellte Methode zum Aktualisieren dieses Pakets.
-                                                # 2025-02: ToolWingetInstallPackage "Microsoft.Powershell"
-                                                #            Es wurde eine neuere Version gefunden, die Installationstechnologie unterscheidet sich jedoch von der aktuellen installierten Version. Deinstallieren Sie das Paket, und installieren Sie die neuere Version.
-                                                # 2025-02: ToolWingetInstallPackage "Blizzard.BattleNet"
-                                                #            rc=-1978335137; Program is not up-to-date. Retry=False;
+                                                # 2025-02: "Disc"       : rc=-1978334956: Das Paket kann nicht mit winget aktualisiert werden. Verwenden Sie die vom Herausgeber bereitgestellte Methode zum Aktualisieren dieses Pakets.
+                                                # 2025-02: "MsPs"       : Es wurde eine neuere Version gefunden, die Installationstechnologie unterscheidet sich jedoch von der aktuellen installierten Version. Deinstallieren Sie das Paket, und installieren Sie die neuere Version.
+                                                # 2025-02: "BlBaNet"    : rc=-1978335137:
+                                                # 2025-06: "GIM"        : rc=-1978335212: Es wurde kein Paket gefunden, das den Eingabekriterien entspricht.
+                                                # 2025-06: "MsSQLSvMaSt": rc=-1978335216: Es wurde kein anwendbarer Installer gefunden. Weitere Informationen finden Sie in den Protokollen.
                                               }
 function ToolWingetUninstallPackage           ( [String] $idAndOptionalBlankSepVersion, [String] $source = "winget", [String] $scope = "Auto" ){
                                                 # Call the tool "winget" to uninstall from a given source. Ignores errors.
