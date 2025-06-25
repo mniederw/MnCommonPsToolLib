@@ -132,7 +132,8 @@ function OsWinCreateUser                      ( [String] $us, [String] $pw, [Str
                                                     try{
                                                       [String] $out = & secedit /configure /db 'secedit.sdb' /cfg $tmp2 /areas USER_RIGHTS 2>&1; AssertRcIsOk $out; # more in "$env:windir\security\logs\scesrv.log"
                                                     }catch{
-                                                      OutWarning "Warning: The command to set SeDenyInteractiveLogonRight failed, is ignored, please perform this manually. ";
+                                                      OutWarning "Warning: The command to set SeDenyInteractiveLogonRight failed, is ignored, please perform this manually. Error was: $($_.Exception.Message). ";
+                                                      ScriptResetRc;
                                                     }
                                                     Remove-Item $tmp2;
                                                   }
@@ -2778,7 +2779,12 @@ function ToolWinGetSetup                      (){ # install and update winget; u
                                                 WinGetApproveEulas;
                                                 WinGetSourcesListAndReset;
                                                 WinGetSourcesUpdate;
-                                                ToolWingetInstallPackage "Microsoft.AppInstaller" -scope:User; # only works for scope User.
+                                                try{
+                                                  ToolWingetInstallPackage "Microsoft.AppInstaller" -scope:User; # only works for scope User.
+                                                }catch{
+                                                  OutWarning "Warning: Install Microsoft.AppInstaller failed, we ignore it and hope current winget can work, but please manually install from https://github.com/microsoft/winget-cli/releases . Error was: $($_.Exception.Message). ";
+                                                  ScriptResetRc;
+                                                }
                                                 # winget --help
                                                 #   Folgende Befehle sind verfügbar:
                                                 #     install    Installiert das angegebene Paket
