@@ -43,7 +43,7 @@
   Major version will reflect breaking changes, minor identifies extensions and third number identifies urgent bugfixes.
   Breaking changes are usually removed deprecated functions or changed behaviours.
 
-  2025-06-18  V7.94  Improve ToolWinGetCleanLine.
+  2025-06-18  V7.94  Improve ToolWinGetCleanLine, ToolWinGetSetup, ToolWingetListUpgradablePackages, ToolWingetUpdateInstalledPackages.
   2025-06-18  V7.93  Add Doc. Improve FileReadEncoding, RegistryImportFile.
   2025-05-23  V7.92  Add Doc. Improve GitMerge.
   2025-05-20  V7.91  Extend and rename ToolEvalVsCodeExec to ToolEvalExecForVsCode. Add FileFindFirstExisting, ToolEvalExecForWindsurf.
