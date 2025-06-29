@@ -132,7 +132,8 @@ function OsWinCreateUser                      ( [String] $us, [String] $pw, [Str
                                                     try{
                                                       [String] $out = & secedit /configure /db 'secedit.sdb' /cfg $tmp2 /areas USER_RIGHTS 2>&1; AssertRcIsOk $out; # more in "$env:windir\security\logs\scesrv.log"
                                                     }catch{
-                                                      OutWarning "Warning: The command to set SeDenyInteractiveLogonRight failed, is ignored, please perform this manually. ";
+                                                      OutWarning "Warning: The command to set SeDenyInteractiveLogonRight failed, is ignored, please perform this manually. Error was: $($_.Exception.Message). ";
+                                                      ScriptResetRc;
                                                     }
                                                     Remove-Item $tmp2;
                                                   }
@@ -2649,11 +2650,14 @@ function ToolWinGetCleanLine                  ( [String] $s ){
                                                 if( $null -eq $s ){ $s = ""; }
                                                 $s = "$s".Trim();
                                                 if( $s -ne "" -and -not @("-","/","|","\").Contains($s)                                                                    -and
-                                                    $s -notmatch "^\█*\▒*\¦*\ +[0-9\.]+\ [KMG]B\ \/\ +[0-9\.]+\ [KMG]B$"                                                      -and # ██████████████████████▒▒▒▒▒▒▒▒  1024 KB / 1.31 MB
-                                                    $s -notmatch "^\█*\▒*\¦*\ +[0-9][0-9]?[0-9]?\%$"                                                                          -and # ███▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  10%
+                                                    $s -notmatch "^\█*\▒*\¦*\ +[0-9\.]+\ [KMG]B\ \/\ +[0-9\.]+\ [KMG]B$"                                                   -and # ██████████████████████▒▒▒▒▒▒▒▒  1024 KB / 1.31 MB
+                                                    $s -notmatch "^\█*\▒*\¦*\ +[0-9][0-9]?[0-9]?\%$"                                                                       -and # ███▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  10%
+                                                    $s -notmatch "^[ÔûêÆ]+\ +[0-9\.]+\ [KMG]B\ \/\ +[0-9\.]+\ [KMG]B$"                                                     -and # ÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûê  1.9 MB / 1.9 MB
+                                                    $s -notmatch "^[ÔûêÆ]+\ +[0-9][0-9]?[0-9]?\%$"                                                                         -and # ÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆ  0%
                                                     $s -ne "Alle Quellen werden aktualisiert..."                                                                           -and # for: winget source update
                                                     $s -ne "Fertig"                                                                                                        -and # for: winget source update
                                                     $s -ne "Alle Quellen werden zurückgesetzt...Fertig"                                                                    -and # for: winget source reset
+                                                    $s -ne "Alle Quellen werden zur├╝ckgesetzt...Fertig"                                                                   -and # for: winget source reset
                                                     $s -ne "Die Quelle `"msstore`" erfordert, dass Sie die folgenden Vereinbarungen vor der Verwendung anzeigen."          -and # for: winget list
                                                     $s -ne "Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction"                                     -and # for: winget list
                                                     $s -ne ("Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben " +
@@ -2714,7 +2718,8 @@ function ToolWinGetSetup                      (){ # install and update winget; u
                                                   $a | ForEach-Object{ OutProgress "  $_"; }; # msstore, winget.
                                                   if( (ProcessIsRunningInElevatedAdminMode) -and $a[0].StartsWith("msstore ") -and $a[1].StartsWith("winget ") ){
                                                     OutProgress "WinGet has the two default source (msstore,winget) so we can safely call reset source:  winget source reset --force; ";
-                                                    & WinGet source reset --force | ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" } | ForEach-Object{ OutProgress $_ 2; };
+                                                    OutProgress "& WinGet source reset --force; ";
+                                                    & WinGet source reset --force *>&1 | ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" } | ForEach-Object{ OutProgress $_ 2; };
                                                     AssertRcIsOk; # requires admin mode
                                                   }else{
                                                     OutProgress "Note: For reset back to msstore,winget use in admin mode: winget source reset --force; ";
@@ -2722,7 +2727,7 @@ function ToolWinGetSetup                      (){ # install and update winget; u
                                                 }
                                                 function WinGetSourcesUpdate(){
                                                   OutProgress "Update WinGet sources ";
-                                                  [String[]] $out = & WinGet source update | ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" }; AssertRcIsOk $out;
+                                                  [String[]] $out = & WinGet source update *>&1 | ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" }; AssertRcIsOk $out;
                                                   $out | ForEach-Object{ OutProgress $_ 2; };
                                                 }
                                                 OutProgressTitle "Setup WinGet by install and update it to latest version (method depends on whether process is in elevated mode or not) ";
@@ -2774,7 +2779,12 @@ function ToolWinGetSetup                      (){ # install and update winget; u
                                                 WinGetApproveEulas;
                                                 WinGetSourcesListAndReset;
                                                 WinGetSourcesUpdate;
-                                                ToolWingetInstallPackage "Microsoft.AppInstaller" -scope:User; # only works for scope User.
+                                                try{
+                                                  ToolWingetInstallPackage "Microsoft.AppInstaller" -scope:User; # only works for scope User.
+                                                }catch{
+                                                  OutWarning "Warning: Install Microsoft.AppInstaller failed, we ignore it and hope current winget can work, but please manually install from https://github.com/microsoft/winget-cli/releases . Error was: $($_.Exception.Message). ";
+                                                  ScriptResetRc;
+                                                }
                                                 # winget --help
                                                 #   Folgende Befehle sind verfügbar:
                                                 #     install    Installiert das angegebene Paket
@@ -2832,7 +2842,7 @@ function ToolWingetListUpgradablePackages     ( [String] $scope = "Auto" ){
                                                 # Note: for evaluated scope=Machine it also performs scope=User.
                                                 [String] $instScope = $scope; if( $scope -eq "Auto" ){ $instScope = switch(ProcessIsRunningInElevatedAdminMode){($true){"Machine"}($false){"User"}}; }
                                                 OutProgress "List all upgradable packages of winget:  winget upgrade --scope $instScope --include-unknown --disable-interactivity --accept-source-agreements ";
-                                                & WinGet upgrade --scope $instScope --include-unknown --disable-interactivity --accept-source-agreements | # can ask multiple for elevated mode; alternative: --skip-dependencies
+                                                & WinGet upgrade --scope $instScope --include-unknown --disable-interactivity --accept-source-agreements *>&1 | # can ask multiple for elevated mode; alternative: --skip-dependencies
                                                   ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" } | ForEach-Object{ OutProgress $_ 2; };
                                                 ScriptResetRc;
                                                 if( $instScope -eq "Machine" ){
@@ -2845,7 +2855,7 @@ function ToolWingetUpdateInstalledPackages    ( [String] $scope = "Auto" ){
                                                 # Scope is one of: "User","Machine","Auto"(depends on elevated admin mode).
                                                 [String] $instScope = $scope; if( $scope -eq "Auto" ){ $instScope = switch(ProcessIsRunningInElevatedAdminMode){($true){"Machine"}($false){"User"}}; }
                                                 OutProgress "Upgrade all packages of winget:  winget upgrade --scope $instScope --include-unknown --disable-interactivity --accept-source-agreements --all ";
-                                                & WinGet upgrade --scope $instScope --include-unknown --disable-interactivity --accept-source-agreements --all | # can ask multiple for elevated mode; alternative: --skip-dependencies
+                                                & WinGet upgrade --scope $instScope --include-unknown --disable-interactivity --accept-source-agreements --all *>&1 | # can ask multiple for elevated mode; alternative: --skip-dependencies
                                                   ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" } | ForEach-Object{ OutProgress $_ 2; };
                                                   # Example: Die Anwendung wird zurzeit ausgeführt. Beenden Sie die Anwendung, und versuchen Sie es noch mal.
                                                   #          Installation fehlgeschlagen mit Exitcode: 5
