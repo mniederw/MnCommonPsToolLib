@@ -860,19 +860,20 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 # - Empty-string parameters can be passed to the calling program.
                                                 # - It has no side effects if the parameters contains special characters as quotes, double-quotes or $-characters.
                                                 # - as tracing the calling command can easy be written to output.
-                                                # The only known disadvantage currently is, it is not optimized for line oriented output because it returns a single string.
+                                                # The only known disadvantage currently is, it is not optimized for line oriented output because it returns one single string.
                                                 # As working directory the current dir is taken which makes it compatible to call operator.
-                                                # If exitCode is not 0 or stderr is not empty then it throws.
-                                                # If careStdErrAsOut is true then occurring stderr text will not be throwed, instead it will be appended to stdout.
-                                                # If ErrorActionPreference is Continue then stderr is appended to output and no error is throwed.
-                                                # In case an error is throwed then it will first call OutProgress with the non empty stdout lines.
+                                                # If traceCmd is true then at the beginning the calling command line is given out as progress line.
+                                                # Then the command is called and it collects the stdandard output (stdout) and standard error (stderr).
                                                 # Internally the stdout and stderr are stored to variables and not to temporary files to avoid file system IO.
+                                                # If exitCode is 0 and stderr is not empty and careStdErrAsOut is true then stderr is moved by appending to stdout.
+                                                # If exitCode is 0 and stderr is still not empty then the pseudo exitcode=10 is forced.
+                                                # It exitCode is not 0 then: if ErrorActionPreference is Continue then it appends stderr to stdout 
+                                                #   otherwise it throws the error and the message is preceeded by the stdout which could be huge.
+                                                # It returns stdout as a single string.
                                                 # Important Note: The original Process.Start(ProcessStartInfo) cannot run a ps1 file
                                                 #   even if $env:PATHEXT contains the PS1 because it does not precede it with (powershell.exe -File) or (pwsh -File).
-                                                #   Our solution will do this by automatically preceed the ps1 file by
-                                                #   pwsh -NoLogo -File  or  powershell.exe -NoLogo -File
+                                                #   This solution allows this by automatically preceeding the ps1 file by  pwsh -NoLogo -File  or  powershell.exe -NoLogo -File
                                                 #   and it surrounds the arguments correctly by double-quotes to support blanks in any argument.
-                                                #
                                                 # Generally for each call of an executable the commandline is handled by some special rules which are descripted in
                                                 # "Parsing C++ command-line arguments" https://docs.microsoft.com/en-us/cpp/cpp/main-function-command-line-args
                                                 # As follow:
@@ -941,8 +942,8 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 [System.Text.StringBuilder] $bufStdOut = New-Object System.Text.StringBuilder;
                                                 [System.Text.StringBuilder] $bufStdErr = New-Object System.Text.StringBuilder;
                                                 # Uses async read of stdout and stderr to avoid deadlocks.
-                                                #
-                                                # Source solution tries without polling:
+                                                # Alternatives:
+                                                #   Source solution tries without polling:
                                                 #     $actionReadStdOut = { if( -not ([String]::IsNullOrEmpty($Event.SourceEventArgs.Data)) ){ [void]$Event.MessageData.Append($Event.SourceEventArgs.Data); } };
                                                 #     $actionReadStdErr = { if( -not ([String]::IsNullOrEmpty($Event.SourceEventArgs.Data)) ){ [void]$Event.MessageData.Append($Event.SourceEventArgs.Data); } };
                                                 #     [Object] $eventStdOut = Register-ObjectEvent -InputObject $pr -EventName "OutputDataReceived" -Action $actionReadStdOut -MessageData $bufStdOut;
@@ -953,8 +954,8 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 #     ...
                                                 #     Unregister-Event -SourceIdentifier $eventStdOut.Name; $eventStdOut.Dispose();
                                                 #     Unregister-Event -SourceIdentifier $eventStdErr.Name; $eventStdErr.Dispose();
-                                                #   is not usable because for some executable calls it did not absolutely always process or generate the events in sequential order which resulted in corrupted outputfiles!
-                                                # Also another solution with EventArgs (or variants by using: $queueStdOut = New-Object System.Collections.Concurrent.ConcurrentQueue[String];)
+                                                #     is not usable because for some executable calls it did not absolutely always process or generate the events in sequential order which resulted in corrupted outputfiles!
+                                                #   Also another solution with EventArgs (or variants by using: $queueStdOut = New-Object System.Collections.Concurrent.ConcurrentQueue[String];)
                                                 #     # The $EventArgs is an automatic variable, the two events are never called at the same time, so it is multithreading safe.
                                                 #     $pr.add_OutputDataReceived({ $bufStdOut.Append($EventArgs.Data); });
                                                 #     $pr.add_ErrorDataReceived( { $bufStdErr.Append($EventArgs.Data); });
@@ -963,7 +964,6 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 #     You can provide one in the DefaultRunspace property of the System.Management.Automation.Runspaces.Runspace type.
                                                 #     The script block you attempted to invoke was:  if( -not [String]:…($EventArgs.Data) }
                                                 #     at System.Management.Automation.ScriptBlock.GetContextFromTLS() ... at System.Threading.PortableThreadPool.WorkerThread.WorkerThreadStart()
-                                                #
                                                 $pr.Start() | Out-Null;
                                                 [Object] $usedTime = [System.Diagnostics.Stopwatch]::StartNew();
                                                 function ReachedTimeout(){ [Int64] $usedTimeInSec = [Int64]($usedTime.Elapsed.TotalMilliseconds) / 1000; return [Boolean] ($usedTimeInSec -ge $timeoutInSec); }
@@ -985,20 +985,15 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 [Int32] $exitCode = $pr.ExitCode;
                                                 $pr.Dispose();
                                                 [String] $out = $bufStdOut.ToString();
-                                                [String] $err = $bufStdErr.ToString(); if( $err -ne "" ){ $err = [Environment]::NewLine + $err.Trim(); }
+                                                [String] $err = $bufStdErr.ToString().Trim();
+                                                $out = StringArrayConcat (StringSplitIntoLines $out | Where-Object{$null -ne $_} | Where-Object{ StringIsFilled $_ });
                                                 OutVerbose "ProcessStart-Result rc=$exitCode outLen=$($out.Length) errLen=$($err.Length) ";
-                                                [Boolean] $doThrow = $exitCode -ne 0 -or ($err -ne "" -and -not $careStdErrAsOut);
-                                                if( $doThrow -and $ErrorActionPreference -ne "Continue" ){
-                                                  if( -not $traceCmd ){ OutProgress $traceInfo; } # in case of an error output command line, if not yet done
-                                                  StringSplitIntoLines $out | Where-Object{$null -ne $_} |
-                                                    Where-Object{ StringIsFilled $_ } |
-                                                    ForEach-Object{ OutProgress "  $_"; };
-                                                  [String] $msgPrg = "ProcessStart";
-                                                  if( $careStdErrAsOut ){ $msgPrg += "-careStdErrAsOut"; }
-                                                  [String] $msg = "$msgPrg($traceInfo) failed with rc=$exitCode because $err";
-                                                  throw [Exception] $msg;
+                                                if( $exitCode -eq 0 -and $err -ne "" -and $careStdErrAsOut ){ $out += ([Environment]::NewLine + $err).Trim(); $err = ""; }
+                                                if( $exitCode -eq 0 -and $err -ne "" ){ $exitCode = 10; }
+                                                if( $exitCode -ne 0 ){
+                                                  $out += [Environment]::NewLine + "ProcessStart$(if($careStdErrAsOut){'-careStdErrAsOut'}else{''})($traceInfo) failed with rc=$exitCode$(if($err -eq ''){''}else{' because '+$err}).";
+                                                  if( $ErrorActionPreference -ne "Continue" ){ throw [Exception] $out; }
                                                 }
-                                                $out += $err;
                                                 return [String] $out; }
 function ProcessStartByArray                  ( [String[]] $cmdAndArgs, [Boolean] $careStdErrAsOut = $false, [Boolean] $traceCmd = $false ){
                                                 Assert ($cmdAndArgs.Length -gt 0) "Expected at least the command but cmdAndArgs is empty. ";
@@ -2856,16 +2851,18 @@ function GitInitGlobalConfig                  (){ # if git is installed the init
                                                   GitSetGlobalVar "core.autocrlf" "false" -useSystemNotGlobal:$true; # this is strongly recommended to never use autocrlf
                                                 }
                                                 OutProgress "Ok, done."; }
-function GithubAuthStatus                     (){
-                                               GithubPrepareCommand;
-                                               [String] $out = (ProcessStart "gh" @("auth", "status") -careStdErrAsOut:$true -traceCmd:$true);
-                                               # Output:
-                                               #   github.com
-                                               #     Ô£ô Logged in to github.com as myowner ($HOME\AppData\Roaming\GitHub CLI\hosts.yml)
-                                               #     Ô£ô Git operations for github.com configured to use https protocol.
-                                               #     Ô£ô Token: *******************
-                                               OutProgress $out; }
-function GithubGetBranchCommitId             ( [String] $repo, [String] $branch, [String] $repoDirForCred = "", [Boolean] $traceCmd = $false ){
+function GithubAuthStatus                     (){ # Example Output:
+                                                #   "gh" "auth" "status"
+                                                #    github.com
+                                                #    ✓ Logged in to github.com account mniederw ($HOME\AppData\Roaming\GitHub CLI\hosts.yml)
+                                                #    - Active account: true
+                                                #    - Git operations protocol: https
+                                                #    - Token: gho_************************************
+                                                #    - Token scopes: 'gist', 'read:org', 'repo', 'workflow'
+                                                GithubPrepareCommand;
+                                                [String] $out = (ProcessStart "gh" @("auth", "status") -careStdErrAsOut:$true -traceCmd:$true);
+                                                OutProgress $out; }
+function GithubGetBranchCommitId              ( [String] $repo, [String] $branch, [String] $repoDirForCred = "", [Boolean] $traceCmd = $false ){
                                                 # repo           : has format [HOST/]OWNER/REPO
                                                 # branch         : if branch is not uniquely defined it will throw.
                                                 # repoDirForCred : Any folder under any git repository, from which the credentials will be taken, use empty for current dir.
@@ -2892,58 +2889,98 @@ function GithubGetBranchCommitId             ( [String] $repo, [String] $branch,
                                                 Pop-Location;
                                                 if( $traceCmd ){ OutProgress $out; }else{ return [String] $out; } }
 function GithubListPullRequests               ( [String] $repo, [String] $filterToBranch = "", [String] $filterFromBranch = "", [String] $filterState = "open" ){
-                                               # repo has format [HOST/]OWNER/REPO
-                                               AssertNotEmpty $repo "repo";
-                                               [String] $fields = "number,state,createdAt,title,labels,author,assignees,updatedAt,url,body,closedAt,repository,authorAssociation,commentsCount,isLocked,isPullRequest,id";
-                                               GithubPrepareCommand;
-                                               [String] $out = (ProcessStart "gh" @("search", "prs", "--repo", $repo, "--state", $filterState, "--base", $filterToBranch, "--head", $filterFromBranch, "--json", $fields) -traceCmd:$true);
-                                               return ($out | ConvertFrom-Json); }
+                                                # It requires you authenticated your github account first.
+                                                # repo has format [HOST/]OWNER/REPO
+                                                AssertNotEmpty $repo "repo";
+                                                [String] $fields = "number,state,createdAt,title,labels,author,assignees,updatedAt,url,body,closedAt,repository,authorAssociation,commentsCount,isLocked,isPullRequest,id";
+                                                GithubPrepareCommand;
+                                                [String] $out = (ProcessStart "gh" @("search", "prs", "--repo", $repo, "--state", $filterState, "--base", $filterToBranch, "--head", $filterFromBranch, "--json", $fields) -traceCmd:$true);
+                                                return ($out | ConvertFrom-Json); }
 function GithubCreatePullRequest              ( [String] $repo, [String] $toBranch, [String] $fromBranch, [String] $title = "", [String] $repoDirForCred = "" ){
-                                               # repo           : has format [HOST/]OWNER/REPO .
-                                               # title          : default title is "Merge $fromBranch into $toBranch".
-                                               # repoDirForCred : Any folder under any git repository, from which the credentials will be taken, use empty for current dir.
-                                               # example: GithubCreatePullRequest "mniederw/MnCommonPsToolLib" "trunk" "main" "" $PSScriptRoot;
-                                               AssertNotEmpty $repo "repo";
-                                               OutProgress "Create a github-pull-request from branch $fromBranch to $toBranch in repo=$repo (repoDirForCred=$repoDirForCred)";
-                                               if( $title -eq "" ){ $title = "Merge $fromBranch to $toBranch"; }
-                                               [String[]] $prUrls = @()+(GithubListPullRequests $repo $toBranch $fromBranch |
-                                                 Where-Object{$null -ne $_} | ForEach-Object{ $_.url });
-                                               if( $prUrls.Count -gt 0 ){
-                                                 # if we would perform the gh command we would get: rc=1  https://github.com/myowner/myrepo/pull/1234 a pull request for branch "mybranch" into branch "main" already exists:
-                                                 OutProgress "A pull request for branch $fromBranch into $toBranch already exists: $($prUrls[0])";
-                                                 return;
-                                               }
-                                               Push-Location $repoDirForCred;
-                                               GithubPrepareCommand;
-                                               [String] $out = "";
-                                               try{
-                                                 $out = (ProcessStart "gh" @("pr", "create", "--repo", $repo, "--base", $toBranch, "--head", $fromBranch, "--title", $title, "--body", " ") -careStdErrAsOut:$true -traceCmd:$true);
-                                               }catch{
-                                                 # example: rc=1  pull request create failed: GraphQL: No commits between main and trunk (createPullRequest)
-                                                 if( $_.Exception.Message.Contains("pull request create failed: GraphQL: No commits between ") ){
-                                                   $error.clear();
-                                                   $out = "No pull request nessessary because no commit between branches `"$toBranch`" and `"$fromBranch`" .";
-                                                 }else{ throw; }
-                                               }
-                                               Pop-Location;
-                                               # Possible outputs, one of:
-                                               #   Warning: 2 uncommitted changes
-                                               #   Creating pull request for myfrombranch into main in myowner/myrepo
-                                               #   a pull request for branch "myfrombranch" into branch "main" already exists:
-                                               #   https://github.com/myowner/myrepo/pull/1234
-                                               OutProgress $out; }
+                                                # repo           : has format [HOST/]OWNER/REPO .
+                                                # title          : default title is "Merge $fromBranch into $toBranch".
+                                                # repoDirForCred : Any folder under any git repository, from which the credentials will be taken, use empty for current dir.
+                                                # example: GithubCreatePullRequest "mniederw/MnCommonPsToolLib" "trunk" "main" "" $PSScriptRoot;
+                                                AssertNotEmpty $repo "repo";
+                                                OutProgress "Create a github-pull-request from branch $fromBranch to $toBranch in repo=$repo (repoDirForCred=$repoDirForCred)";
+                                                if( $title -eq "" ){ $title = "Merge $fromBranch to $toBranch"; }
+                                                [String[]] $prUrls = @()+(GithubListPullRequests $repo $toBranch $fromBranch |
+                                                  Where-Object{$null -ne $_} | ForEach-Object{ $_.url });
+                                                if( $prUrls.Count -gt 0 ){
+                                                  # if we would perform the gh command we would get: rc=1  https://github.com/myowner/myrepo/pull/1234 a pull request for branch "mybranch" into branch "main" already exists:
+                                                  OutProgress "A pull request for branch $fromBranch into $toBranch already exists: $($prUrls[0])";
+                                                  return;
+                                                }
+                                                Push-Location $repoDirForCred;
+                                                GithubPrepareCommand;
+                                                [String] $out = "";
+                                                try{
+                                                  $out = (ProcessStart "gh" @("pr", "create", "--repo", $repo, "--base", $toBranch, "--head", $fromBranch, "--title", $title, "--body", " ") -careStdErrAsOut:$true -traceCmd:$true);
+                                                }catch{
+                                                  # example: rc=1  pull request create failed: GraphQL: No commits between main and trunk (createPullRequest)
+                                                  if( $_.Exception.Message.Contains("pull request create failed: GraphQL: No commits between ") ){
+                                                    $error.clear();
+                                                    $out = "No pull request nessessary because no commit between branches `"$toBranch`" and `"$fromBranch`" .";
+                                                  }else{ throw; }
+                                                }
+                                                Pop-Location;
+                                                # Possible outputs, one of:
+                                                #   Warning: 2 uncommitted changes
+                                                #   Creating pull request for myfrombranch into main in myowner/myrepo
+                                                #   a pull request for branch "myfrombranch" into branch "main" already exists:
+                                                #   https://github.com/myowner/myrepo/pull/1234
+                                                OutProgress $out; }
 function GithubMergeOpenPr                    ( [String] $prUrl, [String] $repoDirForCred = "" ){
-                                               # prUrl          : Url to pr which has no pending merge conflict.
-                                               # repoDirForCred : Any folder under any git repository, from which the credentials will be taken, use empty for current dir.
-                                               # example: GithubMergeOpenPr "https://github.com/mniederw/MnCommonPsToolLib/pull/123" $PSScriptRoot;
-                                               FsEntryAssertHasTrailingDirSep $repoDirForCred;
-                                               OutProgress "GithubMergeOpenPr $prUrl (repoDirForCred=$repoDirForCred)";
-                                               Push-Location $repoDirForCred;
-                                                 GithubPrepareCommand;
-                                                 [String] $out = "";
-                                                 $out = (ProcessStart "gh" @("pr", "merge", "--repo", $repoDirForCred, "--merge", $prUrl) -traceCmd:$true);
-                                               Pop-Location;
-                                               OutProgress $out; }
+                                                # prUrl          : Url to pr which has no pending merge conflict.
+                                                # repoDirForCred : Any folder under any git repository, from which the credentials will be taken, use empty for current dir.
+                                                # example: GithubMergeOpenPr "https://github.com/mniederw/MnCommonPsToolLib/pull/123" $PSScriptRoot;
+                                                AssertNotEmpty $prUrl "prUrl";
+                                                FsEntryAssertHasTrailingDirSep $repoDirForCred;
+                                                OutProgress "GithubMergeOpenPr $prUrl (repoDirForCred=$repoDirForCred)";
+                                                Push-Location $repoDirForCred;
+                                                  GithubPrepareCommand;
+                                                  [String] $out = "";
+                                                  $out = (ProcessStart "gh" @("pr", "merge", "--repo", $repoDirForCred, "--merge", $prUrl) -traceCmd:$true);
+                                                Pop-Location;
+                                                OutProgress $out; }
+function GithubBranchExists                   ( [String] $repo, [String] $branch ){
+                                                # It requires you authenticated your github account first.
+                                                # Returns true or false. Will throw in case of any error as example if repo not exists.
+                                                # repo           : has format [HOST/]OWNER/REPO
+                                                # branch         : if branch is not uniquely defined it will throw.
+                                                AssertNotEmpty $repo "repo";
+                                                AssertNotEmpty $branch "branch";
+                                                OutVerbose "GithubBranchExists repo=$repo branch=$branch ";
+                                                GithubPrepareCommand;
+                                                try{
+                                                  [String] $out = (ProcessStart "gh" @("api","repos/$repo/branches/$branch","--jq",".name") -careStdErrAsOut:$true -traceCmd:$false).Trim();
+                                                  Assert ($out -eq $branch);
+                                                  return $true;
+                                                }catch{
+                                                  # Example: OperationStopped: {"message":"Branch not found","documentation_url":"https://docs.github.com/rest/branches/branches#get-a-branch","status":"404"}
+                                                  #   ProcessStart-careStdErrAsOut("gh" "api" "repos/mniederw/MnCommonPsToolLib/branches/unexistingBranch" "--jq" ".name") failed with rc=1 because gh: Branch not found (HTTP 404).
+                                                  if( -not $_.Exception.Message.Contains("gh: Branch not found (HTTP 404)") ){ throw; }
+                                                  ScriptResetRc; return $false;
+                                                } }
+function GithubBranchDelete                   ( [String] $repo, [String] $branch ){
+                                                # It requires you authenticated your github account first.
+                                                # repo           : has format [HOST/]OWNER/REPO
+                                                # branch         : if branch is not uniquely defined it will throw.
+                                                AssertNotEmpty $repo "repo";
+                                                AssertNotEmpty $branch "branch";
+                                                OutProgress "GithubDeleteBranch repo=$repo branch=$branch ";
+                                                GithubPrepareCommand;
+                                                try{
+                                                  [String] $out = (ProcessStart "gh" @("api","-X","DELETE","repos/$repo/git/refs/heads/$branch") -careStdErrAsOut:$false -traceCmd:$true);
+                                                    # if branch exists it outputs nothing.
+                                                  OutProgress "  Ok, branch deleted. $out";
+                                                }catch{
+                                                  # Example: OperationStopped: {"message":"Reference does not exist","documentation_url":"https://docs.github.com/rest/git/refs#delete-a-reference","status":"422"}
+                                                  #   ProcessStart("gh" "api" "-X" "DELETE" "repos/mniederw/MnCommonPsToolLib/git/refs/heads/unknownBranch") failed with rc=1 because gh: Reference does not exist (HTTP 422).
+                                                  if( -not $_.Exception.Message.Contains("gh: Reference does not exist (HTTP 422)") ){ throw; }
+                                                  OutProgress " Ok, branch not existed so nothing to delete.";
+                                                  ScriptResetRc;
+                                                } }
 function ToolTailFile                         ( [String] $file ){ OutProgress "Show tail of file until ctrl-c is entered"; Get-Content -Wait $file; }
 function ToolFileNormalizeNewline             ( [String] $src, [String] $tar, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM", [String] $sep = [Environment]::NewLine, [String] $srcEncodingIfNoBom = "Default" ){
                                                 # If overwrite is false then nothing done if target already exists.

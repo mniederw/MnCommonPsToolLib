@@ -34,7 +34,7 @@
   }
   #HelpInfoURI            = '';
 
-  ModuleVersion          = '7.94';
+  ModuleVersion          = '7.95';
 
   <#
   Releasenotes
@@ -43,6 +43,7 @@
   Major version will reflect breaking changes, minor identifies extensions and third number identifies urgent bugfixes.
   Breaking changes are usually removed deprecated functions or changed behaviours.
 
+  2025-07-02  V7.95  Add GithubBranchExists, GithubBranchDelete. Improved ProcessStart by either return full string or full output to throwed error.
   2025-06-18  V7.94  Improve ToolWinGetCleanLine, ToolWinGetSetup, ToolWingetListUpgradablePackages, ToolWingetUpdateInstalledPackages.
   2025-06-18  V7.93  Add Doc. Improve FileReadEncoding, RegistryImportFile.
   2025-05-23  V7.92  Add Doc. Improve GitMerge.
