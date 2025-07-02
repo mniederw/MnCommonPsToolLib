@@ -712,7 +712,7 @@ function StreamToCsvFile                      ( [String] $file, [Boolean] $overw
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8" ){ throw [Exception] "StreamToCsvFile with UTF8 (NO-BOM) on PS5.1 or lower is not yet implemented."; } # TODO
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
                                                 [String] $tmp = (FileGetTempFile);
-                                                OutProgress "Write csv to $file";
+                                                OutProgress "Write csv to `"$file`"";
                                                 $input | Export-Csv -Force:$overwrite -NoClobber:$(-not $overwrite) -NoTypeInformation -Delimiter ',' -Encoding $encoding -Path $tmp;
                                                 [String] $sep = [Environment]::NewLine; if( $forceLf ){ $sep = "`n"; }
                                                 ToolFileNormalizeNewline $tmp $file $overwrite $encoding $sep; }
@@ -723,7 +723,7 @@ function StreamToXmlFile                      ( [String] $file, [Boolean] $overw
                                                 $input | Export-Clixml -Force:$overwrite -NoClobber:$(-not $overwrite) -Depth 999999999 -Encoding $encoding -Path (FsEntryEsc $file); }
 function StreamToFile                         ( [String] $file, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM" ){
                                                 # Will create path of file. overwrite does ignore readonly attribute. Appends nl to each line.
-                                                OutProgress "WriteFile $file"; FsEntryCreateParentDir $file;
+                                                OutProgress "WriteFile `"$file`""; FsEntryCreateParentDir $file;
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8" ){ throw [Exception] "StreamToFile with UTF8 (NO-BOM) on PS5.1 or lower is not yet implemented."; } # TODO
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
                                                 $input | Out-File -Force -NoClobber:$(-not $overwrite) -Encoding $encoding -LiteralPath $file; }
@@ -804,7 +804,7 @@ function ProcessRestartInElevatedAdminMode    (){ if( (ProcessIsRunningInElevate
                                                   $cmd = $(switch(ScriptIsProbablyInteractive){ ($true){"-NoExit -NoLogo "} default{""} }) + $cmd;
                                                   OutProgress "Not running in elevated administrator mode so elevate current script and exit:";
                                                   if( (OsIsWindows) ){
-                                                    OutProgress "  Start-Process -Verb RunAs -FilePath $(ProcessPsExecutable) -ArgumentList $cmd";
+                                                    OutProgress "  Start-Process -Verb RunAs -FilePath `"$(ProcessPsExecutable)`" -ArgumentList $cmd ";
                                                     Start-Process -Verb "RunAs" -FilePath (ProcessPsExecutable) -ArgumentList $cmd;
                                                     # Example exc: InvalidOperationException: This command cannot be run due to the error: Der Vorgang wurde durch den Benutzer abgebrochen.
                                                     OutProgress "Exiting in 10 seconds";
@@ -1334,7 +1334,7 @@ function FsEntryMoveByPatternToDir            ( [String] $fsEntryPattern, [Strin
                                                 FsEntryListAsStringArray $fsEntryPattern $false |
                                                   Where-Object{$null -ne $_} | Sort-Object |
                                                   ForEach-Object{
-                                                    if( $showProgress ){ OutProgress "Source: $_"; };
+                                                    if( $showProgress ){ OutProgress "Source: `"$_`""; };
                                                     Move-Item -Force -Path $_ -Destination (FsEntryEsc $targetDir);
                                                   }; }
 function FsEntryCopyByPatternByOverwrite      ( [String] $fsEntryPattern, [String] $targetDir, [Boolean] $continueOnErr = $false ){
@@ -1464,7 +1464,7 @@ function FsEntryTryForceRenaming              ( [String] $fsEntry, [String] $ext
                                                     FsEntryRename $fsEntry $newFileName;
                                                   }catch{
                                                     # exc: System.UnauthorizedAccessException: Der Zugriff auf den Pfad wurde verweigert. bei System.IO.__Error.WinIOError(Int32 errorCode, String maybeFullPath) bei System.IO.FileInfo.MoveTo(String destFileName)
-                                                    OutProgress "Force set owner to administrators and retry because FsEntryRename($fsEntry,$newFileName) failed because $($_.Exception.Message)";
+                                                    OutProgress "Force set owner to administrators and retry because FsEntryRename(`"$fsEntry`",`"$newFileName`") failed because $($_.Exception.Message).";
                                                     [System.Security.Principal.IdentityReference] $account = PrivGetGroupAdministrators;
                                                     [System.Security.AccessControl.FileSystemAccessRule] $rule = (PrivFsRuleCreateFullControl $account (FsEntryIsDir $fsEntry));
                                                     try{
@@ -1488,7 +1488,7 @@ function FsEntryResetTs                       ( [String] $fsEntry, [Boolean] $re
                                                 if( -not (FsEntryIsDir $fsEntry) ){ $recursive = $false; $inclDirs = $false; }
                                                 FsEntryListAsFileSystemInfo $fsEntry $recursive $true $true $true | Where-Object{$null -ne $_} | ForEach-Object{
                                                   [String] $f = $(FsEntryFsInfoFullNameDirWithTrailDSep $_);
-                                                  OutProgress "Set $(DateTimeAsStringIso $ts) of $(DateTimeAsStringIso $_.LastWriteTime) $f";
+                                                  OutProgress "Set $(DateTimeAsStringIso $ts) of $(DateTimeAsStringIso $_.LastWriteTime) `"$f`"";
                                                   try{ $_.LastWriteTime = $ts; $_.CreationTime = $ts; $_.LastAccessTime = $ts;
                                                   }catch{
                                                     OutWarning "Warning: Ignoring SetTs($f) failed because $($_.Exception.Message)";
@@ -1595,7 +1595,7 @@ function FileReadJsonAsObject                 ( [String] $jsonFile ){
 function FileWriteFromString                  ( [String] $file, [String] $content, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM", [Boolean] $quiet = $false ){
                                                 # Will create path of file. Use overwrite to ignore readonly attribute.
                                                 $file = FsEntryGetAbsolutePath $file;
-                                                if( -not $quiet ){ OutProgress "WriteFile$(switch($overwrite){($true){'-ByOverwrite'}($false){''}}) $file"; }
+                                                if( -not $quiet ){ OutProgress "WriteFile$(switch($overwrite){($true){'-ByOverwrite'}($false){''}}) `"$file`""; }
                                                 FsEntryCreateParentDir $file;
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8" ){
                                                   # FileWriteFromString with UTF8 (NO-BOM) on PS5.1 or lower is not natively supported. So we apply a workaround
@@ -1610,7 +1610,7 @@ function FileWriteFromString                  ( [String] $file, [String] $conten
 function FileWriteFromLines                   ( [String] $file, [String[]] $lines, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM" ){
                                                 # Appends also a newline to last line.
                                                 $file = FsEntryGetAbsolutePath $file;
-                                                OutProgress "WriteFile $file";
+                                                OutProgress "WriteFile `"$file`"";
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8" ){ throw [Exception] "FileWriteFromLines with UTF8 (NO-BOM) on PS5.1 or lower is not yet implemented."; } # TODO
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
                                                 FsEntryCreateParentDir $file;
@@ -2634,7 +2634,7 @@ function GitListCommitComments                ( [String] $tarDir, [String] $loca
                                                 function GitGetLog ([Boolean] $doSummary, [String] $fout) {
                                                   $fout = FsEntryGetAbsolutePath $fout;
                                                   if( -not (FsEntryNotExistsOrIsOlderThanNrDays $fout $doOnlyIfOlderThanAgeInDays) ){
-                                                    OutProgress "Process git log not nessessary because file is newer than $doOnlyIfOlderThanAgeInDays days: $fout";
+                                                    OutProgress "Process git log not nessessary because file is newer than $doOnlyIfOlderThanAgeInDays days: `"$fout`"";
                                                   }else{
                                                     [String[]] $options = @( "--git-dir=$($localRepoDir).git", "log", "--after=1990-01-01", "--pretty=format:%ci %cn [%ce] %s" );
                                                     if( $doSummary ){ $options += "--summary"; }
@@ -2869,7 +2869,7 @@ function GithubGetBranchCommitId              ( [String] $repo, [String] $branch
                                                 # traceCmd       : Output progress messages instead only the result.
                                                 # example: GithubGetBranchCommitId "mniederw/MnCommonPsToolLib" "trunk"; # returns "62ea808a029fa645fcb0c62332ca2698d1b783a1"
                                                 FsEntryAssertHasTrailingDirSep $repoDirForCred;
-                                                if( $traceCmd ){ OutProgress "List github-branch-commit from branch $branch in repo $repo (repoDirForCred=$repoDirForCred)"; }
+                                                if( $traceCmd ){ OutProgress "List github-branch-commit from branch $branch in repo $repo (repoDirForCred=`"$repoDirForCred`")"; }
                                                 AssertNotEmpty $repo "repo";
                                                 Push-Location $repoDirForCred;
                                                 GithubPrepareCommand;
@@ -2902,7 +2902,7 @@ function GithubCreatePullRequest              ( [String] $repo, [String] $toBran
                                                 # repoDirForCred : Any folder under any git repository, from which the credentials will be taken, use empty for current dir.
                                                 # example: GithubCreatePullRequest "mniederw/MnCommonPsToolLib" "trunk" "main" "" $PSScriptRoot;
                                                 AssertNotEmpty $repo "repo";
-                                                OutProgress "Create a github-pull-request from branch $fromBranch to $toBranch in repo=$repo (repoDirForCred=$repoDirForCred)";
+                                                OutProgress "Create a github-pull-request from branch $fromBranch to $toBranch in repo=$repo (repoDirForCred=`"$repoDirForCred`")";
                                                 if( $title -eq "" ){ $title = "Merge $fromBranch to $toBranch"; }
                                                 [String[]] $prUrls = @()+(GithubListPullRequests $repo $toBranch $fromBranch |
                                                   Where-Object{$null -ne $_} | ForEach-Object{ $_.url });
@@ -2936,7 +2936,7 @@ function GithubMergeOpenPr                    ( [String] $prUrl, [String] $repoD
                                                 # example: GithubMergeOpenPr "https://github.com/mniederw/MnCommonPsToolLib/pull/123" $PSScriptRoot;
                                                 AssertNotEmpty $prUrl "prUrl";
                                                 FsEntryAssertHasTrailingDirSep $repoDirForCred;
-                                                OutProgress "GithubMergeOpenPr $prUrl (repoDirForCred=$repoDirForCred)";
+                                                OutProgress "GithubMergeOpenPr $prUrl (repoDirForCred=`"$repoDirForCred`")";
                                                 Push-Location $repoDirForCred;
                                                   GithubPrepareCommand;
                                                   [String] $out = "";
@@ -2981,7 +2981,7 @@ function GithubBranchDelete                   ( [String] $repo, [String] $branch
                                                   OutProgress " Ok, branch not existed so nothing to delete.";
                                                   ScriptResetRc;
                                                 } }
-function ToolTailFile                         ( [String] $file ){ OutProgress "Show tail of file until ctrl-c is entered"; Get-Content -Wait $file; }
+function ToolTailFile                         ( [String] $file ){ OutProgress "Show tail of file until ctrl-c is entered of `"$file`":"; Get-Content -Wait $file; }
 function ToolFileNormalizeNewline             ( [String] $src, [String] $tar, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM", [String] $sep = [Environment]::NewLine, [String] $srcEncodingIfNoBom = "Default" ){
                                                 # If overwrite is false then nothing done if target already exists.
                                                 # When tar is identic to src then you have to specify overwrite and it will work inplace
@@ -3041,18 +3041,19 @@ function ToolGithubApiListOrgRepos            ( [String] $org, [System.Managemen
                                                 } return [Array] $result | Sort-Object archived, Url; }
 function ToolCreate7zip                       ( [String] $srcDirOrFile, [String] $tar7zipFile ){
                                                 # If src has trailing dir separator then it specifies a dir otherwise a file.
-                                                # The target must end with 7z. It uses 7z found in path or in "C:/Program Files/7-Zip/".
+                                                # The target must end with 7z or zip. It uses 7z executable found in path.
                                                 $srcDirOrFile = FsEntryGetAbsolutePath $srcDirOrFile;
                                                 $tar7zipFile = FsEntryGetAbsolutePath  $tar7zipFile;
-                                                if( (FsEntryGetFileExtension $tar7zipFile) -ne ".7z" ){ throw [Exception] "Expected extension 7z for target file `"$tar7zipFile`"."; }
+                                                [String] $ext = StringRemoveLeft (FsEntryGetFileExtension $tar7zipFile) ".";
+                                                if( $ext -ne "7z" -and $ext -ne "zip" ){ throw [Exception] "Expected extension 7z or zip for target file `"$tar7zipFile`"."; }
                                                 [String] $src = "";
                                                 [String] $recursiveOption = "";
                                                 if( (FsEntryHasTrailingDirSep $srcDirOrFile) ){ DirAssertExists $srcDirOrFile; $recursiveOption = "-r"; $src = FsEntryGetAbsolutePath "$srcDirOrFile/*";
                                                 }else{ FileAssertExists $srcDirOrFile; $recursiveOption = "-r-"; $src = $srcDirOrFile; }
                                                 [String] $Prog7ZipExe = ProcessGetApplInEnvPath "7z"; # Example: "C:/Program Files/7-Zip/7z.exe"
                                                 # Options: -t7z : use 7zip format; -mmt=4 : try use nr of threads; -w : use temp dir; -r : recursively; -r- : not-recursively;
-                                                [Array] $arguments = "-t7z", "-mx=9", "-mmt=4", "-w", $recursiveOption, "a", "$tar7zipFile", $src;
-                                                OutProgress "$Prog7ZipExe $arguments";
+                                                [String[]] $arguments = @( "-t$ext", "-mx9", "-mmt4", "-w", $recursiveOption, "a", "$tar7zipFile", $src );
+                                                OutProgress "`"$Prog7ZipExe`" $(StringArrayDblQuoteItems $arguments) ";
                                                 [String] $out = (& $Prog7ZipExe $arguments); AssertRcIsOk $out; }
 function ToolUnzip                            ( [String] $srcZipFile, [String] $tarDir ){ # tarDir is created if it not exists, no overwriting, requires System.IO.Compression.
                                                 FsEntryAssertHasTrailingDirSep $tarDir;
