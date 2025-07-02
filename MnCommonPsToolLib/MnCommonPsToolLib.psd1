@@ -34,7 +34,7 @@
   }
   #HelpInfoURI            = '';
 
-  ModuleVersion          = '7.96';
+  ModuleVersion          = '7.97';
 
   <#
   Releasenotes
@@ -43,6 +43,7 @@
   Major version will reflect breaking changes, minor identifies extensions and third number identifies urgent bugfixes.
   Breaking changes are usually removed deprecated functions or changed behaviours.
 
+  2025-07-02  V7.97  Extend ToolWingetInstallPackage.
   2025-07-02  V7.96  Extend 7zip to create also a zip. Improve ToolWinGetCleanLine, ToolWingetInstallPackage, ToolWingetUninstallPackage. Add dquotes to output of fsentries.
   2025-07-02  V7.95  Add GithubBranchExists, GithubBranchDelete. Improved ProcessStart by either return full string or full output to throwed error.
   2025-06-18  V7.94  Improve ToolWinGetCleanLine, ToolWinGetSetup, ToolWingetListUpgradablePackages, ToolWingetUpdateInstalledPackages.

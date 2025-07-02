@@ -2867,6 +2867,28 @@ function ToolWingetUpdateInstalledPackages    ( [String] $scope = "Auto" ){
                                                   ToolWingetUpdateInstalledPackages "User";
                                                 }
                                               }
+function ToolWingetUninstallPackage           ( [String] $idAndOptionalBlankSepVersion, [String] $source = "winget", [String] $scope = "Auto", [Boolean] $force = $false ){
+                                                # Call the tool "winget" to uninstall from a given source. Ignores errors.
+                                                # Id can be specifed by optional blanks separated version.
+                                                # Scope is one of: "User","Machine","Auto"(depends on elevated admin mode).
+                                                [String] $instScope = $scope; if( $scope -eq "Auto" ){ $instScope = switch(ProcessIsRunningInElevatedAdminMode){($true){"Machine"}($false){"User"}}; }
+                                                [String[]] $a = ($idAndOptionalBlankSepVersion -split "\s+");
+                                                [String] $id = $a[0];
+                                                [String] $pckVersion = switch($a.Count -le 1){($true){""}($false){$a[1]}};
+                                                if( $a.Count -gt 2 ){ throw [Exception] "ToolWingetInstallPackage(id=`"$id`") unknown third blanks separated part: `"$a[2]`""; }
+                                                OutProgress "UnInstall-Package(source=$source,scope=$instScope): `"$id`" $pckVersion ";
+                                                [String[]] $arguments = @( "uninstall", "--verbose", "--disable-interactivity", "--accept-source-agreements", "--scope", $instScope, "--source", $source, "--id", $id, "--version", $pckVersion );
+                                                if( $force ){ $arguments += @( "--force" ); }
+                                                # We support force because for example :
+                                                #   UnInstall-Package(source=winget,scope=Machine): "Microsoft.NuGet" 6.13.2.1   Gefunden NuGet CLI [Microsoft.NuGet]
+                                                #   Das Portable-Paket kann nicht entfernt werden, da es geändert wurde. Um dies außer Kraft zu setzen, verwenden Sie „--force“
+                                                # Then we get:
+                                                #   Das Portable-Paket wurde geändert. Aufgrund von „--force“ wird fortgefahren
+                                                OutProgress "  & WinGet $(StringArrayDblQuoteItems $arguments) ";
+                                                [String[]] $out = & WinGet $arguments *>&1 | ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" };
+                                                ScriptResetRc; # Example: OperationStopped: Last operation failed [ExitCode=-1978335212]. For the reason see the previous output. Already uninstalled, nothing done.
+                                                $out | ForEach-Object{ OutProgress $_ 2; };
+                                              }
 function ToolWingetInstallPackage             ( [String] $idAndOptionalBlankSepVersion, [String] $source = "winget", [Boolean] $canRetry = $false, [String] $scope = "Auto" ){
                                                 # Call the tool "winget" to intall from a given source. Ignores errors.
                                                 # Id can be specifed by optional blanks separated version.
@@ -2892,7 +2914,9 @@ function ToolWingetInstallPackage             ( [String] $idAndOptionalBlankSepV
                                                 if( $rc -ne -1978335189 -and $rc -ne 0 ){ # Is up to date.
                                                   OutProgress "rc=$rc; Program is not up-to-date. Retry=$canRetry; " 2;
                                                   if( $canRetry ){
+                                                    if( $id -eq "Microsoft.OpenJDK.21" ){ ProcessSleepSec 30; } # 2025-06: With "Microsoft.OpenJDK.21 21.0.7.6" we got problem as cannot uninstall because already uninstalled, so we wait now 30 sec.
                                                     ToolWingetUninstallPackage $idAndOptionalBlankSepVersion $source $scope;
+                                                    if( $id -eq "Microsoft.OpenJDK.21" ){ ProcessSleepSec 30; } # see wait before uninstall
                                                     ToolWingetInstallPackage   $idAndOptionalBlankSepVersion $source $false $scope;
                                                   }
                                                 }
@@ -2912,26 +2936,6 @@ function ToolWingetInstallPackage             ( [String] $idAndOptionalBlankSepV
                                                 # 2025-06: "GIM"        : rc=-1978335212: Es wurde kein Paket gefunden, das den Eingabekriterien entspricht.
                                                 # 2025-06: "MsSQLSvMaSt": rc=-1978335216: Es wurde kein anwendbarer Installer gefunden. Weitere Informationen finden Sie in den Protokollen.
                                                 # 2025-06: "Microsoft.VisualStudio.2022.Community": Starten Sie den PC neu, um die Installation abzuschließen.
-                                              }
-function ToolWingetUninstallPackage           ( [String] $idAndOptionalBlankSepVersion, [String] $source = "winget", [String] $scope = "Auto", [Boolean] $force = $false ){
-                                                # Call the tool "winget" to uninstall from a given source. Ignores errors.
-                                                # Id can be specifed by optional blanks separated version.
-                                                # Scope is one of: "User","Machine","Auto"(depends on elevated admin mode).
-                                                [String] $instScope = $scope; if( $scope -eq "Auto" ){ $instScope = switch(ProcessIsRunningInElevatedAdminMode){($true){"Machine"}($false){"User"}}; }
-                                                [String[]] $a = ($idAndOptionalBlankSepVersion -split "\s+");
-                                                [String] $id = $a[0];
-                                                [String] $pckVersion = switch($a.Count -le 1){($true){""}($false){$a[1]}};
-                                                if( $a.Count -gt 2 ){ throw [Exception] "ToolWingetInstallPackage(id=`"$id`") unknown third blanks separated part: `"$a[2]`""; }
-                                                OutProgress "UnInstall-Package(source=$source,scope=$instScope): `"$id`" $pckVersion ";
-                                                [String[]] $arguments = @( "uninstall", "--verbose", "--disable-interactivity", "--accept-source-agreements", "--scope", $instScope, "--source", $source, "--id", $id, "--version", $pckVersion );
-                                                if( $force ){ $arguments += @( "--force" ); }
-                                                # We support force because for example :
-                                                #   UnInstall-Package(source=winget,scope=Machine): "Microsoft.NuGet" 6.13.2.1   Gefunden NuGet CLI [Microsoft.NuGet]
-                                                #   Das Portable-Paket kann nicht entfernt werden, da es geändert wurde. Um dies außer Kraft zu setzen, verwenden Sie „--force“
-                                                OutProgress "  & WinGet $(StringArrayDblQuoteItems $arguments) ";
-                                                [String[]] $out = & WinGet $arguments *>&1 | ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" };
-                                                ScriptResetRc; # Example: OperationStopped: Last operation failed [ExitCode=-1978335212]. For the reason see the previous output. Already uninstalled, nothing done.
-                                                $out | ForEach-Object{ OutProgress $_ 2; };
                                               }
 function ToolManuallyDownloadAndInstallProg   ( [String] $programName, [String] $programDownloadUrl, [String] $mainTargetFileMinIsoDate = "0001-01-01",
                                                   [String[]] $programExecutableOrDir = "", [String] $programConfigurations = "" ){
