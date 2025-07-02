@@ -2873,7 +2873,7 @@ function ToolWingetInstallPackage             ( [String] $idAndOptionalBlankSepV
                                                 # Scope is one of: "User","Machine","Auto"(depends on elevated admin mode).
                                                 # If canRetry and install-result is not up-to-date then it tries an uninstall and again an install.
                                                 [String] $instScope = $scope; if( $scope -eq "Auto" ){ $instScope = switch(ProcessIsRunningInElevatedAdminMode){($true){"Machine"}($false){"User"}}; }
-                                                [String[]] $a = ($idAndOptionalBlankSepVersion -split "\s+");
+                                                [String[]] $a = ($idAndOptionalBlankSepVersion.Trim() -split "\s+");
                                                 [String] $id = $a[0];
                                                 [String] $pckVersion = switch($a.Count -le 1){($true){""}($false){$a[1]}};
                                                 if( $a.Count -gt 2 ){ throw [Exception] "ToolWingetInstallPackage(id=`"$id`") unknown third blanks separated part: `"$a[2]`""; }
