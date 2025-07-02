@@ -10,6 +10,9 @@ function UnitTest_Git_Github(){
     GithubListPullRequests "mniederw/MnCommonPsToolLib";
     GithubCreatePullRequest  "mniederw/MnCommonPsToolLib" "main" "trunk" "" $PSScriptRoot;
     GithubMergeOpenPr "https://github.com/mniederw/MnCommonPsToolLib/pull/123" $PSScriptRoot;
+    Assert (GithubBranchExists "mniederw/MnCommonPsToolLib" "main");
+    Assert (-not (GithubBranchExists "mniederw/MnCommonPsToolLib" "unexistingBranch"));
+    GithubBranchDelete "mniederw/MnCommonPsToolLib" "unittestUnexistingBranch";
   }
 }
 UnitTest_Git_Github;
