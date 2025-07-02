@@ -2673,6 +2673,7 @@ function ToolWinGetCleanLine                  ( [String] $s ){
                                                 $s = $s.Replace("Kein verfügbares Upgrade gefunden.","Is up to date.");                                                                   # for: winget install
                                                 $s = $s.Replace("Erfolgreich installiert","Successful installed.");                                                                       # for: winget install
                                                 $s = $s.Replace("Es wurde kein installiertes Paket gefunden, das den Eingabekriterien entspricht.","Already uninstalled, nothing done."); # for: winget uninstall
+                                                $s = $s.Replace("Es wurde keine übereinstimmende Version gefunden: ","Already uninstalled, nothing done. Not found version: ");           # for: winget uninstall
                                                 $s = $s.Replace("Erfolgreich deinstalliert","Successful uninstalled.");                                                                   # for: winget uninstall
                                                 # 2025-01: Example of rest of output of updateAll:
                                                 #   (2/2) Gefunden ...packagename... [...packageid...] Version ...version...
@@ -2687,8 +2688,8 @@ function ToolWinGetCleanLine                  ( [String] $s ){
                                                 # 2025-02: Example of rest of output of install which fails ("Blizzard.BattleNet"):
                                                 #   Für dieses Paket ist ein Installationsspeicherort erforderlich
                                                 #   Der Installationsspeicherort ist für das Paket erforderlich, wurde jedoch nicht angegeben.
-                                                # Example of rest of output of uninstall:
-                                                #   Uninstall-Package(source=winget): "...packagename..."
+                                                # 2025-06: Example of rest of output of uninstall:
+                                                #   Uninstall-Package(source=winget,scope=User): "...packagename..."
                                                 #   Already uninstalled, nothing done.
                                                 return [String] $s;
                                                 }
@@ -2882,7 +2883,9 @@ function ToolWingetInstallPackage             ( [String] $idAndOptionalBlankSepV
                                                 #   Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction
                                                 #   Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben an den Back-End-Dienst gesendet wird, damit er ordnungsgemäß funktioniert (z. B. „US“).
                                                 #   Mindestens einer der Quellvereinbarungen wurde nicht zugestimmt. Vorgang abgebrochen. Akzeptieren Sie bitte die Quellvereinbarungen, oder entfernen Sie die entsprechenden Quellen.
-                                                [String[]] $out = & WinGet install --verbose --disable-interactivity --accept-source-agreements --scope $instScope --source $source --id $id --version $pckVersion *>&1 | # alternatives: --all-versions
+                                                [String[]] $arguments = @( "install", "--verbose", "--disable-interactivity", "--accept-source-agreements", "--scope", $instScope, "--source", $source, "--id", $id, "--version", $pckVersion );
+                                                OutProgress "  & WinGet $(StringArrayDblQuoteItems $arguments) ";
+                                                [String[]] $out = & WinGet $arguments *>&1 | # alternatives: --all-versions
                                                   ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" };
                                                 [Int32] $rc = ScriptGetAndClearLastRc; # Example: OperationStopped: Last operation failed [ExitCode=-1978335189]. For the reason see the previous output. Is up to date.
                                                 $out | ForEach-Object{ OutProgress $_ 2; };
@@ -2908,8 +2911,9 @@ function ToolWingetInstallPackage             ( [String] $idAndOptionalBlankSepV
                                                 # 2025-02: "BlBaNet"    : rc=-1978335137:
                                                 # 2025-06: "GIM"        : rc=-1978335212: Es wurde kein Paket gefunden, das den Eingabekriterien entspricht.
                                                 # 2025-06: "MsSQLSvMaSt": rc=-1978335216: Es wurde kein anwendbarer Installer gefunden. Weitere Informationen finden Sie in den Protokollen.
+                                                # 2025-06: "Microsoft.VisualStudio.2022.Community": Starten Sie den PC neu, um die Installation abzuschließen.
                                               }
-function ToolWingetUninstallPackage           ( [String] $idAndOptionalBlankSepVersion, [String] $source = "winget", [String] $scope = "Auto" ){
+function ToolWingetUninstallPackage           ( [String] $idAndOptionalBlankSepVersion, [String] $source = "winget", [String] $scope = "Auto", [Boolean] $force = $false ){
                                                 # Call the tool "winget" to uninstall from a given source. Ignores errors.
                                                 # Id can be specifed by optional blanks separated version.
                                                 # Scope is one of: "User","Machine","Auto"(depends on elevated admin mode).
@@ -2919,8 +2923,13 @@ function ToolWingetUninstallPackage           ( [String] $idAndOptionalBlankSepV
                                                 [String] $pckVersion = switch($a.Count -le 1){($true){""}($false){$a[1]}};
                                                 if( $a.Count -gt 2 ){ throw [Exception] "ToolWingetInstallPackage(id=`"$id`") unknown third blanks separated part: `"$a[2]`""; }
                                                 OutProgress "UnInstall-Package(source=$source,scope=$instScope): `"$id`" $pckVersion ";
-                                                [String[]] $out = & WinGet uninstall --verbose --disable-interactivity --accept-source-agreements --scope $instScope --source $source --id $id --version $pckVersion *>&1 |
-                                                  ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" };
+                                                [String[]] $arguments = @( "uninstall", "--verbose", "--disable-interactivity", "--accept-source-agreements", "--scope", $instScope, "--source", $source, "--id", $id, "--version", $pckVersion );
+                                                if( $force ){ $arguments += @( "--force" ); }
+                                                # We support force because for example :
+                                                #   UnInstall-Package(source=winget,scope=Machine): "Microsoft.NuGet" 6.13.2.1   Gefunden NuGet CLI [Microsoft.NuGet]
+                                                #   Das Portable-Paket kann nicht entfernt werden, da es geändert wurde. Um dies außer Kraft zu setzen, verwenden Sie „--force“
+                                                OutProgress "  & WinGet $(StringArrayDblQuoteItems $arguments) ";
+                                                [String[]] $out = & WinGet $arguments *>&1 | ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" };
                                                 ScriptResetRc; # Example: OperationStopped: Last operation failed [ExitCode=-1978335212]. For the reason see the previous output. Already uninstalled, nothing done.
                                                 $out | ForEach-Object{ OutProgress $_ 2; };
                                               }
