@@ -2446,6 +2446,10 @@ function GitBranchList                        ( [String] $repoDir, [Boolean] $re
                                                   ForEach-Object{ if( $_.StartsWith("remotes/") ){ StringRemoveLeftNr $_ "remotes/".Length; }else{ $_; } } |
                                                   Where-Object{ $_ -ne "" -and (-not $_.StartsWith("origin/HEAD ")) } | Sort-Object);
                                                 return [String[]] $result; }
+function GitBranchExists                      ( [String] $repoDir, [String] $branch ){ # Examples for branch: "orgin/trunk", "trunk", etc.
+                                                AssertNotEmpty $branch "branch";
+                                                [String[]] $branches = @()+(GitBranchList $repoDir | Where-Object{ $_ -eq $branch });
+                                                return [Boolean] ($branches.Count -eq 1); }
 function GitCmd                               ( [String] $cmd, [String] $tarRootDir, [String] $urlAndOptionalBranch, [Boolean] $errorAsWarning = $false ){
                                                 # For commands:
                                                 #   "Clone"       : Creates a full local copy of specified repo. Target dir must not exist.

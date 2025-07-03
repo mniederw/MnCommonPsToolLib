@@ -26,6 +26,7 @@ function UnitTest_Git(){
   Assert ((GitShowBranch $repoDir) -eq "main");
   Assert ((StringMakeNonNull (GitShowChanges $repoDir)) -eq "");
   Assert (GitBranchList $repoDir).Contains("origin/trunk");
+  Assert (GitBranchExists $repoDir "origin/trunk");
   GitSwitch $repoDir "trunk";
   GitAdd "$repoDir/Readme.txt";
   try{
