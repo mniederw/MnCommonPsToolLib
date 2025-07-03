@@ -2591,10 +2591,33 @@ function GitSwitch                            ( [String] $repoDir, [String] $bra
                                                 FsEntryAssertHasTrailingDirSep $repoDir;
                                                 $repoDir = FsEntryGetAbsolutePath $repoDir;
                                                 ProcessStart "git" @("-C", $repoDir, "switch", $branch) -careStdErrAsOut:$true -traceCmd:$true | Out-Null; }
-function GitAdd                               ( [String] $fsEntryToAdd ){
+function GitAdd                               ( [String] $fsEntryToAdd ){ # automatically finds the repoDir.
                                                 AssertNotEmpty $fsEntryToAdd "fsEntryToAdd";
-                                                [String] $repoDir = FsEntryGetAbsolutePath "$(FsEntryFindInParents $fsEntryToAdd ".git")/../"; # not trailing slash allowed
+                                                [String] $repoDir = FsEntryGetAbsolutePath "$(FsEntryFindInParents $fsEntryToAdd ".git")/../"; # no trailing slash allowed for ".git"
                                                 ProcessStart "git" @("-C", $repoDir, "add", $fsEntryToAdd) -traceCmd:$true | Out-Null; }
+function GitAddAll                            ( [String] $repoDir ){
+                                                AssertNotEmpty $repoDir "repoDir";
+                                                FsEntryAssertHasTrailingDirSep $repoDir;
+                                                $repoDir = FsEntryGetAbsolutePath $repoDir;
+                                                ProcessStart "git" @("-C", $repoDir, "add", "--all") -traceCmd:$true | Out-Null; }
+function GitCommit                            ( [String] $repoDir, [String] $commitMsg ){
+                                                AssertNotEmpty $repoDir "repoDir";
+                                                FsEntryAssertHasTrailingDirSep $repoDir;
+                                                $repoDir = FsEntryGetAbsolutePath $repoDir;
+                                                ProcessStart "git" @("-C", $repoDir, "commit", "-m", $commitMsg) -traceCmd:$true | Out-Null; }
+function GitPush                              ( [String] $repoDir ){ # push current on the remote (usually origin)
+                                                AssertNotEmpty $repoDir "repoDir";
+                                                FsEntryAssertHasTrailingDirSep $repoDir;
+                                                $repoDir = FsEntryGetAbsolutePath $repoDir;
+                                                [String] $currentBranch = GitShowBranch $repoDir;
+                                                # We need quiet because the push command would write to stderr:
+                                                #   remote: remote: Create a pull request for 'mybranch' on GitHub by visiting:
+                                                #   remote: https://github.com/myuser/myrepo/pull/new/mybranch
+                                                #   remote: To https://github.com/myuser/myrepo
+                                                #   * [new branch]  mybranch -> mybranch
+                                                # but even with quiet option it still writes to stderr by design:
+                                                #   remote:  remote: Create a pull request for 'mybranch' on GitHub by visiting:  remote:  https://github.com/myuser/myrepo/pull/new/mybranch  remote:
+                                                ProcessStart "git" @("-C", $repoDir, "push", "--quiet", "--set-upstream", "origin", $currentBranch) -careStdErrAsOut:$true -traceCmd:$true | Out-Null; }
 function GitMerge                             ( [String] $repoDir, [String] $branch, [Boolean] $errorAsWarning = $false ){
                                                 # merge branch (remotes/origin) into current repodir, no-commit, no-fast-forward. It returns true if merge was performed without any conflict.
                                                 AssertNotEmpty $repoDir "repoDir";
