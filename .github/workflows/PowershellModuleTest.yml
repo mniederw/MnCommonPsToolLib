@@ -28,9 +28,6 @@ on:
     - cron:  '01 00 * * 0'  # 00:01UTC each sunday with main  branch
     - cron:  '34 15 * * 4'  # 00:11UTC each sunday with trunk branch
 
-env:
-  LogDir:   unspecified
-
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
 
@@ -94,6 +91,8 @@ jobs:
       # - More see: https://github.com/actions/virtual-environments/
     name: "Merge to main if all unittests are ok"
     needs: [Test]
+    env:
+      LogDir:  "unspecified"  # All files in this folder will be uploaded as zip
     steps:
 
       # Checks-out your repository under $GITHUB_WORKSPACE, see https://github.com/actions/checkout

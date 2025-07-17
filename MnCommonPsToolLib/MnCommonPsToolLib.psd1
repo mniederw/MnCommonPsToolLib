@@ -34,7 +34,7 @@
   }
   #HelpInfoURI            = '';
 
-  ModuleVersion          = '7.98';
+  ModuleVersion          = '7.99';
 
   <#
   Releasenotes
@@ -43,6 +43,7 @@
   Major version will reflect breaking changes, minor identifies extensions and third number identifies urgent bugfixes.
   Breaking changes are usually removed deprecated functions or changed behaviours.
 
+  2025-07-17  V7.99  Improve yml.
   2025-07-03  V7.98  Add GitBranchExists, GitAddAll, GitCommit, GitPush.
   2025-07-02  V7.97  Extend ToolWingetInstallPackage.
   2025-07-02  V7.96  Extend 7zip to create also a zip. Improve ToolWinGetCleanLine, ToolWingetInstallPackage, ToolWingetUninstallPackage. Add dquotes to output of fsentries.
