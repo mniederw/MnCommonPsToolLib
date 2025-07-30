@@ -175,6 +175,8 @@ function UnitTest_FsEntry_Dir_File(){
     Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/*1.txt"      -recursive:$true)) -eq "/d1/d1/f1.txt;/d1/d2/f1.txt;/d1/f1.txt;/d2/d1/f1.txt;/d2/d2/f1.txt;/d2/d3/f1.txt;/d2/f1.txt;/f1.txt");
     Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d?/*1.txt"   -recursive:$true)) -eq "/d1/d1/f1.txt;/d1/d2/f1.txt;/d1/f1.txt;/d2/d1/f1.txt;/d2/d2/f1.txt;/d2/d3/f1.txt;/d2/f1.txt");
     Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d1/*1.txt"   -recursive:$true)) -eq "/d1/d1/f1.txt;/d1/d2/f1.txt;/d1/f1.txt");
+    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d1/"         -recursive:$true)) -eq "/d1/;/d1/d1/;/d2/d1/");
+    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d1/*"        -recursive:$true)) -eq "/d1/d1/;/d1/d1/f1.txt;/d1/d1/f2.txt;/d1/d2/;/d1/d2/f1.txt;/d1/d2/f2.txt;/d1/f1.txt;/d1/f2.txt");
     Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/*"           -recursive:$true -includeDirs:$false)) -eq "/d1/d1/f1.txt;/d1/d1/f2.txt;/d1/d2/f1.txt;/d1/d2/f2.txt;/d1/f1.txt;/d1/f2.txt;/d2/d1/f1.txt;/d2/d1/f2.txt;/d2/d2/f1.txt;/d2/d2/f2.txt;/d2/d3/f1.txt;/d2/d3/f2.txt;/d2/f1.txt;/d2/f2.txt;/f1.txt;/f2.txt");
     Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/*"           -recursive:$true -includeFiles:$false)) -eq "/d1/;/d1/d1/;/d1/d2/;/d2/;/d2/d1/;/d2/d2/;/d2/d3/");
     if((OsIsWindows)){ Assert ( (FsEntryListAsFileSystemInfo "C:/Windows/*.exe" -recursive:$false -includeDirs:$false).Count -gt 0); }

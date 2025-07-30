@@ -734,9 +734,9 @@ function OsIsWindows                          (){ return [Boolean] ([System.Envi
                                                 # for future: function OsIsLinux(){ return [Boolean] ([System.Environment]::OSVersion.Platform -eq "Unix"); } # example: Ubuntu22: Version="5.15.0.41"
 function OsIsLinux                            (){ return [Boolean] (-not (OsIsWindows) -and $IsLinux); } # portable function which also works on PS5
 function OsIsMacOS                            (){ return [Boolean] (-not (OsIsWindows) -and $IsMacOS); } # portable function which also works on PS5
-function OsIsWinVistaOrHigher                 (){ return [Boolean] ((OsIsWindows) -and [Environment]::OSVersion.Version -ge (new-object "Version" 6,0)); }
-function OsIsWin7OrHigher                     (){ return [Boolean] ((OsIsWindows) -and [Environment]::OSVersion.Version -ge (new-object "Version" 6,1)); }
-function OsIsWin11OrHigher                    (){ return [Boolean] ((OsIsWindows) -and [Environment]::OSVersion.Version -ge (new-object "Version" 10,0,22000)); }
+function OsIsWinVistaOrHigher                 (){ return [Boolean] ((OsIsWindows) -and [Environment]::OSVersion.Version -ge (New-Object "Version" 6,0)); }
+function OsIsWin7OrHigher                     (){ return [Boolean] ((OsIsWindows) -and [Environment]::OSVersion.Version -ge (New-Object "Version" 6,1)); }
+function OsIsWin11OrHigher                    (){ return [Boolean] ((OsIsWindows) -and [Environment]::OSVersion.Version -ge (New-Object "Version" 10,0,22000)); }
 function OsPathSeparator                      (){ return [String] $(switch(OsIsWindows){$true{";"}default{":"}}); } # separator for PATH environment variable
 function OsPsModulePathList                   (){ # return content of $env:PSModulePath as string-array with os dependent dir separators.
                                                 # Usual entries: On Windows, PS5/PS7, scope MACHINE:
@@ -1217,6 +1217,7 @@ function FsEntryFsInfoFullNameDirWithTrailDSep( [System.IO.FileSystemInfo] $fsIn
                                                 return [String] ($fsInfo.FullName+$(switch($fsInfo.PSIsContainer){($true){$(DirSep)}default{""}})); }
 function FsEntryListAsFileSystemInfo          ( [String] $fsEntryPattern, [Boolean] $recursive = $true, [Boolean] $includeDirs = $true, [Boolean] $includeFiles = $true, [Boolean] $inclTopDir = $false ){
                                                 # List entries specified by a pattern, which applies to files and directories and which can contain wildards (*,?).
+                                                # Output type is FileSystemInfo which is either [DirectoryInfo] or [FileInfo].
                                                 # Examples for fsEntryPattern: "C:/*.tmp", "./dir/*.tmp", "dir/te?*.tmp", "*/dir/*.tmp", "dir/*", "./bin/", "bin/", "f*.tmp" .
                                                 # Internally it uses Get-Item and Get-ChildItem.
                                                 # If inclTopDir and includeDirs are true and a single dir is specified then the dir itself is included.
@@ -1232,7 +1233,7 @@ function FsEntryListAsFileSystemInfo          ( [String] $fsEntryPattern, [Boole
                                                 #   and the last specified part (ex1: *.tmp; ex2: Bin*/) which is matching deeply fs-entry-names in all found dirs.
                                                 AssertNotEmpty $fsEntryPattern "pattern";
                                                 [String] $pa = $fsEntryPattern;
-                                                OutVerbose "FsEntryListAsFileSystemInfo `"$pa`" recursive=$recursive includeDirs=$includeDirs includeFiles=$includeFiles";
+                                                OutVerbose "FsEntryListAsFileSystemInfo `"$pa`" recursive=$recursive includeDirs=$includeDirs includeFiles=$includeFiles inclTopDir=$inclTopDir";
                                                 # Trailing dir-separators for Get-ChildItem:  Are handled in powershell quite curious:
                                                 #   In non-recursive mode they are handled as they are not present, so files are also matched ("*/myfile/").
                                                 #   In recursive mode they wrongly match only files and not directories ("*/myfile/") and
@@ -1269,7 +1270,7 @@ function FsEntryListAsFileSystemInfo          ( [String] $fsEntryPattern, [Boole
                                                   $incl = $null;
                                                 }
                                                 try{
-                                                  OutVerbose      "Get-ChildItem -Force -ErrorAction SilentlyContinue -Recurse:`$$recursive -Path `"$pa`" -Include `"$incl`" ; # includeDirs=$includeDirs includeFiles=$includeFiles ";
+                                                  OutVerbose      "Get-ChildItem -Force -ErrorAction SilentlyContinue -Recurse:`$$recursive -Path `"$pa`" -Include `"$incl`" ; # includeDirs=$includeDirs includeFiles=$includeFiles inclTopDir=$inclTopDir ";
                                                   $result += (@()+(Get-ChildItem -Force -ErrorAction SilentlyContinue -Recurse:$recursive   -Path   $pa   -Include   $incl |
                                                     Where-Object{$null -ne $_} |
                                                     Where-Object{ ($includeDirs -and $includeFiles) -or ($includeDirs -and $_.PSIsContainer) -or ($includeFiles -and -not $_.PSIsContainer) }));
@@ -1277,7 +1278,7 @@ function FsEntryListAsFileSystemInfo          ( [String] $fsEntryPattern, [Boole
                                                   OutWarning "Warning: Ignoring UnauthorizedAccessException for Get-ChildItem -Force -ErrorAction SilentlyContinue -Recurse:`$$recursive -Path `"$pa`"";
                                                 } return [System.IO.FileSystemInfo[]] $result; }
 function FsEntryListAsStringArray             ( [String] $fsEntryPattern, [Boolean] $recursive = $true, [Boolean] $includeDirs = $true, [Boolean] $includeFiles = $true, [Boolean] $inclTopDir = $false ){
-                                                # Output of directories will have a trailing dir-separator. more see FsEntryListAsFileSystemInfo.
+                                                # Same as FsEntryListAsFileSystemInfo but output only FullPath. Output of directories will have a trailing dir-separator.
                                                 return [String[]] (@()+(FsEntryListAsFileSystemInfo $fsEntryPattern $recursive $includeDirs $includeFiles $inclTopDir | Where-Object{$null -ne $_} |
                                                   ForEach-Object{ FsEntryFsInfoFullNameDirWithTrailDSep $_} )); }
 function FsEntryDelete                        ( [String] $fsEntry ){ # depends strongly on trailing dir separator
@@ -1956,7 +1957,7 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                   [Boolean] $useWebclient = $false; # we currently use Invoke-WebRequest because its more comfortable than WebClient.DownloadFile
                                                   if( $useWebclient ){
                                                     OutVerbose "WebClient.DownloadFile(url=$url,us=$us,tar=`"$tarFile`")";
-                                                    $webclient = new-object System.Net.WebClient;
+                                                    $webclient = New-Object System.Net.WebClient;
                                                     # Defaults: AllowAutoRedirect is true.
                                                     $webclient.Headers.Add("User-Agent",$userAgent);
                                                     # For future use: $webclient.Headers.Add("Content-Type","application/x-www-form-urlencoded");
