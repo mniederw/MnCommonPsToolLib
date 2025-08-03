@@ -713,9 +713,9 @@ function StreamToCsvFile                      ( [String] $file, [Boolean] $overw
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
                                                 [String] $tmp = (FileGetTempFile);
                                                 OutProgress "Write csv to `"$file`"";
-                                                $input | Export-Csv -Force:$overwrite -NoClobber:$(-not $overwrite) -NoTypeInformation -Delimiter ',' -Encoding $encoding -Path $tmp;
+                                                $input | Export-Csv -Force:$true -NoClobber:$false -NoTypeInformation -Delimiter ',' -Encoding $encoding -Path $tmp;
                                                 [String] $sep = [Environment]::NewLine; if( $forceLf ){ $sep = "`n"; }
-                                                ToolFileNormalizeNewline $tmp $file $overwrite $encoding $sep; }
+                                                ToolFileNormalizeNewline $tmp $file $overwrite $encoding $sep -quiet:$true; }
 function StreamToXmlFile                      ( [String] $file, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM" ){
                                                 # If overwrite is false then nothing done if target already exists.
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8" ){ throw [Exception] "StreamToXmlFile with UTF8 (NO-BOM) on PS5.1 or lower is not yet implemented."; } # TODO
@@ -1748,6 +1748,12 @@ function FileUpdateItsHashSha2FileIfNessessary( [String] $srcFile ){ # srcFile.s
                                                   OutProgress "Created `"$hashTarFile`".";
                                                 } }
 function FileFindFirstExisting                ( [String[]] $files ){ foreach( $i in $files ){ if( FileExists $i ) { return [String] (FsEntryGetAbsolutePath $i); } } return [String] ""; }
+function FileCreateIfNotExistsByScript        ( [String] $targetFile, [ScriptBlock] $scriptBlock ){ # Example script block: { param( [String] $f ); FileWriteFromString $f "Hello"; };
+                                                $targetFile = FsEntryGetAbsolutePath $targetFile;
+                                                if( (FileNotExists $targetFile) ){
+                                                  OutProgress "Creating `"$targetFile`" ";
+                                                  & $scriptBlock $targetFile; AssertRcIsOk;
+                                                } }
 function PsDriveListAll                       (){
                                                 OutVerbose "List PsDrives";
                                                 return [Object[]] (@()+(Get-PSDrive -PSProvider FileSystem |
@@ -3010,15 +3016,17 @@ function GithubBranchDelete                   ( [String] $repo, [String] $branch
                                                   ScriptResetRc;
                                                 } }
 function ToolTailFile                         ( [String] $file ){ OutProgress "Show tail of file until ctrl-c is entered of `"$file`":"; Get-Content -Wait $file; }
-function ToolFileNormalizeNewline             ( [String] $src, [String] $tar, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM", [String] $sep = [Environment]::NewLine, [String] $srcEncodingIfNoBom = "Default" ){
+function ToolFileNormalizeNewline             ( [String] $src, [String] $tar, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM", [String] $sep = [Environment]::NewLine, [String] $srcEncodingIfNoBom = "Default", [Boolean] $quiet = $false ){
                                                 # If overwrite is false then nothing done if target already exists.
                                                 # When tar is identic to src then you have to specify overwrite and it will work inplace
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8" ){ throw [Exception] "FileWriteFromLines with UTF8 (NO-BOM) on PS5.1 or lower is not yet implemented."; } # TODO
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
                                                 # Convert end-of-line characters from CRLF to LF.
+                                                $src = FsEntryGetAbsolutePath $src;
+                                                $tar = FsEntryGetAbsolutePath $tar;
                                                 [String] $content = StringReplaceNewlines (FileReadContentAsString $src $srcEncodingIfNoBom) $sep;
-                                                OutProgress "ToolFileNormalizeNewline overwrite=$overwrite sepSize=$($sep.Length) read(encoding=$srcEncodingIfNoBom) `"$src`" and write(encoding=$encoding) `"$tar`" ";
-                                                FileWriteFromString $tar $content $overwrite $encoding; }
+                                                if( -not $quiet ){ OutProgress "ToolFileNormalizeNewline overwrite=$overwrite sepSize=$($sep.Length) read(encoding=$srcEncodingIfNoBom) `"$src`" and write(encoding=$encoding) `"$tar`" "; }
+                                                FileWriteFromString $tar $content $overwrite $encoding $quiet; }
 function ToolAddLineToConfigFile              ( [String] $file, [String] $line, [String] $existingFileEncodingIfNoBom = "Default" ){ # TODO: try to replace Default by UTF8.
                                                 # if file not exists or line not found case sensitive in file then the line is appended.
                                                 if( FileNotExists $file ){ FileWriteFromLines $file $line; }
