@@ -713,9 +713,9 @@ function StreamToCsvFile                      ( [String] $file, [Boolean] $overw
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
                                                 [String] $tmp = (FileGetTempFile);
                                                 OutProgress "Write csv to `"$file`"";
-                                                $input | Export-Csv -Force:$overwrite -NoClobber:$(-not $overwrite) -NoTypeInformation -Delimiter ',' -Encoding $encoding -Path $tmp;
+                                                $input | Export-Csv -Force:$true -NoClobber:$false -NoTypeInformation -Delimiter ',' -Encoding $encoding -Path $tmp;
                                                 [String] $sep = [Environment]::NewLine; if( $forceLf ){ $sep = "`n"; }
-                                                ToolFileNormalizeNewline $tmp $file $overwrite $encoding $sep; }
+                                                ToolFileNormalizeNewline $tmp $file $overwrite $encoding $sep -quiet:$true; }
 function StreamToXmlFile                      ( [String] $file, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM" ){
                                                 # If overwrite is false then nothing done if target already exists.
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8" ){ throw [Exception] "StreamToXmlFile with UTF8 (NO-BOM) on PS5.1 or lower is not yet implemented."; } # TODO
@@ -734,9 +734,9 @@ function OsIsWindows                          (){ return [Boolean] ([System.Envi
                                                 # for future: function OsIsLinux(){ return [Boolean] ([System.Environment]::OSVersion.Platform -eq "Unix"); } # example: Ubuntu22: Version="5.15.0.41"
 function OsIsLinux                            (){ return [Boolean] (-not (OsIsWindows) -and $IsLinux); } # portable function which also works on PS5
 function OsIsMacOS                            (){ return [Boolean] (-not (OsIsWindows) -and $IsMacOS); } # portable function which also works on PS5
-function OsIsWinVistaOrHigher                 (){ return [Boolean] ((OsIsWindows) -and [Environment]::OSVersion.Version -ge (new-object "Version" 6,0)); }
-function OsIsWin7OrHigher                     (){ return [Boolean] ((OsIsWindows) -and [Environment]::OSVersion.Version -ge (new-object "Version" 6,1)); }
-function OsIsWin11OrHigher                    (){ return [Boolean] ((OsIsWindows) -and [Environment]::OSVersion.Version -ge (new-object "Version" 10,0,22000)); }
+function OsIsWinVistaOrHigher                 (){ return [Boolean] ((OsIsWindows) -and [Environment]::OSVersion.Version -ge (New-Object "Version" 6,0)); }
+function OsIsWin7OrHigher                     (){ return [Boolean] ((OsIsWindows) -and [Environment]::OSVersion.Version -ge (New-Object "Version" 6,1)); }
+function OsIsWin11OrHigher                    (){ return [Boolean] ((OsIsWindows) -and [Environment]::OSVersion.Version -ge (New-Object "Version" 10,0,22000)); }
 function OsPathSeparator                      (){ return [String] $(switch(OsIsWindows){$true{";"}default{":"}}); } # separator for PATH environment variable
 function OsPsModulePathList                   (){ # return content of $env:PSModulePath as string-array with os dependent dir separators.
                                                 # Usual entries: On Windows, PS5/PS7, scope MACHINE:
@@ -1217,6 +1217,7 @@ function FsEntryFsInfoFullNameDirWithTrailDSep( [System.IO.FileSystemInfo] $fsIn
                                                 return [String] ($fsInfo.FullName+$(switch($fsInfo.PSIsContainer){($true){$(DirSep)}default{""}})); }
 function FsEntryListAsFileSystemInfo          ( [String] $fsEntryPattern, [Boolean] $recursive = $true, [Boolean] $includeDirs = $true, [Boolean] $includeFiles = $true, [Boolean] $inclTopDir = $false ){
                                                 # List entries specified by a pattern, which applies to files and directories and which can contain wildards (*,?).
+                                                # Output type is FileSystemInfo which is either [DirectoryInfo] or [FileInfo].
                                                 # Examples for fsEntryPattern: "C:/*.tmp", "./dir/*.tmp", "dir/te?*.tmp", "*/dir/*.tmp", "dir/*", "./bin/", "bin/", "f*.tmp" .
                                                 # Internally it uses Get-Item and Get-ChildItem.
                                                 # If inclTopDir and includeDirs are true and a single dir is specified then the dir itself is included.
@@ -1232,7 +1233,7 @@ function FsEntryListAsFileSystemInfo          ( [String] $fsEntryPattern, [Boole
                                                 #   and the last specified part (ex1: *.tmp; ex2: Bin*/) which is matching deeply fs-entry-names in all found dirs.
                                                 AssertNotEmpty $fsEntryPattern "pattern";
                                                 [String] $pa = $fsEntryPattern;
-                                                OutVerbose "FsEntryListAsFileSystemInfo `"$pa`" recursive=$recursive includeDirs=$includeDirs includeFiles=$includeFiles";
+                                                OutVerbose "FsEntryListAsFileSystemInfo `"$pa`" recursive=$recursive includeDirs=$includeDirs includeFiles=$includeFiles inclTopDir=$inclTopDir";
                                                 # Trailing dir-separators for Get-ChildItem:  Are handled in powershell quite curious:
                                                 #   In non-recursive mode they are handled as they are not present, so files are also matched ("*/myfile/").
                                                 #   In recursive mode they wrongly match only files and not directories ("*/myfile/") and
@@ -1269,7 +1270,7 @@ function FsEntryListAsFileSystemInfo          ( [String] $fsEntryPattern, [Boole
                                                   $incl = $null;
                                                 }
                                                 try{
-                                                  OutVerbose      "Get-ChildItem -Force -ErrorAction SilentlyContinue -Recurse:`$$recursive -Path `"$pa`" -Include `"$incl`" ; # includeDirs=$includeDirs includeFiles=$includeFiles ";
+                                                  OutVerbose      "Get-ChildItem -Force -ErrorAction SilentlyContinue -Recurse:`$$recursive -Path `"$pa`" -Include `"$incl`" ; # includeDirs=$includeDirs includeFiles=$includeFiles inclTopDir=$inclTopDir ";
                                                   $result += (@()+(Get-ChildItem -Force -ErrorAction SilentlyContinue -Recurse:$recursive   -Path   $pa   -Include   $incl |
                                                     Where-Object{$null -ne $_} |
                                                     Where-Object{ ($includeDirs -and $includeFiles) -or ($includeDirs -and $_.PSIsContainer) -or ($includeFiles -and -not $_.PSIsContainer) }));
@@ -1277,7 +1278,7 @@ function FsEntryListAsFileSystemInfo          ( [String] $fsEntryPattern, [Boole
                                                   OutWarning "Warning: Ignoring UnauthorizedAccessException for Get-ChildItem -Force -ErrorAction SilentlyContinue -Recurse:`$$recursive -Path `"$pa`"";
                                                 } return [System.IO.FileSystemInfo[]] $result; }
 function FsEntryListAsStringArray             ( [String] $fsEntryPattern, [Boolean] $recursive = $true, [Boolean] $includeDirs = $true, [Boolean] $includeFiles = $true, [Boolean] $inclTopDir = $false ){
-                                                # Output of directories will have a trailing dir-separator. more see FsEntryListAsFileSystemInfo.
+                                                # Same as FsEntryListAsFileSystemInfo but output only FullPath. Output of directories will have a trailing dir-separator.
                                                 return [String[]] (@()+(FsEntryListAsFileSystemInfo $fsEntryPattern $recursive $includeDirs $includeFiles $inclTopDir | Where-Object{$null -ne $_} |
                                                   ForEach-Object{ FsEntryFsInfoFullNameDirWithTrailDSep $_} )); }
 function FsEntryDelete                        ( [String] $fsEntry ){ # depends strongly on trailing dir separator
@@ -1747,6 +1748,12 @@ function FileUpdateItsHashSha2FileIfNessessary( [String] $srcFile ){ # srcFile.s
                                                   OutProgress "Created `"$hashTarFile`".";
                                                 } }
 function FileFindFirstExisting                ( [String[]] $files ){ foreach( $i in $files ){ if( FileExists $i ) { return [String] (FsEntryGetAbsolutePath $i); } } return [String] ""; }
+function FileCreateIfNotExistsByScript        ( [String] $targetFile, [ScriptBlock] $scriptBlock ){ # Example script block: { param( [String] $f ); FileWriteFromString $f "Hello"; };
+                                                $targetFile = FsEntryGetAbsolutePath $targetFile;
+                                                if( (FileNotExists $targetFile) ){
+                                                  OutProgress "Creating `"$targetFile`" ";
+                                                  & $scriptBlock $targetFile; AssertRcIsOk;
+                                                } }
 function PsDriveListAll                       (){
                                                 OutVerbose "List PsDrives";
                                                 return [Object[]] (@()+(Get-PSDrive -PSProvider FileSystem |
@@ -1956,7 +1963,7 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                   [Boolean] $useWebclient = $false; # we currently use Invoke-WebRequest because its more comfortable than WebClient.DownloadFile
                                                   if( $useWebclient ){
                                                     OutVerbose "WebClient.DownloadFile(url=$url,us=$us,tar=`"$tarFile`")";
-                                                    $webclient = new-object System.Net.WebClient;
+                                                    $webclient = New-Object System.Net.WebClient;
                                                     # Defaults: AllowAutoRedirect is true.
                                                     $webclient.Headers.Add("User-Agent",$userAgent);
                                                     # For future use: $webclient.Headers.Add("Content-Type","application/x-www-form-urlencoded");
@@ -3009,15 +3016,17 @@ function GithubBranchDelete                   ( [String] $repo, [String] $branch
                                                   ScriptResetRc;
                                                 } }
 function ToolTailFile                         ( [String] $file ){ OutProgress "Show tail of file until ctrl-c is entered of `"$file`":"; Get-Content -Wait $file; }
-function ToolFileNormalizeNewline             ( [String] $src, [String] $tar, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM", [String] $sep = [Environment]::NewLine, [String] $srcEncodingIfNoBom = "Default" ){
+function ToolFileNormalizeNewline             ( [String] $src, [String] $tar, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM", [String] $sep = [Environment]::NewLine, [String] $srcEncodingIfNoBom = "Default", [Boolean] $quiet = $false ){
                                                 # If overwrite is false then nothing done if target already exists.
                                                 # When tar is identic to src then you have to specify overwrite and it will work inplace
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8" ){ throw [Exception] "FileWriteFromLines with UTF8 (NO-BOM) on PS5.1 or lower is not yet implemented."; } # TODO
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
                                                 # Convert end-of-line characters from CRLF to LF.
+                                                $src = FsEntryGetAbsolutePath $src;
+                                                $tar = FsEntryGetAbsolutePath $tar;
                                                 [String] $content = StringReplaceNewlines (FileReadContentAsString $src $srcEncodingIfNoBom) $sep;
-                                                OutProgress "ToolFileNormalizeNewline overwrite=$overwrite sepSize=$($sep.Length) read(encoding=$srcEncodingIfNoBom) `"$src`" and write(encoding=$encoding) `"$tar`" ";
-                                                FileWriteFromString $tar $content $overwrite $encoding; }
+                                                if( -not $quiet ){ OutProgress "ToolFileNormalizeNewline overwrite=$overwrite sepSize=$($sep.Length) read(encoding=$srcEncodingIfNoBom) `"$src`" and write(encoding=$encoding) `"$tar`" "; }
+                                                FileWriteFromString $tar $content $overwrite $encoding $quiet; }
 function ToolAddLineToConfigFile              ( [String] $file, [String] $line, [String] $existingFileEncodingIfNoBom = "Default" ){ # TODO: try to replace Default by UTF8.
                                                 # if file not exists or line not found case sensitive in file then the line is appended.
                                                 if( FileNotExists $file ){ FileWriteFromLines $file $line; }

@@ -987,6 +987,32 @@ function NetGetNetView                        (){ # List provided shares (later 
 function NetGetNetStat                        (){ [String[]] $out = @()+(& "NETSTAT.EXE" "/A"  ); AssertRcIsOk $out; return [String[]] $out; }
 function NetGetRoute                          (){ [String[]] $out = @()+(& "ROUTE.EXE" "PRINT" ); AssertRcIsOk $out; return [String[]] $out; }
 function NetGetNbtStat                        (){ [String[]] $out = @()+(& "NBTSTAT.EXE" "-N"  ); AssertRcIsOk $out; return [String[]] $out; }
+function NetFirewallListRules                 (){ [Object] $allPortFilters = Get-NetFirewallPortFilter;
+                                                Get-NetFirewallRule | Sort-Object DisplayName | ForEach-Object{ $r = $_;
+                                                  $filter = $allPortFilters | Where-Object { $_.InstanceID -eq $r.InstanceID; }
+                                                  # this would be too slow: $filter = Get-NetFirewallPortFilter -AssociatedNetFirewallRule $r;
+                                                  [Boolean] $ProfilePrivate = $r.Profile -contains "Private" -or $r.Profile -eq "Any";
+                                                  [Boolean] $ProfilePublic  = $r.Profile -contains "Public"  -or $r.Profile -eq "Any";
+                                                  [Boolean] $ProfileDomain  = $r.Profile -contains "Domain"  -or $r.Profile -eq "Any";
+                                                  [PSCustomObject]@{ Enabled = $r.Enabled; DisplayName = $r.DisplayName; Action = $r.Action; Direction = $r.Direction;
+                                                    Protocol = $filter.Protocol; LocalPort = $filter.LocalPort;
+                                                    ProfilePrivate = $ProfilePrivate; ProfilePublic = $ProfilePublic; ProfileDomain = $ProfileDomain;
+                                                    ID = $r.ID; Description = $r.Description;
+                                                    # More fields: Name,Group,Platform,EdgeTraversalPolicy,LSM,PrimaryStatus,Status,EnforcementStatus,PolicyStoreSourceType,Caption
+                                                    #   ,ElementName,InstanceID,CommonName,PolicyKeywords,PolicyDecisionStrategy,PolicyRoles,ConditionListType,CreationClassName
+                                                    #   ,ExecutionStrategy,Mandatory,PolicyRuleName,Priority,RuleUsage,SequencedActions,SystemCreationClassName,SystemName
+                                                    #   ,DisplayGroup,LocalOnlyMapping,LooseSourceMapping,Owner,Platforms,PolicyAppId,PolicyStoreSource,Profiles
+                                                    #   ,RemoteDynamicKeywordAddresses,RuleGroup,StatusCode,PSComputerName,CimClass,CimInstanceProperties,CimSystemProperties
+                                                  };
+                                                } }
+function NetFirewallListProfiles              (){ Get-NetFirewallProfile | Select-Object Profile, Enabled, LogAllowed, LogBlocked, LogIgnored, LogFileName;
+                                                  # More fields: DefaultInboundAction,DefaultOutboundAction,AllowInboundRules,AllowLocalFirewallRules,AllowLocalIPsecRules,AllowUserApps
+                                                  #   ,AllowUserPorts,AllowUnicastResponseToMulticast,NotifyOnListen,EnableStealthModeForIPsec,LogMaxSizeKilobytes,Caption
+                                                  #   ,Description,ElementName,InstanceID,DisabledInterfaceAliases,Name,PSComputerName,CimClass,CimInstanceProperties,CimSystemProperties
+                                                }
+function NetFirewallListProfileActive         (){ return [String] "$((Get-NetConnectionProfile).NetworkCategory)"; # Example: "Private"
+                                                  # More fields: NetworkCategory,DomainAuthenticationKind,IPv4Connectivity,IPv6Connectivity,Caption,Description,ElementName,InstanceID,InterfaceAlias,InterfaceIndex,Name
+                                                }
 function JuniperNcEstablishVpnConn            ( [String] $secureCredentialFile, [String] $url, [String] $realm ){
                                                 [String] $serviceName = "DsNcService";
                                                 [String] $vpnProg = "${env:ProgramFiles(x86)}/Juniper Networks/Network Connect 8.0/nclauncher.exe";
