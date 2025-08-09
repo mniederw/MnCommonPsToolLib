@@ -458,7 +458,7 @@ function RegistryMapToShortKey                ( [String] $key ){ # Note: HKCU: w
                                                 if( -not $key.StartsWith("HKEY_","CurrentCultureIgnoreCase") ){ return [String] $key; }
                                                 return [String] $key.Replace("HKEY_LOCAL_MACHINE:","HKLM:").Replace("HKEY_CURRENT_USER:","HKCU:").Replace("HKEY_CLASSES_ROOT:","HKCR:").Replace("HKCR:","HKLM:\SOFTWARE\Classes").Replace("HKEY_USERS:","HKU:").Replace("HKEY_CURRENT_CONFIG:","HKCC:"); }
 function RegistryRequiresElevatedAdminMode    ( [String] $key ){
-                                                if( (RegistryMapToShortKey $key).StartsWith("HKLM:","CurrentCultureIgnoreCase") ){ ProcessRestartInElevatedAdminMode; } }
+                                                if( (RegistryMapToShortKey $key).StartsWith("HKLM:","CurrentCultureIgnoreCase") ){ ProcessRestartInElevatedAdminMode "HKLM registry requires elevated admin mode. "; } }
 function RegistryAssertIsKey                  ( [String] $key ){
                                                 $key = RegistryMapToShortKey $key;
                                                 if( $key.StartsWith("HK","CurrentCultureIgnoreCase") ){ return; }
@@ -852,13 +852,13 @@ function ShareListAll                         ( [String] $selectShareName = "" )
 function ShareLocksList                       ( [String] $fsEntryPath = "" ){
                                                 # list currenty read or readwrite locked open files of a share, requires elevated admin mode
                                                 $fsEntryPath = FsEntryGetAbsolutePath $fsEntryPath;
-                                                ProcessRestartInElevatedAdminMode;
+                                                ProcessRestartInElevatedAdminMode "List locked open files of a share requires elevated admin mode. ";
                                                 return [Object] (Get-SmbOpenFile | Where-Object{$null -ne $_} | Where-Object{ $_.Path.StartsWith($fsEntryPath,"OrdinalIgnoreCase") } |
                                                   Select-Object FileId, SessionId, Path, ClientComputerName, ClientUserName, Locks | Sort-Object Path); }
 function ShareLocksClose                      ( [String] $fsEntryPath = "" ){
                                                 # closes locks, Example: $fsEntryPath="D:/Transfer/" or $fsEntryPath="D:/Transfer/MyFile.txt"
                                                 $fsEntryPath = FsEntryGetAbsolutePath $fsEntryPath;
-                                                ProcessRestartInElevatedAdminMode;
+                                                ProcessRestartInElevatedAdminMode "Close locks of a share requires elevated admin mode. ";
                                                 ShareLocksList $fsEntryPath |
                                                   Where-Object{$null -ne $_} |
                                                   ForEach-Object{
@@ -878,7 +878,7 @@ function ShareCreate                          ( [String] $shareName, [String] $d
                                                   if( $ignoreIfAlreadyExists ){ return; }
                                                 }
                                                 OutVerbose "CreateShare name=`"$shareName`" dir=`"$dir`" ";
-                                                ProcessRestartInElevatedAdminMode;
+                                                ProcessRestartInElevatedAdminMode "Create share requires elevated admin mode. ";
                                                 # alternative: -FolderEnumerationMode AccessBased; Note: this is not allowed but it is the default: -ContinuouslyAvailable $true
                                                 New-SmbShare -Path $dir -Name $shareName -Description $descr -ConcurrentUserLimit $nrOfAccessUsers -FolderEnumerationMode Unrestricted -FullAccess (PrivGetGroupEveryone) | Out-Null; }
 function ShareRemove                          ( [String] $shareName ){ # no action if it not exists
@@ -1131,7 +1131,7 @@ function InfoAboutRunningProcessesAndServices (){
                                                   # usually: AppLocker, BitsTransfer, PSDiagnostics, TroubleshootingPack, WebAdministration, SQLASCMDLETS, SQLPS.
                                                 ); }
 function InfoHdSpeed                          (){ # Works only on Windows
-                                                ProcessRestartInElevatedAdminMode;
+                                                ProcessRestartInElevatedAdminMode "Run winsat.exe requires elevated admin mode. ";
                                                 [String[]] $out1 = @()+(& "winsat.exe" "disk" "-seq" "-read"  "-drive" "c"); AssertRcIsOk $out1;
                                                 [String[]] $out2 = @()+(& "winsat.exe" "disk" "-seq" "-write" "-drive" "c"); AssertRcIsOk $out2; return [String[]] ($out1+$out2); }
 function InfoAboutNetConfig                   (){
@@ -2092,7 +2092,7 @@ function ToolActualizeHostsFileByMaster       ( [String] $srcHostsFile ){
                                                   throw [Exception] "Expected HKLM:\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters:DataBasePath=`"$tardir`" equal to dir of: `"$tarHostsFile`"";
                                                 }
                                                 if( -not (FileContentsAreEqual $srcHostsFile $tarHostsFile $true) ){
-                                                  ProcessRestartInElevatedAdminMode;
+                                                  ProcessRestartInElevatedAdminMode "Overwrite hosts file requires elevated admin mode.";
                                                   [String] $tmp = "";
                                                   if( (FsEntryGetFileName $srcHostsFile) -eq "hosts" ){
                                                      # Note: Its unbelievable but the name cannot be `"hosts`" because MS-Defender, so we need to copy it first to a temp file";
@@ -2306,7 +2306,7 @@ function ToolGitTortoiseCommit                ( [String] $workDir, [String] $com
                                                 [String] $tortoiseExe = (RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseGit" "ProcPath"); # Example: "C:\Program Files\TortoiseGit\bin\TortoiseGitProc.exe"
                                                 Start-Process -NoNewWindow -Wait -FilePath "$tortoiseExe" -ArgumentList @("/command:commit","/path:`"$workDir`"", "/logmsg:$commitMessage"); AssertRcIsOk; }
 function ToolWin10PackageGetState             ( [String] $packageName ){ # Example: for "OpenSSH.Client" return "Installed","NotPresent".
-                                                ProcessRestartInElevatedAdminMode;
+                                                ProcessRestartInElevatedAdminMode "Getting package state requires elevated admin mode.";
                                                 if( $packageName -eq "" ){ throw [Exception] "Missing packageName"; }
                                                 return [String] ((Get-WindowsCapability -Online | Where-Object name -like "${packageName}~*").State); }
 function ToolWin10PackageInstall              ( [String] $packageName ){ # Example: "OpenSSH.Client"

@@ -34,7 +34,7 @@
   }
   #HelpInfoURI            = '';
 
-  ModuleVersion          = '7.101';
+  ModuleVersion          = '7.102';
 
   <#
   Releasenotes
@@ -43,6 +43,7 @@
   Major version will reflect breaking changes, minor identifies extensions and third number identifies urgent bugfixes.
   Breaking changes are usually removed deprecated functions or changed behaviours.
 
+  2025-08-08  V7.102 Extend ProcessRestartInElevatedAdminMode.
   2025-08-03  V7.101 Fix StreamToCsvFile. Add FileCreateIfNotExistsByScript, NetFirewallListRules, NetFirewallListProfiles, NetFirewallListProfileActive. Improve ToolFileNormalizeNewline.
   2025-07-31  V7.100 Add unittests.
   2025-07-17  V7.99  Improve yml.
