@@ -790,7 +790,8 @@ function ProcessPsExecutable                  (){ return [String] $(switch((Proc
 function ProcessIsRunningInElevatedAdminMode  (){ if( (OsIsWindows) ){ return [Boolean] ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"); }
                                                   return [Boolean] ("$env:SUDO_USER" -ne "" -or "$env:USER" -eq "root"); }
 function ProcessAssertInElevatedAdminMode     (){ Assert (ProcessIsRunningInElevatedAdminMode) "requires to be in elevated admin mode"; }
-function ProcessRestartInElevatedAdminMode    (){ if( (ProcessIsRunningInElevatedAdminMode) ){ return; }
+function ProcessRestartInElevatedAdminMode    ( [String] $reason = "" ){
+                                                if( (ProcessIsRunningInElevatedAdminMode) ){ return; }
                                                 # Example: "C:\myscr.ps1" or if interactive then statement name example "ProcessRestartInElevatedAdminMode"
                                                 [String] $cmd = @( (ScriptGetTopCaller) ) + $global:ArgsForRestartInElevatedAdminMode;
                                                 if( $global:ModeDisallowInteractions ){
@@ -802,7 +803,7 @@ function ProcessRestartInElevatedAdminMode    (){ if( (ProcessIsRunningInElevate
                                                   $cmd = $cmd.Replace("`"","`"`"`""); # see https://docs.microsoft.com/en-us/dotnet/api/system.diagnostics.processstartinfo.arguments
                                                   $cmd = $(switch((ProcessIsLesserEqualPs5)){ $true{"& `"$cmd`""} default{"-Command `"$cmd`""}});
                                                   $cmd = $(switch(ScriptIsProbablyInteractive){ ($true){"-NoExit -NoLogo "} default{""} }) + $cmd;
-                                                  OutProgress "Not running in elevated administrator mode so elevate current script and exit:";
+                                                  OutProgress "$reason Not running in elevated administrator mode so elevate current script and exit:".Trim();
                                                   if( (OsIsWindows) ){
                                                     OutProgress "  Start-Process -Verb RunAs -FilePath `"$(ProcessPsExecutable)`" -ArgumentList $cmd ";
                                                     Start-Process -Verb "RunAs" -FilePath (ProcessPsExecutable) -ArgumentList $cmd;
@@ -1358,7 +1359,7 @@ function FsEntryFindNotExistingVersionedName  ( [String] $fsEntry, [String] $ext
                                                 }until( $n -gt $maxNr );
                                                 throw [Exception] "$(ScriptGetCurrentFunc)($fsEntry,$ext,$maxNr) not available because reached maxNr"; }
 function FsEntryAclGet                        ( [String] $fsEntry ){
-                                                ProcessRestartInElevatedAdminMode;
+                                                ProcessRestartInElevatedAdminMode "Get-Acl requires elevated admin mode.";
                                                 return [System.Security.AccessControl.FileSystemSecurity] (Get-Acl -Path (FsEntryEsc $fsEntry)); }
 function FsEntryAclSetInheritance             ( [String] $fsEntry ){
                                                 [System.Security.AccessControl.FileSystemSecurity] $acl = FsEntryAclGet $fsEntry;
@@ -1394,7 +1395,7 @@ function PrivDirSecurityCreateOwner           ( [System.Security.Principal.Ident
 function FsEntryTrySetOwner                   ( [String] $fsEntry, [System.Security.Principal.IdentityReference] $account, [Boolean] $recursive = $false ){
                                                 # usually account is (PrivGetGroupAdministrators); if the entry itself cannot be set then it tries to set on its parent the fullcontrol for admins.
                                                 $fsEntry = FsEntryGetAbsolutePath $fsEntry;
-                                                ProcessRestartInElevatedAdminMode;
+                                                ProcessRestartInElevatedAdminMode "TrySetOwner requires elevated admin mode.";
                                                 PrivEnableTokenPrivilege SeTakeOwnershipPrivilege;
                                                 PrivEnableTokenPrivilege SeRestorePrivilege;
                                                 PrivEnableTokenPrivilege SeBackupPrivilege;
@@ -1459,7 +1460,7 @@ function FsEntryTrySetOwnerAndAclsIfNotSet    ( [String] $fsEntry, [System.Secur
 function FsEntryTryForceRenaming              ( [String] $fsEntry, [String] $extension ){
                                                 $fsEntry = FsEntryGetAbsolutePath $fsEntry;
                                                 if( (FsEntryExists $fsEntry) ){
-                                                  ProcessRestartInElevatedAdminMode; # because rename os files and change acls
+                                                  ProcessRestartInElevatedAdminMode "TryForceRenaming and change acls requires elevated admin mode.";
                                                   [String] $newFileName = (FsEntryFindNotExistingVersionedName $fsEntry $extension);
                                                   try{
                                                     FsEntryRename $fsEntry $newFileName;
