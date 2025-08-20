@@ -2851,7 +2851,9 @@ function GitInitGlobalConfig                  (){ # if git is installed the init
                                                                                                # required values for git repos: gnuwget/wget2 11000, CosmosOS/Cosmos 1900, usual repos 1300.
                                                 GitSetGlobalVar "core.pager" "cat"           ; # [cat,less] use cat for pager; "less" would stop after a page
                                                 GitSetGlobalVar "core.fscache" "true"        ; # Enable additional caching of file system data for some operations.
-                                                GitSetGlobalVar "core.symlinks" "false"      ; # Usually use false for symbolic links are checked out as small plain files that contain the link text.
+                                                GitSetGlobalVar "core.symlinks" "false"      ; # Symlinks results in problems on windows so generally avoid them in repo and so 
+                                                                                               # false converts them on checkout as small plain files containing the link target which is also not really usefull. 
+                                                                                               # also see https://gitforwindows.org/symbolic-links.html
                                                 GitSetGlobalVar "init.defaultBranch" "main"  ; # For new repos
                                                 GitSetGlobalVar "credential.helper" $credHlp ; # "manager" usually for windows (avoids the warning about manager-core renaming);
                                                                                                # "store" means save pw in $HOME/.git-credentials;
