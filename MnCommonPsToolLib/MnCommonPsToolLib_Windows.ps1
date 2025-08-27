@@ -2647,12 +2647,12 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){ # runs in about 12-90 sec and 
                                                 OutProgress "Update-Help check if run is nessessary by comparing lastModifiedAt(`"$touchFile`") with lastModuleUpdateTs=$(DateTimeNowAsStringIso $lastModuleUpdateTs) ";
                                                 if( (FileNotExists $touchFile) -or (FsEntryGetLastModified $touchFile) -lt $lastModuleUpdateTs ){
                                                   OutProgress "Update-Help to en-US with continue-on-error ";
-                                                  [String] $out = Update-Help -UICulture en-US -ErrorAction Continue *>&1 | ForEach-Object{ "$_"; };
+                                                  [String] $out = Update-Help -UICulture en-US -ErrorAction Continue *>&1 | ForEach-Object{ "$_"; }; ScriptResetRc;
                                                   if( (HasKnowErrMsg $out) ){ $out = "Got known response 404=NotFound for en-US of: ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate. "; }
                                                   Write-Progress -Activity " " -Status " " -Completed;
                                                   OutProgress "  $out";
                                                   OutProgress "Update-Help to current Culture with continue-on-error: $((Get-Culture).Name) = $((Get-Culture).DisplayName)"; # Example: "de-CH"
-                                                  [String] $out = Update-Help -ErrorAction Continue *>&1 | ForEach-Object{ "$_"; };
+                                                  [String] $out = Update-Help -ErrorAction Continue *>&1 | ForEach-Object{ "$_"; }; ScriptResetRc;
                                                     # Usually we get the same errors as with en-US
                                                   if( (HasKnowErrMsg $out) ){ $out = "Got known response 404=NotFound for en-US of: ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate. "; }
                                                   Write-Progress -Activity " " -Status " " -Completed;
@@ -2694,7 +2694,8 @@ function ToolWinGetCleanLine                  ( [String] $s ){
                                                     $s -ne "Diese Anwendung wird von ihrem Besitzer an Sie lizenziert."                                                    -and # for: winget install
                                                     $s -ne "Der Installer-Hash wurde erfolgreich überprüft"                                                                -and # for: winget install
                                                     $s -ne "Paketinstallation wird gestartet..."                                                                           -and # for: winget install
-                                                    $s -ne "Microsoft ist nicht verantwortlich und erteilt keine Lizenzen für Pakete von Drittanbietern."                       # for: winget install
+                                                    $s -ne "Microsoft ist nicht verantwortlich und erteilt keine Lizenzen für Pakete von Drittanbietern."                  -and # for: winget install
+                                                    $s -ne "Fehler beim Durchsuchen der Quelle. Ergebnisse werden nicht einbezogen: msstore"                                    # for: winget uninstall (2025-08: Edge)
                                                     ){}else{ $s = ""; }
                                                 $s = $s.Replace("Kein verfügbares Upgrade gefunden.","Is up to date.");                                                                   # for: winget install
                                                 $s = $s.Replace("Erfolgreich installiert","Successful installed.");                                                                       # for: winget install
