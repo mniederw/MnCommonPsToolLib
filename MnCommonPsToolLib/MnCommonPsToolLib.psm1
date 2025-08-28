@@ -1729,8 +1729,13 @@ function FileMove                             ( [String] $srcFile, [String] $tar
                                                 OutProgress "FileMove(Overwrite=$overwrite)$(switch($(FileExists $(FsEntryEsc $tarFile))){($true){'(TargetExists)'}default{''}}) `"$srcFile`" to `"$tarFile`" ";
                                                 FsEntryCreateParentDir $tarFile;
                                                 Move-Item -Force:$overwrite -LiteralPath $srcFile -Destination $tarFile; }
-function FileSyncContent                      ( [String] $fromFile, [String] $toFile ){ # overwrite if different or if target file not exists
-                                                if( -not (FileContentsAreEqual $fromFile $toFile) ){ FileCopy $fromFile $toFile $true; } }
+function FileSyncContent                      ( [String] $fromFile, [String] $toFile, [Boolean] $createBackupFile = $false ){ # overwrite if different or if target file not exists, example of backup filename "MyName.001.bck", max 9999 versions.
+                                                if( -not (FileContentsAreEqual $fromFile $toFile) ){ 
+                                                  if( $createBackupFile -and (FileExists $toFile) ){
+                                                    FileCopy $toFile (FsEntryFindNotExistingVersionedName $toFile ".bck" 9999);
+                                                  }
+                                                  FileCopy $fromFile $toFile $true;
+                                                } }
 function FileGetHexStringOfHash128BitsMd5     ( [String] $srcFile ){ [String] $md = "MD5"; return [String] (get-filehash -Algorithm $md $srcFile).Hash; } # 2008: is broken. Because PSScriptAnalyzer.PSAvoidUsingBrokenHashAlgorithms we put name into a variable.
 function FileGetHexStringOfHash256BitsSha2    ( [String] $srcFile ){ return [String] (get-filehash -Algorithm "SHA256" $srcFile).Hash; } # 2017-11 ps standard is SHA256, available are: SHA1;SHA256;SHA384;SHA512;MACTripleDES;MD5;RIPEMD160
 function FileGetHexStringOfHash512BitsSha2    ( [String] $srcFile ){ return [String] (get-filehash -Algorithm "SHA512" $srcFile).Hash; } # 2017-12: this is our standard for ps
@@ -2851,7 +2856,9 @@ function GitInitGlobalConfig                  (){ # if git is installed the init
                                                                                                # required values for git repos: gnuwget/wget2 11000, CosmosOS/Cosmos 1900, usual repos 1300.
                                                 GitSetGlobalVar "core.pager" "cat"           ; # [cat,less] use cat for pager; "less" would stop after a page
                                                 GitSetGlobalVar "core.fscache" "true"        ; # Enable additional caching of file system data for some operations.
-                                                GitSetGlobalVar "core.symlinks" "false"      ; # Usually use false for symbolic links are checked out as small plain files that contain the link text.
+                                                GitSetGlobalVar "core.symlinks" "false"      ; # Symlinks results in problems on windows so generally avoid them in repo and so 
+                                                                                               # false converts them on checkout as small plain files containing the link target which is also not really usefull. 
+                                                                                               # also see https://gitforwindows.org/symbolic-links.html
                                                 GitSetGlobalVar "init.defaultBranch" "main"  ; # For new repos
                                                 GitSetGlobalVar "credential.helper" $credHlp ; # "manager" usually for windows (avoids the warning about manager-core renaming);
                                                                                                # "store" means save pw in $HOME/.git-credentials;
@@ -3046,6 +3053,7 @@ function ToolAddToProfileIfFullPathNotEmpty   ( [String] $profileFullPath = "", 
                                                 ToolAddLineToConfigFile $profileFullPath "`$Global:OutputEncoding = [Console]::OutputEncoding = [Console]::InputEncoding = [Text.UTF8Encoding]::UTF8;                # AUTOCREATED LINE BY $autoCreatedBy, set pipelining to utf8.";
                                                 ToolAddLineToConfigFile $profileFullPath  "[System.Threading.Thread]::CurrentThread.CurrentUICulture = [System.Globalization.CultureInfo]::GetCultureInfo('en-US');  # AUTOCREATED LINE BY $autoCreatedBy, create english error messages.";
                                                 ToolAddLineToConfigFile $profileFullPath  "Remove-Item -Force Alias:curl -ErrorAction SilentlyContinue; Remove-Item -Force Alias:wget -ErrorAction SilentlyContinue; # AUTOCREATED LINE BY $autoCreatedBy, remove at least aliases: curl, wget.";
+                                                ToolAddLineToConfigFile $profileFullPath  "if((OsIsWindows)){Set-PSReadLineKeyHandler -Key Ctrl+V -Function Paste;Set-PSReadLineOption -AddToHistoryHandler{param([string]`$l);`$l -replace '``n','``r``n';};} # AUTOCREATED LINE BY $autoCreatedBy, fix end-of-lines on paste to terminal.";
                                                 ToolAddLineToConfigFile $profileFullPath  "# Disabled-because-requires-4sec-which-is-too-long-for-each-session: ProcessRemoveAllAlias @(`"cd`",`"cat`",`"clear`",`"echo`",`"dir`",`"cp`",`"mv`",`"popd`",`"pushd`",`"rm`",`"rmdir`"); # AUTOCREATED LINE BY $autoCreatedBy, remove: curl, wget, diff, ..."; }
 function ToolGithubApiAssertValidRepoUrl      ( [String] $repoUrl ){
                                                 # Example repoUrl="https://github.com/mniederw/MnCommonPsToolLib/"
