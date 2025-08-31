@@ -1910,7 +1910,10 @@ function NetDnsGetFirstIp                     ( [String] $hostName, [String] $ip
 function NetRequestStatusCode                 ( [String] $url ){ # is fast, only access head, usually return 200=OK or 404=NotFound;
                                                 [Int32] $statusCode = -1;
                                                 try{ $statusCode = (Invoke-WebRequest -Uri $url -UseBasicParsing -Method Head -ErrorAction Stop).StatusCode;
-                                                }catch{ $statusCode = $_.Exception.Response.StatusCode; }
+                                                }catch{ 
+                                                  try{ $statusCode = $_.Exception.Response.StatusCode; }
+                                                  catch{} # PropertyNotFoundException: The property 'Response' cannot be found on this object. Verify that the property exists
+                                                }
                                                 return [Int32] $statusCode; }
 function NetWebRequestLastModifiedFailSafe    ( [String] $url ){ # Requests metadata from a downloadable file. Return DateTime.MaxValue in case of any problem
                                                 [net.WebResponse] $resp = $null;

@@ -34,7 +34,7 @@
   }
   #HelpInfoURI            = '';
 
-  ModuleVersion          = '7.104';
+  ModuleVersion          = '7.105';
 
   <#
   Releasenotes
@@ -43,6 +43,7 @@
   Major version will reflect breaking changes, minor identifies extensions and third number identifies urgent bugfixes.
   Breaking changes are usually removed deprecated functions or changed behaviours.
 
+  2025-08-31  V7.105 Improve NetRequestStatusCode.
   2025-08-29  V7.104 Add NetDnsGetFirstIp. Improve ToolWingetInstallPackage.
   2025-08-27  V7.103 Extend FileSyncContent, ToolAddToProfileIfFullPathNotEmpty. Improve ToolInstallNuPckMgrAndCommonPsGalMo.
   2025-08-08  V7.102 Extend ProcessRestartInElevatedAdminMode.
