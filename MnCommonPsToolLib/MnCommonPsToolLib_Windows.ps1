@@ -2942,6 +2942,7 @@ function ToolWingetInstallPackage             ( [String] $idAndOptionalBlankSepV
                                                   OutProgress "rc=$rc; Program is not up-to-date. Retry=$canRetry; " 2;
                                                   if( $canRetry ){
                                                     if( $id -eq "Microsoft.OpenJDK.21" ){ ProcessSleepSec 30; } # 2025-06: With "Microsoft.OpenJDK.21 21.0.7.6" we got problem as cannot uninstall because already uninstalled, so we wait now 30 sec.
+                                                    if( $id -eq "Discord.Discord"      ){ ProcessSleepSec 20; } # 2025-08: version 1.0.9205: we got problem as cannot uninstall because Installation fehlgeschlagen mit Exitcode: 3221225477. rc=-1978335226; so we wait now 20 sec.
                                                     ToolWingetUninstallPackage $idAndOptionalBlankSepVersion $source $scope;
                                                     if( $id -eq "Microsoft.OpenJDK.21" ){ ProcessSleepSec 30; } # see wait before uninstall
                                                     ToolWingetInstallPackage   $idAndOptionalBlankSepVersion $source $false $scope;
