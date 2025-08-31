@@ -1896,6 +1896,17 @@ function NetPingHostIsConnectable             ( [String] $hostName, [Boolean] $d
                                                 try{ [System.Net.Dns]::GetHostByName($hostName); }catch{ OutVerbose "Ignoring GetHostByName($hostName) failed because $($_.Exception.Message)"; }
                                                 # nslookup $hostName -ErrorAction SilentlyContinue | out-null;
                                                 return [Boolean] (Test-Connection -ComputerName $hostName -BufferSize 16 -Count 1 -ErrorAction SilentlyContinue -quiet); }
+function NetDnsGetFirstIp                     ( [String] $hostName, [String] $ipV4andV6Mode = "IPv6orV4" ){ # Requires some seconds. ipV4andV6Mode is one of: ["IPv4only","IPv6only","IPv4orV6","IPv6orV4"]. Return empty if no ip found.
+                                                [String[]] $allowedModes = @("IPv4only","IPv6only","IPv4orV6","IPv6orV4");
+                                                if( -not (StringExistsInStringArray $ipV4andV6Mode $allowedModes) ){ throw [Exception] "Expected one of [$($allowedModes -join ",")] instead of: `"$ipV4andV6Mode`". "; }
+                                                # can throw: ParentContainsErrorRecordException: Exception calling "GetHostAddresses" with "1" argument(s): "Der angegebene Host ist unbekannt."
+                                                [System.Net.IPAddress[]] $addrs = try{ [System.Net.Dns]::GetHostAddresses($hostName) }catch{[System.Net.IPAddress[]]@()};
+                                                [String] $ip = $addrs | Where-Object{ $null -ne $_ } |
+                                                  Where-Object{ ((StringExistsInStringArray $ipV4andV6Mode @("IPv4only","IPv4orV6","IPv6orV4")) -and $_.AddressFamily -eq "InterNetwork"  ) -or
+                                                                ((StringExistsInStringArray $ipV4andV6Mode @("IPv6only","IPv4orV6","IPv6orV4")) -and $_.AddressFamily -eq "InterNetworkV6") } |
+                                                  Sort-object AddressFamily -Descending:$($ipV4andV6Mode -eq "IPv6orV4") |
+                                                  ForEach-Object{ $_.IPAddressToString } | Select-Object -First 1;
+                                                return [String] $ip; }
 function NetRequestStatusCode                 ( [String] $url ){ # is fast, only access head, usually return 200=OK or 404=NotFound;
                                                 [Int32] $statusCode = -1;
                                                 try{ $statusCode = (Invoke-WebRequest -Uri $url -UseBasicParsing -Method Head -ErrorAction Stop).StatusCode;
@@ -3038,7 +3049,7 @@ function ToolFileNormalizeNewline             ( [String] $src, [String] $tar, [B
 function ToolAddLineToConfigFile              ( [String] $file, [String] $line, [String] $existingFileEncodingIfNoBom = "Default" ){ # TODO: try to replace Default by UTF8.
                                                 # if file not exists or line not found case sensitive in file then the line is appended.
                                                 if( FileNotExists $file ){ FileWriteFromLines $file $line; }
-                                                elseif( -not (StringArrayContains (@()+(FileReadContentAsLines $file $existingFileEncodingIfNoBom)) $line) ){ FileAppendLines $file $line; } }
+                                                elseif( -not (StringExistsInStringArray $line (@()+(FileReadContentAsLines $file $existingFileEncodingIfNoBom))) ){ FileAppendLines $file $line; } }
 function ToolFindOppositeProfileFromPs5orPs7  (){ # If we are running PS5 then find profile of PS7 and vice versa. Used for syncing operations between environments.
                                                 # Origin profile on PS5: $HOME\Documents\PowerShell\Microsoft.PowerShell_profile.ps1
                                                 # Origin profile on PS7: $HOME\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1

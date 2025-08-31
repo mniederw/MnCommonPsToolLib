@@ -124,7 +124,7 @@ function OsWinCreateUser                      ( [String] $us, [String] $pw, [Str
                                                   # Example: "SeDenyInteractiveLogonRight = u0,Gast"
                                                   [String[]] $currentDeniedUsers = StringSplitToArray "," ((FileReadContentAsLines $tmp "Default" | Select-String -Pattern "SeDenyInteractiveLogonRight").Line).Replace("SeDenyInteractiveLogonRight = ","");
                                                     # TODO: try to replace Default by UTF8.
-                                                  if( -not (StringArrayContains $currentDeniedUsers $us) ){
+                                                  if( -not (StringExistsInStringArray $us $currentDeniedUsers) ){
                                                     [String] $tmp2 = (FileGetTempFile);
                                                     [String] $content = "[Unicode]`r`nUnicode=yes`r`n[Privilege Rights]`r`nSeDenyInteractiveLogonRight = $us,$($currentDeniedUsers -join ',')`r`n";
                                                     FileWriteFromString $tmp2 $content $true "Default"; # TODO: try to replace Default by UTF8.

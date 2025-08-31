@@ -2,7 +2,7 @@
 ===================================================================================================================
 
 Published at: https://github.com/mniederw/MnCommonPsToolLib
-Copyright © by Marc Niederwieser, Switzerland, 2013-2024.
+Copyright © by Marc Niederwieser, Switzerland, 2013-2025.
 Licensed under GPL3. This is freeware, redistribute and or modify it under the terms of GPL3 or its later versions.
 
 Tribute
