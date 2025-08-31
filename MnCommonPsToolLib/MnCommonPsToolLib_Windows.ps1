@@ -2998,7 +2998,7 @@ function ToolManuallyDownloadAndInstallProg   ( [String] $programName, [String] 
                                                   if( $noExecSoReturnAfterOneRun ){ return; }
                                                 } }
 function MnCommonPsToolLibSelfUpdate          (){
-                                                # If installed in standard mode (saved under c:/Program Files/WindowsPowerShell/Modules/)
+                                                # If installed in global standard mode (saved under c:/Program Files/WindowsPowerShell/Modules/)
                                                 # then it performs a self update to the newest version from github otherwise output a note.
                                                 [String]  $additionalOkUpdMsg = "`n  Please restart all processes which currently loaded this module before using changed functions of this library.";
                                                 [Boolean] $requireElevatedAdminMode = $true;
@@ -3010,7 +3010,7 @@ function MnCommonPsToolLibSelfUpdate          (){
                                                 [String]  $moduleFile = FsEntryGetAbsolutePath "$tarRootDir/$moduleName/${moduleName}.psm1";
                                                 [String]  $scrRootModDir = FsEntryGetAbsolutePath "$PSScriptRoot/../";
                                                 if( (FileNotExists $moduleFile) ){
-                                                  OutProgress "MnCommonPsToolLibSelfUpdate: Nothing done because is not installed in standard mode under `"$tarRootDir`". ";
+                                                  OutProgress "MnCommonPsToolLibSelfUpdate: Nothing done because is not installed in global standard mode under `"$tarRootDir`". ";
                                                   if( (OsPsModulePathContains $scrRootModDir) ){
                                                     OutProgress "  It is Installed-for-Developers by having in PsModulePath the current script root: `"$scrRootModDir`"";
                                                   }else{ ProcessSleepSec 5; }

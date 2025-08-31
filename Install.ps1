@@ -40,7 +40,7 @@ function OsPsModulePathList                   (){ # on non-windows there is no p
                                                 Split((OsPathSeparator),[System.StringSplitOptions]::RemoveEmptyEntries)); }
 function OsPsModulePathSet                    ( [String[]] $pathList ){ # not on non-windows this is not stored permanently but only in session.
                                                 [Environment]::SetEnvironmentVariable("PSModulePath", ($pathList -join (OsPathSeparator))+(OsPathSeparator), "Machine"); }
-function OsPsModulePathContains               ( [String] $dir ){ # Example: "D:\WorkGit\myuser\MyPsLibRepoName"
+function OsPsModulePathContains               ( [String] $dir ){ # Example: "D:/WorkGit/myuser/MyPsLibRepoName/"
                                                 [String[]] $a = (OsPsModulePathList | ForEach-Object{ FsEntryRemoveTrailingDirSep $_ });
                                                 return [Boolean] ($a -contains (FsEntryRemoveTrailingDirSep $dir)); }
 function OsPsModulePathAdd                    ( [String] $dir ){ if( (OsPsModulePathContains $dir) ){ return; }
@@ -91,10 +91,10 @@ function DirCopy                              ( [String] $srcDir, [String] $tarP
                                                 OutProgress "DirCopy `"$srcDir`" to `"$tarParentDir`". ";
                                                 Copy-Item -Force -Recurse -LiteralPath $srcDir -Destination $tarParentDir; }
 function DirDelete                            ( [String] $dir ){ if( (DirExists $dir) ){ OutProgress "RemoveDir '$dir'. "; Remove-Item -Force -Recurse -LiteralPath $dir; } }
-function UninstallGlobalDir                   ( [String] $dir ){ if( (DirExists $dir) ){ ProcessRestartInElevatedAdminMode; DirDelete $dir; } }
+function UninstallModuleDir                   ( [String] $dir ){ if( (DirExists $dir) ){ ProcessRestartInElevatedAdminMode; DirDelete $dir; } }
 function UninstallSrcPath                     ( [String] $dir ){ OutProgress "UninstallSrcPath '$dir'. ";
                                                 if( (OsPsModulePathContains $dir) ){ ProcessRestartInElevatedAdminMode; OsPsModulePathDel $dir; } }
-function InstallGlobalDir                     ( [String] $srcDir, [String] $tarParDir ){ ProcessRestartInElevatedAdminMode; DirCopy $srcDir $tarParDir; }
+function InstallModuleDir                     ( [String] $srcDir, [String] $tarParDir ){ ProcessRestartInElevatedAdminMode; DirCopy $srcDir $tarParDir; }
 function InstallSrcPathToPsModulePathIfNotInst( [String] $srcDir ){ OutProgress "Change environment system variable PSModulePath by appending '$srcDir'. ";
                                                 if( (OsPsModulePathContains $srcDir) ){ OutProgress "Already installed so environment variable not changed. "; }
                                                 else{ ProcessRestartInElevatedAdminMode; OsPsModulePathAdd $srcDir; } }
@@ -145,6 +145,7 @@ function SetAllEnvsExecutionPolicy            ( [String] $mode = "Bypass" ){ # F
 [String]   $moduleRootDirAllUsersLinux = "/usr/local/share/powershell/Modules/";
 [String]   $tarRootDir32bit            = "${env:ProgramFiles(x86)}\WindowsPowerShell\Modules";
 [String]   $tarRootDir64bit            = "$env:ProgramW6432\WindowsPowerShell\Modules";
+[String]   $tarRootDirCurrUser         = "$HOME\Documents\WindowsPowerShell\Modules\";
 [String]   $srcRootDir                 = $PSScriptRoot; if( $srcRootDir -eq "" ){ $srcRootDir = FsEntryGetAbsolutePath "."; } # Example: "D:\WorkGit\myuser\MyNameOfPsToolLib_master"
 [String[]] $dirsWithPsm1Files          = @()+(DirListDirs $srcRootDir | Where-Object{ DirHasFiles $_ "*.psm1" });
                                          if( $dirsWithPsm1Files.Count -ne 1 ){ throw [Exception] "Tool is designed for working below '$srcRootDir' with exactly one directory which contains psm1 files but found $($dirsWithPsm1Files.Count) dirs ($dirsWithPsm1Files)"; }
@@ -152,6 +153,7 @@ function SetAllEnvsExecutionPolicy            ( [String] $mode = "Bypass" ){ # F
 [String]   $moduleName                 = [System.IO.Path]::GetFileName($moduleSrcDir); # Example: "MyNameOfPsToolLib"
 [String]   $moduleTarDir32bit          = "$tarRootDir32bit\$moduleName";
 [String]   $moduleTarDir64bit          = "$tarRootDir64bit\$moduleName";
+[String]   $moduleTarDirCurrUser       = "$tarRootDirCurrUser\$moduleName";
 [String]   $moduleTarDirCurrUserLinux  = "$moduleRootDirCurrUserLinux/$moduleName";
 [String]   $moduleTarDirAllUsersLinux  = "$moduleRootDirAllUsersLinux/$moduleName";
 [String]   $psVersion                  = "$($PSVersionTable.PSVersion.ToString()) $(switch((ShellSessionIs64not32Bit)){($true){"64bit"}($false){"32bit"}})";
@@ -163,7 +165,7 @@ function CurrentInstallationModes(){
   if( (OsIsWindows) ){
     if( (DirExists $moduleTarDir64bit)         ){ $modes += "Installed-in-Global-Std-Mode-AllUsers-64bit"; }
     if( (DirExists $moduleTarDir32bit)         ){ $modes += "Installed-in-Global-Std-Mode-AllUsers-32bit"; }
-    # for later add: Local-Std-Mode
+    if( (DirExists $moduleTarDirCurrUser)      ){ $modes += "Installed-in-Local-Std-Mode-Current-User($env:USERNAME)"; }
   }else{
     if( (DirExists $moduleTarDirAllUsersLinux) ){ $modes += "Installed-in-Global-Std-Mode-AllUsers"; }
     if( (DirExists $moduleTarDirCurrUserLinux) ){ $modes += "Installed-in-Local-Std-Mode-Current-User($env:USERNAME)"; }
@@ -176,10 +178,10 @@ function CurrentInstallationModes(){
 function UninstallGlobalStandardMode(){
   OutProgress "Uninstall global standard mode. ";
   if( (OsIsWindows) ){
-    UninstallGlobalDir $moduleTarDir32bit;
-    UninstallGlobalDir $moduleTarDir64bit;
+    UninstallModuleDir $moduleTarDir32bit;
+    UninstallModuleDir $moduleTarDir64bit;
   }else{
-    UninstallGlobalDir $moduleTarDirAllUsersLinux;
+    UninstallModuleDir $moduleTarDirAllUsersLinux;
     #Uninstall-Module -Name "MnCommonPsToolLib" -AllVersions -Force -ErrorAction SilentlyContinue; # does nothing because we never installed it this way
   }
 }
@@ -187,7 +189,7 @@ function UninstallGlobalStandardMode(){
 function UninstallLocalStandardAndDeveloperMode(){
   OutProgress "Uninstall local standard and developer mode. ";
   if( (OsIsWindows) ){
-    # here later uninstall: local module dir
+    DirDelete $moduleTarDirCurrUser
     UninstallSrcPath $srcRootDir;
   }else{
     DirDelete $moduleTarDirCurrUserLinux;
@@ -215,10 +217,10 @@ function InstallInGlobalStandardMode(){
   OutProgress "Reinstall in global standard mode. ";
   UninstallGlobalStandardMode;
   if( (OsIsWindows) ){
-    InstallGlobalDir $moduleSrcDir $tarRootDir32bit;
-    InstallGlobalDir $moduleSrcDir $tarRootDir64bit;
+    InstallModuleDir $moduleSrcDir $tarRootDir32bit;
+    InstallModuleDir $moduleSrcDir $tarRootDir64bit;
   }else{
-    InstallGlobalDir $moduleSrcDir $moduleRootDirAllUsersLinux;
+    InstallModuleDir $moduleSrcDir $moduleRootDirAllUsersLinux;
   }
 }
 
@@ -226,7 +228,7 @@ function InstallInLocalStandardMode(){
   OutProgress "Reinstall in local standard mode. ";
   UninstallLocalStandardAndDeveloperMode;
   if( (OsIsWindows) ){
-    # here later add install: local module dir for 32 and 64 bit
+    InstallModuleDir $moduleSrcDir $tarRootDirCurrUser;
   }else{
     DirCopy $moduleSrcDir $moduleRootDirCurrUserLinux;
   }
@@ -258,9 +260,9 @@ function ShowHelpInfo(){
     OutProgress  "  For global installations or uninstallations the elevated administrator mode (sudo on linux) ";
     OutProgress  "  is required and this tool automatically prompts for it when nessessary. ";
     OutProgress  "  ";
-    OutProgress  "  An installation in standard mode does first an uninstallation and then for ";
+    OutProgress  "  An installation in global or local standard mode does first an uninstallation and then for ";
     OutProgress  "  the global or local installation it copies the ps module folder to the common ps module folder ";
-    OutProgress  "  for all users (on windows also for ps5 32 and 64 bit) or current user. ";
+    OutProgress  "  for all users (on windows also for ps5 32 and 64 bit) or for current user. ";
     OutProgress  "  An uninstallation does remove the copied folder from the common ps module folder. ";
     OutProgress  "  ";
     OutProgress  "  An installation in developer mode does also first a local uninstallation ";
@@ -326,6 +328,7 @@ function Menu(){
       OutProgress   "  Ps5ModuleDir                            = `"$ps5ModuleDir`".    ";
       OutProgress   "  PsModuleFolder(allUsers,64bit)          = `"$tarRootDir64bit`". ";
       OutProgress   "  PsModuleFolder(allUsers,32bit)          = `"$tarRootDir32bit`". ";
+      OutProgress   "  PsModuleFolder(currentUser)             = `"$tarRootDirCurrUser`". ";
       OutProgress   "  ExecutionPolicy-PS7-------MachinePolicy = $(switch($ps7Exists){($true){& "$env:SystemDrive\Program Files\PowerShell\7\pwsh.EXE" -ExecutionPolicy Bypass -NoProfile -Command Get-Executionpolicy -Scope MachinePolicy}($false){"Is-not-installed"}}).";
       OutProgress   "  ExecutionPolicy-PS5-64bit-MachinePolicy = $(& "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"                  -ExecutionPolicy Bypass -NoProfile -Command Get-Executionpolicy -Scope MachinePolicy).";
       OutProgress   "  ExecutionPolicy-PS5-32bit-MachinePolicy = $(& "$env:SystemRoot\SysWOW64\WindowsPowerShell\v1.0\powershell.exe"                  -ExecutionPolicy Bypass -NoProfile -Command Get-Executionpolicy -Scope MachinePolicy).";
@@ -365,7 +368,7 @@ function Menu(){
     OutProgress     "E = Uninstall from current user (standard and developer mode). ";
     OutProgress     "N = Uninstall all modes. ";
     if( (OsIsWindows) ){
-      OutProgress     "U = When installed in standard mode do update from web. "; # in future do download and also switch to standard mode.
+      OutProgress     "U = When installed in global standard mode do update from web. "; # in future do download and also switch to standard mode.
       OutProgress     "W = Add Ps5WinModDir and Ps5ModuleDir to system PsModulePath environment variable. ";
       OutProgress     "B = Elevate and Configure Execution Policy to Bypass       for environment ps7, ps5-64bit and ps5-32bit and LocalMach and CurrUser. ";
       OutProgress     "R = Elevate and Configure Execution Policy to RemoteSigned for environment ps7, ps5-64bit and ps5-32bit and LocalMach and CurrUser. ";
