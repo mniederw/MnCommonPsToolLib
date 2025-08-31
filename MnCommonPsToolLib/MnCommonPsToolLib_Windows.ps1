@@ -124,7 +124,7 @@ function OsWinCreateUser                      ( [String] $us, [String] $pw, [Str
                                                   # Example: "SeDenyInteractiveLogonRight = u0,Gast"
                                                   [String[]] $currentDeniedUsers = StringSplitToArray "," ((FileReadContentAsLines $tmp "Default" | Select-String -Pattern "SeDenyInteractiveLogonRight").Line).Replace("SeDenyInteractiveLogonRight = ","");
                                                     # TODO: try to replace Default by UTF8.
-                                                  if( -not (StringArrayContains $currentDeniedUsers $us) ){
+                                                  if( -not (StringExistsInStringArray $us $currentDeniedUsers) ){
                                                     [String] $tmp2 = (FileGetTempFile);
                                                     [String] $content = "[Unicode]`r`nUnicode=yes`r`n[Privilege Rights]`r`nSeDenyInteractiveLogonRight = $us,$($currentDeniedUsers -join ',')`r`n";
                                                     FileWriteFromString $tmp2 $content $true "Default"; # TODO: try to replace Default by UTF8.
@@ -2942,6 +2942,7 @@ function ToolWingetInstallPackage             ( [String] $idAndOptionalBlankSepV
                                                   OutProgress "rc=$rc; Program is not up-to-date. Retry=$canRetry; " 2;
                                                   if( $canRetry ){
                                                     if( $id -eq "Microsoft.OpenJDK.21" ){ ProcessSleepSec 30; } # 2025-06: With "Microsoft.OpenJDK.21 21.0.7.6" we got problem as cannot uninstall because already uninstalled, so we wait now 30 sec.
+                                                    if( $id -eq "Discord.Discord"      ){ ProcessSleepSec 20; } # 2025-08: version 1.0.9205: we got problem as cannot uninstall because Installation fehlgeschlagen mit Exitcode: 3221225477. rc=-1978335226; so we wait now 20 sec.
                                                     ToolWingetUninstallPackage $idAndOptionalBlankSepVersion $source $scope;
                                                     if( $id -eq "Microsoft.OpenJDK.21" ){ ProcessSleepSec 30; } # see wait before uninstall
                                                     ToolWingetInstallPackage   $idAndOptionalBlankSepVersion $source $false $scope;
