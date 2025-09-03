@@ -659,24 +659,30 @@ function RegistryKeySetAclRule                ( [String] $key, [System.Security.
                                                   $k.Close(); $hk.Close();
                                                 }catch{ throw [Exception] "$traceInfo failed because $($_.Exception.Message)"; } }
 function ServiceListRunnings                  (){
-                                                return [String[]] (@()+(Get-Service -ErrorAction SilentlyContinue * |
+                                                function GetServiceNoThrow (){
+                                                  try{
+                                                    return (Get-Service -ErrorAction SilentlyContinue *);
+                                                  }catch{
+                                                    # Unbelievable but even with the ErrorAction set we got the following exception (later sometimes it went ok):
+                                                    # 2024-06-25,2025-09-03 On mach=mus*** Win32Exception: The resource loader failed to find MUI file.
+                                                    #   StackTrace: at System.ServiceProcess.ServiceController.get_StartType()
+                                                    #               at Microsoft.PowerShell.Commands.GetServiceCommand.AddProperties(ServiceController service)
+                                                    #               at Microsoft.PowerShell.Commands.GetServiceCommand.ProcessRecord()
+                                                    #               at System.Management.Automation.CommandProcessor.ProcessRecord()
+                                                    #   ScriptStackTrace: at ServiceListRunnings, C:\Program Files\WindowsPowerShell\Modules\MnCommonPsToolLib\MnCommonPsToolLib_Windows.ps1: line 462
+                                                    #   InvocationInfo: At C:\Program Files\WindowsPowerShell\Modules\MnCommonPsToolLib\MnCommonPsToolLib_Windows.ps1:462 char:73
+                                                    #       + … return [String[]] (@()+(Get-Service -ErrorAction SilentlyContinue * |
+                                                    OutVerbose "ServiceListRunnings called (Get-Service -ErrorAction SilentlyContinue *) and did throw: $($_.Exception.Message). Ignoring it. ";
+                                                    return [System.ServiceProcess.ServiceController[]]@();
+                                                  }
+                                                }
+                                                return [String[]] (@()+(GetServiceNoThrow | Where-Object{ $null -ne $_ } |
                                                   # 2023-03: for: get-service McpManagementService on we got the following error without any specific error:
                                                   #   "Get-Service: Service 'McpManagementService (McpManagementService)' cannot be queried due to the following error:"
                                                   #   In services.msc the description is "<Fehler beim Lesen der Beschreibung. Fehlercode: 15100 >".
                                                   # Since around 10 years thats the first error on this command, according googling it happens on Win10 and Win11,
                                                   # please Microsoft fix this asap.
                                                   # The workaround is to use (ErrorAction SilentlyContinue) what is a dirty solution.
-                                                  # unbelievable but even with the ErrorAction set we got the following exception (later it went ok):
-                                                  # 2024-06-25 On mach=mus*** Win32Exception: The resource loader failed to find MUI file.
-                                                  #   StackTrace: at System.ServiceProcess.ServiceController.get_StartType()
-                                                  #               at Microsoft.PowerShell.Commands.GetServiceCommand.AddProperties(ServiceController service)
-                                                  #               at Microsoft.PowerShell.Commands.GetServiceCommand.ProcessRecord()
-                                                  #               at System.Management.Automation.CommandProcessor.ProcessRecord()
-                                                  #   ScriptStackTrace:
-                                                  #     at ServiceListRunnings, C:\Program Files\WindowsPowerShell\Modules\MnCommonPsToolLib\MnCommonPsToolLib_Windows.ps1: line 462
-                                                  #   InvocationInfo:
-                                                  #     At C:\Program Files\WindowsPowerShell\Modules\MnCommonPsToolLib\MnCommonPsToolLib_Windows.ps1:462 char:73
-                                                  #       + … return [String[]] (@()+(Get-Service -ErrorAction SilentlyContinue * |
                                                   Where-Object{ $_.Status -eq "Running" } |
                                                   Sort-Object Name |
                                                   Format-Table -AutoSize -HideTableHeaders " ",Name,DisplayName |
@@ -727,8 +733,8 @@ function ServiceStop                          ( [String] $serviceName, [Boolean]
                                                 ProcessRestartInElevatedAdminMode;
                                                 try{ Stop-Service -Name $serviceName; } # Instead of check for stopped service we could also use -PassThru.
                                                 catch{
-                                                  # Example: ServiceCommandException: Service 'Check Point Endpoint Security VPN (TracSrvWrapper)' cannot be stopped
-                                                  #   due to the following error: Cannot stop TracSrvWrapper service on computer '.'.
+                                                  # Example:  ServiceCommandException: Service 'Check Point Endpoint Security VPN (TracSrvWrapper)' cannot be stopped due to the following error: Cannot stop 'TracSrvWrapper' service on computer '.'."
+                                                  # 2025-09-03/LN WARNING: Waiting for service 'Check Point Endpoint Security VPN (TracSrvWrapper)' to stop...
                                                   if( $ignoreIfFailed ){
                                                     if( -not $suppressWarningIfFailed ){ OutWarning "Warning: Stopping service failed, ignored: $($_.Exception.Message)"; }
                                                   }else{ throw; }
@@ -2688,18 +2694,24 @@ function ToolWinGetCleanLine                  ( [String] $s ){
                                                     $s -ne "Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction"                                     -and # for: winget list
                                                     $s -ne ("Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben " +
                                                             "an den Back-End-Dienst gesendet wird, damit er ordnungsgemäß funktioniert (z. B. `„US`“).")                   -and # for: winget list
-                                                    $s -ne "Paket-Deinstallation wird gestartet..."                                                                        -and # for: winget uninstall
                                                     $s -ne "Es wurde bereits ein vorhandenes Paket gefunden. Es wird versucht, das installierte Paket zu aktualisieren..." -and # for: winget install
                                                     $s -ne "In den konfigurierten Quellen sind keine neueren Paketversionen verfügbar."                                    -and # for: winget install
                                                     $s -ne "Diese Anwendung wird von ihrem Besitzer an Sie lizenziert."                                                    -and # for: winget install
                                                     $s -ne "Der Installer-Hash wurde erfolgreich überprüft"                                                                -and # for: winget install
                                                     $s -ne "Paketinstallation wird gestartet..."                                                                           -and # for: winget install
                                                     $s -ne "Microsoft ist nicht verantwortlich und erteilt keine Lizenzen für Pakete von Drittanbietern."                  -and # for: winget install
+                                                    $s -ne "Paket-Deinstallation wird gestartet..."                                                                        -and # for: winget uninstall
+                                                    $s -ne "The ``msstore`` source requires that you view the following agreements before using."                          -and # for: winget uninstall (2025-09: "MSIX\Microsoft.MicrosoftEdge.Stable_127.0.2651.74_neutral__8wekyb3d8bbwe")
+                                                    $s -ne ("The source requires the current machine's 2-letter geographic region to be sent to the backend " +
+                                                           "service to function properly (ex. `"US`").")                                                                   -and # for: winget uninstall (2025-09: "MSIX\Microsoft.MicrosoftEdge.Stable_127.0.2651.74_neutral__8wekyb3d8bbwe")
+                                                    $s -ne "Failed when searching source; results will not be included: msstore"                                           -and # for: winget uninstall (2025-09: "MSIX\Microsoft.MicrosoftEdge.Stable_127.0.2651.74_neutral__8wekyb3d8bbwe","ARP\Machine\X64\MozillaMaintenanceService")
                                                     $s -ne "Fehler beim Durchsuchen der Quelle. Ergebnisse werden nicht einbezogen: msstore"                                    # for: winget uninstall (2025-08: Edge)
                                                     ){}else{ $s = ""; }
                                                 $s = $s.Replace("Kein verfügbares Upgrade gefunden.","Is up to date.");                                                                   # for: winget install
                                                 $s = $s.Replace("Erfolgreich installiert","Successful installed.");                                                                       # for: winget install
                                                 $s = $s.Replace("Es wurde kein installiertes Paket gefunden, das den Eingabekriterien entspricht.","Already uninstalled, nothing done."); # for: winget uninstall
+                                                $s = $s.Replace("No installed package found matching input criteria.","Already uninstalled, nothing done.");                              # for: winget uninstall (2025-09: ...many...)
+                                                $s = $s.Replace("No version found matching: ","Nothing done, already uninstalled: ");                                                     # for: winget uninstall (2025-09)
                                                 $s = $s.Replace("Es wurde keine übereinstimmende Version gefunden: ","Already uninstalled, nothing done. Not found version: ");           # for: winget uninstall
                                                 $s = $s.Replace("Erfolgreich deinstalliert","Successful uninstalled.");                                                                   # for: winget uninstall
                                                 # 2025-01: Example of rest of output of updateAll:

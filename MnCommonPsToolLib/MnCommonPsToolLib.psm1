@@ -556,7 +556,7 @@ function OutStartTranscriptInTempDir          ( [String] $name = "MnCommonPsTool
                                                 [String] $f = FsEntryGetAbsolutePath "$env:TEMP/tmp/$name/$((DateTimeNowAsStringIso $pattern).Replace(" ","/")).$name.txt"; # works for windows and linux
                                                 Start-Transcript -Path $f -Append -IncludeInvocationHeader | Out-Null;
                                                 return [String] $f; }
-function OutStopTranscript                    (){ Stop-Transcript | Out-Null; } # Writes to output: Transcript stopped, output file is C:\Temp\....txt
+function OutStopTranscript                    (){ Stop-Transcript | Out-Null; } # Writes to output: Transcript stopped, output file is C:/Temp/....txt
 function StdInAssertAllowInteractions         (){ if( $global:ModeDisallowInteractions ){
                                                 throw [Exception] "Cannot read for input because all interactions are disallowed, either caller should make sure variable ModeDisallowInteractions is false or he should not call an input method."; } }
 function StdInReadLine                        ( [String] $line ){ OutProgressQuestion $line; StdInAssertAllowInteractions; return [String] (Read-Host); }
@@ -753,7 +753,7 @@ function OsPsModulePathList                   (){ # return content of $env:PSMod
                                                 return [String[]] (@()+(([Environment]::GetEnvironmentVariable("PSModulePath","Machine").
                                                   Split((OsPathSeparator),[System.StringSplitOptions]::RemoveEmptyEntries)) | Where-Object{$null -ne $_} |
                                                   ForEach-Object{ FsEntryMakeTrailingDirSep $_ })); }
-function OsPsModulePathContains               ( [String] $dir ){ # Example: "D:\MyGitRoot\MyGitAccount\MyPsLibRepoName"
+function OsPsModulePathContains               ( [String] $dir ){ # Example: "D:/MyGitRoot/MyGitAccount/MyPsLibRepoName/"
                                                 [String[]] $a = @()+(OsPsModulePathList);
                                                 return [Boolean] ($a -contains (FsEntryMakeTrailingDirSep $dir)); }
 function OsPsModulePathAdd                    ( [String] $dir ){ $dir = FsEntryMakeTrailingDirSep $dir; if( (OsPsModulePathContains $dir) ){ return; }
@@ -2492,7 +2492,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                 #                   Same as delete folder and clone, but faster.
                                                 # Target-Dir: see GitBuildLocalDirFromUrl.
                                                 # The urlAndOptionalBranch defines a repo url optionally with a sharp-char separated branch name (allowed chars: A-Z,a-z,0-9,.,_,-).
-                                                # If the branch name is specified with that form then it is also checked whether
+                                                # If the branch name is specified with that form then it is also asserted that it matches current branch.
                                                 # We assert that no AutoCrLf git attribute option is used.
                                                 # Pull-No-Rebase: We generally use no-rebase for pull because commit history should not be modified.
                                                 # Example: GitCmd Clone "C:\WorkGit" "https://github.com/mniederw/MnCommonPsToolLib"
