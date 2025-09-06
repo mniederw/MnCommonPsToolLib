@@ -2721,16 +2721,29 @@ function ToolWinGetCleanLine                  ( [String] $s ){
                                                 #   Download läuft https://...urlToExecutable...
                                                 #   Successful installed.
                                                 # 2025-02: Example of rest of output of install which fails:
-                                                #   Sie haben die Installation abgebrochen.
-                                                #   Installation fehlgeschlagen mit Exitcode: 1602
+                                                #   Sie haben die Installation abgebrochen. \n Installation fehlgeschlagen mit Exitcode: 1602
                                                 #   Das Installationsprotokoll ist verfügbar unter: C:\Users\myuser\AppData\Local\Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\LocalState\DiagOutputDir\WinGet-Microsoft.PowerShell.7.5.0.0-2025-02-09-12-02-09.818.log
                                                 # 2025-02: Example of rest of output of install which fails ("Blizzard.BattleNet"):
-                                                #   Für dieses Paket ist ein Installationsspeicherort erforderlich
-                                                #   Der Installationsspeicherort ist für das Paket erforderlich, wurde jedoch nicht angegeben.
+                                                #   Für dieses Paket ist ein Installationsspeicherort erforderlich \n Der Installationsspeicherort ist für das Paket erforderlich, wurde jedoch nicht angegeben.
                                                 # 2025-06: Example of rest of output of uninstall:
-                                                #   Uninstall-Package(source=winget,scope=User): "...packagename..."
-                                                #   Already uninstalled, nothing done.
+                                                #   Uninstall-Package(source=winget,scope=User): "...packagename..." \n Already uninstalled, nothing done.
+                                                # 2025-09: Example of rest of output of install which fails ("Oracle.VirtualBox"): Note: using uninstall and install solves the problem.
+                                                #   Die Installationstechnologie der angegebenen neueren Version unterscheidet sich von der aktuell installierten Version. Deinstallieren Sie das Paket, und installieren Sie die neuere Version.
+                                                # 2025-09: Example for "Microsoft.Powershell"
+                                                #   Found an existing package already installed. Trying to upgrade the installed package... \n The install technology of the newer version specified is different from the current version installed. Please uninstall the package and install the newer version.
+                                                # 2025-09: Example for "Google.Chrome", we can get:
+                                                #   Installer hash does not match; this cannot be overridden when running as admin \n rc=-1978335215; Program is not up-to-date. Retry=False;
+                                                # 2025-09: Example for "Microsoft.OpenJDK.17" 17.0.15.6"
+                                                #   Found an existing package already installed. Trying to upgrade the installed package... \n No applicable installer found; see logs for more details. \n rc=-1978335216; Program is not up-to-date. Retry=True;
+                                                # 2025-09: Example for "IrfanSkiljan.IrfanView.PlugIns"
+                                                #   No applicable installer found; see logs for more details. \n rc=-1978335216; Program is not up-to-date. Retry=False;
+                                                # 2025-09: Example for "Microsoft.DotNet.Framework.DeveloperPack_4" or "Microsoft.Teams"
+                                                #   Found an existing package already installed. Trying to upgrade the installed package... \n No available upgrade found. \n No newer package versions are available from the configured sources.
                                                 return [String] $s;
+                                                }
+function ToolWinGetOutputIndicatesReinstall   ( [String[]] $s ){
+                                                $s = "$s".Trim();
+                                                return [Boolean] ($s -contains "Die Installationstechnologie der angegebenen neueren Version unterscheidet sich von der aktuell installierten Version. Deinstallieren Sie das Paket, und installieren Sie die neuere Version.");
                                                 }
 function ToolWinGetSetup                      (){ # install and update winget; update sources; if elevated it works for all users otherwise for current user; requires minimum: Windows 10 1709 (build 16299) 
                                                 function WingetVersion(){
@@ -2894,9 +2907,10 @@ function ToolWingetUpdateInstalledPackages    ( [String] $scope = "Auto" ){
                                                 # Ignores errors. If not elevated then it will ask multiple for it.
                                                 # Scope is one of: "User","Machine","Auto"(depends on elevated admin mode).
                                                 [String] $instScope = $scope; if( $scope -eq "Auto" ){ $instScope = switch(ProcessIsRunningInElevatedAdminMode){($true){"Machine"}($false){"User"}}; }
-                                                OutProgress "Upgrade all packages of winget:  winget upgrade --scope $instScope --include-unknown --disable-interactivity --accept-source-agreements --all ";
-                                                & WinGet upgrade --scope $instScope --include-unknown --disable-interactivity --accept-source-agreements --all *>&1 | # can ask multiple for elevated mode; alternative: --skip-dependencies
+                                                OutProgress "Upgrade all packages of winget:  winget upgrade --silent --scope $instScope --include-unknown --disable-interactivity --accept-source-agreements --all ";
+                                                                                            & WinGet upgrade --silent --scope $instScope --include-unknown --disable-interactivity --accept-source-agreements --all *>&1 |
                                                   ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" } | ForEach-Object{ OutProgress $_ 2; };
+                                                  # Note: It can ask multiple for elevated mode; alternative: --skip-dependencies
                                                   # Example: Die Anwendung wird zurzeit ausgeführt. Beenden Sie die Anwendung, und versuchen Sie es noch mal.
                                                   #          Installation fehlgeschlagen mit Exitcode: 5
                                                   #          Mindestens 5 Paket verfügt über Versionsnummern, die nicht ermittelt werden können. Verwenden Sie „--include-unknown“, um alle Ergebnisse anzuzeigen.
@@ -2916,7 +2930,7 @@ function ToolWingetUninstallPackage           ( [String] $idAndOptionalBlankSepV
                                                 [String] $pckVersion = switch($a.Count -le 1){($true){""}($false){$a[1]}};
                                                 if( $a.Count -gt 2 ){ throw [Exception] "ToolWingetInstallPackage(id=`"$id`") unknown third blanks separated part: `"$a[2]`""; }
                                                 OutProgress "UnInstall-Package(source=$source,scope=$instScope): `"$id`" $pckVersion ";
-                                                [String[]] $arguments = @( "uninstall", "--verbose", "--disable-interactivity", "--accept-source-agreements", "--scope", $instScope, "--source", $source, "--id", $id, "--version", $pckVersion );
+                                                [String[]] $arguments = @( "uninstall", "--silent", "--verbose", "--disable-interactivity", "--accept-source-agreements", "--scope", $instScope, "--source", $source, "--id", $id, "--version", $pckVersion );
                                                 if( $force ){ $arguments += @( "--force" ); }
                                                 # We support force because for example :
                                                 #   UnInstall-Package(source=winget,scope=Machine): "Microsoft.NuGet" 6.13.2.1   Gefunden NuGet CLI [Microsoft.NuGet]
@@ -2932,6 +2946,7 @@ function ToolWingetInstallPackage             ( [String] $idAndOptionalBlankSepV
                                                 # Call the tool "winget" to intall from a given source. Ignores errors.
                                                 # Id can be specifed by optional blanks separated version.
                                                 # Scope is one of: "User","Machine","Auto"(depends on elevated admin mode).
+                                                # If we get a message that install fails because install-technology changed then immediate an uninstall and install will be done.
                                                 # If canRetry and install-result is not up-to-date then it tries an uninstall and again an install.
                                                 [String] $instScope = $scope; if( $scope -eq "Auto" ){ $instScope = switch(ProcessIsRunningInElevatedAdminMode){($true){"Machine"}($false){"User"}}; }
                                                 [String[]] $a = ($idAndOptionalBlankSepVersion.Trim() -split "\s+");
@@ -2944,12 +2959,19 @@ function ToolWingetInstallPackage             ( [String] $idAndOptionalBlankSepV
                                                 #   Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction
                                                 #   Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben an den Back-End-Dienst gesendet wird, damit er ordnungsgemäß funktioniert (z. B. „US“).
                                                 #   Mindestens einer der Quellvereinbarungen wurde nicht zugestimmt. Vorgang abgebrochen. Akzeptieren Sie bitte die Quellvereinbarungen, oder entfernen Sie die entsprechenden Quellen.
-                                                [String[]] $arguments = @( "install", "--verbose", "--disable-interactivity", "--accept-source-agreements", "--scope", $instScope, "--source", $source, "--id", $id, "--version", $pckVersion );
+                                                [String[]] $arguments = @( "install", "--silent", "--verbose", "--disable-interactivity", "--accept-source-agreements", "--scope", $instScope, "--source", $source, "--id", $id, "--version", $pckVersion );
+                                                  # silent: Does not show UI's of installers.
                                                 OutProgress "  & WinGet $(StringArrayDblQuoteItems $arguments) ";
-                                                [String[]] $out = & WinGet $arguments *>&1 | # alternatives: --all-versions
-                                                  ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" };
+                                                [String[]] $out = & WinGet $arguments *>&1 | ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" };
                                                 [Int32] $rc = ScriptGetAndClearLastRc; # Example: OperationStopped: Last operation failed [ExitCode=-1978335189]. For the reason see the previous output. Is up to date.
                                                 $out | ForEach-Object{ OutProgress $_ 2; };
+                                                if( (ToolWinGetOutputIndicatesReinstall $out) ){
+                                                  OutProgress "Output message indicated that install-technology changed and so immediate perform an uninstall and install again. ";
+                                                  ToolWingetUninstallPackage $idAndOptionalBlankSepVersion $source $scope;
+                                                  OutProgress "  & WinGet $(StringArrayDblQuoteItems $arguments) ";
+                                                  $out = & WinGet $arguments *>&1 | ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" };
+                                                }
+                                                $rc = ScriptGetAndClearLastRc;
                                                 if( $rc -ne -1978335189 -and $rc -ne 0 ){ # Is up to date.
                                                   OutProgress "rc=$rc; Program is not up-to-date. Retry=$canRetry; " 2;
                                                   if( $canRetry ){
