@@ -28,6 +28,10 @@ on:
     - cron:  '01 00 * * 0'  # 00:01UTC each sunday with main  branch
     - cron:  '34 15 * * 4'  # 00:11UTC each sunday with trunk branch
 
+concurrency: # Dedupe, avoid push and PR runs for the same commit, default is serializing the ones with same group value
+  group: ${{github.workflow}}-${{ github.event.pull_request.head.sha || github.sha }} # identify same commit-id (for PRs it often points to synthetic merge commit)
+  cancel-in-progress: true  # cancel the previous older one
+
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
 
