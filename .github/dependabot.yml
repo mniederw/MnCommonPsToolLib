@@ -2,12 +2,14 @@
 # package ecosystems to update and where the package manifests are located.
 # Please see the documentation for all configuration options:
 # https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+# Important: in repository:  settings -> Code security -> Dependabot -> Dependabot on self-hosted runners -> Disable.
 
 version: 2
 updates:
-  - package-ecosystem: "github-actions" # See documentation for possible values: 2025-09: npm, bundler, composer, 
-                                        #   devcontainers, dotnet-sdk, maven, mix, cargo, gradle, nuget, gomod, 
+  - package-ecosystem: "github-actions" # See documentation for possible values: 2025-09: npm (inspects package.json), bundler, 
+                                        #   composer, devcontainers, dotnet-sdk, maven, mix, cargo, gradle, nuget, gomod, 
                                         #   docker, elm, gitsubmodule, github-actions, pip, terraform, pub, swift.
-    directory: "/" # Location of package manifests
-    schedule:
-      interval: "weekly"
+                                        #   For each one use a separate package-ecosystem part.
+    directory: "/"                      # Location of package manifests
+    schedule:                           # Started by pushes or PRs, but also scheduled.
+      interval: "weekly"                # one of: daily, weekly or monthly.

@@ -1,5 +1,4 @@
 ﻿name: PowershellModuleTest
-run-name: "PowershellModuleTest on 3 platforms and create pull request to main"
 
 # Triggers the workflow on push or pull request events but only for the given branches and ignore changes of some file types.
 on:
@@ -31,6 +30,8 @@ on:
 concurrency: # Dedupe, avoid push and PR runs for the same commit, default is serializing the ones with same group value
   group: ${{github.workflow}}-${{ github.event.pull_request.head.sha || github.sha }} # identify same commit-id (for PRs it often points to synthetic merge commit)
   cancel-in-progress: true  # cancel the previous older one
+
+run-name: "PowershellModuleTest on 3 platforms - ${{ github.event_name == 'pull_request' && 'Validate' || 'Verify' }} br=${{ github.event_name == 'pull_request' && github.base_ref || github.ref_name }} ${{ github.event_name != 'pull_request' && github.ref_name != 'main' && 'and Create-PR-to-main' || '' }}"
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -106,14 +107,15 @@ jobs:
       - name: Show environment variables of bash
         shell: bash
         run: |
-          echo "Running on OS=${{runner.os}}; $(which pwsh); $(pwsh --version)"; # example: "Linux; /usr/bin/pwsh; Powershell V7.2.9"
-          echo "RepoRef     = ${{github.ref}};"        # example: "refs/heads/trunk"
-          echo "Repo        = ${{github.repository}};" # example: "mniederw/MnCommonPsToolLib"
-          echo "Actor       = ${{github.actor}};"      # example: "mniederw"
-          echo "EventName   = ${{github.event_name}};" # example: "schedule", "push", "workflow_dispatch"
-          echo "ActionUrl   = https://github.com/${{github.repository}}/actions/runs/${{github.run_id}};" # example: "https://github.com/mniederw/MnCommonPsToolLib/actions/runs/4272755554"
-          echo "Action      = ${{github.workflow}} #${{github.run_number}};" # example: "PowershellModuleTest #570"
-          echo "WorkflowRef = ${{github.workflow_ref}};" # example: "mniederw/MnCommonPsToolLib/.github/workflows/PowershellModuleTest.yml@refs/heads/main"
+          echo "Running on OS=${{runner.os}}; $(which pwsh); $(pwsh --version)"; # Example: "Linux; /usr/bin/pwsh; Powershell V7.2.9"
+          echo "RepoUrl    = "${{github.server_url}}/${{github.repository}}"     # Example: "https://github.com/mniederw/MnCommonPsToolLib/"
+          echo "RepoRef     = ${{github.ref}}"                                   # Example: "refs/heads/trunk"
+          echo "Repo        = ${{github.repository}}"                            # Example: "mniederw/MnCommonPsToolLib"
+          echo "Actor       = ${{github.actor}}"                                 # Example: "mniederw"
+          echo "EventName   = ${{github.event_name}}"                            # Example: "schedule", "push", "workflow_dispatch"
+          echo "Action      = ${{github.workflow}} #${{github.run_number}}"      # Example: "PowershellModuleTest #570"
+          echo "WorkflowRef = ${{github.workflow_ref}}"                          # Example: "mniederw/MnCommonPsToolLib/.github/workflows/PowershellModuleTest.yml@refs/heads/main"
+          echo "ActionUrl   = https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}" # Example: "https://github.com/mniederw/MnCommonPsToolLib/actions/runs/4272755554"
           echo "List all environment variables in bash"; printenv;
           echo "List pnpm version: $((pnpm --version) || true)";
           echo "List npm version: $((npm --version) || true)";
