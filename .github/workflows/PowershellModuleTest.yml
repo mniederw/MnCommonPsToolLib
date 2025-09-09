@@ -31,7 +31,7 @@ concurrency: # Dedupe, avoid push and PR runs for the same commit, default is se
   group: ${{github.workflow}}-${{ github.event.pull_request.head.sha || github.sha }} # identify same commit-id (for PRs it often points to synthetic merge commit)
   cancel-in-progress: true  # cancel the previous older one
 
-run-name: "PowershellModuleTest on 3 platforms - ${{ github.event_name == 'pull_request' && 'Validate' || 'Verify' }} br=${{ github.event_name == 'pull_request' && github.base_ref || github.ref_name }} ${{ github.event_name != 'pull_request' && github.ref_name != 'main' && 'and Create-PR-to-main' || '' }}"
+run-name: "PowershellModuleTest on 3 platforms - ${{ github.event_name == 'pull_request' && 'ValidateTo' || 'Verify' }} ${{ github.event_name == 'pull_request' && github.base_ref || github.ref_name }} ${{ github.event_name != 'pull_request' && github.ref_name != 'main' && 'and Create-PR-to main' || '' }}"
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
