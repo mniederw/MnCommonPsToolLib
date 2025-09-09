@@ -3,6 +3,8 @@
 
 Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 
+function IsProbablyRunningOnGitHubActions { return [Boolean] ("$env:GITHUB_ACTIONS" -eq "true"); }
+
 function ExampleUseAssertions{
   OutProgressTitle "$($MyInvocation.MyCommand)";
   Assert ((2 + 3) -eq 5);
@@ -22,6 +24,9 @@ function ExampleUseFsEntries(){
   OutProgressTitle "$($MyInvocation.MyCommand)";
   OutProgress "Current dir is: $(FsEntryGetAbsolutePath '.')";
   [String] $d = "$HOME/Documents";
+  if( (OsIsMacOS) -and (IsProbablyRunningOnGithubActions) ){
+    OutWarning "Since V7.107 it seams FsEntryListAsStringArray is looping endless on MacOS on GithubActions, so we discard it. "; return;
+  }
   [String[]] $a = @()+(FsEntryListAsStringArray $d $true $false $true | Where-Object{$null -ne $_});
   OutProgress "The folder '$d' contains $($a.Count) number of files";
   [String[]] $a2 = @()+($a | Select-Object -First 2);

@@ -34,7 +34,7 @@
   }
   HelpInfoURI            = 'https://github.com/mniederw/MnCommonPsToolLib/Readme.txt';
 
-  ModuleVersion          = '7.107';
+  ModuleVersion          = '7.108';
 
   <#
   Releasenotes
@@ -44,6 +44,7 @@
   Breaking changes are usually removed deprecated functions or changed behaviours.
 
 
+  2025-09-06  V7.108 Improve ToolWingetInstallPackage. Deduplicate gh action for same commit id.
   2025-09-03  V7.107 Extend ServiceListRunnings, ToolWinGetCleanLine.
   2025-09-01  V7.106 Extend Install for local-std-mode.
   2025-08-31  V7.105 Improve NetRequestStatusCode.

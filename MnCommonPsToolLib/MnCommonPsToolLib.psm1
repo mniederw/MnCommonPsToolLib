@@ -3067,7 +3067,7 @@ function ToolAddToProfileIfFullPathNotEmpty   ( [String] $profileFullPath = "", 
                                                 ToolAddLineToConfigFile $profileFullPath "`$Global:OutputEncoding = [Console]::OutputEncoding = [Console]::InputEncoding = [Text.UTF8Encoding]::UTF8;                # AUTOCREATED LINE BY $autoCreatedBy, set pipelining to utf8.";
                                                 ToolAddLineToConfigFile $profileFullPath  "[System.Threading.Thread]::CurrentThread.CurrentUICulture = [System.Globalization.CultureInfo]::GetCultureInfo('en-US');  # AUTOCREATED LINE BY $autoCreatedBy, create english error messages.";
                                                 ToolAddLineToConfigFile $profileFullPath  "Remove-Item -Force Alias:curl -ErrorAction SilentlyContinue; Remove-Item -Force Alias:wget -ErrorAction SilentlyContinue; # AUTOCREATED LINE BY $autoCreatedBy, remove at least aliases: curl, wget.";
-                                                ToolAddLineToConfigFile $profileFullPath  "if((OsIsWindows)){Set-PSReadLineKeyHandler -Key Ctrl+V -Function Paste;Set-PSReadLineOption -AddToHistoryHandler{param([string]`$l);`$l -replace '``n','``r``n';};} # AUTOCREATED LINE BY $autoCreatedBy, fix end-of-lines on paste to terminal.";
+                                                ToolAddLineToConfigFile $profileFullPath  "if(([System.Environment]::OSVersion.Platform -eq 'Win32NT')){Set-PSReadLineKeyHandler -Key Ctrl+V -Function Paste;Set-PSReadLineOption -AddToHistoryHandler{param([string]`$l);`$l -replace '``n','``r``n';};} # AUTOCREATED LINE BY $autoCreatedBy, fix end-of-lines on paste to terminal.";
                                                 ToolAddLineToConfigFile $profileFullPath  "# Disabled-because-requires-4sec-which-is-too-long-for-each-session: ProcessRemoveAllAlias @(`"cd`",`"cat`",`"clear`",`"echo`",`"dir`",`"cp`",`"mv`",`"popd`",`"pushd`",`"rm`",`"rmdir`"); # AUTOCREATED LINE BY $autoCreatedBy, remove: curl, wget, diff, ..."; }
 function ToolGithubApiAssertValidRepoUrl      ( [String] $repoUrl ){
                                                 # Example repoUrl="https://github.com/mniederw/MnCommonPsToolLib/"
@@ -3154,7 +3154,7 @@ function ToolGithubApiDownloadLatestReleaseDir( [String] $repoUrl ){
                                                 DirDelete $dir0;
                                                 return [String] $tarDir; }
 function ToolNpmFilterIgnorableInstallMessages( [String[]] $out ){
-                                                # Process the output of a call as: npm --no-update-notifier --global --no-fund install ... ;
+                                                # Process the output of a call as: npm --no-update-notifier --no-fund --global install ... ;
                                                 # and return the string without the filtered known lines.
                                                 # Example: "added 4 packages in 2s";
                                                 # Example: "changed 108 packages in 9s";
