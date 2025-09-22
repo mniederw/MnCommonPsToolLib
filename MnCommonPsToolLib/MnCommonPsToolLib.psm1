@@ -726,7 +726,7 @@ function StreamToFile                         ( [String] $file, [Boolean] $overw
                                                 OutProgress "WriteFile `"$file`""; FsEntryCreateParentDir $file;
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8" ){ throw [Exception] "StreamToFile with UTF8 (NO-BOM) on PS5.1 or lower is not yet implemented."; } # TODO
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
-                                                $input | Out-File -Force -NoClobber:$(-not $overwrite) -Encoding $encoding -LiteralPath $file; }
+                                                $input | Out-File -Force -NoClobber:$(-not $overwrite) -Encoding $encoding -LiteralPath $file; } # Appends on each line an OS dependent nl.
 function OsPsVersion                          (){ return [String] (""+$Host.Version.Major+"."+$Host.Version.Minor); } # alternative: $PSVersionTable.PSVersion.Major
 function OsIsWindows                          (){ return [Boolean] ([System.Environment]::OSVersion.Platform -eq "Win32NT"); }
                                                 # Example: Win10Pro: Version="10.0.19044.0"
@@ -852,7 +852,7 @@ function ProcessKill                          ( [String] $processName ){ # kill 
                                                 [System.Diagnostics.Process[]] $p = Get-Process $processName.Replace(".exe","") -ErrorAction SilentlyContinue;
                                                 if( $null -ne $p ){ OutProgress "ProcessKill $processName"; $p.Kill(); } }
 function ProcessSleepSec                      ( [Int32] $sec ){ Start-Sleep -Seconds $sec; }
-function ProcessStart                         ( [String] $cmd, [String[]] $cmdArgs = @(), [Boolean] $careStdErrAsOut = $false, [Boolean] $traceCmd = $false, [Int64] $timeoutInSec = [Int64]::MaxValue ){
+function ProcessStart                         ( [String] $cmd, [String[]] $cmdArgs = @(), [Boolean] $careStdErrAsOut = $false, [Boolean] $traceCmd = $false, [Int64] $timeoutInSec = [Int64]::MaxValue, [ref] [String] $errorOutInsteadOfThrow ){
                                                 # Start any gui or console command including ps scripts in path and provide arguments in an array, waits for output
                                                 # and returns output as a single string. You can use StringSplitIntoLines on output to get it as lines.
                                                 # Console input is disabled.
@@ -870,6 +870,8 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 # If exitCode is 0 and stderr is still not empty then the pseudo exitcode=10 is forced.
                                                 # It exitCode is not 0 then: if ErrorActionPreference is Continue then it appends stderr to stdout 
                                                 #   otherwise it throws the error and the message is preceeded by the stdout which could be huge.
+                                                # If optional errorOutInsteadOfThrow is specified then it gives out the error message as out variable instead it throws it.
+                                                # Note: errorOutInsteadOfThrow can only be specified as positional argument and not by non-positional-option argument.
                                                 # It returns stdout as a single string.
                                                 # Important Note: The original Process.Start(ProcessStartInfo) cannot run a ps1 file
                                                 #   even if $env:PATHEXT contains the PS1 because it does not precede it with (powershell.exe -File) or (pwsh -File).
@@ -992,8 +994,13 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 if( $exitCode -eq 0 -and $err -ne "" -and $careStdErrAsOut ){ $out += ([Environment]::NewLine + $err).Trim(); $err = ""; }
                                                 if( $exitCode -eq 0 -and $err -ne "" ){ $exitCode = 10; }
                                                 if( $exitCode -ne 0 ){
-                                                  $out += [Environment]::NewLine + "ProcessStart$(if($careStdErrAsOut){'-careStdErrAsOut'}else{''})($traceInfo) failed with rc=$exitCode$(if($err -eq ''){''}else{' because '+$err}).";
-                                                  if( $ErrorActionPreference -ne "Continue" ){ throw [Exception] $out; }
+                                                  $err = "ProcessStart$(if($careStdErrAsOut){'-careStdErrAsOut'}else{''})($traceInfo) failed with rc=$exitCode$(if($err -eq ''){''}else{' because '+$err}).";
+                                                  if( $null -ne $errorOutInsteadOfThrow ){ # alternative: $PSBoundParameters.ContainsKey('errorOutInsteadOfThrow')
+                                                    $errorOutInsteadOfThrow.Value = $err;
+                                                  }else{
+                                                    $out += [Environment]::NewLine + $err;
+                                                    if( $ErrorActionPreference -ne "Continue" ){ throw [Exception] $out; }
+                                                  }
                                                 }
                                                 return [String] $out; }
 function ProcessStartByArray                  ( [String[]] $cmdAndArgs, [Boolean] $careStdErrAsOut = $false, [Boolean] $traceCmd = $false ){
@@ -1616,7 +1623,7 @@ function FileWriteFromLines                   ( [String] $file, [String[]] $line
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8" ){ throw [Exception] "FileWriteFromLines with UTF8 (NO-BOM) on PS5.1 or lower is not yet implemented."; } # TODO
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
                                                 FsEntryCreateParentDir $file;
-                                                $lines | Out-File -Force -NoClobber:$(-not $overwrite) -Encoding $encoding -LiteralPath $file; }
+                                                $lines | Out-File -Force -NoClobber:$(-not $overwrite) -Encoding $encoding -LiteralPath $file; } # Appends on each line an OS dependent nl.
 function FileCreateEmpty                      ( [String] $file, [Boolean] $overwrite = $false, [Boolean] $quiet = $false, [String] $encoding = "UTF8BOM" ){ FileWriteFromString $file "" $overwrite $encoding $quiet; }
 function FileAppendLineWithTs                 ( [String] $file, [String] $line ){ FileAppendLine $file $line $true; }
 function FileAppendLine                       ( [String] $file, [String] $line, [Boolean] $tsPrefix = $false, [String] $encoding = "UTF8BOM" ){
@@ -1624,12 +1631,12 @@ function FileAppendLine                       ( [String] $file, [String] $line, 
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
                                                 FsEntryCreateParentDir $file;
                                                 [String] $line2 = $(switch($tsPrefix){($true){"$(DateTimeNowAsStringIso) "}default{""}})+$line;
-                                                Out-File -Encoding $encoding -Append -LiteralPath $file -InputObject $line2; } # Appends a nl.
+                                                Out-File -Encoding $encoding -Append -LiteralPath $file -InputObject $line2; } # Appends on each line an OS dependent nl.
 function FileAppendLines                      ( [String] $file, [String[]] $lines, [String] $encoding = "UTF8BOM" ){ # Appends to each line a nl.
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8" ){ throw [Exception] "FileWriteFromLines with UTF8 (NO-BOM) on PS5.1 or lower is not yet implemented."; } # TODO
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
                                                 FsEntryCreateParentDir $file;
-                                                $lines | Out-File -Encoding $encoding -Append -LiteralPath $file; }
+                                                $lines | Out-File -Encoding $encoding -Append -LiteralPath $file; } # Appends on each line an OS dependent nl.
 function FileGetTempFile                      (){ return [String] [System.IO.Path]::GetTempFileName(); } # Example on linux: "/tmp/tmpFN3Gnz.tmp"; on windows: C:\Windows\Temp\tmpE3B6.tmp
 function FileDelTempFile                      ( [String] $file ){ FileDelete $file -traceCmd:$false; } # As FileDelete but no progress msg.
 function FileReadEncoding                     ( [String] $file ){

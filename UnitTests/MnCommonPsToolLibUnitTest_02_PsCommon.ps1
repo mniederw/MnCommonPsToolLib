@@ -84,6 +84,26 @@ function UnitTest_PsCommon(){
     Pop-Location;
   }
   #
+  # using ref param
+  function TestUsingRefParam{
+    function f ( [String] $key = "abc", [ref] [String] $s ){ if( $null -ne $s ){ $s.Value = "hello"; return "SET-S"; }else{ return "NO-REF-PAR"; } }
+    [String] $str = "";
+    [String] $out = "";
+    $out = f;                         Assert ($out -eq "NO-REF-PAR");
+    $out = f "dummy";                 Assert ($out -eq "NO-REF-PAR");
+    $out = f -key "dummy";            Assert ($out -eq "NO-REF-PAR");
+    $out = f             ([ref]$str); Assert ($out -eq "NO-REF-PAR");
+    $out = f "dummy"     ([ref]$str); Assert ($out -eq "SET-S");
+    [Boolean] $doThrow = $false;
+    try{
+      $out = f -s ([ref]$str); # expect throw
+    }catch{ # Example: "f: Cannot process argument transformation on parameter 's'. Reference type is expected in argument."
+      $doThrow = $true;
+    }
+    Assert $doThrow;
+  }
+  TestUsingRefParam;
+  #
   # OutProgress "Test when ignoring traps";
   # for later:
   # trap [Exception] { OutVerbose "Ignored trap: $_"; continue; } # temporary ignore
