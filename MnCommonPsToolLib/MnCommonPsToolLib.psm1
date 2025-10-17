@@ -709,13 +709,14 @@ function StreamFromCsvStrings                 ( [Char] $delimiter = ',' ){ $inpu
 function StreamToCsvFile                      ( [String] $file, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM", [Boolean] $forceLf = $false ){
                                                 # Option forceLf: Writes LF and not CRLF.
                                                 # If overwrite is false then nothing done if target already exists.
+                                                [String] $encodingSave = $encoding;
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8" ){ throw [Exception] "StreamToCsvFile with UTF8 (NO-BOM) on PS5.1 or lower is not yet implemented."; } # TODO
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
                                                 [String] $tmp = (FileGetTempFile);
                                                 OutProgress "Write csv to `"$file`"";
                                                 $input | Export-Csv -Force:$true -NoClobber:$false -NoTypeInformation -Delimiter ',' -Encoding $encoding -Path $tmp;
                                                 [String] $sep = [Environment]::NewLine; if( $forceLf ){ $sep = "`n"; }
-                                                ToolFileNormalizeNewline $tmp $file $overwrite $encoding $sep -quiet:$true; }
+                                                ToolFileNormalizeNewline $tmp $file $overwrite $encodingSave $sep -quiet:$true; }
 function StreamToXmlFile                      ( [String] $file, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM" ){
                                                 # If overwrite is false then nothing done if target already exists.
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8" ){ throw [Exception] "StreamToXmlFile with UTF8 (NO-BOM) on PS5.1 or lower is not yet implemented."; } # TODO
