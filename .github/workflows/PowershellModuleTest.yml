@@ -145,7 +145,7 @@ jobs:
 
       - name: If tests on trunk of a push or workflow_dispatch was successful then create pull request to main
         if: ${{ success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/trunk' && runner.os == 'Linux' }}
-        uses: repo-sync/pull-request@v2.12.1
+        uses: repo-sync/pull-request@7e79a9f5dc3ad0ce53138f01df2fad14a04831c5  # v2.12.1 2023-01 https://github.com/repo-sync/pull-request/releases
           # for parameters see: https://github.com/repo-sync/pull-request
           # works only on linux, see releases for updating version from time to time (2023-01: v2.12.1; 2024-02: no newer;)
         with:
