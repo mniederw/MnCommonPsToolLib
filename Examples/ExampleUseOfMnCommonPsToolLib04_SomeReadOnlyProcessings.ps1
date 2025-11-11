@@ -71,14 +71,19 @@ function ExampleUseAsynchronousJob {
 
 function ExampleUseEnvironmentVarsOfDifferentScopes {
   OutProgressTitle "$($MyInvocation.MyCommand)";
-  [String] $v = "$($env:Temp)";
-  [String] $v1 = ProcessEnvVarGet "Temp" ([System.EnvironmentVariableTarget]::Process);
-  [String] $v2 = ProcessEnvVarGet "Temp" ([System.EnvironmentVariableTarget]::User   );
-  [String] $v3 = ProcessEnvVarGet "Temp" ([System.EnvironmentVariableTarget]::Machine);
-  OutProgress "Environment Variable Temp of scope Process: `"$v1`""; # GithubWorkflowWindowsLaters: "C:\Users\RUNNER~1\AppData\Local\Temp"
-  OutProgress "Environment Variable Temp of scope User   : `"$v2`""; # GithubWorkflowWindowsLaters: "C:\Users\runneradmin\AppData\Local\Temp"
-  OutProgress "Environment Variable Temp of scope Machine: `"$v3`""; # GithubWorkflowWindowsLaters: "C:\Windows\TEMP"
-  OutProgress "`$env:Temp                                 : `"$v`""; # on linux is empty
+  [String] $v = "$env:TEMP";
+  [String] $v1 = ProcessEnvVarGet "TEMP" ([System.EnvironmentVariableTarget]::Process);
+  [String] $v2 = ProcessEnvVarGet "TEMP" ([System.EnvironmentVariableTarget]::User   );
+  [String] $v3 = ProcessEnvVarGet "TEMP" ([System.EnvironmentVariableTarget]::Machine);
+  [String] $v4 = [System.IO.Path]::GetTempPath();
+  [String] $v5 = (DirGetTemp);
+  OutProgress  "Note: Environment Variable TEMP of any scope are usually empty on Linux and MacOS ";
+  OutProgress "`$env:TEMP                                 : `"$v`"" ; # on linux is empty
+  OutProgress  "Environment Variable TEMP of scope Process: `"$v1`""; # "C:\Users\RUNNER~1\AppData\Local\Temp"
+  OutProgress  "Environment Variable TEMP of scope User   : `"$v2`""; # "C:\Users\runneradmin\AppData\Local\Temp"
+  OutProgress  "Environment Variable TEMP of scope Machine: `"$v3`""; # "C:\Windows\TEMP"
+  OutProgress "`[System.IO.Path]::GetTempPath()           : `"$v4`""; # "C:\Temp\User_u1", "/tmp/", "/var/folders/xy/a_b_cd_efghijklmnopqrstuvwxyz2/T/"
+  OutProgress "`DirGetTemp                                : `"$v5`""; # "C:\Temp\User_u1\", "/tmp/", "/var/folders/xy/a_b_cd_efghijklmnopqrstuvwxyz2/T/"
   Assert ($v1 -eq $v);
   ProcessEnvVarSet "MnCommonPsToolLibExampleVar" "Testvalue";
   Assert ($env:MnCommonPsToolLibExampleVar -eq "Testvalue");

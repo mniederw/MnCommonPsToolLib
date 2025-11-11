@@ -12,7 +12,7 @@ function UnitTest_Win_Tfs(){
   #                                          # Example: url=https://devops.mydomain.ch/MyTfsRoot
   #   TfsShowLocalCachedWorkspaces         (){ # works without access an url
   #   TfsHasLocalMachWorkspace             ( [String] $url ){ # we support only workspace name identic to computername
-  if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){ TfsInitLocalWorkspaceIfNotDone "https://machine.local/tfs", "$env:TEMP/Test/tfsrootdir/"; }
+  if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){ TfsInitLocalWorkspaceIfNotDone "https://machine.local/tfs", "$env:TEMP/tmp/Test/tfsrootdir/"; }
   #   TfsDeleteLocalMachWorkspace          ( [String] $url ){ # we support only workspace name identic to computername
   #   TfsGetNewestNoOverwrite              ( [String] $wsdir, [String] $tfsPath, [String] $url ){ # Example: TfsGetNewestNoOverwrite C:\MyWorkspace\Src $/Src https://devops.mydomain.ch/MyTfsRoot
   #   TfsListOwnLocks                      ( [String] $wsdir, [String] $tfsPath ){

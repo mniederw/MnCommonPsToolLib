@@ -1536,6 +1536,9 @@ function DirAssertExists                      ( [String] $dir, [String] $text = 
 function DirCreate                            ( [String] $dir ){ # create dir if it not yet exists; we do not call OutProgress because is not an important change.
                                                 FsEntryAssertHasTrailingDirSep $dir;
                                                 New-Item -type directory -Force (FsEntryEsc $dir) | Out-Null; }
+function DirGetTemp                           (){ # Examples on Win, Linux, MacOS: "C:\Users\u1\AppData\Local\Temp", "/tmp/", "/var/folders/xy/a_b_cd_efghijklmnopqrstuvwxyz2/T/"
+                                                #   Note: TEMP env var is usually empty on Linux and MacOS, alternative would be to take: "$env:TEMP/tmp/"
+                                                return [String] (FsEntryGetAbsolutePath "$([System.IO.Path]::GetTempPath())/"); }
 function DirCreateTemp                        ( [String] $prefix = "" ){ while($true){
                                                 [String] $d = FsEntryMakeTrailingDirSep "$([System.IO.Path]::GetTempPath())/$prefix.$(StringLeft ([System.IO.Path]::GetRandomFileName().Replace('.','')) 6)"; # 6 alphachars has 2G possibilities
                                                 if( FsEntryNotExists $d ){ DirCreate $d; return [String] $d; } } }
@@ -2405,7 +2408,7 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                 FileWriteFromLines $logf2 $logLines $true;
                                                 }
 # Script local variable: gitLogFile
-[String] $script:gitLogFile = FsEntryGetAbsolutePath "${env:TEMP}/tmp/MnCommonPsToolLibLog/$(DateTimeNowAsStringIsoYear)/$(DateTimeNowAsStringIsoMonth)/Git.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
+[String] $script:gitLogFile = FsEntryGetAbsolutePath "$env:TEMP/tmp/MnCommonPsToolLibLog/$(DateTimeNowAsStringIsoYear)/$(DateTimeNowAsStringIsoMonth)/Git.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
 function GitBuildLocalDirFromUrl              ( [String] $tarRootDir, [String] $urlAndOptionalBranch ){
                                                 # Maps a root dir and a repo url with an optional sharp-char separated branch name
                                                 # to a target repo dir which contains all url fragments below the hostname.
@@ -3420,4 +3423,4 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #     Write-Output "Executing in a thread-safe manner"; Start-Sleep -Seconds 1;
 #   }finally{ [System.Threading.Monitor]::Exit($lockObject); } }
 # - More on differences of PS5 and PS7 see: https://learn.microsoft.com/en-us/powershell/scripting/whats-new/differences-from-windows-powershell?view=powershell-7.3
-# - Simple download and run: (New-Object Net.WebClient).DownloadFile("https://example.com/any.exe","$env:Temp\Any.exe");& $env:Temp\Any.exe;
+# - Simple download and run: (New-Object Net.WebClient).DownloadFile("https://example.com/any.exe","$env:TEMP/tmp/Any.exe");& "$env:TEMP/tmp/Any.exe";

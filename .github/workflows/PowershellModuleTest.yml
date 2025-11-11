@@ -171,8 +171,8 @@ jobs:
           mkdir --parents "${{env.LogDir}}";
           echo "Example content." > "${{env.LogDir}}/Example.log";
           echo "Dump file content: "; cat "${{env.LogDir}}/Example.log";
-          echo "List temp logdir folder: "; ls -al "${{env.LogDir}}";
-          echo "List tmp folder: "; ls -al "/tmp";
+          echo "List temporary logdir folder: "; ls -al "${{env.LogDir}}";
+          echo "List /tmp folder: "; ls -al "/tmp/";
 
       - name: Upload intermediate files as zip build artefact
         #if: ${{ ! success() }}
