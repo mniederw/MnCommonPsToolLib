@@ -47,7 +47,7 @@ function UnitTest_FsEntry_Dir_File(){
   #
   # TODO: FsEntryAssertHasTrailingDirSep
   #
-  if( (OsIsWindows) ){
+  if( OsIsWindows ){
     Assert ((FsEntryRemoveTrailingDirSep "C:/") -eq "C:"); # TODO on macos this fails, find a solution
   }
   Assert ((FsEntryRemoveTrailingDirSep "$HOME/MyDir" )   -eq "$HOME${sep}MyDir" );
@@ -177,9 +177,19 @@ function UnitTest_FsEntry_Dir_File(){
     Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d1/*1.txt"   -recursive:$true)) -eq "/d1/d1/f1.txt;/d1/d2/f1.txt;/d1/f1.txt");
     Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d1/"         -recursive:$true)) -eq "/d1/;/d1/d1/;/d2/d1/");
     Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d1/*"        -recursive:$true)) -eq "/d1/d1/;/d1/d1/f1.txt;/d1/d1/f2.txt;/d1/d2/;/d1/d2/f1.txt;/d1/d2/f2.txt;/d1/f1.txt;/d1/f2.txt");
-    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/*"           -recursive:$true -includeDirs:$false)) -eq "/d1/d1/f1.txt;/d1/d1/f2.txt;/d1/d2/f1.txt;/d1/d2/f2.txt;/d1/f1.txt;/d1/f2.txt;/d2/d1/f1.txt;/d2/d1/f2.txt;/d2/d2/f1.txt;/d2/d2/f2.txt;/d2/d3/f1.txt;/d2/d3/f2.txt;/d2/f1.txt;/d2/f2.txt;/f1.txt;/f2.txt");
+    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/*"           -recursive:$true -includeDirs:$false )) -eq "/d1/d1/f1.txt;/d1/d1/f2.txt;/d1/d2/f1.txt;/d1/d2/f2.txt;/d1/f1.txt;/d1/f2.txt;/d2/d1/f1.txt;/d2/d1/f2.txt;/d2/d2/f1.txt;/d2/d2/f2.txt;/d2/d3/f1.txt;/d2/d3/f2.txt;/d2/f1.txt;/d2/f2.txt;/f1.txt;/f2.txt");
     Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/*"           -recursive:$true -includeFiles:$false)) -eq "/d1/;/d1/d1/;/d1/d2/;/d2/;/d2/d1/;/d2/d2/;/d2/d3/");
-    if((OsIsWindows)){ Assert ( (FsEntryListAsFileSystemInfo "C:/Windows/*.exe" -recursive:$false -includeDirs:$false).Count -gt 0); }
+    if( OsIsWindows ){ Assert ( (FsEntryListAsFileSystemInfo "$env:SystemRoot/explo*.exe/"   -recursive:$false -includeDirs:$true ).Count -eq 0); }
+    if( OsIsWindows ){ Assert ( (FsEntryListAsFileSystemInfo "$env:SystemRoot/explo*.exe"    -recursive:$false -includeDirs:$true ).Count -eq 1); }
+    if( OsIsWindows ){ Assert ( (FsEntryListAsFileSystemInfo "$env:SystemRoot/explorer.exe/" -recursive:$false -includeDirs:$true ).Count -gt 1); }
+    if( OsIsWindows ){ Assert ( (FsEntryListAsFileSystemInfo "$env:SystemRoot/explorer.exe/" -recursive:$false -includeDirs:$false).Count -gt 0); }
+    if( OsIsWindows ){ Assert ( (FsEntryListAsFileSystemInfo "C:/Window*/explorer.exe/"      -recursive:$false -includeDirs:$false).Count -gt 0); }
+
+
+
+# TODO Get-ChildItem "C:\*\explorer.exe\";
+
+
     Push-Location "$d/"; Assert ( (ArrToStr (FsEntryListAsFileSystemInfo   "d1/f1.txt" -recursive:$false -includeDirs:$true -includeFiles:$true -inclTopDir:$true)) -eq "/d1/f1.txt"); Pop-Location;
     Push-Location "$d/"; Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "./d1/f1.txt" -recursive:$false -includeDirs:$true -includeFiles:$true -inclTopDir:$true)) -eq "/d1/f1.txt"); Pop-Location;
     Push-Location "$d/"; Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "./f1.txt"    -recursive:$false)) -eq "/f1.txt"); Pop-Location;
@@ -242,11 +252,11 @@ function UnitTest_FsEntry_Dir_File(){
   #
   Assert ((DirExists "") -eq $false);
   Assert ((DirExists $notExistingDir) -eq $false);
-  Assert ((DirExists $(switch((OsIsWindows)){($true){"C:\Windows\"}($false){"/home/"}})) -eq $true);
+  Assert ((DirExists $(switch((OsIsWindows)){($true){"C:\Windows\"}($false){"/home/"}})) -eq $true); # $env:SystemRoot
   #
   Assert ((DirNotExists ""));
   Assert ((DirNotExists $notExistingDir));
-  Assert ((DirNotExists $(switch((OsIsWindows)){($true){"C:\Windows\"}($false){"/home/"}})) -eq $false);
+  Assert ((DirNotExists $(switch((OsIsWindows)){($true){"C:\Windows\"}($false){"/home/"}})) -eq $false); # $env:SystemRoot
   #
   # TODO: DirAssertExists                      ( [String] $dir, [String] $text = "Assertion" )
   #
@@ -338,7 +348,7 @@ function UnitTest_FsEntry_Dir_File(){
   #
   # TODO: FileGetTempFile                      () return [Object] [System.IO.Path]::GetTempFileName(); }
   #
-  # TODO: FileDelTempFile                      ( [String] $file ) if( (FileExists $file) )
+  # TODO: FileDelTempFile                      ( [String] $file ) if( FileExists $file )
   #
   # TODO: FileReadEncoding                     ( [String] $file )
   #

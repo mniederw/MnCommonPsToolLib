@@ -441,10 +441,10 @@ function ByteArraysAreEqual                   ( [Byte[]] $a1, [Byte[]] $a2 ){ if
                                                 for( [Int64] $i = 0; $i -lt $a1.LongLength; $i++ ){ if( $a1[$i] -ne $a2[$i] ){ return [Boolean] $false; } } return [Boolean] $true; }
 function ArrayIsNullOrEmpty                   ( [Object[]] $a ){ return [Boolean] ($null -eq $a -or $a.Count -eq 0); }
 function ConsoleSingleWindowExists            (){ return [Boolean] ((Get-Process -ID $PID).MainWindowHandle -ne 0); }
-function ConsoleHide                          (){ if( (ConsoleSingleWindowExists) ){ [Object] $p = [Console.Window]::GetConsoleWindow(); [Console.Window]::ShowWindow($p,0) | Out-Null; } } # 0=hide; Alternative: pwsh -WindowStyle Hidden {;}
-function ConsoleShow                          (){ if( (ConsoleSingleWindowExists) ){ [Object] $p = [Console.Window]::GetConsoleWindow(); [Console.Window]::ShowWindow($p,5) | Out-Null; } } # 5=nohide
-function ConsoleRestore                       (){ if( (ConsoleSingleWindowExists) ){ [Object] $p = [Console.Window]::GetConsoleWindow(); [Console.Window]::ShowWindow($p,1) | Out-Null; } } # 1=show
-function ConsoleMinimize                      (){ if( (ConsoleSingleWindowExists) ){ [Object] $p = [Console.Window]::GetConsoleWindow(); [Console.Window]::ShowWindow($p,6) | Out-Null; } } # 6=minimize
+function ConsoleHide                          (){ if( ConsoleSingleWindowExists ){ [Object] $p = [Console.Window]::GetConsoleWindow(); [Console.Window]::ShowWindow($p,0) | Out-Null; } } # 0=hide; Alternative: pwsh -WindowStyle Hidden {;}
+function ConsoleShow                          (){ if( ConsoleSingleWindowExists ){ [Object] $p = [Console.Window]::GetConsoleWindow(); [Console.Window]::ShowWindow($p,5) | Out-Null; } } # 5=nohide
+function ConsoleRestore                       (){ if( ConsoleSingleWindowExists ){ [Object] $p = [Console.Window]::GetConsoleWindow(); [Console.Window]::ShowWindow($p,1) | Out-Null; } } # 1=show
+function ConsoleMinimize                      (){ if( ConsoleSingleWindowExists ){ [Object] $p = [Console.Window]::GetConsoleWindow(); [Console.Window]::ShowWindow($p,6) | Out-Null; } } # 6=minimize
 Function ConsoleSetPos                        ( [Int32] $x, [Int32] $y ){ # if console is in a window then move to specified location
                                                 [RECT] $r = New-Object RECT; [Object] $hd = (Get-Process -ID $PID).MainWindowHandle;
                                                 if( $hd -ne 0 ){ # is 0 for ubuntu-consoles
@@ -452,9 +452,6 @@ Function ConsoleSetPos                        ( [Int32] $x, [Int32] $y ){ # if c
                                                   [Int32] $w = $r.Right - $r.Left; [Int32] $h = $r.Bottom - $r.Top;
                                                   If( $t ){ [Window]::MoveWindow($hd, $x, $y, $w, $h, $true) | Out-Null; }
                                                 } }
-function StdOutLine                           ( [String] $line ){ $Host.UI.WriteLine($line); } # Writes an stdout line in default color, normally not used, rather use OutProgressTitle because it classifies kind of output.
-function StdOutLine                           ( [String] $line ){ $Host.UI.WriteLine($line); } # Writes an stdout line in default color, normally not used, rather use OutProgressTitle because it classifies kind of output.
-function StdInWaitForAKey                     (){ StdInAssertAllowInteractions; $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") | Out-Null; } # does not work in powershell-ise, so in general do not use it, use StdInReadLine
 function ConsoleSetGuiProperties              ( [Int32] $width = 150, [Int32] $height = 48 ){ # set standard sizes and colors (defaults are based on HD with 125% zoom). It is performed only once per shell.
                                                 [Int32] $bufSizeWidth = 300;
                                                 Write-Progress -Activity " " -Status " " -Completed; # clear any open progress bar.
@@ -491,7 +488,7 @@ function ConsoleSetGuiProperties              ( [Int32] $width = 150, [Int32] $h
                                                 }
                                                 $w = $Host.ui.RawUI; # refresh values, maybe meanwhile windows was resized
                                                 if( $null -ne $w.WindowSize ){ # is null in case of powershell-ISE
-                                                  if( (ConsoleSingleWindowExists) ){ # note: in WindowsTerminal (multiWindow) to change windows size makes no sense and produces newline conflicts
+                                                  if( ConsoleSingleWindowExists ){ # note: in WindowsTerminal (multiWindow) to change windows size makes no sense and produces newline conflicts
                                                     [Object] $m = $w.windowsize;
                                                     $m.Width  = $width;
                                                     $m.Height = $height;
@@ -557,6 +554,7 @@ function OutStartTranscriptInTempDir          ( [String] $name = "MnCommonPsTool
                                                 Start-Transcript -Path $f -Append -IncludeInvocationHeader | Out-Null;
                                                 return [String] $f; }
 function OutStopTranscript                    (){ Stop-Transcript | Out-Null; } # Writes to output: Transcript stopped, output file is C:/Temp/....txt
+function StdInWaitForAKey                     (){ StdInAssertAllowInteractions; $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown") | Out-Null; } # does not work in powershell-ise, so in general do not use it, use StdInReadLine
 function StdInAssertAllowInteractions         (){ if( $global:ModeDisallowInteractions ){
                                                 throw [Exception] "Cannot read for input because all interactions are disallowed, either caller should make sure variable ModeDisallowInteractions is false or he should not call an input method."; } }
 function StdInReadLine                        ( [String] $line ){ OutProgressQuestion $line; StdInAssertAllowInteractions; return [String] (Read-Host); }
@@ -566,6 +564,12 @@ function StdInAskForBoolean                   ( [String] $msg = "Enter Yes or No
                                                  while($true){ OutProgressQuestion $msg;
                                                  [String] $answer = StdInReadLine ""; if( $answer -eq $strForYes ){ return [Boolean] $true ; }
                                                  if( $answer -eq $strForNo  ){ return [Boolean] $false; } } }
+function StdInAskForAnswerWhenInInteractMode  ( [String] $line = "Are you sure (y/n)? ", [String] $expectedAnswer = "y" ){
+                                                # works case insensitive; is ignored if interactions are suppressed by global var ModeDisallowInteractions; will abort if not expected answer.
+                                                if( -not $global:ModeDisallowInteractions ){ [String] $answer = StdInReadLine $line; if( $answer -ne $expectedAnswer ){ StdOutRedLineAndPerformExit "Aborted"; } } }
+function StdInAskAndAssertExpectedAnswer      ( [String] $line = "Are you sure (y/n)? ", [String] $expectedAnswer = "y" ){ # works case insensitive
+                                                [String] $answer = StdInReadLine $line; if( $answer -ne $expectedAnswer ){ StdOutRedLineAndPerformExit "Aborted"; } }
+function StdOutLine                           ( [String] $line ){ $Host.UI.WriteLine($line); } # Writes a stdout line in default color, normally not used, rather use OutProgressTitle because it classifies kind of output.
 function StdOutRedLineAndPerformExit          ( [String] $line, [Int32] $delayInSec = 1 ){ # TODO replace this by throw
                                                 OutError $line; if( $global:ModeDisallowInteractions ){ ProcessSleepSec $delayInSec; }else{ StdInReadLine "Press Enter to Exit"; }; Exit 1; }
 function StdErrHandleExc                      ( [System.Management.Automation.ErrorRecord] $er, [Int32] $delayInSec = 1 ){
@@ -586,11 +590,6 @@ function StdErrHandleExc                      ( [System.Management.Automation.Er
                                                 if( $delayInSec -gt 0 ){ OutProgress "StdErrHandleExc: Waiting for $delayInSec seconds."; }
                                                 ProcessSleepSec $delayInSec; }
 function StdPipelineErrorWriteMsg             ( [String] $msg ){ Write-Error $msg; } # does not work in powershell-ise, so in general do not use it, use throw
-function StdInAskForAnswerWhenInInteractMode  ( [String] $line = "Are you sure (y/n)? ", [String] $expectedAnswer = "y" ){
-                                                # works case insensitive; is ignored if interactions are suppressed by global var ModeDisallowInteractions; will abort if not expected answer.
-                                                if( -not $global:ModeDisallowInteractions ){ [String] $answer = StdInReadLine $line; if( $answer -ne $expectedAnswer ){ StdOutRedLineAndPerformExit "Aborted"; } } }
-function StdInAskAndAssertExpectedAnswer      ( [String] $line = "Are you sure (y/n)? ", [String] $expectedAnswer = "y" ){ # works case insensitive
-                                                [String] $answer = StdInReadLine $line; if( $answer -ne $expectedAnswer ){ StdOutRedLineAndPerformExit "Aborted"; } }
 function Assert                               ( [Boolean] $cond, [String] $failReason = "condition is false at $(ScriptGetCurrentFuncChain)." ){
                                                 if( -not $cond ){ throw [Exception] "Assertion failed because $failReason"; } }
 function AssertIsFalse                        ( [Boolean] $cond, [String] $failReason = "condition is true but expected false at $(ScriptGetCurrentFuncChain)." ){
@@ -656,7 +655,7 @@ function ScriptNrOfScopes                     (){ [Int32] $i = 1; while($true){
                                                 try{ Get-Variable null -Scope $i -ValueOnly -ErrorAction SilentlyContinue | Out-Null; $i++;
                                                 }catch{ # exc: System.Management.Automation.PSArgumentOutOfRangeException
                                                   return [Int32] ($i-1); } } }
-function ScriptGetProcessCommandLine          (){ return [String] ([Environment]::commandline); } # Example: "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" "& \"C:\myscript.ps1\"";  or  "C:\Program Files\PowerShell\7\pwsh.dll" -nologo
+function ScriptGetProcessCommandLine          (){ return [String] ([Environment]::commandline); } # Example: "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" "& \"C:\myscript.ps1\"";  or  "$env:ProgramFiles\PowerShell\7\pwsh.dll" -nologo
 function ScriptGetDirOfLibModule              (){ return [String] $PSScriptRoot ; } # Get dir       of this script file of this function or empty if not from a script; alternative: (Split-Path -Parent -Path ($script:MyInvocation.MyCommand.Path))
 function ScriptGetFileOfLibModule             (){ return [String] $PSCommandPath; } # Get full path of this script file of this function or empty if not from a script. alternative1: try{ return [String] (Get-Variable MyInvocation -Scope 1 -ValueOnly).MyCommand.Path; }catch{ return [String] ""; }  alternative2: $script:MyInvocation.MyCommand.Path
 function ScriptGetCallerOfLibModule           (){ return [String] $MyInvocation.PSCommandPath; } # Result can be empty or implicit module if called interactive. alternative for dir: $MyInvocation.PSScriptRoot.
@@ -741,15 +740,15 @@ function OsIsWin11OrHigher                    (){ return [Boolean] ((OsIsWindows
 function OsPathSeparator                      (){ return [String] $(switch(OsIsWindows){$true{";"}default{":"}}); } # separator for PATH environment variable
 function OsPsModulePathList                   (){ # return content of $env:PSModulePath as string-array with os dependent dir separators.
                                                 # Usual entries: On Windows, PS5/PS7, scope MACHINE:
-                                                #   C:\Windows\system32\WindowsPowerShell\v1.0\Modules\   (strongly recommended as long as ps7 not contains all of ps5)
-                                                #   C:\Program Files\WindowsPowerShell\Modules\
+                                                #   $env:SystemRoot\system32\WindowsPowerShell\v1.0\Modules\   (strongly recommended as long as ps7 not contains all of ps5)
+                                                #   $env:ProgramFiles\WindowsPowerShell\Modules\
                                                 #   D:\MyDevelopDir\mniederw\MnCommonPsToolLib#trunk\
                                                 # Usual additonal entries: On Windows PS5, scope PROCESS:
                                                 #   $HOME\Documents\WindowsPowerShell\Modules\
                                                 # Usual additonal entries: On Windows PS7, scope PROCESS:
                                                 #   $HOME\Documents\PowerShell\Modules\
-                                                #   C:\Program Files\PowerShell\Modules\
-                                                #   c:\program files\powershell\7\Modules\
+                                                #   $env:ProgramFiles\PowerShell\Modules\
+                                                #   $env:ProgramFiles\powershell\7\Modules\
                                                 # Note: If a single dir-separator is part of the PSModulePath then autocompletion is very slow (2017-08).
                                                 return [String[]] (@()+(([Environment]::GetEnvironmentVariable("PSModulePath","Machine").
                                                   Split((OsPathSeparator),[System.StringSplitOptions]::RemoveEmptyEntries)) | Where-Object{$null -ne $_} |
@@ -757,7 +756,7 @@ function OsPsModulePathList                   (){ # return content of $env:PSMod
 function OsPsModulePathContains               ( [String] $dir ){ # Example: "D:/MyGitRoot/MyGitAccount/MyPsLibRepoName/"
                                                 [String[]] $a = @()+(OsPsModulePathList);
                                                 return [Boolean] ($a -contains (FsEntryMakeTrailingDirSep $dir)); }
-function OsPsModulePathAdd                    ( [String] $dir ){ $dir = FsEntryMakeTrailingDirSep $dir; if( (OsPsModulePathContains $dir) ){ return; }
+function OsPsModulePathAdd                    ( [String] $dir ){ $dir = FsEntryMakeTrailingDirSep $dir; if( OsPsModulePathContains $dir ){ return; }
                                                 OsPsModulePathSet ((OsPsModulePathList)+@($dir)); }
 function OsPsModulePathDel                    ( [String] $dir ){ $dir = FsEntryMakeTrailingDirSep $dir; OsPsModulePathSet (@()+(OsPsModulePathList |
                                                 Where-Object{$null -ne $_} | Where-Object{ -not (FsEntryPathIsEqual $_ $dir) })); }
@@ -788,11 +787,11 @@ function PrivAclRegRightsToString             ( [System.Security.AccessControl.R
                                                 } return [String] $s; }
 function ProcessIsLesserEqualPs5              (){ return [Boolean] ($PSVersionTable.PSVersion.Major -le 5); }
 function ProcessPsExecutable                  (){ return [String] $(switch((ProcessIsLesserEqualPs5)){ $true{"powershell.exe"} default{"pwsh"}}); }
-function ProcessIsRunningInElevatedAdminMode  (){ if( (OsIsWindows) ){ return [Boolean] ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"); }
+function ProcessIsRunningInElevatedAdminMode  (){ if( OsIsWindows ){ return [Boolean] ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"); }
                                                   return [Boolean] ("$env:SUDO_USER" -ne "" -or "$env:USER" -eq "root"); }
 function ProcessAssertInElevatedAdminMode     (){ Assert (ProcessIsRunningInElevatedAdminMode) "requires to be in elevated admin mode"; }
 function ProcessRestartInElevatedAdminMode    ( [String] $reason = "" ){
-                                                if( (ProcessIsRunningInElevatedAdminMode) ){ return; }
+                                                if( ProcessIsRunningInElevatedAdminMode ){ return; }
                                                 # Example: "C:\myscr.ps1" or if interactive then statement name example "ProcessRestartInElevatedAdminMode"
                                                 [String] $cmd = @( (ScriptGetTopCaller) ) + $global:ArgsForRestartInElevatedAdminMode;
                                                 if( $global:ModeDisallowInteractions ){
@@ -805,7 +804,7 @@ function ProcessRestartInElevatedAdminMode    ( [String] $reason = "" ){
                                                   $cmd = $(switch((ProcessIsLesserEqualPs5)){ $true{"& `"$cmd`""} default{"-Command `"$cmd`""}});
                                                   $cmd = $(switch(ScriptIsProbablyInteractive){ ($true){"-NoExit -NoLogo "} default{""} }) + $cmd;
                                                   OutProgress "$reason Not running in elevated administrator mode so elevate current script and exit:".Trim();
-                                                  if( (OsIsWindows) ){
+                                                  if( OsIsWindows ){
                                                     OutProgress "  Start-Process -Verb RunAs -FilePath `"$(ProcessPsExecutable)`" -ArgumentList $cmd ";
                                                     Start-Process -Verb "RunAs" -FilePath (ProcessPsExecutable) -ArgumentList $cmd;
                                                     # Example exc: InvalidOperationException: This command cannot be run due to the error: Der Vorgang wurde durch den Benutzer abgebrochen.
@@ -1047,7 +1046,7 @@ function ProcessRefreshEnvVars                ( [Boolean] $traceCmd = $true ){ #
                                                 [Hashtable] $envVarNewP = [Hashtable]::new(@{},[StringComparer]::InvariantCultureIgnoreCase);
                                                 # On a default Windows 10 the path variable has the name "Path" but on linux and osx it has the name "PATH".
                                                 # Note: On Windows ps5/7 does automatically append ".CPL" to PATHEXT env var in process scope.
-                                                if( (OsIsWindows) -and -not $envVarMach["PATHEXT"].Contains(".CPL") ){ $envVarMach["PATHEXT"] = "$($envVarMach["PATHEXT"]);.CPL"; }
+                                                if( OsIsWindows -and -not $envVarMach["PATHEXT"].Contains(".CPL") ){ $envVarMach["PATHEXT"] = "$($envVarMach["PATHEXT"]);.CPL"; }
                                                 $envVarMach.Keys | ForEach-Object{ $envVarNewP[$_] = $envVarMach[$_]; }
                                                 $envVarUser.Keys | ForEach-Object{ $envVarNewP[$_] = $envVarUser[$_]; }
                                                 $envVarNewP["PATH"        ] = $envVarProc["PATH"        ];
@@ -1063,7 +1062,7 @@ function ProcessRefreshEnvVars                ( [Boolean] $traceCmd = $true ){ #
                                                   }
                                                 };
                                                 # Note: Powershell preceeds the PSModulePath env var on Windows of process scope with
-                                                #   "$HOME\Documents\PowerShell\Modules;C:\Program Files\PowerShell\Modules;c:\program files\powershell\7\Modules;"
+                                                #   "$HOME\Documents\PowerShell\Modules;$env:ProgramFiles\PowerShell\Modules;$env:ProgramFiles\powershell\7\Modules;"
                                                 #   and so we only check for new parts of user and machine scope and do not touch current order of process scope but append new ones.
                                                 [String[]] $p = @()+(ProcessPathVarStringToUnifiedArray $envVarProc["PSModulePath"]);
                                                 [String[]] $mAndU = @()+(ProcessPathVarStringToUnifiedArray ($envVarMach["PSModulePath"] + $sep + $envVarUser["PSModulePath"]));
@@ -1112,7 +1111,7 @@ function FsEntryGetAbsolutePath               ( [String] $fsEntry ){ # Works wit
                                                 # Note: We cannot use (Resolve-Path -LiteralPath $fsEntry) because it will throw if path not exists,
                                                 # see http://stackoverflow.com/questions/3038337/powershell-resolve-path-that-might-not-exist
                                                 if( $fsEntry -eq "" ){ return [String] ""; }
-                                                if( (OsIsWindows) ){
+                                                if( OsIsWindows ){
                                                   if( $fsEntry.StartsWith("//") ){ $fsEntry = $fsEntry.Replace("/","\"); }
                                                   if( $fsEntry.Length -eq 2 -and $fsEntry[1] -eq ':' -and [char]::IsLetter($fsEntry[0]) ){ $fsEntry += '\'; }
                                                 }
@@ -1190,7 +1189,7 @@ function FsEntryNotExists                     ( [String] $fsEntry ){
 function FsEntryAssertExists                  ( [String] $fsEntry, [String] $text = "Assertion failed" ){
                                                 if( -not (FsEntryExists $fsEntry) ){ throw [Exception] "$text because fs entry not exists: `"$fsEntry`""; } }
 function FsEntryAssertNotExists               ( [String] $fsEntry, [String] $text = "Assertion failed" ){
-                                                if(  (FsEntryExists $fsEntry) ){ throw [Exception] "$text because fs entry already exists: `"$fsEntry`""; } }
+                                                if( FsEntryExists $fsEntry ){ throw [Exception] "$text because fs entry already exists: `"$fsEntry`""; } }
 function FsEntryGetLastModified               ( [String] $fsEntry ){
                                                 return [DateTime] (Get-Item -Force -LiteralPath $fsEntry).LastWriteTime; }
 function FsEntryNotExistsOrIsOlderThanNrDays  ( [String] $fsEntry, [Int32] $maxAgeInDays, [Int32] $maxAgeInHours = 0, [Int32] $maxAgeInMinutes = 0 ){
@@ -1226,55 +1225,70 @@ function FsEntryFsInfoFullNameDirWithTrailDSep( [System.IO.FileSystemInfo] $fsIn
                                                 return [String] ($fsInfo.FullName+$(switch($fsInfo.PSIsContainer){($true){$(DirSep)}default{""}})); }
 function FsEntryListAsFileSystemInfo          ( [String] $fsEntryPattern, [Boolean] $recursive = $true, [Boolean] $includeDirs = $true, [Boolean] $includeFiles = $true, [Boolean] $inclTopDir = $false ){
                                                 # List entries specified by a pattern, which applies to files and directories and which can contain wildards (*,?).
-                                                # Output type is FileSystemInfo which is either [DirectoryInfo] or [FileInfo].
-                                                # Examples for fsEntryPattern: "C:/*.tmp", "./dir/*.tmp", "dir/te?*.tmp", "*/dir/*.tmp", "dir/*", "./bin/", "bin/", "f*.tmp" .
-                                                # Internally it uses Get-Item and Get-ChildItem.
+                                                # Examples for fsEntryPattern: "C:/*.tmp", "./dir/*.tmp", "dir/te?*.tmp", "*/dir/*.tmp", "dir/*", "./bin/", "bin/", "bin", "dir/bin", "f*.tmp".
+                                                # Output type is a FileSystemInfo which is either a [DirectoryInfo] or a [FileInfo].
+                                                # Trailing dir-separators for fsEntryPattern are ignored because for requesting dirs or files in output there are the options includeDirs or includeFiles.
                                                 # If inclTopDir and includeDirs are true and a single dir is specified then the dir itself is included.
-                                                # Output is unsorted. Ignores access denied conditions. If not found an entry then an empty array is returned.
+                                                # Ignores access denied conditions. 
+                                                # Output is unsorted. If not found an entry then an empty array is returned.
                                                 # It works with absolute or relative paths. A leading "./" for relative paths is optional.
-                                                # Wildcards on dir parts are also allowed ("dir*/*.tmp","*/*.tmp"). If no dir part is specified then it takes "./".
+                                                # Wildcards on multi level dir parts are also allowed ("dir1*/dir2*/*.tmp","*/*.tmp"). If no dir part is specified then it takes "./".
+                                                # For recursive mode an input as "dir/bin" could theoretically be interpreted as list folder "./dir/bin/*" or list "./dir/*" entries with name "bin",
+                                                # which also can be extremly slow when dir is huge as "D:/".
+
+
                                                 # Dependent on the recursive flag it work in two different modes:
                                                 # - If non-recursive then the pattern matches the fs-entries flat,
-                                                #   if it matches dirs ("./dir?") then they are listed flat and if it matches a file ("./f.txt") then this is listed.
-                                                #   If wildcards are used in dir parts (topdir*/dir*/f.*) then it also matches these subdirs on specified levels.
-                                                # - If recursive is specified then it splits the $fsEntryPattern (ex1: any/*.tmp; ex2: any*/Bin*/) into two parts,
-                                                #   the directory part (any/ ;any*/) which is matching flat one or more dirs (found dirs)
-                                                #   and the last specified part (ex1: *.tmp; ex2: Bin*/) which is matching deeply fs-entry-names in all found dirs.
+                                                #   if it matches dirs ("./mydir?") then they are listed flat and if it matches a file ("./f.txt") then this is listed.
+                                                #   If wildcards are used in dir parts (topdir*/dir*/f.*) then it also matches these on specified levels.
+                                                # - If recursive is specified then it splits the $fsEntryPattern (examples: any/*.tmp; any*/Bin*/; any/) into two parts,
+                                                #   the directory part (any/; any*/; any/) which is matching flat one or more dirs (found dirs)
+                                                #   and the last specified part (*.tmp; Bin*/; *) which is matching deeply fs-entry-names in all found dirs.
+
+
+
+                                                #
+                                                # Internally it uses Get-ChildItem (and for inclTopDir it uses Get-Item).
+
                                                 AssertNotEmpty $fsEntryPattern "pattern";
                                                 [String] $pa = $fsEntryPattern;
                                                 OutVerbose "FsEntryListAsFileSystemInfo `"$pa`" recursive=$recursive includeDirs=$includeDirs includeFiles=$includeFiles inclTopDir=$inclTopDir";
                                                 # Trailing dir-separators for Get-ChildItem:  Are handled in powershell quite curious:
-                                                #   In non-recursive mode they are handled as they are not present, so files are also matched ("*/myfile/").
-                                                #   In recursive mode they wrongly match only files and not directories ("*/myfile/") and
-                                                #     so dir parts ("./*/dir/" or "d1/dir/") would not be found for unknown reasons.
-                                                # On Windows very strange is that (CD "C:/Windows"; CD "C:"; Get-Item "C:";) does not list "C:/"
-                                                #   but it lists unexpectedly the current directory of that drive.
-                                                #   The (Get-Item "C:/*") works as expected correctly.
-                                                # So we interpret a trailing dir-separator as it would not be present with the exception that
-                                                #   If pattern contains a trailing dir-separator then pattern "/*/" will be replaced by ("/./").
-                                                #   If pattern is a drive as "C:" or "C:/" then it is converted to "C:/*" to avoid the unexpected listing of current dir of that drive.
-                                                [Boolean] $trailingDirSepMode = (FsEntryHasTrailingDirSep $pa);
-                                                if( $trailingDirSepMode ){
+                                                #   In non-recursive mode they are handled as they are not present, so files 
+                                                #     are also wrongly matched (Get-ChildItem -Directory "C:\Window*\explorer.exe\";).
+                                                #   In recursive mode they wrongly match only files and not directories and so dir parts cannot be found for unknown reasons
+                                                #     (DIR "$env:SystemRoot\Boot\EFI\en-U*\"; Get-ChildItem -Recurse -Directory "$env:SystemRoot\Boot\EFI\en-U*\";) or
+                                                #     (DIR "$env:SystemRoot\Boot\*\en-U*\"; Get-ChildItem -Recurse -Directory "$env:SystemRoot\Boot\*\en-U*\";).
+                                                #   On Windows very strange is that (CD "$env:SystemRoot"; CD "C:"; Get-Item "C:";) 
+                                                #     does not list "C:/" but it lists unexpectedly the current directory of that drive.
+                                                #     The (Get-Item "C:/*"; Get-Item "C:/*/"; ) works as expected correctly.
+                                                # To fix this behaviour we interpret a trailing dir-separator as it would not be present with the exception that:
+                                                # - If pattern is a drive as "C:" or "C:/" then it is converted to "C:/*" to avoid the unexpected listing of current dir of that drive.
+                                                # - If pattern contains a trailing dir-separator then occurrences 
+                                                #   in the form "/*/" will be replaced by ("/./") to be able to match dirs on that level also as top dir.
+                                                [Boolean] $hasTrailingDirSep = (FsEntryHasTrailingDirSep $pa);
+                                                if( $hasTrailingDirSep ){
                                                   $pa = FsEntryRemoveTrailingDirSep $pa;
-                                                }
-                                                if( $trailingDirSepMode -and ($pa.Contains("\*\") -or $pa.Contains("/*/")) ){
-                                                  # enable that ".\*\dir\" can also find dir as top dir
-                                                  $pa = $pa.Replace("\*\","\.\").Replace("/*/","/./"); # Otherwise Get-ChildItem would find dirs.
+                                                } # example: pa= C:/mydir
+                                                if( $hasTrailingDirSep -and ($pa.Contains("\*\") -or $pa.Contains("/*/")) ){
+                                                  # enable that ".\*\mydir\" can also find mydir as top dir
+                                                  $pa = $pa.Replace("\*\","\.\").Replace("/*/","/./"); # Otherwise Get-ChildItem would not find dirs.
                                                 }
                                                 if( $pa -match "^[a-z]\:[\/\\]?$" ){ $pa = "$($pa[0]):$(DirSep)*"; } # from "C:" or "C:/" make "C:/"
                                                 #
                                                 [System.IO.FileSystemInfo[]] $result = @();
                                                 if( $inclTopDir -and $includeDirs -and -not ($pa -eq "*" -or $pa.EndsWith("$(DirSep)*")) ){
+                                                  OutVerbose      "Get-Item -Force -ErrorAction SilentlyContinue -Path `"$pa`" ";
                                                   $result += @()+((Get-Item -Force -ErrorAction SilentlyContinue -Path $pa) |
                                                     Where-Object{$null -ne $_} | Where-Object{ $_.PSIsContainer });
                                                 }
-                                                [Object] $incl = "*"; # is an object because we require a nullable string
+                                                [Object] $incl = ""; # is an object because we require a nullable string
                                                 if( $recursive ){
                                                   if( -not ($pa.Contains("\") -or $pa.Contains("/")) ){
                                                     $pa = "./$pa";
                                                   }
-                                                  $incl = Split-Path -Path $pa -Leaf;
-                                                  $pa   = Split-Path -Path $pa;
+                                                  $incl = Split-Path -Path $pa -Leaf; # example: "mydir"
+                                                  $pa   = Split-Path -Path $pa; # example: "D:/"
                                                 }else{
                                                   $incl = $null;
                                                 }
@@ -1291,7 +1305,7 @@ function FsEntryListAsStringArray             ( [String] $fsEntryPattern, [Boole
                                                 return [String[]] (@()+(FsEntryListAsFileSystemInfo $fsEntryPattern $recursive $includeDirs $includeFiles $inclTopDir | Where-Object{$null -ne $_} |
                                                   ForEach-Object{ FsEntryFsInfoFullNameDirWithTrailDSep $_} )); }
 function FsEntryDelete                        ( [String] $fsEntry ){ # depends strongly on trailing dir separator
-                                                if( (FsEntryHasTrailingDirSep $fsEntry) ){ DirDelete $fsEntry; }else{ FileDelete $fsEntry; } }
+                                                if( FsEntryHasTrailingDirSep $fsEntry ){ DirDelete $fsEntry; }else{ FileDelete $fsEntry; } }
 function FsEntryDeleteToRecycleBin            ( [String] $fsEntry ){
                                                 Add-Type -AssemblyName Microsoft.VisualBasic;
                                                 $fsEntry = FsEntryGetAbsolutePath $fsEntry;
@@ -1324,7 +1338,7 @@ function FsEntryCreateDirSymLink              ( [String] $symLinkDir, [String] $
                                                 [String] $cd = Get-Location;
                                                 Set-Location (FsEntryGetParentDir $symLinkDir);
                                                 [String] $symLinkName = FsEntryGetFileName $symLinkDir;
-                                                if( (OsIsWindows) ){ & "cmd.exe" "/c" ('mklink /J "'+$symLinkName+'" "'+$symLinkOriginDir+'"'); AssertRcIsOk; }
+                                                if( OsIsWindows ){ & "cmd.exe" "/c" ('mklink /J "'+$symLinkName+'" "'+$symLinkOriginDir+'"'); AssertRcIsOk; }
                                                 else{ & "ln" "--symbolic" $symLinkOriginDir $symLinkName; AssertRcIsOk; }
                                                 Set-Location $cd; }
 function FsEntryIsSymLink                     ( [String] $fsEntry ){ # tested only for dirs; return false if fs-entry not exists.
@@ -1362,7 +1376,7 @@ function FsEntryFindNotExistingVersionedName  ( [String] $fsEntry, [String] $ext
                                                   throw [Exception] "$(ScriptGetCurrentFunc)($fsEntry,$ext) not available because fullpath longer than 260-4-extLength"; }
                                                 [Int32] $n = 1; do{
                                                   [String] $newFs = $fsEntry + "." + $n.ToString("D3")+$ext;
-                                                  if( (FsEntryNotExists $newFs) ){ return [String] $newFs; }
+                                                  if( FsEntryNotExists $newFs ){ return [String] $newFs; }
                                                   $n += 1;
                                                 }until( $n -gt $maxNr );
                                                 throw [Exception] "$(ScriptGetCurrentFunc)($fsEntry,$ext,$maxNr) not available because reached maxNr"; }
@@ -1467,7 +1481,7 @@ function FsEntryTrySetOwnerAndAclsIfNotSet    ( [String] $fsEntry, [System.Secur
                                                 } }
 function FsEntryTryForceRenaming              ( [String] $fsEntry, [String] $extension ){
                                                 $fsEntry = FsEntryGetAbsolutePath $fsEntry;
-                                                if( (FsEntryExists $fsEntry) ){
+                                                if( FsEntryExists $fsEntry ){
                                                   ProcessRestartInElevatedAdminMode "TryForceRenaming and change acls requires elevated admin mode.";
                                                   [String] $newFileName = (FsEntryFindNotExistingVersionedName $fsEntry $extension);
                                                   try{
@@ -1536,7 +1550,7 @@ function DirAssertExists                      ( [String] $dir, [String] $text = 
 function DirCreate                            ( [String] $dir ){ # create dir if it not yet exists; we do not call OutProgress because is not an important change.
                                                 FsEntryAssertHasTrailingDirSep $dir;
                                                 New-Item -type directory -Force (FsEntryEsc $dir) | Out-Null; }
-function DirGetTemp                           (){ # Examples on Win, Linux, MacOS: "C:\Users\u1\AppData\Local\Temp", "/tmp/", "/var/folders/xy/a_b_cd_efghijklmnopqrstuvwxyz2/T/"
+function DirGetTemp                           (){ # Examples on Win, Linux, MacOS: "$HOME\AppData\Local\Temp", "/tmp/", "/var/folders/xy/a_b_cd_efghijklmnopqrstuvwxyz2/T/"
                                                 #   Note: TEMP env var is usually empty on Linux and MacOS, alternative would be to take: "$env:TEMP/tmp/"
                                                 return [String] (FsEntryGetAbsolutePath "$([System.IO.Path]::GetTempPath())/"); }
 function DirCreateTemp                        ( [String] $prefix = "" ){ while($true){
@@ -1547,7 +1561,7 @@ function DirDelete                            ( [String] $dir, [Boolean] $ignore
                                                 AssertNotEmpty $dir "dir";
                                                 $dir = FsEntryGetAbsolutePath $dir;
                                                 FsEntryAssertHasTrailingDirSep $dir;
-                                                if( (DirExists $dir) ){
+                                                if( DirExists $dir ){
                                                   try{ OutProgress "DirDelete-Recursive$(switch($ignoreReadonly){($true){''}default{'CareReadonly'}}) `"$dir`"";
                                                     Remove-Item -Force:$ignoreReadonly -Recurse -LiteralPath $dir;
                                                   }catch{ # Example: Für das Ausführen des Vorgangs sind keine ausreichenden Berechtigungen vorhanden.
@@ -1584,8 +1598,8 @@ function FileExists                           ( [String] $file ){ AssertNotEmpty
 function FileNotExists                        ( [String] $file ){
                                                 return [Boolean] -not (FileExists $file); }
 function FileAssertExists                     ( [String] $file ){
-                                                if( (FsEntryHasTrailingDirSep $file) ){ throw [Exception] "File has not allowed trailing dir sep: `"$file`"."; };
-                                                if( (FileNotExists $file) ){ throw [Exception] "File not exists: `"$file`"."; } }
+                                                if( FsEntryHasTrailingDirSep $file ){ throw [Exception] "File has not allowed trailing dir sep: `"$file`"."; };
+                                                if( FileNotExists $file ){ throw [Exception] "File not exists: `"$file`"."; } }
 function FileExistsAndIsNewer                 ( [String] $ftar, [String] $fsrc ){
                                                 FileAssertExists $fsrc;
                                                 return [Boolean] ((FileExists $ftar) -and ((FsEntryGetLastModified $ftar) -ge (FsEntryGetLastModified $fsrc))); }
@@ -1641,7 +1655,7 @@ function FileAppendLines                      ( [String] $file, [String[]] $line
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
                                                 FsEntryCreateParentDir $file;
                                                 $lines | Out-File -Encoding $encoding -Append -LiteralPath $file; } # Appends on each line an OS dependent nl.
-function FileGetTempFile                      (){ return [String] [System.IO.Path]::GetTempFileName(); } # Example on linux: "/tmp/tmpFN3Gnz.tmp"; on windows: C:\Windows\Temp\tmpE3B6.tmp
+function FileGetTempFile                      (){ return [String] [System.IO.Path]::GetTempFileName(); } # Example on linux: "/tmp/tmpFN3Gnz.tmp"; on windows: $env:SystemRoot\Temp\tmpE3B6.tmp
 function FileDelTempFile                      ( [String] $file ){ FileDelete $file -traceCmd:$false; } # As FileDelete but no progress msg.
 function FileReadEncoding                     ( [String] $file ){
                                                 # read BOM = Byte order mark. Note: There exists no BOM for ANSI! Works also if file size is lesser than 4 bytes.
@@ -1685,8 +1699,8 @@ function FileContentsAreEqual                 ( [String] $f1, [String] $f2, [Boo
                                                 if( $fi1.Length -ne $fi2.Length ){ return [Boolean] $false; }
                                                 # Alternative: use: sha256sum file1 file2;
                                                 if( $true ){ # Much more performant (20 sec for 5 GB file).
-                                                  if( (OsIsWindows) ){ & "fc.exe" "/b" ($fi1.FullName) ($fi2.FullName) | Out-Null; }
-                                                  else{                & "cmp" "-s"    ($fi1.FullName) ($fi2.FullName) | Out-Null; }
+                                                  if( OsIsWindows ){ & "fc.exe" "/b" ($fi1.FullName) ($fi2.FullName) | Out-Null; }
+                                                  else{              & "cmp" "-s"    ($fi1.FullName) ($fi2.FullName) | Out-Null; }
                                                   [Boolean] $result = $?;
                                                   ScriptResetRc;
                                                   return [Boolean] $result;
@@ -1710,7 +1724,7 @@ function FileDelete                           ( [String] $file, [Boolean] $ignor
                                                 # In case the file is used by another process it waits some time between a retries.
                                                 $file = FsEntryGetAbsolutePath $file;
                                                 [String] $traceMsg = "FileDelete$(switch($ignoreReadonly){($true){''}default{'CareReadonly'}}) `"$file`"";
-                                                if( (FileNotExists $file) ){ OutDebug $traceMsg; return; }
+                                                if( FileNotExists $file ){ OutDebug $traceMsg; return; }
                                                 if( $traceCmd ){ OutProgress $traceMsg; }else{ OutVerbose $traceMsg; }
                                                 [Int32] $nrOfTries = 0; while($true){ $nrOfTries++;
                                                   try{
@@ -1767,7 +1781,7 @@ function FileUpdateItsHashSha2FileIfNessessary( [String] $srcFile ){ # srcFile.s
 function FileFindFirstExisting                ( [String[]] $files ){ foreach( $i in $files ){ if( FileExists $i ) { return [String] (FsEntryGetAbsolutePath $i); } } return [String] ""; }
 function FileCreateIfNotExistsByScript        ( [String] $targetFile, [ScriptBlock] $scriptBlock ){ # Example script block: { param( [String] $f ); FileWriteFromString $f "Hello"; };
                                                 $targetFile = FsEntryGetAbsolutePath $targetFile;
-                                                if( (FileNotExists $targetFile) ){
+                                                if( FileNotExists $targetFile ){
                                                   OutProgress "Creating `"$targetFile`" ";
                                                   & $scriptBlock $targetFile; AssertRcIsOk;
                                                 } }
@@ -1899,7 +1913,7 @@ function NetAdapterGetConnectionStatusName    ( [Int32] $netConnectionStatusNr )
                                                   12{"Credentials required"}
                                                   default{"unknownNr=$netConnectionStatusNr"} }); }
 function NetPingHostIsConnectable             ( [String] $hostName, [Boolean] $doRetryWithFlushDns = $false ){
-                                                if( (Test-Connection -ComputerName $hostName -BufferSize 16 -Count 1 -ErrorAction SilentlyContinue -quiet) ){ return [Boolean] $true; } # later in ps V6 use -TimeoutSeconds 3 default is 5 sec
+                                                if( Test-Connection -ComputerName $hostName -BufferSize 16 -Count 1 -ErrorAction SilentlyContinue -quiet ){ return [Boolean] $true; } # later in ps V6 use -TimeoutSeconds 3 default is 5 sec
                                                 if( -not $doRetryWithFlushDns ){ return [Boolean] $false; }
                                                 OutVerbose "Host $hostName not reachable, so flush dns, nslookup and retry";
                                                 if( OsIsWindows ){ & "ipconfig.exe" "/flushdns"  | Out-Null; AssertRcIsOk; }
@@ -2217,12 +2231,12 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                 #   for the curl-ca-bundle.crt file as it is descripted in https://curl.se/docs/sslcerts.html
                                                 #   we needed a solution for this. So, when the current curl executable is that from system32 folder
                                                 #   then the first found curl-ca-bundle.crt file in path var is used for cacert option.
-                                                if( (FsEntryPathIsEqual $curlExe "$env:SystemRoot/System32/curl.exe") ){
+                                                if( FsEntryPathIsEqual $curlExe "$env:SystemRoot/System32/curl.exe" ){
                                                   [String] $s = StringMakeNonNull (Get-Command -CommandType Application -Name curl-ca-bundle.crt -ErrorAction SilentlyContinue |
                                                     Select-Object -First 1 | Foreach-Object { $_.Source });
                                                   if( $s -ne "" ){ $curlCaCert = $s; }
                                                 }
-                                                if( (FileExists $curlCaCert) ){ $opt += @( "--cacert", $curlCaCert); }
+                                                if( FileExists $curlCaCert ){ $opt += @( "--cacert", $curlCaCert); }
                                                 $opt += @( "--url", $url );
                                                 [String] $optForTrace = StringArrayDblQuoteItems $opt.Replace("--user $($us):$pw","--user $($us):***");
                                                 OutProgress "NetDownloadFileByCurl $url";
@@ -2281,7 +2295,7 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                 [String] $logf  = FsEntryGetAbsolutePath "$tarDir/.Download.$(DateTimeNowAsStringIsoMonth).detail.log";
                                                 [String] $links = FsEntryGetAbsolutePath "$tarDir/.Download.$(DateTimeNowAsStringIsoMonth).links.log";
                                                 [String] $logf2 = FsEntryGetAbsolutePath "$tarDir/.Download.$(DateTimeNowAsStringIsoMonth).log";
-                                                [String] $caCert = ""; # default seams to be on windows: C:/ProgramData/ssl/ca-bundle.pem"; Maybe for future: "wget2-ca-bundle.crt";
+                                                [String] $caCert = ""; # default seams to be on windows: $env:ProgramData/ssl/ca-bundle.pem"; Maybe for future: "wget2-ca-bundle.crt";
                                                 OutProgress "  (only newer files) to `"$tarDir`"";
                                                 OutProgress "  Logfile: `"$logf`"";
                                                 [String[]] $opt = @(
@@ -2336,8 +2350,8 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                   ,"--user=$us"                    # we take this as last option because following pw
                                                   ,"--append-output=$logf"         # .
                                                   ,"--ca-certificate=$caCert"      # WGET2 option: File with the bundle of CAs to verify the peers. Must be in PEM format. Otherwise CAs are searched at system-specified locations,
-                                                                                   #   chosen at OpenSSL installation time. Default seams to be 'C:\ProgramData/ssl/ca-bundle.pem'.
-                                                                                   #   2023-12/MN: If not specified it outputs an error msg that 'C:\ProgramData/ssl/ca-bundle.pem' was not found, but nevertheless it has 160 CAs.
+                                                                                   #   chosen at OpenSSL installation time. Default seams to be '$env:ProgramData/ssl/ca-bundle.pem'.
+                                                                                   #   2023-12/MN: If not specified it outputs an error msg that '$env:ProgramData/ssl/ca-bundle.pem' was not found, but nevertheless it has 160 CAs.
                                                                                    #     It also outputs an error msg if an empty string is specified.
                                                  #,"--ca-directory=directory"      # WGET2 option: Containing CA certs in PEM format. Each file contains one CA cert, file name is based on a hash value derived from the cert.
                                                                                    #   Otherwise CA certs searched at system-specified locations, chosen at OpenSSL installation time.
@@ -2523,8 +2537,8 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                 [String] $branch = switch($urlOpt.Count -gt 1){($true){$urlOpt[1]} default{""}}; # Example: "" or "MyBranch"
                                                 [String] $dir = FsEntryMakeTrailingDirSep (GitBuildLocalDirFromUrl $tarRootDir $urlAndOptionalBranch); AssertNotEmpty $dir;
                                                 GitAssertAutoCrLfIsDisabled;
-                                                if( $cmd -eq "CloneOrPull"  ){ if( (DirNotExists $dir) ){ $cmd = "Clone"; }else{ $cmd = "Pull" ; } }
-                                                if( $cmd -eq "CloneOrFetch" ){ if( (DirNotExists $dir) ){ $cmd = "Clone"; }else{ $cmd = "Fetch"; } }
+                                                if( $cmd -eq "CloneOrPull"  ){ if( DirNotExists $dir ){ $cmd = "Clone"; }else{ $cmd = "Pull" ; } }
+                                                if( $cmd -eq "CloneOrFetch" ){ if( DirNotExists $dir ){ $cmd = "Clone"; }else{ $cmd = "Fetch"; } }
                                                 if( $branch -ne "" -and ($cmd -eq "Fetch" -or $cmd -eq "Pull") ){
                                                   [String] $currentBranch = (GitShowBranch $dir);
                                                   if( $currentBranch -ne $branch ){ throw [Exception] "$cmd $urlAndOptionalBranch to target `"$dir`" containing branch $currentBranch is denied because expected branch $branch. Before retry perform: GitSwitch `"$dir`" $branch;"; }
@@ -2761,7 +2775,7 @@ function GitAssertAutoCrLfIsDisabled          (){
                                                 #   it has the description "CRLF conversion bears a slight chance of corrupting data."
                                                 # We recommend (strongly on windows) to call GitDisableAutoCrLf after any git installation or update.
                                                 [String] $errmsg = "it is strongly recommended never use this because unexpected state and merge behaviours. Please change it by calling GitDisableAutoCrLf and then retry.";
-                                                if( (FileExists "$HOME/.gitconfig") ){
+                                                if( FileExists "$HOME/.gitconfig" ){
                                                   [String] $line1 = (StringMakeNonNull (& "git" "config" "--list" "--global" | Where-Object{ $_ -like "core.autocrlf=true" })); AssertRcIsOk;
                                                   if( $line1 -ne "" ){ throw [ExcMsg] "Git is globally (for all repos of user) configured to use autocrlf conversions, $errmsg"; }
                                                 }
@@ -2912,7 +2926,7 @@ function GitInitGlobalConfig                  (){ # if git is installed the init
                                                 # http.sslCAInfo            = $env:ProgramFiles/Git/mingw64/etc/ssl/certs/ca-bundle.crt
                                                 # user.name                 = "johndoe"
                                                 # user.email                = john.doe@example.com
-                                                if( (ProcessIsRunningInElevatedAdminMode) ){
+                                                if( ProcessIsRunningInElevatedAdminMode ){
                                                   # Set git system config, ecommended is the same content as global config without user.name and user.email
                                                   # but if global config is proper setup then its not relevant because global (=per-user) overwrites system properties.
                                                   GitSetGlobalVar "core.autocrlf" "false" -useSystemNotGlobal:$true; # this is strongly recommended to never use autocrlf
@@ -3052,7 +3066,7 @@ function ToolTailFile                         ( [String] $file ){ OutProgress "S
 function ToolFileNormalizeNewline             ( [String] $src, [String] $tar, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM", [String] $sep = [Environment]::NewLine, [String] $srcEncodingIfNoBom = "Default", [Boolean] $quiet = $false ){
                                                 # If overwrite is false then nothing done if target already exists.
                                                 # When tar is identic to src then you have to specify overwrite and it will work inplace
-                                                if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8" ){ throw [Exception] "FileWriteFromLines with UTF8 (NO-BOM) on PS5.1 or lower is not yet implemented."; } # TODO
+                                                if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8"    ){ throw [Exception] "FileWriteFromLines with UTF8 (NO-BOM) on PS5.1 or lower is not yet implemented."; } # TODO
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
                                                 # Convert end-of-line characters from CRLF to LF.
                                                 $src = FsEntryGetAbsolutePath $src;
@@ -3118,9 +3132,9 @@ function ToolCreate7zip                       ( [String] $srcDirOrFile, [String]
                                                 if( $ext -ne "7z" -and $ext -ne "zip" ){ throw [Exception] "Expected extension 7z or zip for target file `"$tar7zipFile`"."; }
                                                 [String] $src = "";
                                                 [String] $recursiveOption = "";
-                                                if( (FsEntryHasTrailingDirSep $srcDirOrFile) ){ DirAssertExists $srcDirOrFile; $recursiveOption = "-r"; $src = FsEntryGetAbsolutePath "$srcDirOrFile/*";
+                                                if( FsEntryHasTrailingDirSep $srcDirOrFile ){ DirAssertExists $srcDirOrFile; $recursiveOption = "-r"; $src = FsEntryGetAbsolutePath "$srcDirOrFile/*";
                                                 }else{ FileAssertExists $srcDirOrFile; $recursiveOption = "-r-"; $src = $srcDirOrFile; }
-                                                [String] $Prog7ZipExe = ProcessGetApplInEnvPath "7z"; # Example: "C:/Program Files/7-Zip/7z.exe"
+                                                [String] $Prog7ZipExe = ProcessGetApplInEnvPath "7z"; # Example: "$env:ProgramFiles/7-Zip/7z.exe"
                                                 # Options: -t7z : use 7zip format; -mmt=4 : try use nr of threads; -w : use temp dir; -r : recursively; -r- : not-recursively;
                                                 [String[]] $arguments = @( "-t$ext", "-mx9", "-mmt4", "-w", $recursiveOption, "a", "$tar7zipFile", $src );
                                                 OutProgress "`"$Prog7ZipExe`" $(StringArrayDblQuoteItems $arguments) ";
@@ -3262,7 +3276,7 @@ function ToolEvalVsCodeExec                   ( [Boolean] $returnEmptyIfNotFound
 
 # ----------------------------------------------------------------------------------------------------
 
-if( (OsIsWindows) ){ # running under windows
+if( OsIsWindows ){ # running under windows
   OutVerbose "$PSScriptRoot : Running on windows";
   . "$PSScriptRoot/MnCommonPsToolLib_Windows.ps1"; AssertRcIsOk;
 }else{
@@ -3282,16 +3296,16 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #   so you must enable them on 64bit and on 32bit environment!
 #   It requires admin rights so either run a cmd.exe shell with admin mode and call:
 #     PS7      :  pwsh                                               -Command Set-ExecutionPolicy -Scope LocalMachine Unrestricted
-#     PS5-64bit:  %SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe Set-Executionpolicy -Scope LocalMachine Unrestricted
-#     PS5-32bit:  %SystemRoot%\SysWOW64\WindowsPowerShell\v1.0\powershell.exe Set-Executionpolicy -Scope LocalMachine Unrestricted
+#     PS5-64bit:  $env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe Set-Executionpolicy -Scope LocalMachine Unrestricted
+#     PS5-32bit:  $env:SystemRoot\SysWOW64\WindowsPowerShell\v1.0\powershell.exe Set-Executionpolicy -Scope LocalMachine Unrestricted
 #   or start each powershell and run:  Set-Executionpolicy Unrestricted
 #   or run: reg.exe add "HKLM\SOFTWARE\Microsoft\PowerShell\1\ShellIds\Microsoft.PowerShell" /f /t REG_SZ /v "ExecutionPolicy" /d "Unrestricted"
 #   or run any ps1 even when in restricted mode with:  PowerShell.exe -ExecutionPolicy Unrestricted -NoProfile -File "myfile.ps1"
 #   Default is: powershell.exe Set-Executionpolicy Restricted
 #   More: get-help about_signing
 #   For being able to doubleclick a ps1 file or run a shortcut for a ps1 file, do in Systemcontrol->Standardprograms you can associate .ps1
-#     with       "C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe"
-#     or better  "C:\Program Files\PowerShell\7\pwsh.EXE"
+#     with       "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
+#     or better  "$env:ProgramFiles\PowerShell\7\pwsh.EXE"
 # - Common parameters used enable stdandard options:
 #   [-Verbose] [-Debug] [-ErrorAction <ActionPreference>] [-WarningAction <ActionPreference>] [-ErrorVariable <String>] [-WarningVariable <String>] [-OutVariable <String>] [-OutBuffer <Int32>]
 # - Parameter attribute declarations (Example: Mandatory, Position): https://msdn.microsoft.com/en-us/library/ms714348(v=vs.85).aspx
@@ -3304,7 +3318,7 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #   $args                 - Contains an array of the parameters passed to a function.
 #   $error                - Contains objects for which an error occurred while being processed in a cmdlet.
 #   $HOME                 - Specifies the users home directory. (same as $env:USERPROFILE on windows.)
-#   $PsHome               - The directory where the Windows PowerShell is installed. (C:\Windows\SysWOW64\WindowsPowerShell\v1.0)
+#   $PsHome               - The directory where the Windows PowerShell is installed. ($env:SystemRoot\SysWOW64\WindowsPowerShell\v1.0)
 #   $PROFILE              - $HOME\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1
 #   $PSScriptRoot         - folder of current running script
 #   $PS...                - some variables

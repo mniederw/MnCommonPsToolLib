@@ -34,7 +34,7 @@
   }
   HelpInfoURI            = 'https://github.com/mniederw/MnCommonPsToolLib/Readme.txt';
 
-  ModuleVersion          = '7.111';
+  ModuleVersion          = '7.112';
 
   <#
   Releasenotes
@@ -43,6 +43,7 @@
   Major version will reflect breaking changes, minor identifies extensions and third number identifies urgent bugfixes.
   Breaking changes are usually removed deprecated functions or changed behaviours.
 
+  2025-12-01  V7.112 Reformat if statements, replace hardcoded folders.
   2025-11-11  V7.111 Fix yml
   2025-10-17  V7.110 Fix StreamToCsvFile utf8 problem on ps5.1.
   2025-09-18  V7.109 Extend ProcessStart.

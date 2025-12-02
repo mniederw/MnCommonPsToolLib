@@ -26,7 +26,7 @@ if( $null -eq (Get-Variable -Scope Global -ErrorAction SilentlyContinue -Name Al
 function OsIs64BitOs                          (){ return [Boolean] (Get-CimInstance -Class Win32_OperatingSystem -ErrorAction SilentlyContinue).OSArchitecture -eq "64-Bit"; }
 function OsIsWinScreenLocked                  (){ return [Boolean] ((@()+(Get-Process | Where-Object{ $_.ProcessName -eq "LogonUI"})).Count -gt 0); }
 function OsIsHibernateEnabled                 (){
-                                                if( (FileNotExists "$env:SystemDrive/hiberfil.sys") ){ return [Boolean] $false; }
+                                                if( FileNotExists "$env:SystemDrive/hiberfil.sys" ){ return [Boolean] $false; }
                                                 if( OsIsWin7OrHigher ){ return [Boolean] (RegistryGetValueAsString "HKLM:\SYSTEM\CurrentControlSet\Control\Power" "HibernateEnabled") -eq "1"; }
                                                 # win7     Example: Die folgenden Standbymodusfunktionen sind auf diesem System verfügbar: Standby ( S1 S3 ) Ruhezustand Hybrider Standbymodus
                                                 # winVista Example: Die folgenden Ruhezustandfunktionen sind auf diesem System verfügbar: Standby ( S3 ) Ruhezustand Hybrider Standbymodus
@@ -50,8 +50,8 @@ function OsWindowsPackageUninstall            ( [String] $displayName ){
                                                   ProcessStartByCmdLine $uninstallCmd $true $true;
                                                 } }
 function OsWindowsFeatureGetInstalledNames    (){ # Requires windows-server-os or at least Win10Prof with installed RSAT https://www.microsoft.com/en-au/download/details.aspx?id=45520
-                                                  ScriptImportModuleIfNotDone "ServerManager";
-                                                  return [String[]] (@()+(Get-WindowsFeature | Where-Object{ $_.InstallState -eq "Installed" } | ForEach-Object{ $_.Name })); } # states: Installed, Available, Removed.
+                                                ScriptImportModuleIfNotDone "ServerManager";
+                                                return [String[]] (@()+(Get-WindowsFeature | Where-Object{ $_.InstallState -eq "Installed" } | ForEach-Object{ $_.Name })); } # states: Installed, Available, Removed.
 function OsWindowsFeatureDoInstall            ( [String] $name ){
                                                 # Example: Web-Server, Web-Mgmt-Console, Web-Scripting-Tools, Web-Basic-Auth, Web-Windows-Auth, NET-FRAMEWORK-45-Core,
                                                 #   NET-FRAMEWORK-45-ASPNET, Web-HTTP-Logging, Web-NET-Ext45, Web-ASP-Net45, Telnet-Server, Telnet-Client.
@@ -74,7 +74,7 @@ function OsWindowsAppxImportModule            (){ # On pwsh the Appx module must
                                                 # We suppress the output: WARNING: Module Appx is loaded in Windows PowerShell using WinPSCompatSession remoting session;
                                                 #   please note that all input and output of commands from this module will be deserialized objects.
                                                 #   If you want to load this module into PowerShell please use 'Import-Module -SkipEditionCheck' syntax.
-                                                if( (ProcessIsLesserEqualPs5) ){ Import-Module -Name Appx; }else{ Import-Module -Name Appx -UseWindowsPowerShell 3> $null; } }
+                                                if( ProcessIsLesserEqualPs5 ){ Import-Module -Name Appx; }else{ Import-Module -Name Appx -UseWindowsPowerShell 3> $null; } }
 function OsWindowsAppxListInstalled           (){ OsWindowsAppxImportModule;
                                                 return [String[]] (@()+(Get-AppxPackage | Where-Object{$null -ne $_} | Sort-Object PackageFullName |
                                                   ForEach-Object{ "$($_.PackageFullName)" })); } # alternative field: Name.
@@ -114,7 +114,7 @@ function OsWinCreateUser                      ( [String] $us, [String] $pw, [Str
                                                 # 2024-08-18 On Win11 we get the bug: https://github.com/PowerShell/PowerShell/issues/18624
                                                 #   New-LocalUser Could not load type 'Microsoft.PowerShell.Telemetry.Internal.TelemetryAPI' from assembly 'System.Management.Automation
                                                 # workaround is:
-                                                if( (ProcessIsLesserEqualPs5) ){ Import-Module microsoft.powershell.localaccounts; }else{ Import-Module microsoft.powershell.localaccounts -UseWindowsPowerShell 3> $null; }
+                                                if( ProcessIsLesserEqualPs5 ){ Import-Module microsoft.powershell.localaccounts; }else{ Import-Module microsoft.powershell.localaccounts -UseWindowsPowerShell 3> $null; }
                                                 [Object] $u = New-LocalUser -Name $us -Password (ConvertTo-SecureString $pw -AsPlainText -Force) -FullName $fullName -Description $descr -AccountNeverExpires -PasswordNeverExpires -UserMayNotChangePassword -Disabled;
                                                 OutVerbose "OsWinCreateUser $u  (FullName=$fullName; Descr=$descr; Is-Disabled)";
                                                 if( $denyInteractiveLogon ){
@@ -130,7 +130,7 @@ function OsWinCreateUser                      ( [String] $us, [String] $pw, [Str
                                                     FileWriteFromString $tmp2 $content $true "Default"; # TODO: try to replace Default by UTF8.
                                                     OutProgress "& secedit /configure /db 'secedit.sdb' /cfg `"$tmp2`" /areas USER_RIGHTS ; # set SeDenyInteractiveLogonRight";
                                                     try{
-                                                      [String] $out = & secedit /configure /db 'secedit.sdb' /cfg $tmp2 /areas USER_RIGHTS 2>&1; AssertRcIsOk $out; # more in "$env:windir\security\logs\scesrv.log"
+                                                      [String] $out = & secedit /configure /db 'secedit.sdb' /cfg $tmp2 /areas USER_RIGHTS 2>&1; AssertRcIsOk $out; # more in "$env:windir/security/logs/scesrv.log"
                                                     }catch{
                                                       OutWarning "Warning: The command to set SeDenyInteractiveLogonRight failed, is ignored, please perform this manually. Error was: $($_.Exception.Message). ";
                                                       ScriptResetRc;
@@ -280,7 +280,7 @@ function PrivGetGroupEveryone                 (){ return [System.Security.Princi
 function PrivGetUserTrustedInstaller          (){ return [System.Security.Principal.IdentityReference] (New-Object System.Security.Principal.SecurityIdentifier("S-1-5-80-956008885-3418522649-1831038044-1853292631-2271478464")).Translate([System.Security.Principal.NTAccount]); } # NT SERVICE\TrustedInstaller
 function PrivFsRuleAsString                   ( [System.Security.AccessControl.FileSystemAccessRule] $rule ){
                                                 return [String] "($($rule.IdentityReference);$(($rule.FileSystemRights).ToString().Replace(' ',''));$($rule.InheritanceFlags.ToString().Replace(' ',''));$($rule.PropagationFlags.ToString().Replace(' ',''));$($rule.AccessControlType);IsInherited=$($rule.IsInherited))";
-                                                } # for later: CentralAccessPolicyId, CentralAccessPolicyName, Sddl="O:BAG:SYD:PAI(A;OICI;FA;;;SY)(A;;FA;;;BA)"
+                                              } # for later: CentralAccessPolicyId, CentralAccessPolicyName, Sddl="O:BAG:SYD:PAI(A;OICI;FA;;;SY)(A;;FA;;;BA)"
 function PrivAclAsString                      ( [System.Security.AccessControl.FileSystemSecurity] $acl ){
                                                 [String] $s = "Owner=$($acl.Owner);Group=$($acl.Group);Acls=";
                                                 foreach( $a in $acl.Access){ $s += PrivFsRuleAsString $a; } return [String] $s; }
@@ -626,7 +626,7 @@ function RegistryKeySetOwner                  ( [String] $key, [System.Security.
                                                   [Microsoft.Win32.RegistryKey] $hk = [Microsoft.Win32.RegistryKey]::OpenBaseKey((RegistryKeyGetHkey $key),[Microsoft.Win32.RegistryView]::Default);
                                                   [Microsoft.Win32.RegistryKey] $k = $hk.OpenSubKey((RegistryKeyGetSubkey $key),[Microsoft.Win32.RegistryKeyPermissionCheck]::ReadWriteSubTree,[System.Security.AccessControl.RegistryRights]::TakeOwnership);
                                                   [System.Security.AccessControl.RegistrySecurity] $acl = $k.GetAccessControl([System.Security.AccessControl.AccessControlSections]::None); # alternatives: None, Audit, Access, Owner, Group, All
-                                                  if( (ProcessIsLesserEqualPs5) ){                 $acl = $k.GetAccessControl([System.Security.AccessControl.AccessControlSections]::All); }
+                                                  if( ProcessIsLesserEqualPs5 ){                   $acl = $k.GetAccessControl([System.Security.AccessControl.AccessControlSections]::All); }
                                                   if( $acl.Owner -eq $account.Value ){ return; }
                                                   $acl.SetOwner([System.Security.Principal.NTAccount]$account);
                                                   $k.SetAccessControl($acl);
@@ -669,8 +669,8 @@ function ServiceListRunnings                  (){
                                                     #               at Microsoft.PowerShell.Commands.GetServiceCommand.AddProperties(ServiceController service)
                                                     #               at Microsoft.PowerShell.Commands.GetServiceCommand.ProcessRecord()
                                                     #               at System.Management.Automation.CommandProcessor.ProcessRecord()
-                                                    #   ScriptStackTrace: at ServiceListRunnings, C:\Program Files\WindowsPowerShell\Modules\MnCommonPsToolLib\MnCommonPsToolLib_Windows.ps1: line 462
-                                                    #   InvocationInfo: At C:\Program Files\WindowsPowerShell\Modules\MnCommonPsToolLib\MnCommonPsToolLib_Windows.ps1:462 char:73
+                                                    #   ScriptStackTrace: at ServiceListRunnings, $env:ProgramFiles/WindowsPowerShell/Modules/MnCommonPsToolLib/MnCommonPsToolLib_Windows.ps1: line 462
+                                                    #   InvocationInfo: At $env:ProgramFiles/WindowsPowerShell/Modules/MnCommonPsToolLib/MnCommonPsToolLib_Windows.ps1:462 char:73
                                                     #       + … return [String[]] (@()+(Get-Service -ErrorAction SilentlyContinue * |
                                                     OutVerbose "ServiceListRunnings called (Get-Service -ErrorAction SilentlyContinue *) and did throw: $($_.Exception.Message). Ignoring it. ";
                                                     return [System.ServiceProcess.ServiceController[]]@();
@@ -777,7 +777,7 @@ function ServiceMapHiddenToCurrentName        ( [String] $serviceName ){
                                                 # Hidden services on Windows 10: Some services do not have a static service name because they do not have any associated DLL or executable.
                                                 # This method maps a symbolic name as MessagingService_###### by the currently correct service name (example: "MessagingService_26a344").
                                                 # The ###### symbolizes a random hex string of 5-6 chars. Example: (ServiceMapHiddenName "MessagingService_######") -eq "MessagingService_26a344";
-                                                # Currently all these known hidden services are internally started by "C:\WINDOWS\System32\svchost.exe -k UnistackSvcGroup". The following are known:
+                                                # Currently all these known hidden services are internally started by "$env:SystemRoot\System32\svchost.exe -k UnistackSvcGroup". The following are known:
                                                 [String[]] $a = @( "MessagingService_######", "PimIndexMaintenanceSvc_######", "UnistoreSvc_######", "UserDataSvc_######", "WpnUserService_######", "CDPUserSvc_######", "OneSyncSvc_######" );
                                                 if( $a -notcontains $serviceName ){ return [String] $serviceName; }
                                                 [String] $mask = $serviceName.Replace("_######","_*");
@@ -1125,8 +1125,8 @@ function InfoAboutSystemInfo                  (){ # Works only on Windows
                                                 # - Get-ScheduledTask | Where-Object{ $_.settings.waketorun }
                                                 # - change:
                                                 #   - Dism /online /Enable-Feature /FeatureName:TFTP /All
-                                                #   - import:   ev.:  Dism.exe /Image:C:\test\offline /Import-DefaultAppAssociations:\\Server\Share\AppAssoc.xml
-                                                #     remove:  Dism.exe /Image:C:\test\offline /Remove-DefaultAppAssociations
+                                                #   - import:   ev.:  Dism.exe /Image:C:/test/offline /Import-DefaultAppAssociations://Server/Share/AppAssoc.xml
+                                                #     remove:  Dism.exe /Image:C:/test/offline /Remove-DefaultAppAssociations
                                                 return [String[]] $result; }
 function InfoAboutRunningProcessesAndServices (){
                                                 return [String[]] @( "Info about processes:", ""
@@ -1149,7 +1149,7 @@ function InfoAboutNetConfig                   (){
                                                 ,"NetGetNbtStat:"      ,(NetGetNbtStat                                                   ),""
                                                 ,"NetGetAdapterSpeed:" ,(NetAdapterListAll | StreamToTableString | StreamToStringIndented),""); }
 function InfoGetInstalledDotNetVersion        ( [Boolean] $alsoOutInstalledClrAndRunningProc = $false ){
-                                                # Requires clrver.exe in path, for example "${env:ProgramFiles(x86)}\Microsoft SDKs\Windows\v10.0A\bin\NETFX 4.8.1 Tools\x64\clrver.exe"
+                                                # Requires clrver.exe in path, for example "${env:ProgramFiles(x86)}/Microsoft SDKs/Windows/v10.0A/bin/NETFX 4.8.1 Tools/x64/clrver.exe"
                                                 if( $alsoOutInstalledClrAndRunningProc ){
                                                   [String[]] $a = @();
                                                   $a += "List Installed DotNet CLRs (clrver.exe):";
@@ -1181,8 +1181,8 @@ function InfoGetInstalledDotNetVersion        ( [Boolean] $alsoOutInstalledClrAn
                                                 return [String] $relStr; }
 # Type: SvnEnvInfo
 Add-Type -TypeDefinition "public struct SvnEnvInfo {public string Url; public string Path; public string RealmPattern; public string CachedAuthorizationFile; public string CachedAuthorizationUser; public string Revision; }";
-                                                # Example: Url="https://myhost/svn/Work"; Path="D:\Work"; RealmPattern="https://myhost:443";
-                                                # CachedAuthorizationFile="$env:APPDATA\Subversion\auth\svn.simple\25ff84926a354d51b4e93754a00064d6"; CachedAuthorizationUser="myuser"; Revision="1234"
+                                                # Example: Url="https://myhost/svn/Work"; Path="D:/Work"; RealmPattern="https://myhost:443";
+                                                # CachedAuthorizationFile="$env:APPDATA/Subversion/auth/svn.simple/25ff84926a354d51b4e93754a00064d6"; CachedAuthorizationUser="myuser"; Revision="1234"
 # Script local variable: svnLogFile
 [String] $script:svnLogFile = FsEntryGetAbsolutePath "$env:TEMP/tmp/MnCommonPsToolLibLog/$(DateTimeNowAsStringIsoYear)/$(DateTimeNowAsStringIsoMonth)/Svn.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
 function SvnEnvInfoGet                        ( [String] $workDir ){
@@ -1192,8 +1192,8 @@ function SvnEnvInfoGet                        ( [String] $workDir ){
                                                 OutProgress "SvnEnvInfo - Get svn environment info of workDir=`"$workDir`"; ";
                                                 FileAppendLineWithTs $svnLogFile "SvnEnvInfoGet(`"$workDir`")";
                                                 # Example:
-                                                #   Path: D:\Work
-                                                #   Working Copy Root Path: D:\Work
+                                                #   Path: D:/Work
+                                                #   Working Copy Root Path: D:/Work
                                                 #   URL: https://myhost/svn/Work
                                                 #   Relative URL: ^/
                                                 #   Repository Root: https://myhost/svn/Work
@@ -1208,7 +1208,7 @@ function SvnEnvInfoGet                        ( [String] $workDir ){
                                                 FileAppendLines $svnLogFile (StringArrayInsertIndent $out 2);
                                                 [String[]] $out2 = @()+(& "svn" "propget" "svn:ignore" "-R" $workDir); AssertRcIsOk $out2;
                                                 # Example:
-                                                #   work\Users\MyName - test?.txt
+                                                #   work/Users/MyName - test?.txt
                                                 #   test2*.txt
                                                 FileAppendLineWithTs $svnLogFile "  Ignore Properties:";
                                                 FileAppendLines $svnLogFile (StringArrayInsertIndent $out2 2);
@@ -1231,13 +1231,13 @@ function SvnEnvInfoGet                        ( [String] $workDir ){
                                                 #
                                                 [SvnEnvInfo] $result = New-Object SvnEnvInfo;
                                                 foreach( $line in $out ){
-                                                  if(     $line.StartsWith("URL: " ) ){ $result.Url  = $line.Substring("URL: ".Length); }
-                                                  elseif( $line.StartsWith("Path: ") ){ $result.Path = $line.Substring("Path: ".Length); }
+                                                  if(     $line.StartsWith("URL: "     ) ){ $result.Url      = $line.Substring("URL: ".Length); }
+                                                  elseif( $line.StartsWith("Path: "    ) ){ $result.Path     = $line.Substring("Path: ".Length); }
                                                   elseif( $line.StartsWith("Revision: ") ){ $result.Revision = $line.Substring("Revision: ".Length); }
                                                 }
-                                                if( (StringIsNullOrEmpty $result.Url     ) ){ throw [Exception] "missing URL tag in svn info"; }
-                                                if( (StringIsNullOrEmpty $result.Path    ) ){ throw [Exception] "missing Path tag in svn info"; }
-                                                if( (StringIsNullOrEmpty $result.Revision) ){ throw [Exception] "missing Revision tag in svn info"; }
+                                                if( StringIsNullOrEmpty $result.Url      ){ throw [Exception] "missing URL tag in svn info"; }
+                                                if( StringIsNullOrEmpty $result.Path     ){ throw [Exception] "missing Path tag in svn info"; }
+                                                if( StringIsNullOrEmpty $result.Revision ){ throw [Exception] "missing Revision tag in svn info"; }
                                                 $result.RealmPattern = ($result.Url -Split "/svn/",2)[0] + $(switch(($result.Url -split "/",2)[0]){ "https:"{":443"} "http:"{":80"} default{""} });
                                                 $result.CachedAuthorizationFile = "";
                                                 $result.CachedAuthorizationUser = "";
@@ -1298,7 +1298,7 @@ function SvnGetDotSvnDir                      ( $workSubDir ){
                                                 throw [Exception] "Missing directory '.svn' within or up from the path `"$workSubDir`""; }
 function SvnAuthorizationSave                ( [String] $workDir, [String] $user ){
                                                 # If this part fails then you should clear authorization account in svn settings.
-                                                # Note: if certificate is not accepted then a pem file (for example lets-encrypt-r3.pem) can be added to file "$env:APPDATA\Subversion\servers"
+                                                # Note: if certificate is not accepted then a pem file (for example lets-encrypt-r3.pem) can be added to file "$env:APPDATA/Subversion/servers"
                                                 $workDir = FsEntryGetAbsolutePath $workDir;
                                                 FsEntryAssertHasTrailingDirSep $workDir;
                                                 OutProgress "SvnAuthorizationSave user=$user ";
@@ -1327,13 +1327,13 @@ function SvnCleanup                           ( [String] $workDir ){
                                                 # For future alternative option: --trust-server-cert-failures unknown-ca,cn-mismatch,expired,not-yet-valid,other
                                                 [String[]] $out = @()+(& "svn" "cleanup" --non-interactive $workDir); AssertRcIsOk $out;
                                                 # At 2022-01 we got:
-                                                #   svn: E155009: Failed to run the WC DB work queue associated with '\\myserver\MyShare\Work', work item 363707 (sync-file-flags 102 MyDir/MyFile.ext)
-                                                #   svn: E720002: Can't set file '\\myserver\MyShare\Work\MyDir\MyFile.ext' read-write: Das System kann die angegebene Datei nicht finden.
+                                                #   svn: E155009: Failed to run the WC DB work queue associated with '//myserver/MyShare/Work', work item 363707 (sync-file-flags 102 MyDir/MyFile.ext)
+                                                #   svn: E720002: Can't set file '//myserver/MyShare/Work/MyDir/MyFile.ext' read-write: Das System kann die angegebene Datei nicht finden.
                                                 #   Then manually the missing file had to be put to the required location.
                                                 FileAppendLines $svnLogFile (StringArrayInsertIndent $out 2); }
 function SvnStatus                            ( [String] $workDir, [Boolean] $showFiles ){
                                                 # Return true if it has any pending changes, otherwise false.
-                                                # Example: "M       D:\Work\..."
+                                                # Example: "M       D:/Work/..."
                                                 # First char: Says if item was added, deleted, or otherwise changed
                                                 #   ' ' no modifications
                                                 #   'A' Added
@@ -1394,8 +1394,8 @@ function SvnRevert                            ( [String] $workDir, [String[]] $r
                                                 foreach( $e in (@()+$relativeRevertFsEntries) ){
                                                   [String] $f = "$workDir/$e";
                                                   FileAppendLineWithTs $svnLogFile "SvnRevert(`"$f`")";
-                                                  # avoid:  svn: E155010: The node 'C:\MyWorkDir\UnexistingDir' was not found.
-                                                  if( (FsEntryExists $f) ){
+                                                  # avoid:  svn: E155010: The node 'C:/MyWorkDir/UnexistingDir' was not found.
+                                                  if( FsEntryExists $f ){
                                                     [String[]] $out = @()+(& "svn" "revert" "--recursive" "$f"); AssertRcIsOk $out;
                                                     FileAppendLines $svnLogFile (StringArrayInsertIndent $out 2);
                                                   }
@@ -1404,7 +1404,7 @@ function SvnTortoiseCommit                    ( [String] $workDir ){
                                                 $workDir = FsEntryGetAbsolutePath $workDir;
                                                 FsEntryAssertHasTrailingDirSep $workDir;
                                                 FileAppendLineWithTs $svnLogFile "SvnTortoiseCommit(`"$workDir`") call checkin dialog";
-                                                [String] $tortoiseExe = FsEntryGetAbsolutePath (RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseSVN" "ProcPath"); # Example: "C:\Program Files\TortoiseSVN\bin\TortoiseProc.exe"
+                                                [String] $tortoiseExe = FsEntryGetAbsolutePath (RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseSVN" "ProcPath"); # Example: "$env:ProgramFiles/TortoiseSVN/bin/TortoiseProc.exe"
                                                 Start-Process -NoNewWindow -Wait -FilePath "$tortoiseExe" -ArgumentList @("/closeonend:2","/command:commit","/path:`"$workDir`""); AssertRcIsOk; }
 function SvnUpdate                            ( [String] $workDir, [String] $user ){
                                                 $workDir = FsEntryGetAbsolutePath $workDir;
@@ -1486,7 +1486,7 @@ function SvnPreCommitCleanupRevertAndDelFiles ( [String] $workDir, [String[]] $r
                                                 FsEntryAssertHasTrailingDirSep $workDir;
                                                 [String] $dotSvnDir = SvnGetDotSvnDir $workDir;
                                                 [String] $svnRequiresCleanup = "$dotSvnDir/OwnSvnRequiresCleanup.txt";
-                                                if( (FileExists $svnRequiresCleanup) ){ # Optimized because it is slow.
+                                                if( FileExists $svnRequiresCleanup ){ # Optimized because it is slow.
                                                   OutProgress "SvnCleanup - Perform cleanup because previous run was not completed";
                                                   SvnCleanup $workDir;
                                                   FileDelete $svnRequiresCleanup;
@@ -1671,7 +1671,7 @@ function TfsInitLocalWorkspaceIfNotDone       ( [String] $url, [String] $rootDir
                                                 [string] $wsName = $ComputerName;
                                                 OutProgress "Init local tfs workspaces with name identic to computername if not yet done of $url to `"$rootDir`"";
                                                 FsEntryAssertHasTrailingDirSep $rootDir;
-                                                if( (TfsHasLocalMachWorkspace $url) ){ OutProgress "Init-Workspace not nessessary because has already workspace identic to computername."; return; }
+                                                if( TfsHasLocalMachWorkspace $url ){ OutProgress "Init-Workspace not nessessary because has already workspace identic to computername."; return; }
                                                 [String] $cd = (Get-Location); Set-Location $rootDir; try{
                                                     OutProgress         "& `"$(TfsExe)`" vc workspace /new /noprompt /location:local /collection:$url $wsName";
                                                     [String] $out = @()+(&    (TfsExe)   vc workspace /new /noprompt /location:local /collection:$url $wsName); AssertRcIsOk $out;
@@ -1693,7 +1693,7 @@ function TfsDeleteLocalMachWorkspace          ( [String] $url ){ # we support on
                                                 #   Example4 (stderr):
                                                 #     "MYCOMPUTER" entspricht keinem Arbeitsbereich im Cache für den Server "*".
                                                 }
-function TfsGetNewestNoOverwrite              ( [String] $wsdir, [String] $tfsPath, [String] $url ){ # Example: TfsGetNewestNoOverwrite C:\MyWorkspace\Src $/Src https://devops.mydomain.ch/MyTfsRoot
+function TfsGetNewestNoOverwrite              ( [String] $wsdir, [String] $tfsPath, [String] $url ){ # Example: TfsGetNewestNoOverwrite C:/MyWorkspace/Src $/Src https://devops.mydomain.ch/MyTfsRoot
                                                 $wsdir = FsEntryGetAbsolutePath $wsdir;
                                                 AssertNotEmpty $wsdir "wsdir";
                                                 FsEntryAssertHasTrailingDirSep $wsdir;
@@ -1728,13 +1728,13 @@ function TfsListOwnLocks                      ( [String] $wsdir, [String] $tfsPa
                                                   #    Dateiname    Ändern     Lokaler Pfad
                                                   #    ------------ ---------- -------------------------------------
                                                   #    $/Src/MyBranch
-                                                  #    MyFile.txt   bearbeiten C:\MyWorkspace\Src\MyBranch\MyFile.txt
+                                                  #    MyFile.txt   bearbeiten C:/MyWorkspace/Src/MyBranch/MyFile.txt
                                                   #
                                                   #    1 Änderungen
                                                   # Example: Es sind keine ausstehenden Änderungen vorhanden.
                                                   return [String[]] $out;
                                                 }finally{ Set-Location $cd; } }
-function TfsAssertNoLocksInDir                ( [String] $wsdir, [String] $tfsPath ){ # Example: "C:\MyWorkspace" "$/Src";
+function TfsAssertNoLocksInDir                ( [String] $wsdir, [String] $tfsPath ){ # Example: "C:/MyWorkspace" "$/Src";
                                                 $wsdir = FsEntryGetAbsolutePath $wsdir;
                                                 AssertNotEmpty $wsdir "wsdir";
                                                 FsEntryAssertHasTrailingDirSep $wsdir;
@@ -1807,7 +1807,7 @@ function SqlGetCmdExe                         (){
                                                       ,"HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\100\Tools\ClientSetup" # sql server 2008
                                                     ) | Where-Object{ (RegistryExistsValue $_ "Path") } |
                                                     ForEach-Object{ ((RegistryGetValueAsString $_ "Path")+"sqlcmd.EXE") } |
-                                                    Where-Object{ (FileExists $_) } | Select-Object -First 1; # Example: "C:\Program Files\Microsoft SQL Server\130\Tools\Binn\sqlcmd.EXE"
+                                                    Where-Object{ (FileExists $_) } | Select-Object -First 1; # Example: "$env:ProgramFiles/Microsoft SQL Server/130/Tools/Binn/sqlcmd.EXE"
                                                 }
                                                 if( $result -eq "" ){ throw [ExcMsg] "Cannot find sqlcmd.exe whether in path nor is any Sql Server 2022, 2019, 2016, 2014, 2012 or 2008 installed. "; }
                                                 return [String] $result; }
@@ -2071,7 +2071,7 @@ function ToolRdpConnect                       ( [String] $rdpfile, [String] $mst
                                               }
 function ToolHibernateModeEnable              (){
                                                 OutProgressTitle "Enable hibernate mode";
-                                                if( (OsIsHibernateEnabled) ){
+                                                if( OsIsHibernateEnabled ){
                                                   OutProgress "Ok, is enabled.";
                                                 }elseif( (DriveFreeSpace 'C') -le ((OsInfoMainboardPhysicalMemorySum) * 1.3) ){
                                                   OutWarning "Warning: Cannot enable hibernate because has not enought hd-space (RAM=$(OsInfoMainboardPhysicalMemorySum),DriveC-Free=$(DriveFreeSpace 'C'),expect RAM*1.3); ignored. You can manually try by: powercfg -HIBERNATE ON; ";
@@ -2115,14 +2115,15 @@ function ToolActualizeHostsFileByMaster       ( [String] $srcHostsFile ){
                                                 }
                                               }
 function ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [String] $workDir, [String] $lnkFile, [String] $srcFsEntry, [String[]] $arguments = @(),
-                                                  [Boolean] $runElevated = $false, [Boolean] $ignoreIfSrcNotExists = $false ){
+                                                [Boolean] $runElevated = $false, [Boolean] $ignoreIfSrcNotExists = $false ){
                                                 # Creates links to files as programs or document files or to directories.
-                                                # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA/Microsoft/Windows/Start Menu/Programs/LinkToNotepad.lnk" "C:/Windows/notepad.exe";
-                                                # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA/Microsoft/Internet Explorer/Quick Launch/LinkToNotepad.lnk" "C:/Windows/notepad.exe";
+                                                # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA/Microsoft/Windows/Start Menu/Programs/LinkToNotepad.lnk" "$env:SystemRoot/notepad.exe";
+                                                # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA/Microsoft/Internet Explorer/Quick Launch/LinkToNotepad.lnk" "$env:SystemRoot/notepad.exe";
                                                 # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA/Microsoft/Windows/Start Menu/- Folders/C - SendTo.lnk" "$HOME/AppData/Roaming/Microsoft/Windows/SendTo/";
                                                 # forceRecreate: if is false and target lnkfile already exists then it does nothing.
                                                 # workDir             : can be empty string. Internally it then takes the parent of the file.
-                                                # srcFsEntry          : file or dir. A dir must be specified by a trailing dir separator!
+                                                # srcFsEntry          : file or dir. An executable or a file to be called with its associated exec. A dir must be specified by a trailing dir separator!
+                                                # arguments           : arguments for the executable.
                                                 # runElevated         : the link is marked to request for run in elevated mode.
                                                 # ignoreIfSrcNotExists: if source not exists it will be silently ignored, but then the lnk file cannot be created.
                                                 # Icon: If next to the srcFile an ico file with the same filename exists then this will be taken.
@@ -2137,7 +2138,7 @@ function ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [Strin
                                                 }
                                                 if( $isDir ){ DirAssertExists $srcFsEntry; }else{ FileAssertExists $srcFsEntry; }
                                                 if( $forceRecreate ){ FileDelete $lnkFile -traceCmd:$false; }
-                                                if( (FileExists $lnkFile) ){
+                                                if( FileExists $lnkFile ){
                                                   OutVerbose "Unchanged: $lnkFile";
                                                 }else{
                                                     [String] $argLine = $arguments; # array to string
@@ -2169,22 +2170,22 @@ function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [St
                                                 [String] $srcFileExtMenuLink    = ".menulink.txt",
                                                 [String] $srcFileExtMenuLinkOpt = ".menulinkoptional.txt" ){
                                                 # Create menu entries based on menu-item-linkfiles below a dir.
-                                                # - targetMenuRootDir      : target start menu folder, example: "$env:APPDATA\Microsoft\Windows\Start Menu\Apps"
+                                                # - targetMenuRootDir      : target start menu folder, example: "$env:APPDATA/Microsoft/Windows/Start Menu/Apps"
                                                 # - sourceDir              : Used to finds all files below sourceDir with the extension (example: ".menulink.txt").
                                                 #                            For each of these files it will create a menu item below the target menu root dir.
                                                 # - srcFileExtMenuLink     : Extension for mandatory menu linkfiles. The containing referenced command (in general an executable) must exist.
-                                                # - $srcFileExtMenuLinkOpt : Extension for optional  menu linkfiles. Menu item is created only if the containing referenced executable will exist.
+                                                # - srcFileExtMenuLinkOpt  : Extension for optional  menu linkfiles. Menu item is created only if the containing referenced executable will exist.
                                                 # The name of the target menu item (example: "Manufactor ProgramName V1") will be taken from the name
-                                                #   of the menu-item-linkfile (example: ...\Manufactor ProgramName V1.menulink.txt) without the extension (example: ".menulink.txt")
+                                                #   of the menu-item-linkfile (example: .../Manufactor ProgramName V1.menulink.txt) without the extension (example: ".menulink.txt")
                                                 #   and the sub menu folder will be taken from the relative location of the menu-item-linkfile below the sourceDir.
-                                                # The command for the target menu will be taken from the first line (example: "D:\MyApps\Manufactor ProgramName\AnyProgram.exe")
+                                                # The command for the target menu will be taken from the first line (example: "D:/MyApps/Manufactor ProgramName/AnyProgram.exe")
                                                 #   of the content of the menu-item-linkfile.
                                                 # If target lnkfile already exists it does nothing.
-                                                # Example: ToolCreateMenuLinksByMenuItemRefFile "$env:APPDATA\Microsoft\Windows\Start Menu\Apps" "D:\MyApps" ".menulink.txt";
+                                                # Example: ToolCreateMenuLinksByMenuItemRefFile "$env:APPDATA/Microsoft/Windows/Start Menu/Apps" "D:/MyApps" ".menulink.txt";
                                                 FsEntryAssertHasTrailingDirSep $targetMenuRootDir;
                                                 FsEntryAssertHasTrailingDirSep $sourceDir;
-                                                [String] $m    = FsEntryGetAbsolutePath $targetMenuRootDir; # Example: "$env:APPDATA\Microsoft\Windows\Start Menu\MyPortableProg\"
-                                                [String] $sdir = FsEntryGetAbsolutePath $sourceDir; # Example: "D:\MyPortableProgs"
+                                                [String] $m    = FsEntryGetAbsolutePath $targetMenuRootDir; # Example: "$env:APPDATA/Microsoft/Windows/Start Menu/MyPortableProg/"
+                                                [String] $sdir = FsEntryGetAbsolutePath $sourceDir; # Example: "D:/MyPortableProgs"
                                                 OutProgress "Create menu links to `"$m`" from files below `"$sdir`" with extension `"$srcFileExtMenuLink`" or `"$srcFileExtMenuLinkOpt`" files";
                                                 Assert ($srcFileExtMenuLink    -ne "" -or (-not (FsEntryHasTrailingDirSep $srcFileExtMenuLink   ))) "srcMenuLinkFileExt=`"$srcFileExtMenuLink`" is empty or has trailing backslash";
                                                 Assert ($srcFileExtMenuLinkOpt -ne "" -or (-not (FsEntryHasTrailingDirSep $srcFileExtMenuLinkOpt))) "srcMenuLinkOptFileExt=`"$srcFileExtMenuLinkOpt`" is empty or has trailing backslash";
@@ -2192,12 +2193,15 @@ function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [St
                                                 [String[]] $menuLinkFiles =  (@()+(FsEntryListAsStringArray "$sdir$(DirSep)*$srcFileExtMenuLink"    $true $false));
                                                            $menuLinkFiles += (FsEntryListAsStringArray "$sdir$(DirSep)*$srcFileExtMenuLinkOpt" $true $false);
                                                            $menuLinkFiles =  (@()+($menuLinkFiles | Where-Object{$null -ne $_} | Sort-Object));
-                                                foreach( $f in $menuLinkFiles ){ # Example: "...\MyProg .menulinkoptional.txt"
-                                                  [String] $d = FsEntryGetParentDir $f; # Example: "D:\MyPortableProgs\Appl\Graphic\"
-                                                  [String] $relBelowSrcDir = FsEntryMakeRelative $d $sdir; # Example: "Appl\Graphic\" or ".\"
+                                                foreach( $f in $menuLinkFiles ){ # Example: ".../MyProg .menulinkoptional.txt"
+                                                  [String] $dirOfLnk = FsEntryGetParentDir $f; # Example: "D:/MyPortableProgs/Appl/Graphic/"
+                                                  [String] $relBelowSrcDir = FsEntryMakeRelative $dirOfLnk $sdir; # Example: "Appl/Graphic/" or "./"
                                                   [String] $workDir = "";
-                                                  # Example: "$env:APPDATA\Microsoft\Windows\Start Menu\MyPortableProg\Appl\Graphic\Manufactor ProgramName V1 en 2016.lnk"
-                                                  [String] $fn = FsEntryGetFileName $f; $fn = StringRemoveRight $fn $srcFileExtMenuLink; $fn = StringRemoveRight $fn $srcFileExtMenuLinkOpt; $fn = $fn.TrimEnd();
+                                                  # Example: "$env:APPDATA/Microsoft/Windows/Start Menu/MyPortableProg/Appl/Graphic/Manufactor ProgramName V1 en 2016.lnk"
+                                                  [String] $fn = FsEntryGetFileName $f; 
+                                                  $fn = StringRemoveRight $fn $srcFileExtMenuLink;
+                                                  $fn = StringRemoveRight $fn $srcFileExtMenuLinkOpt;
+                                                  $fn = $fn.TrimEnd();
                                                   [String] $lnkFile = FsEntryGetAbsolutePath "$m/$relBelowSrcDir/$fn.lnk";
                                                   [String] $cmdLine = FileReadContentAsLines $f -encodingIfNoBom "Default" | Select-Object -First 1; # TODO: try to replace Default by UTF8.
                                                   [String] $addTraceInfo = "";
@@ -2208,8 +2212,19 @@ function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [St
                                                     if( $ar.Length -eq 0 ){ throw [Exception] "Missing a command line at first line in file=`"$f`" cmdline=`"$cmdLine`""; }
                                                     if( ($ar.Length-1) -gt 999 ){
                                                       throw [Exception] "Command line has more than the allowed 999 arguments at first line infile=`"$f`" nrOfArgs=$($ar.Length) cmdline=`"$cmdLine`""; }
-                                                    # Example: "D:\MyPortableProgs\Manufactor ProgramName\AnyProgram.exe"
-                                                    [String] $srcFile = FsEntryGetAbsolutePath ([System.IO.Path]::Combine($d,$ar[0]));
+                                                    # Example: "D:/MyPortableProgs/Manufactor ProgramName/AnyProgram.exe"
+                                                    # srcFsEntry : file or dir. An executable or a file to be called with its associated exec. A dir must be specified by a trailing dir separator!
+                                                    #   It can contain environment variables as example $env:ProgramFiles or ${env:ProgramFiles(x86)} which are expanded.
+                                                    [String] $cmdArg0 = $ar[0]; # ex: "./LocalDir/Demo.exe", "$env:ProgramFiles/Demo/Demo.exe", "notepad.exe", ...
+                                                    if( -not [System.IO.Path]::IsPathRooted($cmdArg0) ){ # is relative
+                                                      # we first try to preceed with dir of lnk file
+                                                      [String] $srcFile = FsEntryGetAbsolutePath ([System.IO.Path]::Combine($dirOfLnk,$cmdArg0));
+                                                      if( FsEntryNotExists $srcFile ){
+                                                        # try to find exec in path
+                                                        [String] $exec = ProcessFindExecutableInPath $cmdArg0;
+                                                        if( $exec -ne "" -and (FileExists $exec) ){ $srcFile = $exec; }
+                                                      }
+                                                    }
                                                     [String[]] $arguments = @()+($ar | Select-Object -Skip 1);
                                                     $addTraceInfo = "and calling (ToolCreateLnkIfNotExists $forceRecreate `"$workDir`" `"$lnkFile`" `"$srcFile`" `"$arguments`" $false $ignoreIfSrcNotExists) ";
                                                     ToolCreateLnkIfNotExists $forceRecreate $workDir $lnkFile $srcFile $arguments $false $ignoreIfSrcNotExists;
@@ -2258,10 +2273,10 @@ function ToolSetAssocFileExtToCmd             ( [String[]] $fileExtensions, [Str
                                                 #   in the style {extWithoutDot}file (example: ps1file).
                                                 # AssertPrgExists: You can assert that the program in the command must exist but note that
                                                 #   variables enclosed in % char cannot be expanded because these are not powershell variables.
-                                                # Example: ToolSetAssocFileExtToCmd @(".log",".out") "$env:SystemRoot\System32\notepad.exe" "" $true;
-                                                # Example: ToolSetAssocFileExtToCmd ".log"           "$env:SystemRoot\System32\notepad.exe";
-                                                # Example: ToolSetAssocFileExtToCmd ".log"           "%SystemRoot%\System32\notepad.exe" "txtfile";
-                                                # Example: ToolSetAssocFileExtToCmd ".out"           "`"C:\Any.exe`" `"%1`" -xy";
+                                                # Example: ToolSetAssocFileExtToCmd @(".log",".out") "$env:SystemRoot/System32/notepad.exe" "" $true;
+                                                # Example: ToolSetAssocFileExtToCmd ".log"           "$env:SystemRoot/System32/notepad.exe";
+                                                # Example: ToolSetAssocFileExtToCmd ".log"           "%SystemRoot%/System32/notepad.exe" "txtfile";
+                                                # Example: ToolSetAssocFileExtToCmd ".out"           "`"C:/Any.exe`" `"%1`" -xy";
                                                 # Example: ToolSetAssocFileExtToCmd ".out" "";
                                                 [String] $prg = $cmd; if( $cmd.StartsWith("`"") ){ $prg = ($prg -split "`"",0)[1]; }
                                                 [String] $exec = $cmd; if( -not $cmd.StartsWith("`"") ){ $exec = "`"$cmd`" `"%1`""; }
@@ -2288,18 +2303,18 @@ function ToolSetAssocFileExtToCmd             ( [String[]] $fileExtensions, [Str
                                                       }
                                                       $ft = $ft.Split("=")[-1]; # "Microsoft.PowerShellScript.1" or "ps1file"
                                                     }
-                                                     # Example: Microsoft.PowerShellScript.1="C:\WINDOWS\System32\WindowsPowerShell\v1.0\powershell.exe" "%1"
+                                                     # Example: Microsoft.PowerShellScript.1="$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe" "%1"
                                                     [String] $out = (& cmd.exe /c "ftype $ft=$exec"); AssertRcIsOk;
                                                     OutProgress "SetFileAssociation ext=$($ext.PadRight(6)) ftype=$($ft.PadRight(20)) cmd=$exec";
                                                   }
                                                 }; }
 function ToolVsUserFolderGetLatestUsed        (){
                                                 # return the current user config folder of visual studio 2022 or 2019 or empty string if it not exits.
-                                                # example: "$env:LOCALAPPDATA\Microsoft\VisualStudio\16.0_d70392ef\"
+                                                # example: "$env:LOCALAPPDATA/Microsoft/VisualStudio/16.0_d70392ef/"
                                                 [String] $result = "";
                                                 # we internally locate the private registry file used by vs2019, later maybe we use https://github.com/microsoft/vswhere
-                                                [String[]] $a  = (@()+(FsEntryListAsStringArray "$env:LOCALAPPDATA\Microsoft\VisualStudio\17.0_*\privateregistry.bin" $false $false));
-                                                           $a += (@()+(FsEntryListAsStringArray "$env:LOCALAPPDATA\Microsoft\VisualStudio\16.0_*\privateregistry.bin" $false $false));
+                                                [String[]] $a  = (@()+(FsEntryListAsStringArray "$env:LOCALAPPDATA/Microsoft/VisualStudio/17.0_*/privateregistry.bin" $false $false));
+                                                           $a += (@()+(FsEntryListAsStringArray "$env:LOCALAPPDATA/Microsoft/VisualStudio/16.0_*/privateregistry.bin" $false $false));
                                                 if( $a.Count -gt 0 ){
                                                   $result = $a[0];
                                                   $a | Select-Object -Skip 1 | ForEach-Object { if( FileExistsAndIsNewer $_ $result ){ $result = $_; } }
@@ -2309,7 +2324,7 @@ function ToolVsUserFolderGetLatestUsed        (){
 function ToolGitTortoiseCommit                ( [String] $workDir, [String] $commitMessage = "" ){
                                                 $workDir = FsEntryGetAbsolutePath $workDir;
                                                 FsEntryAssertHasTrailingDirSep $workDir;
-                                                [String] $tortoiseExe = (RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseGit" "ProcPath"); # Example: "C:\Program Files\TortoiseGit\bin\TortoiseGitProc.exe"
+                                                [String] $tortoiseExe = (RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseGit" "ProcPath"); # Example: "$env:ProgramFiles/TortoiseGit/bin/TortoiseGitProc.exe"
                                                 Start-Process -NoNewWindow -Wait -FilePath "$tortoiseExe" -ArgumentList @("/command:commit","/path:`"$workDir`"", "/logmsg:$commitMessage"); AssertRcIsOk; }
 function ToolWin10PackageGetState             ( [String] $packageName ){ # Example: for "OpenSSH.Client" return "Installed","NotPresent".
                                                 ProcessRestartInElevatedAdminMode "Getting package state requires elevated admin mode.";
@@ -2355,8 +2370,8 @@ function ToolOsWindowsResetSystemFileIntegrity(){ # uses about 4 min
                                                 FileGetLastLines $f 100 | Foreach-Object{ OutProgress "  $_"; };
                                                 OutProgressTitle "Ok, checked and repaired missing, corrupted or ownership-settings of system files and logged to '$env:Windows/Logs/CBS/CBS.log'"; }
 function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $url, [Boolean] $requireElevatedAdminMode = $false,
-                                                  [Boolean] $doWaitIfFailed = $false, [String] $additionalOkUpdMsg = "",
-                                                  [Boolean] $assertFilePreviouslyExists = $true, [Boolean] $performPing = $true ){
+                                                [Boolean] $doWaitIfFailed = $false, [String] $additionalOkUpdMsg = "",
+                                                [Boolean] $assertFilePreviouslyExists = $true, [Boolean] $performPing = $true ){
                                                 # Check if target file exists, checking whether host is reachable by ping, downloads the file, check for differences,
                                                 # check for admin mode, overwriting the file and a success message is given out.
                                                 # Otherwise if it failed it will output a warning message and optionally wait for pressing enter key.
@@ -2411,7 +2426,7 @@ function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $
 function ToolInstallOrUpdate                  ( [String] $installMedia, [String] $mainTargetFileMinIsoDate, [String] $mainTargetRelFile, [String] $installDirsSemicSep, [String] $installHints = "" ){
                                                 # Check if a main target file exists in one of the installDirs and whether it has a minimum expected date.
                                                 # If not it will be installed or updated by calling installmedia asynchronously which is in general a half automatic installation procedure.
-                                                # Example: ToolInstallOrUpdate "Freeware\NetworkClient\Browser\OpenSource-MPL2 Firefox V89.0 64bit multilang 2021.exe" "2021-05-27" "firefox.exe" "$env:ProgramFiles\Mozilla Firefox ; C:\Prg\Network\Browser\OpenSource-MPL2 Firefox\" "Not install autoupdate";
+                                                # Example: ToolInstallOrUpdate "Freeware\NetworkClient\Browser\OpenSource-MPL2 Firefox V89.0 64bit multilang 2021.exe" "2021-05-27" "firefox.exe" "$env:ProgramFiles/Mozilla Firefox ; C:/Prg/Network/Browser/OpenSource-MPL2 Firefox/" "Not install autoupdate";
                                                 $installMedia   = FsEntryGetAbsolutePath $installMedia;
                                                 [String[]] $installDirs = @()+(StringSplitToArray ";" $installDirsSemicSep);
                                                 [DateTime] $mainTargetFileMinDate = DateTimeFromStringIso $mainTargetFileMinIsoDate;
@@ -2474,7 +2489,7 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){ # runs in about 12-90 sec and 
                                                 Get-Module | Sort-Object Name, Version, ModuleType | Select-Object Name,ModuleType,Version,Path |
                                                   StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
                                                 function DownloadNuPckAndUnzipIfDirNotExists( [String] $url, [String] $tarDir ){
-                                                  if( (DirNotExists $tarDir) ){
+                                                  if( DirNotExists $tarDir ){
                                                     [String] $ftmp = FileGetTempFile;
                                                     NetDownloadFile $url $ftmp;
                                                     Unblock-File $ftmp;
@@ -2488,13 +2503,13 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){ # runs in about 12-90 sec and 
                                                   # Works for Ps 5 and 7; There is no automatic installation or update;
                                                   # if we are running in PS5.1 and Get-PackageProvider (from PackageManagement) was found then do nothing.
                                                   if( (ProcessIsLesserEqualPs5) -and $null -ne (Get-Command "Get-PackageProvider" -ErrorAction SilentlyContinue) ){ return; }
-                                                  DownloadNuPckAndUnzipIfDirNotExists "https://www.powershellgallery.com/api/v2/package/PackageManagement/1.4.8.1" "C:/Program Files/WindowsPowerShell/Modules/PackageManagement/1.4.8.1/"; # 2025-02
+                                                  DownloadNuPckAndUnzipIfDirNotExists "https://www.powershellgallery.com/api/v2/package/PackageManagement/1.4.8.1" "$env:ProgramFiles/WindowsPowerShell/Modules/PackageManagement/1.4.8.1/"; # 2025-02
                                                 }
                                                 function MakeSureForPs5InstalledPowerShellGet(){
                                                   # Works for Ps 5 and 7; Required because there is no automatic installation or update for PS5-V1.0.0.1;
                                                   # if we are running in PS5.1 and Install-Module (from PowerShellGet) was found then do nothing.
                                                   if( (ProcessIsLesserEqualPs5) -and $null -ne (Get-Command "Install-Module" -ErrorAction SilentlyContinue) ){ return; }
-                                                  DownloadNuPckAndUnzipIfDirNotExists "https://www.powershellgallery.com/api/v2/package/PowerShellGet/2.2.5"       "C:/Program Files/WindowsPowerShell/Modules/PowerShellGet/2.2.5/"      ; # 2025-02
+                                                  DownloadNuPckAndUnzipIfDirNotExists "https://www.powershellgallery.com/api/v2/package/PowerShellGet/2.2.5"       "$env:ProgramFiles/WindowsPowerShell/Modules/PowerShellGet/2.2.5/"      ; # 2025-02
                                                 }
                                                 # Note: PackageManagement is a required dependency for PowerShellGet
                                                 MakeSureForPs5InstalledPackageManagement;
@@ -2525,7 +2540,7 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){ # runs in about 12-90 sec and 
                                                 #
                                                 OutProgress "Make sure we have package provider NuGet in minimum version 2.8.5.201 ";
                                                 # for future use: nuget.exe update -self;
-                                                if( (ProcessIsLesserEqualPs5) ){
+                                                if( ProcessIsLesserEqualPs5 ){
                                                   # On PS7 we would get: Install-PackageProvider: No match was found for the specified search criteria for the provider 'NuGet'.
                                                   #   The package provider requires 'PackageManagement' and 'Provider' tags. Please check if the specified package has the tags.
                                                   # PowerShellGet requires minimum NuGet V2.8.5.201; Needs 2-4 sec.
@@ -2555,7 +2570,7 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){ # runs in about 12-90 sec and 
                                                   [Boolean] $isNotInstalled = (@()+($installedModules | Where-Object{ $null -ne $_ -and $_.Name -eq $module })).Count -eq 0;
                                                   [String[]] $out = @();
                                                   if( $isNotInstalled ){
-                                                    if( (ProcessIsLesserEqualPs5) ){ # has no AcceptLicense option
+                                                    if( ProcessIsLesserEqualPs5 ){ # has no AcceptLicense option
                                                       OutProgress   "  Install-Module -Name $module                -Scope AllUsers; ";
                                                       $out = [String]( Install-Module -Name $module                -Scope AllUsers 3>&1 );
                                                     }else{
@@ -2565,9 +2580,9 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){ # runs in about 12-90 sec and 
                                                     $out | Where-Object{ $null -ne $_ } | Where-Object{ -not $_ -match "^Version\ \'[0-9\.]+\'\ of\ module\ \'[a-zA-Z0-9]+\'\ is\ already\ installed\ at\ .*$" } |
                                                       StreamToTableString | StreamToStringIndented 4 | Where-Object{ $_.Trim() -ne "" } | ForEach-Object{ OutProgress $_; };
                                                       # 2024-09: We get:
-                                                      #   WARNING: Version '2.2.1.4' of module 'PSWindowsUpdate' is already installed at 'C:\Program Files\PowerShell\Modules\PSWindowsUpdate\2.2.1.4'.
+                                                      #   WARNING: Version '2.2.1.4' of module 'PSWindowsUpdate' is already installed at '$env:ProgramFiles\PowerShell\Modules\PSWindowsUpdate\2.2.1.4'.
                                                       #     To install version '2.2.1.5', run Install-Module and add the -Force parameter, this command will install version '2.2.1.5' side-by-side with version '2.2.1.4'                                                                                  .
-                                                      #   WARNING: Version '3.4.0' of module 'Pester' is already installed at 'C:\Program Files\WindowsPowerShell\Modules\Pester\3.4.0'.
+                                                      #   WARNING: Version '3.4.0' of module 'Pester' is already installed at '$env:ProgramFiles\WindowsPowerShell\Modules\Pester\3.4.0'.
                                                       #     To install version '5.6.1', run Install-Module and add the -Force parameter, this command will install version '5.6.1' side-by-side with version '3.4.0'.
                                                       # for future use: PowerShellGet -Force
                                                       #   2025-01: but we get: WARNING: The version '1.4.8.1' of module 'PackageManagement' is currently in use. Retry the operation after closing the applications.
@@ -2578,7 +2593,7 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){ # runs in about 12-90 sec and 
                                                     return;
                                                   }
                                                   [String[]] $out = @();
-                                                  if( (ProcessIsLesserEqualPs5) ){ # has no scope parameter
+                                                  if( ProcessIsLesserEqualPs5 ){ # has no scope parameter
                                                     OutProgress   "  Update-Module  -Name $module -ErrorAction SilentlyContinue                               ; ";
                                                     $out = [String]( Update-Module  -Name $module -ErrorAction SilentlyContinue                                3>&1 );
                                                   }else{
@@ -2607,13 +2622,13 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){ # runs in about 12-90 sec and 
                                                 #
                                                 [String] $v1001PathOfModulePowerShellGet = ""+(Get-Module -ListAvailable -Name "PowerShellGet" | 
                                                   Where-Object{ $null -ne $_ } | Where-Object{ $_.Version -eq "1.0.0.1" } | Select-Object -First 1 |
-                                                  ForEach-Object{ FsEntryGetParentDir $_.Path }); # Example: "C:\Program Files\WindowsPowerShell\Modules\PowerShellGet\1.0.0.1\" or ""
+                                                  ForEach-Object{ FsEntryGetParentDir $_.Path }); # Example: "$env:ProgramFiles/WindowsPowerShell/Modules/PowerShellGet/1.0.0.1/" or ""
                                                 Assert ($v1001PathOfModulePowerShellGet -eq "" -or $v1001PathOfModulePowerShellGet.EndsWith("\PowerShellGet\1.0.0.1\"));
                                                 [Int32] $nrOfHigherVersionsOfModulePowerShellGet = (@()+(Get-Module -ListAvailable -Name "PowerShellGet" | 
                                                   Where-Object{ $null -ne $_ } | Where-Object{ $_.Version -ne "1.0.0.1" })).Count;
-                                                  # Example: 2.2.5 C:\Users\myuser\Documents\PowerShell\Modules\PowerShellGet\2.2.5\PowerShellGet.psd1
-                                                  #          2.2.5 C:\Program Files\PowerShell\Modules\PowerShellGet\2.2.5\PowerShellGet.psd1
-                                                  #          2.2.5 C:\program files\powershell\7\Modules\PowerShellGet\PowerShellGet.psd1
+                                                  # Example: 2.2.5 $HOME/Documents/PowerShell/Modules/PowerShellGet/2.2.5/PowerShellGet.psd1
+                                                  #          2.2.5 $env:ProgramFiles/PowerShell/Modules/PowerShellGet/2.2.5/PowerShellGet.psd1
+                                                  #          2.2.5 $env:ProgramFiles/powershell/7/Modules/PowerShellGet/PowerShellGet.psd1
                                                 if( $v1001PathOfModulePowerShellGet -ne "" -and $nrOfHigherVersionsOfModulePowerShellGet -ge 1 ){
                                                   MakeSureForPs5InstalledPowerShellGet;
                                                   DirDelete $v1001PathOfModulePowerShellGet;
@@ -2621,10 +2636,10 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){ # runs in about 12-90 sec and 
                                                 #
                                                 [String] $v1001PathOfModulePackageManagement = ""+(Get-Module -ListAvailable -Name "PackageManagement" | 
                                                   Where-Object{ $null -ne $_ } | Where-Object{ $_.Version -eq "1.0.0.1" } | Select-Object -First 1 |
-                                                  ForEach-Object{ FsEntryGetParentDir $_.Path }); # Example: "C:\Program Files\WindowsPowerShell\Modules\PackageManagement\1.0.0.1\" or ""
+                                                  ForEach-Object{ FsEntryGetParentDir $_.Path }); # Example: "$env:ProgramFiles/WindowsPowerShell/Modules/PackageManagement/1.0.0.1/" or ""
                                                 [Int32] $nrOfHigherVersionsOfModulePackageManagement = (@()+(Get-Module -ListAvailable -Name "PackageManagement" | 
                                                   Where-Object{ $null -ne $_ } | Where-Object{ $_.Version -ne "1.0.0.1" })).Count;
-                                                  # Example: 1.4.8.1 C:\Program Files\WindowsPowerShell\Modules\PackageManagement\1.4.8.1\PackageManagement.psd1
+                                                  # Example: 1.4.8.1 $env:ProgramFiles/WindowsPowerShell/Modules/PackageManagement/1.4.8.1/PackageManagement.psd1
                                                 # V1.0.0.1 was not installed by Install-Module, so it cannot automatically be removed by updates, so we have to manually delete (rename) the folder.
                                                 if( $v1001PathOfModulePackageManagement -ne "" -and $nrOfHigherVersionsOfModulePackageManagement -ge 1 ){
                                                   MakeSureForPs5InstalledPackageManagement;
@@ -2654,13 +2669,13 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){ # runs in about 12-90 sec and 
                                                 if( (FileNotExists $touchFile) -or (FsEntryGetLastModified $touchFile) -lt $lastModuleUpdateTs ){
                                                   OutProgress "Update-Help to en-US with continue-on-error ";
                                                   [String] $out = Update-Help -UICulture en-US -ErrorAction Continue *>&1 | ForEach-Object{ "$_"; }; ScriptResetRc;
-                                                  if( (HasKnowErrMsg $out) ){ $out = "Got known response 404=NotFound for en-US of: ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate. "; }
+                                                  if( HasKnowErrMsg $out ){ $out = "Got known response 404=NotFound for en-US of: ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate. "; }
                                                   Write-Progress -Activity " " -Status " " -Completed;
                                                   OutProgress "  $out";
                                                   OutProgress "Update-Help to current Culture with continue-on-error: $((Get-Culture).Name) = $((Get-Culture).DisplayName)"; # Example: "de-CH"
                                                   [String] $out = Update-Help -ErrorAction Continue *>&1 | ForEach-Object{ "$_"; }; ScriptResetRc;
                                                     # Usually we get the same errors as with en-US
-                                                  if( (HasKnowErrMsg $out) ){ $out = "Got known response 404=NotFound for en-US of: ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate. "; }
+                                                  if( HasKnowErrMsg $out ){ $out = "Got known response 404=NotFound for en-US of: ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate. "; }
                                                   Write-Progress -Activity " " -Status " " -Completed;
                                                   OutProgress "  $out";
                                                   FileTouch $touchFile;
@@ -2722,7 +2737,7 @@ function ToolWinGetCleanLine                  ( [String] $s ){
                                                 #   Successful installed.
                                                 # 2025-02: Example of rest of output of install which fails:
                                                 #   Sie haben die Installation abgebrochen. \n Installation fehlgeschlagen mit Exitcode: 1602
-                                                #   Das Installationsprotokoll ist verfügbar unter: C:\Users\myuser\AppData\Local\Packages\Microsoft.DesktopAppInstaller_8wekyb3d8bbwe\LocalState\DiagOutputDir\WinGet-Microsoft.PowerShell.7.5.0.0-2025-02-09-12-02-09.818.log
+                                                #   Das Installationsprotokoll ist verfügbar unter: $HOME/AppData/Local/Packages/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe/LocalState/DiagOutputDir/WinGet-Microsoft.PowerShell.7.5.0.0-2025-02-09-12-02-09.818.log
                                                 # 2025-02: Example of rest of output of install which fails ("Blizzard.BattleNet"):
                                                 #   Für dieses Paket ist ein Installationsspeicherort erforderlich \n Der Installationsspeicherort ist für das Paket erforderlich, wurde jedoch nicht angegeben.
                                                 # 2025-06: Example of rest of output of uninstall:
@@ -2790,11 +2805,11 @@ function ToolWinGetSetup                      (){ # install and update winget; u
                                                   [String] $pckName = "Microsoft.DesktopAppInstaller_8wekyb3d8bbwe";
                                                   [String] $msixName = "$pckName.msixbundle";
                                                   [String] $urlMsix = "https://github.com/microsoft/winget-cli/releases/latest/download/$msixName"; # 225 MB; alternative: "https://aka.ms/getwinget"
-                                                  if( (WingetIsVeryOld) ){
+                                                  if( WingetIsVeryOld ){
                                                     Add-AppxPackage -Path $urlMsix; #  -ForceApplicationShutdown;
                                                       AssertRcIsOk; Write-Progress -Activity " " -Status " " -Completed;
                                                     # alternative: Invoke-WebRequest -Uri $urlMsix -OutFile $msixName; Add-AppxPackage $msixName;
-                                                  }elseif( (ProcessIsRunningInElevatedAdminMode) ){
+                                                  }elseif( ProcessIsRunningInElevatedAdminMode ){
                                                     OutProgress "Currently in elevated-mode , so we cannot use WinGet itself and so we use Add-AppxPackage. ";
                                                     # Note: Add-AppxPackage sometimes requires: -ForceApplicationShutdown
                                                     # more see: https://github.com/microsoft/winget-cli/releases
@@ -2876,7 +2891,7 @@ function ToolWingetListInstalledPackages      (){
                                                 [String[]] $out1 = & WinGet list --disable-interactivity --accept-source-agreements --scope User *>&1 |
                                                   ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" }; AssertRcIsOk $out1;
                                                 [String[]] $out2 = @();
-                                                if( (ProcessIsRunningInElevatedAdminMode) ){
+                                                if( ProcessIsRunningInElevatedAdminMode ){
                                                   [String[]] $out2 = & WinGet list --disable-interactivity --accept-source-agreements --scope Machine *>&1 |
                                                   ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" }; AssertRcIsOk $out2;
                                                 }
@@ -2903,9 +2918,8 @@ function ToolWingetListUpgradablePackages     ( [String] $scope = "Auto" ){
                                                 }
                                               }
 function ToolWingetUpdateInstalledPackages    ( [String] $scope = "Auto" ){
-                                                # Note: for evaluated scope=Machine it also performs scope=User.
                                                 # Ignores errors. If not elevated then it will ask multiple for it.
-                                                # Scope is one of: "User","Machine","Auto"(depends on elevated admin mode).
+                                                # Scope is one of: "User","Machine"(and User),"Auto"(scope machine-and-user when in elevated admin mode otherwise only User).
                                                 [String] $instScope = $scope; if( $scope -eq "Auto" ){ $instScope = switch(ProcessIsRunningInElevatedAdminMode){($true){"Machine"}($false){"User"}}; }
                                                 OutProgress "Upgrade all packages of winget:  winget upgrade --silent --scope $instScope --include-unknown --disable-interactivity --accept-source-agreements --all ";
                                                                                             & WinGet upgrade --silent --scope $instScope --include-unknown --disable-interactivity --accept-source-agreements --all *>&1 |
@@ -2965,7 +2979,7 @@ function ToolWingetInstallPackage             ( [String] $idAndOptionalBlankSepV
                                                 [String[]] $out = & WinGet $arguments *>&1 | ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" };
                                                 [Int32] $rc = ScriptGetAndClearLastRc; # Example: OperationStopped: Last operation failed [ExitCode=-1978335189]. For the reason see the previous output. Is up to date.
                                                 $out | ForEach-Object{ OutProgress $_ 2; };
-                                                if( (ToolWinGetOutputIndicatesReinstall $out) ){
+                                                if( ToolWinGetOutputIndicatesReinstall $out ){
                                                   OutProgress "Output message indicated that install-technology changed and so immediate perform an uninstall and install again. ";
                                                   ToolWingetUninstallPackage $idAndOptionalBlankSepVersion $source $scope;
                                                   OutProgress "  & WinGet $(StringArrayDblQuoteItems $arguments) ";
@@ -3000,10 +3014,10 @@ function ToolWingetInstallPackage             ( [String] $idAndOptionalBlankSepV
                                                 # 2025-06: "Microsoft.VisualStudio.2022.Community": Starten Sie den PC neu, um die Installation abzuschließen.
                                               }
 function ToolManuallyDownloadAndInstallProg   ( [String] $programName, [String] $programDownloadUrl, [String] $mainTargetFileMinIsoDate = "0001-01-01",
-                                                  [String[]] $programExecutableOrDir = "", [String] $programConfigurations = "" ){
+                                                [String[]] $programExecutableOrDir = "", [String] $programConfigurations = "" ){
                                                 # programExecutableOrDir: one or alternative targets can be specified.
                                                 # Example: ToolManuallyDownloadAndInstallProg "Powershell-V7"     "https://learn.microsoft.com/de-de/powershell/scripting/install/installing-powershell-on-windows" "0001-01-01" "pwsh.exe" "";
-                                                # Example: ToolManuallyDownloadAndInstallProg "TortoiseGit 64bit" "https://tortoisegit.org/download/" "0001-01-01" "C:/Program Files/TortoiseGit/bin/TortoiseGit.dll" "";
+                                                # Example: ToolManuallyDownloadAndInstallProg "TortoiseGit 64bit" "https://tortoisegit.org/download/" "0001-01-01" "$env:ProgramFiles/TortoiseGit/bin/TortoiseGit.dll" "";
                                                 for( [Int32] $i = 0; $i -lt $programExecutableOrDir.Count; $i++ ){ $programExecutableOrDir[$i] = FsEntryUnifyDirSep $programExecutableOrDir[$i]; }
                                                 OutProgressTitle ("Check "+ "`"$programName`"".PadRight(40));
                                                 OutProgress "Expecting newer existance than minimum $mainTargetFileMinIsoDate of one of the target executables or dirs ";
@@ -3032,7 +3046,7 @@ function ToolManuallyDownloadAndInstallProg   ( [String] $programName, [String] 
                                                   if( $noExecSoReturnAfterOneRun ){ return; }
                                                 } }
 function MnCommonPsToolLibSelfUpdate          (){
-                                                # If installed in global standard mode (saved under c:/Program Files/WindowsPowerShell/Modules/)
+                                                # If installed in global standard mode (saved under $env:ProgramFiles/WindowsPowerShell/Modules/)
                                                 # then it performs a self update to the newest version from github otherwise output a note.
                                                 [String]  $additionalOkUpdMsg = "`n  Please restart all processes which currently loaded this module before using changed functions of this library.";
                                                 [Boolean] $requireElevatedAdminMode = $true;
@@ -3040,12 +3054,12 @@ function MnCommonPsToolLibSelfUpdate          (){
                                                 [Boolean] $performPing = $true;
                                                 [Boolean] $doWaitIfFailed = $false;
                                                 [String]  $moduleName = "MnCommonPsToolLib";
-                                                [String]  $tarRootDir = FsEntryGetAbsolutePath "$Env:ProgramW6432/WindowsPowerShell/Modules/"; # more see: https://msdn.microsoft.com/en-us/library/dd878350(v=vs.85).aspx
+                                                [String]  $tarRootDir = FsEntryGetAbsolutePath "$env:ProgramW6432/WindowsPowerShell/Modules/"; # more see: https://msdn.microsoft.com/en-us/library/dd878350(v=vs.85).aspx
                                                 [String]  $moduleFile = FsEntryGetAbsolutePath "$tarRootDir/$moduleName/${moduleName}.psm1";
                                                 [String]  $scrRootModDir = FsEntryGetAbsolutePath "$PSScriptRoot/../";
-                                                if( (FileNotExists $moduleFile) ){
+                                                if( FileNotExists $moduleFile ){
                                                   OutProgress "MnCommonPsToolLibSelfUpdate: Nothing done because is not installed in global standard mode under `"$tarRootDir`". ";
-                                                  if( (OsPsModulePathContains $scrRootModDir) ){
+                                                  if( OsPsModulePathContains $scrRootModDir ){
                                                     OutProgress "  It is Installed-for-Developers by having in PsModulePath the current script root: `"$scrRootModDir`"";
                                                   }else{ ProcessSleepSec 5; }
                                                   return;

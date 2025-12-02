@@ -17,8 +17,8 @@ function UnitTest_Win_Tool(){
   #   ToolActualizeHostsFileByMaster       ( [String] $srcHostsFile ){
   #   ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [String] $workDir, [String] $lnkFile, [String] $srcFile, [String[]] $arguments = @(),
   #                                            [Boolean] $runElevated = $false, [Boolean] $ignoreIfSrcFileNotExists = $false ){
-  #                                          # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\LinkToNotepad.lnk" "C:\Windows\notepad.exe";
-  #                                          # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA\Microsoft\Internet Explorer\Quick Launch\LinkToNotepad.lnk" "C:\Windows\notepad.exe";
+  #                                          # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\LinkToNotepad.lnk" "$env:SystemRoot\notepad.exe";
+  #                                          # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA\Microsoft\Internet Explorer\Quick Launch\LinkToNotepad.lnk" "$env:SystemRoot\notepad.exe";
   #                                          # If $forceRecreate is false and target lnkfile already exists then it does nothing.
   #   ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [String] $sourceDir,
   #                                          [String] $srcFileExtMenuLink    = ".menulink.txt",
@@ -28,7 +28,7 @@ function UnitTest_Win_Tool(){
   #                                          # - sourceDir              : Used to finds all files below sourceDir with the extension (example: ".menulink.txt").
   #                                          #                            For each of these files it will create a menu item below the target menu root dir.
   #                                          # - srcFileExtMenuLink     : Extension for mandatory menu linkfiles. The containing referenced command (in general an executable) must exist.
-  #                                          # - $srcFileExtMenuLinkOpt : Extension for optional  menu linkfiles. Menu item is created only if the containing referenced executable will exist.
+  #                                          # - srcFileExtMenuLinkOpt  : Extension for optional  menu linkfiles. Menu item is created only if the containing referenced executable will exist.
   #                                          # The name of the target menu item (example: "Manufactor ProgramName V1") will be taken from the name
   #                                          #   of the menu-item-linkfile (example: ...\Manufactor ProgramName V1.menulink.txt) without the extension (example: ".menulink.txt")
   #                                          #   and the sub menu folder will be taken from the relative location of the menu-item-linkfile below the sourceDir.

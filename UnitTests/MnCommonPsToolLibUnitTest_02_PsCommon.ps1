@@ -45,11 +45,11 @@ function UnitTest_PsCommon(){
   Assert (("abc" -split ",",0).Count -eq 1 -and "abc,".Split(",").Count -eq 2 -and ",abc".Split(",").Count -eq 2);
   #
   # No IO is done for the followings:
-  if( (OsIsWindows) ){ # windows
+  if( OsIsWindows ){
     Assert ([System.IO.Path]::GetDirectoryName("\\anyhostname\AnyFolder\") -eq "\\anyhostname\AnyFolder");
     Assert ([System.IO.Path]::GetDirectoryName("//anyhostname/AnyFolder/") -eq "\\anyhostname\AnyFolder");
     Assert ($null -eq [System.IO.Path]::GetDirectoryName("C:\"));
-  }else{ # not windows
+  }else{ # is not windows
     Assert ([System.IO.Path]::GetDirectoryName("\\anyhostname\AnyFolder\") -eq "");
     Assert ([System.IO.Path]::GetDirectoryName("//anyhostname/AnyFolder/") -eq "/anyhostname/AnyFolder");
     Assert ("" -eq [System.IO.Path]::GetDirectoryName("C:\"));
@@ -70,12 +70,12 @@ function UnitTest_PsCommon(){
   Assert ("hello" -match "hallo|hello|hullo" -and -not ("hello" -match "hallo|xhello|hullo"));
   #
   # Unexpected behaviour (undocumented)
-  if( (OsIsWindows) ){
+  if( OsIsWindows ){
     Push-Location "C:\Windows";
     Assert ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath("C:") -eq "C:\Windows"); # returns unexpected current dir of the drive
     Assert ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath("C:\") -eq "C:\"); # ok, expected
     Assert ([IO.Path]::GetFullPath("C:\") -eq "C:\"); # ok, expected
-    if( (ProcessIsLesserEqualPs5) ){
+    if( ProcessIsLesserEqualPs5 ){
       Assert ([IO.Path]::GetFullPath("C:/") -eq "C:\" ); # returns unexpected current dir of the drive
     }else{
       [String] $d = [IO.Path]::GetFullPath("C:/");

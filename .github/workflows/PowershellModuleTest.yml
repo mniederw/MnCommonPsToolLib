@@ -75,7 +75,7 @@ jobs:
           echo "Using curl: `"$((Get-Command "curl").Source)`" Version: $(curl --version) ";
             # Ubuntu  : /usr/bin/curl                 # 2024-02: V7.81.0(x86_64-pc-linux-gnu)        sudo apt install -y curl;
             # MacOS   : /usr/local/opt/curl/bin/curl  # 2024-02: V8.6.0 (x86_64-apple-darwin21.6.0)  brew install curl;
-            # Windows : C:\Windows\system32\curl.exe  # 2024-02: V8.4
+            # Windows : $env:SystemRoot\system32\curl.exe  # 2024-02: V8.4
           echo "github.event.schedule=${{github.event.schedule}} ";
           echo "List ps gallery repositories: "; Get-PSRepository;
           echo "List installed ps modules "; Get-Module -ListAvailable | Sort-Object ModuleType, Name, Version | Select-Object ModuleType, Name, Version | Format-Table -AutoSize;
