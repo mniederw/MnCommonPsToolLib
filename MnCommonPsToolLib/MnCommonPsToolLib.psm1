@@ -3412,9 +3412,9 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #       PS7: It works as it should, without additional double-double-quotes.
 #     - Resulttype is often [Object[]] (Example: (& dir).GetType()) but can also be [String] (Example: (& echo hi).GetType()).
 #       so be careful on applying string functions to it, for example do not use:  (& anycmd).Trim()  but use ([String](& anycmd)).Trim()
-#   - Evaluate (string expansion) and run a command given in a string, does not create a new script scope
-#     and so works in local scope. Care for code injection.
+#   - Evaluate (string expansion) and run a command given in a string, does not create a new script scope and so works in local scope. 
 #       Invoke-Expression [-command] string [CommonParameters]
+#     Dangerous: Never call it with untrusted input, care for code injection.
 #     Very important: It performs string expansion before running, so it can be a severe problem if the string contains character $.
 #     This behaviour is very bad and so avoid using Invoke-Expression and use & or . operators instead.
 #     Example: $cmd1 = "Write-Output `$PSHome"; $cmd2 = "Write-Output $PSHome"; Invoke-Expression $cmd1; Invoke-Expression $cmd2;

@@ -2197,7 +2197,7 @@ function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [St
                                                 [String] $m    = FsEntryGetAbsolutePath $targetMenuRootDir; # Example: "$env:APPDATA/Microsoft/Windows/Start Menu/MyPortableProg/"
                                                 [String] $sdir = FsEntryGetAbsolutePath $sourceDir; # Example: "D:/MyPortableProgs"
                                                 OutProgress "Create menu links to `"$m`" from files below `"$sdir`" with extension `"$srcFileExtMenuLink`" or `"$srcFileExtMenuLinkOpt`" files";
-                                                [String] $addTraceInfoCall = "ToolCreateMenuLinksByMenuItemRefFile `"$targetMenuRootDir`" `"$sourceDir`" `"$srcFileExtMenuLink`" `"$srcFileExtMenuLinkOpt`"; ";
+                                                [String] $addTraceInfoCall = "ToolCreateMenuLinksByMenuItemRefFile `"$m`" `"$sDir`" `"$srcFileExtMenuLink`" `"$srcFileExtMenuLinkOpt`"; ";
                                                 Assert ($srcFileExtMenuLink    -ne "" -or (-not (FsEntryHasTrailingDirSep $srcFileExtMenuLink   ))) "srcMenuLinkFileExt=`"$srcFileExtMenuLink`" is empty or has trailing backslash";
                                                 Assert ($srcFileExtMenuLinkOpt -ne "" -or (-not (FsEntryHasTrailingDirSep $srcFileExtMenuLinkOpt))) "srcMenuLinkOptFileExt=`"$srcFileExtMenuLinkOpt`" is empty or has trailing backslash";
                                                 if( -not (DirExists $sdir) ){ OutWarning "Warning: Ignoring dir not exists: `"$sdir`""; }
@@ -2223,6 +2223,8 @@ function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [St
                                                     if(  $ar.Length    -eq   0 ){ throw [Exception] "Missing a command line at first line in file=`"$f`" cmdline=`"$cmdLine`""; }
                                                     if( ($ar.Length-1) -gt 999 ){ throw [Exception] "Command line has more than the allowed 999 arguments at first line infile=`"$f`" nrOfArgs=$($ar.Length) cmdline=`"$cmdLine`""; }
                                                     [String] $srcFsEntry = $ar[0]; # ex: "./LocalDir/Demo.exe", "$env:ProgramFiles/Demo/Demo.exe", "notepad.exe", "./LocalDir/".
+                                                    if( $srcFsEntry.Contains("`$(") ){ throw [Exception] "srcFsEntry=$srcFsEntry contains `"`$(`" which is dangerous for code injection and so not allowed. "; }
+                                                    $srcFsEntry = $ExecutionContext.InvokeCommand.ExpandString($srcFsEntry);
                                                     $srcFsEntry = FsEntryUnifyDirSep $srcFsEntry;
                                                     if( -not $srcFsEntry.Contains((DirSep)) ){ # If it has no dir separator then it finds it in path env var ("notepad.exe").
                                                       $srcFsEntry = StringOnEmptyReplace (ProcessFindExecutableInPath $srcFsEntry) "$srcFsEntry(!!!NOT-FOUND-IN-PATH-ENV-VAR-FIX-IT-ASAP!!!)";
