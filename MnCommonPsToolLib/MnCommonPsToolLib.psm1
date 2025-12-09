@@ -154,7 +154,7 @@ GlobalVariablesInit;
 #   But such a statement pollutes the sources.
 #   And in Powershell V7.x the SecureString is deprecated and only supports Windows-only secure operations.
 #   On Linux and Mac-OS, it is basically not secure (stored as reversible encrypted text).
-#   2025-12: For this reason we use the variable-name "CXredential" instead of "Credential", 
+#   2025-12: For this reason we use the variable-name "CXredential" instead of "Credential",
 #     and "passw" instead of "password" as long as VS-Code would handle this as source-problem.
 
 # Import type and function definitions
@@ -286,8 +286,11 @@ function GlobalSetModeDisallowInteractions    ( [Boolean] $val = $true ){ $globa
 function GlobalSetModeOutputWithTsPrefix      ( [Boolean] $val = $true ){ $global:ModeOutputWithTsPrefix        = $val; if( $global:ModeOutputWithTsPrefix   ){;} } # avoid Script Analyzer warning for PSUseDeclaredVarsMoreThanAssignments
 
 function StringIsNullOrEmpty                  ( [String] $s ){ return [Boolean] [String]::IsNullOrEmpty($s); }
+function StringIsEmpty                        ( [String] $s ){ return [Boolean] ($s -eq ""); }
 function StringIsNotEmpty                     ( [String] $s ){ return [Boolean] (-not [String]::IsNullOrEmpty($s)); }
 function StringIsFilled                       ( [String] $s ){ return [Boolean] (-not [String]::IsNullOrWhiteSpace($s)); }
+function StringMakeNonNull                    ( [String] $s ){ if( $null -eq $s ){ return ""; }else{ return $s; } }
+function StringOnEmptyReplace                 ( [String] $s, [String] $replaceString ){ return [String] $(switch((StringIsEmpty $s)){($true){$replaceString}default{$s}}); }
 function StringIsInt32                        ( [String] $s ){ [String] $tmp = ""; return [Int32]::TryParse($s,[ref]$tmp); }
 function StringIsInt64                        ( [String] $s ){ [String] $tmp = ""; return [Int64]::TryParse($s,[ref]$tmp); }
 function StringAsInt32                        ( [String] $s ){ if( -not (StringIsInt32 $s) ){ throw [Exception] "Is not an Int32: $s"; } return ($s -as [Int32]); }
@@ -310,7 +313,6 @@ function StringRemoveRight                    ( [String] $str, [String] $strRigh
                                                 return [String] $(switch(($ignoreCase -and $s -eq $strRight) -or $s -ceq $strRight){ ($true){StringRemoveRightNr $str $strRight.Length} default{$str} }); }
 function StringRemoveOptEnclosingDblQuotes    ( [String] $s ){ if( $s.Length -ge 2 -and $s.StartsWith("`"") -and $s.EndsWith("`"") ){
                                                 return [String] $s.Substring(1,$s.Length-2); } return [String] $s; }
-function StringMakeNonNull                    ( [String] $s ){ if( $null -eq $s ){ return ""; }else{ return $s; } }
 function StringExistsInStringArray            ( [String] $itemCaseSensitive, [String[]] $a ){ return [Boolean] (StringArrayContains (@()+$a) $itemCaseSensitive); }
 function StringArrayInsertIndent              ( [String[]] $lines, [Int32] $nrOfBlanks ){
                                                 return [String[]] (@()+($lines | Where-Object{$null -ne $_} | ForEach-Object{ ((" "*$nrOfBlanks)+$_); })); }
@@ -884,7 +886,7 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 # Internally the stdout and stderr are stored to variables and not to temporary files to avoid file system IO.
                                                 # If exitCode is 0 and stderr is not empty and careStdErrAsOut is true then stderr is moved by appending to stdout.
                                                 # If exitCode is 0 and stderr is still not empty then the pseudo exitcode=10 is forced.
-                                                # It exitCode is not 0 then: if ErrorActionPreference is Continue then it appends stderr to stdout 
+                                                # It exitCode is not 0 then: if ErrorActionPreference is Continue then it appends stderr to stdout
                                                 #   otherwise it throws the error and the message is preceeded by the stdout which could be huge.
                                                 # If optional errorOutInsteadOfThrow is specified then it gives out the error message as out variable instead it throws it.
                                                 # Note: errorOutInsteadOfThrow can only be specified as positional argument and not by non-positional-option argument.
@@ -1125,6 +1127,8 @@ function FsEntryContainsWildcards             ( [String] $fsentry ){ # Assumes i
                                                 return [Boolean] ($fsentry.IndexOfAny(@('*','?','[',']')) -ne -1); }
 function FsEntryUnifyDirSep                   ( [String] $fsEntry ){ return [String] ($fsEntry -replace "[\\/]",(DirSep)); }
 function FsEntryUnifyToSlashes                ( [String] $fsEntry ){ return [String] ($fsEntry -replace "[\\/]","/"); }
+function FsEntryHasRootPath                   ( [String] $fsEntry ){ # return true for: "/Cany", "C:/any", "//any", "\Cany", "C:\any", "\\any".
+                                                return [Boolean] ([System.IO.Path]::IsPathRooted($fsEntry) -and ($fsEntry -notmatch '^[A-Za-z]:[^\\/]')); }
 function FsEntryGetAbsolutePath               ( [String] $fsEntry ){ # Works without IO, so no check to file system; does not remove a trailing dir-separator. Return empty for empty input.
                                                 # Convert dir-separators (slashes or backslashes) to correct os dependent dir-separators.
                                                 # On windows for entries as "C:" it returns "C:\".
@@ -1179,7 +1183,8 @@ function FsEntryAssertHasTrailingDirSep       ( [String] $fsEntry ){ if( $fsEntr
 function FsEntryRemoveTrailingDirSep          ( [String] $fsEntry ){ [String] $r = FsEntryGetAbsolutePath $fsEntry;
                                                 if( $r -ne "" ){ while( FsEntryHasTrailingDirSep $r ){ $r = $r.Remove($r.Length-1); }
                                                 if( $r -eq "" ){ $r = $fsEntry; } } return [String] $r; }
-function FsEntryRelativeMakeTrailingDirSep    ( [String] $fsEntry ){ return [String] ($fsEntry + $(switch($fsEntry -ne "" -and -not (FsEntryHasTrailingDirSep $fsEntry)){($true){(DirSep)}($false){""}})); } # if fsEntry is empty then it returns empty.
+function FsEntryRelativeMakeTrailingDirSep    ( [String] $fsEntry ){ # if fsEntry is empty then it returns empty.
+                                                return [String] ($fsEntry + $(switch($fsEntry -ne "" -and -not (FsEntryHasTrailingDirSep $fsEntry)){($true){(DirSep)}($false){""}})); }
 function FsEntryMakeTrailingDirSep            ( [String] $fsEntry ){ return [String] (FsEntryGetAbsolutePath (FsEntryRelativeMakeTrailingDirSep $fsEntry)); }
 function FsEntryJoinRelativePatterns          ( [String] $rootDir, [String[]] $relativeFsEntriesPatternsSemicolonSeparated ){
                                                 # Create an array Example: @( "c:\myroot\bin\", "c:\myroot\obj\", "c:\myroot\*.tmp", ... )
@@ -1272,7 +1277,7 @@ function FsEntryFindFlatSingleByPattern       ( [String] $dirAndFsEntryPattern, 
                                                 if( $r.Count -eq 0 ){ if( $allowNotFound ){ return [String] ""; } throw [Exception] "No file exists: `"$dirAndFsEntryPattern`""; }
                                                 if( $r.Count -gt 1 ){ throw [Exception] "More than one file system entries exists: `"$dirAndFsEntryPattern`""; }
                                                 return [String] $r[0].FullName; }
-function FsEntryFsInfoFullNameDirWithTrailDSep( [System.IO.FileSystemInfo] $fsInfo ){
+function FsEntryFsInfoFullNameDirWithTrailDSep( [System.IO.FileSystemInfo] $fsInfo ){ # extract the fullname and add a trailing dir separator for dirs
                                                 return [String] ($fsInfo.FullName+$(switch($fsInfo.PSIsContainer){($true){$(DirSep)}default{""}})); }
 function FsEntryListAsFileSystemInfo          ( [String] $dirAndFsEntryPattern, [Boolean] $recursive = $true, [Boolean] $includeDirs = $true, [Boolean] $includeFiles = $true ){
                                                 # List file system entries using the globbing wildards (*,?,[abc]). On windows it works case-insensitve, otherwise case-sensitive.
@@ -1295,16 +1300,17 @@ function FsEntryListAsFileSystemInfo          ( [String] $dirAndFsEntryPattern, 
                                                 AssertNotEmpty $dirAndFsEntryPattern "pattern";
                                                 OutVerbose "FsEntryListAsFileSystemInfo `"$dirAndFsEntryPattern`" recursive=$recursive includeDirs=$includeDirs includeFiles=$includeFiles ";
                                                 # Trailing dir-separators for Get-ChildItem:  Are handled in powershell quite curious:
-                                                #   In non-recursive mode they are handled as they are not present, so files 
+                                                #   In non-recursive mode they are handled as they are not present, so files
                                                 #     are also wrongly matched (Get-ChildItem -Directory "C:\Window*\explorer.exe\";).
                                                 #   In recursive mode they wrongly match only files and not directories and so dir parts cannot be found for unknown reasons
                                                 #     (DIR "$env:SystemRoot\Boot\EFI\en-U*\"; Get-ChildItem -Recurse -Directory "$env:SystemRoot\Boot\EFI\en-U*\";) or
                                                 #     (DIR "$env:SystemRoot\Boot\*\en-U*\"; Get-ChildItem -Recurse -Directory "$env:SystemRoot\Boot\*\en-U*\";).
-                                                #   On Windows very strange is that (CD "$env:SystemRoot"; CD "C:"; Get-Item "C:";) 
+                                                #   On Windows very strange is that (CD "$env:SystemRoot"; CD "C:"; Get-Item "C:";)
                                                 #     does not list "C:/" but it lists unexpectedly the current directory of that drive.
                                                 #     The (Get-Item "C:/*"; Get-Item "C:/*/"; ) works as expected correctly.
                                                 # To fix this behaviour we interpret a trailing dir-separator as it would not be present with the exception that:
-                                                # - If pattern is a drive as "C:" or "C:/" then it is converted to "C:/*" to avoid the unexpected listing of current dir of that drive.
+                                                # - If pattern is a drive as "C:" or "C:/" then it is converted to "C:/*" to avoid the unexpected listing of current dir of that drive (IsPathRooted).
+                                                #   More see https://learn.microsoft.com/en-us/dotnet/api/system.io.path.ispathrooted?view=net-10.0
                                                 [String] $pa = FsEntryRemoveTrailingDirSep $dirAndFsEntryPattern; # example: pa="C:\mydir"
                                                 if( $pa -match "^[a-z]\:[\/\\]?$" ){ $pa = "$($pa[0]):$(DirSep)*"; } # from "C:" or "C:\" make "C:\*"
                                                 # 2025-12 Severe performance problems for example when having in C:\Windows\ 670'000 fs-entries:
@@ -1683,11 +1689,11 @@ function FileGetTempFile                      (){ return [String] [System.IO.Pat
 function FileDelTempFile                      ( [String] $file ){ FileDelete $file -traceCmd:$false; } # As FileDelete but no progress msg.
 function FileReadEncoding                     ( [String] $file ){
                                                 # read BOM = Byte order mark. Note: There exists no BOM for ANSI! Works also if file size is lesser than 4 bytes.
-                                                # Note: This cannot be used anymore because it not works for PS7: [Byte[]] $b = Get-Content -Encoding Byte -ReadCount 4 -TotalCount 4 -LiteralPath $file; 
-                                                [System.IO.FileStream] $fs = [System.IO.File]::OpenRead($file); 
-                                                [Byte[]] $b = New-Object Byte[] 4; 
-                                                [Int32] $nrOfBytesRead = $fs.Read($b, 0, 4); 
-                                                $fs.Close(); 
+                                                # Note: This cannot be used anymore because it not works for PS7: [Byte[]] $b = Get-Content -Encoding Byte -ReadCount 4 -TotalCount 4 -LiteralPath $file;
+                                                [System.IO.FileStream] $fs = [System.IO.File]::OpenRead($file);
+                                                [Byte[]] $b = New-Object Byte[] 4;
+                                                [Int32] $nrOfBytesRead = $fs.Read($b, 0, 4);
+                                                $fs.Close();
                                                 [Byte[]] $b = if($nrOfBytesRead -gt 0){ $b[0..($nrOfBytesRead - 1)] }else{ @() };
                                                 if($b.Length -ge 3 -and $b[0] -eq 0xef -and $b[1] -eq 0xbb -and $b[2] -eq 0xbf                     ){ return [String] "UTF8"             ; } # codepage=65001;
                                                 if($b.Length -ge 2 -and $b[0] -eq 0xff -and $b[1] -eq 0xfe                                         ){ return [String] "UTF16LittleEndian"; } # codepage= 1200;
@@ -1779,7 +1785,7 @@ function FileMove                             ( [String] $srcFile, [String] $tar
                                                 FsEntryCreateParentDir $tarFile;
                                                 Move-Item -Force:$overwrite -LiteralPath $srcFile -Destination $tarFile; }
 function FileSyncContent                      ( [String] $fromFile, [String] $toFile, [Boolean] $createBackupFile = $false ){ # overwrite if different or if target file not exists, example of backup filename "MyName.001.bck", max 9999 versions.
-                                                if( -not (FileContentsAreEqual $fromFile $toFile) ){ 
+                                                if( -not (FileContentsAreEqual $fromFile $toFile) ){
                                                   if( $createBackupFile -and (FileExists $toFile) ){
                                                     FileCopy $toFile (FsEntryFindNotExistingVersionedName $toFile ".bck" 9999);
                                                   }
@@ -1959,7 +1965,7 @@ function NetDnsGetFirstIp                     ( [String] $hostName, [String] $ip
 function NetRequestStatusCode                 ( [String] $url ){ # is fast, only access head, usually return 200=OK or 404=NotFound;
                                                 [Int32] $statusCode = -1;
                                                 try{ $statusCode = (Invoke-WebRequest -Uri $url -UseBasicParsing -Method Head -ErrorAction Stop).StatusCode;
-                                                }catch{ 
+                                                }catch{
                                                   try{ $statusCode = $_.Exception.Response.StatusCode; }
                                                   catch{} # PropertyNotFoundException: The property 'Response' cannot be found on this object. Verify that the property exists
                                                 }
@@ -2613,8 +2619,8 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                       $out = "";
                                                     }
                                                     $gitArgs = @( "-C", $dir, "--git-dir=.git", "clean", "-d", "--force");
-                                                    $out += (ProcessStart "git" $gitArgs -careStdErrAsOut:$true -traceCmd:$true); $out = $out.Trim();
-                                                    if( $out -eq "" ){ $out = "No untracked files to clean"; }
+                                                    $out += (ProcessStart "git" $gitArgs -careStdErrAsOut:$true -traceCmd:$true);
+                                                    $out = StringOnEmptyReplace $out.Trim() "No untracked files to clean";
                                                     OutProgress "  $out"; # Removing MyRepo/MyFile.txt
                                                     $out = "";
                                                   }
@@ -2864,7 +2870,7 @@ function GitCloneOrPullUrls                   ( [String[]] $listOfRepoUrls, [Str
                                                 }
                                                 if( $listOfRepoUrls.Count -ge 2 ){
                                                   [String] $tmp = (FileGetTempFile); # temp file because in mt block we cannot write a variable from outer scope
-                                                  $listOfRepoUrls | Select-Object -Skip 1 | ForEach-Object { 
+                                                  $listOfRepoUrls | Select-Object -Skip 1 | ForEach-Object {
                                                     Start-ThreadJob -ThrottleLimit 8 -StreamingHost $host -ScriptBlock {
                                                       try{
                                                         GitCmd "CloneOrPull" $using:tarRootDirOfAllRepos $using:_ $using:errorAsWarning;
@@ -2872,7 +2878,7 @@ function GitCloneOrPullUrls                   ( [String[]] $listOfRepoUrls, [Str
                                                         [String] $msg = "Error: $($_.Exception.Message)"; OutError $msg;
                                                         FileAppendLine $using:tmp $msg;
                                                       }
-                                                    } 
+                                                    }
                                                   } | Wait-Job | Remove-Job;
                                                   [String] $errMsg = (FileReadContentAsString $tmp "UTF8");
                                                   FileDelTempFile $tmp;
@@ -2911,7 +2917,7 @@ function GitInitGlobalConfig                  (){ # if git is installed the init
                                                 OutProgress "Init git to usual config ";
                                                 [String] $credHlp = switch(OsIsWindows){($true){"manager"}($false){"store"}};
                                                 GitDisableAutoCrLf                           ; # make sure: core.autocrlf = false
-                                                GitSetGlobalVar "core.fileMode" "false"      ; # ignore executable-bit for diffs; 
+                                                GitSetGlobalVar "core.fileMode" "false"      ; # ignore executable-bit for diffs;
                                                                                                # default is true, honor executable bit of a file if fs system supports it.
                                                                                                # Use false to not trust file modes and ignore the executable bit differences between the index and the working tree;
                                                                                                # useful for filesystems having no file modes like FAT.
@@ -2920,8 +2926,8 @@ function GitInitGlobalConfig                  (){ # if git is installed the init
                                                                                                # required values for git repos: gnuwget/wget2 11000, CosmosOS/Cosmos 1900, usual repos 1300.
                                                 GitSetGlobalVar "core.pager" "cat"           ; # [cat,less] use cat for pager; "less" would stop after a page
                                                 GitSetGlobalVar "core.fscache" "true"        ; # Enable additional caching of file system data for some operations.
-                                                GitSetGlobalVar "core.symlinks" "false"      ; # Symlinks results in problems on windows so generally avoid them in repo and so 
-                                                                                               # false converts them on checkout as small plain files containing the link target which is also not really usefull. 
+                                                GitSetGlobalVar "core.symlinks" "false"      ; # Symlinks results in problems on windows so generally avoid them in repo and so
+                                                                                               # false converts them on checkout as small plain files containing the link target which is also not really usefull.
                                                                                                # also see https://gitforwindows.org/symbolic-links.html
                                                 GitSetGlobalVar "init.defaultBranch" "main"  ; # For new repos
                                                 GitSetGlobalVar "credential.helper" $credHlp ; # "manager" usually for windows (avoids the warning about manager-core renaming);

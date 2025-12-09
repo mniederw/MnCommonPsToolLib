@@ -37,6 +37,13 @@ function UnitTest_FsEntry_Dir_File(){
   #
   AssertFsEntryIsEqualForCurrentOs (FsEntryGetUncShare "//MyHost/MyShare/MyDir/") "//MyHost/MyShare/";
   #
+  Assert (FsEntryHasRootPath "/Cany" );
+  Assert (FsEntryHasRootPath "C:/any");
+  Assert (FsEntryHasRootPath "//any" );
+  Assert (FsEntryHasRootPath "\Cany" );
+  Assert (FsEntryHasRootPath "C:\any");
+  Assert (FsEntryHasRootPath "\\any" );
+  #
   AssertEqual (FsEntryMakeValidFileName ""           ) ""           ;
   AssertEqual (FsEntryMakeValidFileName "abc.txt"    ) "abc.txt"    ;
   AssertEqual (FsEntryMakeValidFileName "dir/abc.txt") "dir_abc.txt";

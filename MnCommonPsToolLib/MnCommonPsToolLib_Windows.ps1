@@ -2118,33 +2118,22 @@ function ToolActualizeHostsFileByMaster       ( [String] $srcHostsFile ){
                                                 }
                                               }
 function ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [String] $workDir, [String] $lnkFile, [String] $srcFsEntry, [String[]] $arguments = @(),
-                                                [Boolean] $runElevated = $false, [Boolean] $ignoreIfSrcNotExists = $false ){
+                                                [Boolean] $runLnkElevated = $false, [Boolean] $ignoreIfSrcNotExists = $false ){
                                                 # Creates links to files as programs or document files or to directories.
-                                                # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA/Microsoft/Windows/Start Menu/Programs/LinkToNotepad.lnk"    "$env:SystemRoot/notepad.exe";
-                                                # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA/Microsoft/Internet Explorer/Quick Launch/LinkToNotepad.lnk" "$env:SystemRoot/notepad.exe";
-                                                # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA/Microsoft/Windows/Start Menu/- Folders/C - SendTo.lnk"      "$HOME/AppData/Roaming/Microsoft/Windows/SendTo/";
-                                                # forceRecreate: if is false and target lnkfile already exists then it does nothing.
-                                                # workDir             : can be empty string. Internally it then takes the parent of the file.
-                                                # srcFsEntry          : file or dir. An executable or a media file to be called with its associated exec. A dir must be specified by a trailing dir separator!
-                                                #                       If it is a relative specified file then it is not taken based on the current dir but taken based on dir of lnk file
-                                                #                       and if it not exists then it assumes it is find in path environment variable.
-                                                #                       Environment variables as example $env:ProgramFiles or ${env:ProgramFiles(x86)} are expanded at the caller side.
-                                                #                       Example: "D:/MyPortableProgs/Manufactor ProgramName/AnyProgram.exe", "$env:APPDATA/Microsoft/Windows/SendTo/", "./LocalDir/Demo.exe", "notepad.exe",
-                                                # arguments           : arguments for the executable.
-                                                # runElevated         : the link is marked to request for run in elevated mode.
-                                                # ignoreIfSrcNotExists: if source not exists it will be silently ignored, but then the lnk file cannot be created.
+                                                #   forceRecreate       : if is false and target lnkfile already exists then it does nothing.
+                                                #   workDir             : can be empty string. Internally it then takes the parent of the file.
+                                                #   srcFsEntry          : file or dir. An executable or a media file to be called with its associated exec. A dir must be specified by a trailing dir separator!
+                                                #   arguments           : arguments for the executable.
+                                                #   runLnkElevated      : the link is marked to request for run in elevated mode (as admin).
+                                                #   ignoreIfSrcNotExists: if source not exists it will be silently ignored, but then the lnk file cannot be created.
                                                 # Icon: If next to the srcFile an ico file with the same filename exists then this will be taken.
+                                                # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA/Microsoft/Windows/Start Menu/- Folders/C - SendTo.lnk"         "$HOME/AppData/Roaming/Microsoft/Windows/SendTo/";
+                                                # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA/Microsoft/Windows/Start Menu/- Folders/C - SendToAllUsers.lnk" "$env:APPDATA/Microsoft/Windows/SendTo/";
+                                                # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA/Microsoft/Internet Explorer/Quick Launch/LinkToNotepad.lnk"    "$env:SystemRoot/notepad.exe";
+                                                # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA/Microsoft/Internet Explorer/Quick Launch/LinkToWriter.lnk"     (ProcessFindExecutableInPath "write.exe");
+                                                # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA/Microsoft/Internet Explorer/Quick Launch/LinkToMyAnyProg.lnk"  "D:/MyPortableProgs/Manufactor ProgramName/AnyProgram.exe";
+                                                # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA/Microsoft/Internet Explorer/Quick Launch/LinkToDemo.lnk"       "./LocalDirUnderCurrentDir/Demo.exe";
                                                 AssertNotEmpty $srcFsEntry;
-                                                # Evaluate srcFsEntry
-                                                if( -not [System.IO.Path]::IsPathRooted($srcFsEntry) ){ # if it is relative
-                                                  # we first try to preceed with dir of lnk file
-                                                  [String] $exec = $srcFile;
-                                                  $srcFile = FsEntryGetAbsolutePath ([System.IO.Path]::Combine($dirOfLnk,$exec));
-                                                  if( FsEntryNotExists $srcFile ){ # if it not exists then try to find exec in path
-                                                    $exec = ProcessFindExecutableInPath $exec;
-                                                    if( $exec -ne "" -and (FileExists $exec) ){ $srcFile = $exec; }
-                                                  }
-                                                }
                                                 $workDir    = FsEntryGetAbsolutePath $workDir;
                                                 $lnkFile    = FsEntryGetAbsolutePath $lnkFile;
                                                 $srcFsEntry = FsEntryGetAbsolutePath $srcFsEntry;
@@ -2158,45 +2147,49 @@ function ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [Strin
                                                 if( FileExists $lnkFile ){
                                                   OutVerbose "Unchanged: $lnkFile";
                                                 }else{
-                                                    [String] $argLine = $arguments; # array to string
-                                                    if( $workDir -eq "" ){ if( $isDir ){ $workDir = $srcFsEntry; }else{ $workDir = FsEntryGetParentDir $srcFsEntry; } }
-                                                    [String] $iconFile = (StringRemoveRight (FsEntryRemoveTrailingDirSep $srcFsEntry) (FsEntryGetFileExtension $srcFsEntry)) + ".ico";
-                                                    [String] $ico = $(switch((FileExists $iconFile)){($true){$iconFile}($false){",0"}});
-                                                    OutProgress "CreateShortcut `"$lnkFile`"";
-                                                    try{
-                                                      [Object] $wshShell = New-Object -comObject WScript.Shell;
-                                                      [Object] $s = $wshShell.CreateShortcut($lnkFile); # do not use FsEntryEsc otherwise [ will be created as `[
-                                                      $s.TargetPath       = FsEntryEsc $srcFsEntry;
-                                                      $s.Arguments        = $argLine;
-                                                      $s.WorkingDirectory = FsEntryEsc $workDir;
-                                                      $s.Description      = $descr;
-                                                      $s.IconLocation     = $ico; # one of: ",0" "myprog.exe, 0" "myprog.ico";
-                                                      OutVerbose "WScript.Shell.CreateShortcut workDir=`"$workDir`" lnk=`"$lnkFile`" src=`"$srcFsEntry`" arg=`"$argLine`" descr=`"$descr`" ico==`"$ico`"";
-                                                      FsEntryCreateParentDir $lnkFile;
-                                                      # $s.WindowStyle = 1; 1=Normal; 3=Maximized; 7=Minimized;
-                                                      # $s.Hotkey = "CTRL+SHIFT+F"; # requires restart explorer
-                                                      # $s.RelativePath = ...
-                                                      $s.Save(); # does overwrite
-                                                    }catch{
-                                                      throw [ExcMsg] "$(ScriptGetCurrentFunc)(`"$workDir`",`"$lnkFile`",`"$srcFsEntry`",`"$argLine`",`"$descr`") failed because $($_.Exception.Message)";
+                                                  [String] $argLine = $arguments; # array to string
+                                                  if( $workDir -eq "" ){ if( $isDir ){ $workDir = $srcFsEntry; }else{ $workDir = FsEntryGetParentDir $srcFsEntry; } }
+                                                  [String] $iconFile = (StringRemoveRight (FsEntryRemoveTrailingDirSep $srcFsEntry) (FsEntryGetFileExtension $srcFsEntry)) + ".ico";
+                                                  [String] $ico = $(switch((FileExists $iconFile)){($true){$iconFile}($false){",0"}});
+                                                  OutProgress "CreateShortcut `"$lnkFile`"";
+                                                  try{
+                                                    [Object] $wshShell = New-Object -comObject WScript.Shell;
+                                                    [Object] $s = $wshShell.CreateShortcut($lnkFile); # do not use FsEntryEsc otherwise [ will be created as `[
+                                                    $s.TargetPath       = FsEntryEsc $srcFsEntry;
+                                                    $s.Arguments        = $argLine;
+                                                    $s.WorkingDirectory = FsEntryEsc $workDir;
+                                                    $s.Description      = $descr;
+                                                    $s.IconLocation     = $ico; # one of: ",0" "myprog.exe, 0" "myprog.ico";
+                                                    OutVerbose "WScript.Shell.CreateShortcut workDir=`"$workDir`" lnk=`"$lnkFile`" src=`"$srcFsEntry`" arg=`"$argLine`" descr=`"$descr`" ico==`"$ico`"";
+                                                    FsEntryCreateParentDir $lnkFile;
+                                                    # $s.WindowStyle = 1; 1=Normal; 3=Maximized; 7=Minimized;
+                                                    # $s.Hotkey = "CTRL+SHIFT+F"; # requires restart explorer
+                                                    # $s.RelativePath = ...
+                                                    $s.Save(); # does overwrite
+                                                    if( $runLnkElevated ){
+                                                      [Byte[]] $bytes = [IO.File]::ReadAllBytes($lnkFile); $bytes[0x15] = $bytes[0x15] -bor 0x20; [IO.File]::WriteAllBytes($lnkFile,$bytes);  # set bit 6 of byte nr 21
                                                     }
-                                                  if( $runElevated ){
-                                                    [Byte[]] $bytes = [IO.File]::ReadAllBytes($lnkFile); $bytes[0x15] = $bytes[0x15] -bor 0x20; [IO.File]::WriteAllBytes($lnkFile,$bytes);  # set bit 6 of byte nr 21
+                                                  }catch{
+                                                    throw [ExcMsg] "$(ScriptGetCurrentFunc)(`"$workDir`",`"$lnkFile`",`"$srcFsEntry`",`"$argLine`",`"$descr`") failed because $($_.Exception.Message)";
                                                   } } }
 function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [String] $sourceDir,
                                                 [String] $srcFileExtMenuLink    = ".menulink.txt",
                                                 [String] $srcFileExtMenuLinkOpt = ".menulinkoptional.txt" ){
                                                 # Create menu entries based on menu-item-linkfiles below a dir.
-                                                # - targetMenuRootDir      : target start menu folder, example: "$env:APPDATA/Microsoft/Windows/Start Menu/Apps"
-                                                # - sourceDir              : Used to finds all files below sourceDir with the extension (example: ".menulink.txt").
-                                                #                            For each of these files it will create a menu item below the target menu root dir.
-                                                # - srcFileExtMenuLink     : Extension for mandatory menu linkfiles. The containing referenced command (in general an executable) must exist.
-                                                # - srcFileExtMenuLinkOpt  : Extension for optional  menu linkfiles. Menu item is created only if the containing referenced executable will exist.
+                                                #   targetMenuRootDir     : target start menu folder, example: "$env:APPDATA/Microsoft/Windows/Start Menu/Apps"
+                                                #   sourceDir             : Used to finds all files below sourceDir with the extension (example: ".menulink.txt").
+                                                #                           For each of these files it will create a menu item below the target menu root dir.
+                                                #   srcFileExtMenuLink    : Extension for mandatory menu link files. The containing referenced source file (in general an executable) must exist.
+                                                #   srcFileExtMenuLinkOpt : Extension for optional  menu link files. Menu item is created only if the containing referenced source file will exist.
                                                 # The name of the target menu item (example: "Manufactor ProgramName V1") will be taken from the name
                                                 #   of the menu-item-linkfile (example: .../Manufactor ProgramName V1.menulink.txt) without the extension (example: ".menulink.txt")
                                                 #   and the sub menu folder will be taken from the relative location of the menu-item-linkfile below the sourceDir.
-                                                # The command for the target menu will be taken from the first line (example: "D:/MyApps/Manufactor ProgramName/AnyProgram.exe")
-                                                #   of the content of the menu-item-linkfile.
+                                                # The srcFsEntry (exec or document file or a folder) for calling by the target menu item (lnk)
+                                                #   will be taken from the part of the first line of the content of the menu-item-linkfile
+                                                #   If it is relative then look relative under menulink file ("./LocalDir/Demo.exe").
+                                                #   If it has no dir separator then it finds it in path env var ("notepad.exe").
+                                                #   (Examples: "D:/MyApps/Manufactor ProgramName/AnyProgram.exe", "./LocalDir/Demo.exe", "$env:ProgramFiles/Demo/Demo.exe", "notepad.exe", "./LocalDir/").
+                                                # The rest of the line are the arguments for an executable.
                                                 # If target lnkfile already exists it does nothing.
                                                 # Example: ToolCreateMenuLinksByMenuItemRefFile "$env:APPDATA/Microsoft/Windows/Start Menu/Apps" "D:/MyApps" ".menulink.txt";
                                                 FsEntryAssertHasTrailingDirSep $targetMenuRootDir;
@@ -2215,10 +2208,10 @@ function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [St
                                                   [String] $relBelowSrcDir = FsEntryMakeRelative $dirOfLnk $sdir; # Example: "Appl/Graphic/" or "./"
                                                   [String] $workDir = "";
                                                   # Example: "$env:APPDATA/Microsoft/Windows/Start Menu/MyPortableProg/Appl/Graphic/Manufactor ProgramName V1 en 2016.lnk"
-                                                  [String] $fn = FsEntryGetFileName $f; 
-                                                  $fn = StringRemoveRight $fn $srcFileExtMenuLink;
-                                                  $fn = StringRemoveRight $fn $srcFileExtMenuLinkOpt;
-                                                  $fn = $fn.TrimEnd();
+                                                  [String] $fn = FsEntryGetFileName $f;
+                                                    $fn = StringRemoveRight $fn $srcFileExtMenuLink;
+                                                    $fn = StringRemoveRight $fn $srcFileExtMenuLinkOpt;
+                                                    $fn = $fn.TrimEnd();
                                                   [String] $lnkFile = FsEntryGetAbsolutePath "$m/$relBelowSrcDir/$fn.lnk";
                                                   [String] $cmdLine = FileReadContentAsLines $f -encodingIfNoBom "Default" | Select-Object -First 1; # TODO: try to replace Default by UTF8.
                                                   [String] $addTraceInfo = "";
@@ -2226,12 +2219,18 @@ function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [St
                                                   [Boolean] $ignoreIfSrcNotExists = $f.EndsWith($srcFileExtMenuLinkOpt);
                                                   try{
                                                     [String[]] $ar = @()+(StringCommandLineToArray $cmdLine); # can throw: Expected blank or tab char or end of string but got char ...
-                                                    if( $ar.Length -eq 0 ){ throw [Exception] "Missing a command line at first line in file=`"$f`" cmdline=`"$cmdLine`""; }
+                                                    if(  $ar.Length    -eq   0 ){ throw [Exception] "Missing a command line at first line in file=`"$f`" cmdline=`"$cmdLine`""; }
                                                     if( ($ar.Length-1) -gt 999 ){ throw [Exception] "Command line has more than the allowed 999 arguments at first line infile=`"$f`" nrOfArgs=$($ar.Length) cmdline=`"$cmdLine`""; }
-                                                    [String] $srcFile = $ar[0]; # ex: "./LocalDir/Demo.exe", "$env:ProgramFiles/Demo/Demo.exe", "notepad.exe", ...
+                                                    [String] $srcFsEntry = $ar[0]; # ex: "./LocalDir/Demo.exe", "$env:ProgramFiles/Demo/Demo.exe", "notepad.exe", "./LocalDir/".
+                                                    $srcFsEntry = FsEntryUnifyDirSep $srcFsEntry;
+                                                    if( $srcFsEntry.Contains((DirSep)) ){ # If it has no dir separator then it finds it in path env var ("notepad.exe").
+                                                      $srcFsEntry = StringOnEmptyReplace (ProcessFindExecutableInPath $exec) "$exec(!!!NOT-FOUND-IN-PATH-ENV-VAR-FIX-IT-ASAP!!!)";
+                                                    }elseif( -not (FsEntryHasRootPath $srcFsEntry) ){ # if it is relative then use relative under menulink file
+                                                      $srcFsEntry = FsEntryGetAbsolutePath ([System.IO.Path]::Combine($dirOfLnk,$srcFsEntry));
+                                                    }
                                                     [String[]] $arguments = @()+($ar | Select-Object -Skip 1);
-                                                    $addTraceInfo = "and calling (ToolCreateLnkIfNotExists $forceRecreate `"$workDir`" `"$lnkFile`" `"$srcFile`" `"$arguments`" $false $ignoreIfSrcNotExists) ";
-                                                    ToolCreateLnkIfNotExists $forceRecreate $workDir $lnkFile $srcFile $arguments $false $ignoreIfSrcNotExists;
+                                                    $addTraceInfo = "and calling (ToolCreateLnkIfNotExists `$$forceRecreate `"$workDir`" `"$lnkFile`" `"$srcFsEntry`" `"$arguments`" `$false `$$ignoreIfSrcNotExists) ";
+                                                                                  ToolCreateLnkIfNotExists $forceRecreate $workDir $lnkFile $srcFsEntry $arguments $false $ignoreIfSrcNotExists;
                                                   }catch{
                                                     [String] $msg = "$($_.Exception.Message).$(switch(-not $cmdLine.StartsWith('`"')){($true){' Maybe first file of content in menulink file should be quoted.'}default{' Maybe if first file not exists you may use file extension `".menulinkoptional`" instead of `".menulink`".'}})";
                                                     OutWarning "Warning: Create menulink by reading file `"$f`", taking first line as cmdLine ($cmdLine) $addTraceInfo failed because $msg";
@@ -2519,8 +2518,8 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){ # runs in about 12-90 sec and 
                                                 MakeSureForPs5InstalledPackageManagement;
                                                 MakeSureForPs5InstalledPowerShellGet;
                                                 OutProgress "List of installed modules (having an installdate):"; # only on PS5 we found the modules "Azure*" having no installdate.
-                                                [PSCustomObject[]] $installedModules = Get-InstalledModule | 
-                                                  Where-Object{ $null -ne $_ -and $null -ne $_.InstalledDate } | 
+                                                [PSCustomObject[]] $installedModules = Get-InstalledModule |
+                                                  Where-Object{ $null -ne $_ -and $null -ne $_.InstalledDate } |
                                                   Select-Object Name | Get-InstalledModule -AllVersions | Sort-Object Name, Version, InstalledDate, InstalledLocation |
                                                   Select-Object Name, Version, InstalledDate, UpdatedDate, Dependencies, Repository, PackageManagementProvider, InstalledLocation;
                                                     # Get-InstalledModule -AllVersions  must be called with a single name otherwise we get:
@@ -2604,7 +2603,7 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){ # runs in about 12-90 sec and 
                                                     OutProgress   "  Update-Module  -Name $module -ErrorAction SilentlyContinue -AcceptLicense -Scope AllUsers; ";
                                                     $out = [String]( Update-Module  -Name $module -ErrorAction SilentlyContinue -AcceptLicense -Scope AllUsers 3>&1 );
                                                   }
-                                                  $out | Where-Object{ $null -ne $_ } | 
+                                                  $out | Where-Object{ $null -ne $_ } |
                                                     StreamToTableString | StreamToStringIndented 4 | Where-Object{ $_.Trim() -ne "" } | ForEach-Object{ OutProgress $_; };
                                                     # Example: "Module 'PowerShellGet' was not installed by using Install-Module, so it cannot be updated."
                                                 }
@@ -2624,11 +2623,11 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){ # runs in about 12-90 sec and 
                                                   }
                                                 }
                                                 #
-                                                [String] $v1001PathOfModulePowerShellGet = ""+(Get-Module -ListAvailable -Name "PowerShellGet" | 
+                                                [String] $v1001PathOfModulePowerShellGet = ""+(Get-Module -ListAvailable -Name "PowerShellGet" |
                                                   Where-Object{ $null -ne $_ } | Where-Object{ $_.Version -eq "1.0.0.1" } | Select-Object -First 1 |
                                                   ForEach-Object{ FsEntryGetParentDir $_.Path }); # Example: "$env:ProgramFiles/WindowsPowerShell/Modules/PowerShellGet/1.0.0.1/" or ""
                                                 Assert ($v1001PathOfModulePowerShellGet -eq "" -or $v1001PathOfModulePowerShellGet.EndsWith("\PowerShellGet\1.0.0.1\"));
-                                                [Int32] $nrOfHigherVersionsOfModulePowerShellGet = (@()+(Get-Module -ListAvailable -Name "PowerShellGet" | 
+                                                [Int32] $nrOfHigherVersionsOfModulePowerShellGet = (@()+(Get-Module -ListAvailable -Name "PowerShellGet" |
                                                   Where-Object{ $null -ne $_ } | Where-Object{ $_.Version -ne "1.0.0.1" })).Count;
                                                   # Example: 2.2.5 $HOME/Documents/PowerShell/Modules/PowerShellGet/2.2.5/PowerShellGet.psd1
                                                   #          2.2.5 $env:ProgramFiles/PowerShell/Modules/PowerShellGet/2.2.5/PowerShellGet.psd1
@@ -2638,10 +2637,10 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){ # runs in about 12-90 sec and 
                                                   DirDelete $v1001PathOfModulePowerShellGet;
                                                 }
                                                 #
-                                                [String] $v1001PathOfModulePackageManagement = ""+(Get-Module -ListAvailable -Name "PackageManagement" | 
+                                                [String] $v1001PathOfModulePackageManagement = ""+(Get-Module -ListAvailable -Name "PackageManagement" |
                                                   Where-Object{ $null -ne $_ } | Where-Object{ $_.Version -eq "1.0.0.1" } | Select-Object -First 1 |
                                                   ForEach-Object{ FsEntryGetParentDir $_.Path }); # Example: "$env:ProgramFiles/WindowsPowerShell/Modules/PackageManagement/1.0.0.1/" or ""
-                                                [Int32] $nrOfHigherVersionsOfModulePackageManagement = (@()+(Get-Module -ListAvailable -Name "PackageManagement" | 
+                                                [Int32] $nrOfHigherVersionsOfModulePackageManagement = (@()+(Get-Module -ListAvailable -Name "PackageManagement" |
                                                   Where-Object{ $null -ne $_ } | Where-Object{ $_.Version -ne "1.0.0.1" })).Count;
                                                   # Example: 1.4.8.1 $env:ProgramFiles/WindowsPowerShell/Modules/PackageManagement/1.4.8.1/PackageManagement.psd1
                                                 # V1.0.0.1 was not installed by Install-Module, so it cannot automatically be removed by updates, so we have to manually delete (rename) the folder.
@@ -2666,7 +2665,7 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){ # runs in about 12-90 sec and 
                                                     $msg.StartsWith("(Response status code does not indicate success: 404 (The requested content does not exist.)") -and
                                                     $msg.StartsWith("Update-Help -UICulture en-US."));
                                                 }
-                                                [DateTime] $lastModuleUpdateTs = (Get-Module -ListAvailable | Where-Object { $null -ne $_.HelpInfoUri } | Select-Object Name,Version,ModuleType,HelpInfoUri,Path | 
+                                                [DateTime] $lastModuleUpdateTs = (Get-Module -ListAvailable | Where-Object { $null -ne $_.HelpInfoUri } | Select-Object Name,Version,ModuleType,HelpInfoUri,Path |
                                                   Foreach-Object { FsEntryGetLastModified $_.Path } | Measure-Object -Maximum).Maximum; # Example: 77 modules
                                                 [String] $touchFile = "$env:APPDATA/MnCommonPsToolLib/TouchFile.PsUpdateHelp.tmp";
                                                 OutProgress "Update-Help check if run is nessessary by comparing lastModifiedAt(`"$touchFile`") with lastModuleUpdateTs=$(DateTimeNowAsStringIso $lastModuleUpdateTs) ";
@@ -2692,7 +2691,7 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){ # runs in about 12-90 sec and 
                                                 #   Install-Module -Force -SkipPublisherCheck -Name Pester;
                                                 #   Note: Ein zuvor installiertes, von Microsoft signiertes Modul Pester V3.4.0 verursacht Konflikte
                                                 #     mit dem neuen Modul Pester V5.3.1 vom Herausgeber CN=DigiCert Assured ID Root CA, OU=www.digicert.com, O=DigiCert Inc, C=US.
-                                                #     Durch die Installation des neuen Moduls kann das System instabil werden. 
+                                                #     Durch die Installation des neuen Moduls kann das System instabil werden.
                                                 #     Falls Sie trotzdem eine Installation oder ein Update durchführen möchten, verwenden Sie den -SkipPublisherCheck-Parameter.
                                                 #     And Update-Module : Das Modul 'Pester' wurde nicht mithilfe von 'Install-Module' installiert und kann folglich nicht aktualisiert werden.
                                                 # - Example: Uninstall-Module -MaximumVersion "0.9.99" -Name SqlServer;
@@ -2764,7 +2763,7 @@ function ToolWinGetOutputIndicatesReinstall   ( [String[]] $s ){
                                                 $s = "$s".Trim();
                                                 return [Boolean] ($s -contains "Die Installationstechnologie der angegebenen neueren Version unterscheidet sich von der aktuell installierten Version. Deinstallieren Sie das Paket, und installieren Sie die neuere Version.");
                                                 }
-function ToolWinGetSetup                      (){ # install and update winget; update sources; if elevated it works for all users otherwise for current user; requires minimum: Windows 10 1709 (build 16299) 
+function ToolWinGetSetup                      (){ # install and update winget; update sources; if elevated it works for all users otherwise for current user; requires minimum: Windows 10 1709 (build 16299)
                                                 function WingetVersion(){
                                                   [String] $wingetVersionString = & WinGet --version; AssertRcIsOk; # 2025-02: v1.9.25200; 2024-11: V1.9.25180; 2024-09: V1.8.1911; 2024-07: v1.2.10691;
                                                   return [System.Version] ($wingetVersionString -replace "^v","");
@@ -2847,7 +2846,7 @@ function ToolWinGetSetup                      (){ # install and update winget; u
                                                   #   Install-Module -Name Microsoft.WinGet.Client -Force -Repository PSGallery -Scope $instScope -ErrorAction SilentlyContinue | Out-Null; # Installing WinGet PowerShell module from PSGallery
                                                   #   Repair-WinGetPackageManager -ErrorAction SilentlyContinue; # bootstrap WinGet;
                                                 }
-                                                OutProgress "WinGet current version: V$(Get-WingetVersion) "; 
+                                                OutProgress "WinGet current version: V$(Get-WingetVersion) ";
                                                 WinGetApproveEulas;
                                                 WinGetSourcesListAndReset;
                                                 WinGetSourcesUpdate;
@@ -3081,7 +3080,7 @@ function MnCommonPsToolLibSelfUpdate          (){
                                                 [String]  $url     = "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/master/$moduleName/${moduleName}.psd1";
                                                 ToolPerformFileUpdateAndIsActualized $modFile $url $requireElevatedAdminMode $doWaitIfFailed $additionalOkUpdMsg $assertFilePreviouslyExists $performPing | Out-Null;
                                                 OutProgress "Current-MnCommonPsToolLibVersion: V$((Get-Module -Name MnCommonPsToolLib -ListAvailable).Version)";
-                                                Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1" -Force; 
+                                                Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1" -Force;
                                                 }
 
 function ToolVs2019UserFolderGetLatestUsed    (){ OutWarning "ToolVs2019UserFolderGetLatestUsed is DEPRECATED, replace it now by: ToolVsUserFolderGetLatestUsed "; return (ToolVsUserFolderGetLatestUsed); }

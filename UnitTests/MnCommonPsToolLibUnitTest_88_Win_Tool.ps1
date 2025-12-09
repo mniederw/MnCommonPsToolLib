@@ -16,7 +16,7 @@ function UnitTest_Win_Tool(){
   #   ToolHibernateModeDisable             (){
   #   ToolActualizeHostsFileByMaster       ( [String] $srcHostsFile ){
   #   ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [String] $workDir, [String] $lnkFile, [String] $srcFile, [String[]] $arguments = @(),
-  #                                            [Boolean] $runElevated = $false, [Boolean] $ignoreIfSrcFileNotExists = $false ){
+  #                                            [Boolean] $runLnkElevated = $false, [Boolean] $ignoreIfSrcFileNotExists = $false ){
   #                                          # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA\Microsoft\Windows\Start Menu\Programs\LinkToNotepad.lnk" "$env:SystemRoot\notepad.exe";
   #                                          # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA\Microsoft\Internet Explorer\Quick Launch\LinkToNotepad.lnk" "notepad.exe";
   #                                          # If $forceRecreate is false and target lnkfile already exists then it does nothing.
