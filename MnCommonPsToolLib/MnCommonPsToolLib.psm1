@@ -536,19 +536,19 @@ function OutError                             ( [String] $line, [Int32] $indentL
                                                 $Host.UI.WriteErrorLine("$(OutGetTsPrefix)$("  "*$indentLevel)$line"); }
 function OutWarning                           ( [String] $line, [Int32] $indentLevel = 1 ){
                                                 # Writes in yellow; redirectable by 3> .
+                                                # Note: (Write-Warning "text";) always writes it as "WARNING: text", so we must output ts before it and remove an existing prefix "Warning: " in text.
                                                 [String] $p = "Warning: "; if( (StringLeft $line $p.Length) -eq $p ){ $line = StringRemoveLeftNr $line $p.Length; }
-                                                OutProgressText "$(OutGetTsPrefix)$("  "*$indentLevel)";
-                                                Write-Warning $line; } # todo: suppress prefix
+                                                Write-Host -ForegroundColor "Yellow" -noNewline:$true "$(OutGetTsPrefix)$("  "*$indentLevel)";
+                                                Write-Warning "$line"; }
 function OutProgress                          ( [String] $line, [Int32] $indentLevel = 1, [Boolean] $noNewLine = $false, [String] $color = "Gray" ){
                                                 # Used for tracing changing actions; wraps Write-Host or Write-Information; if noNewLine is true then no TsPrefix. redirecable by 6> .
                                                 if( $global:ModeHideOutProgress ){ return; }
-                                                Write-Host -ForegroundColor $color -noNewline:$noNewLine "$(OutGetTsPrefix)$("  "*$indentLevel)$line" <# old: "$(switch($noNewLine){($true){''}($false){OutGetTsPrefix}})$("  "*$indentLevel)$line"#>; }
+                                                Write-Host -ForegroundColor $color -noNewline:$noNewLine "$(OutGetTsPrefix)$("  "*$indentLevel)$line"; }
 function OutProgressText                      ( [String] $str, [String] $color = "Gray" ){ OutProgress $str -indentLevel:0 -noNewLine:$true -color:$color; }
 function OutProgressTitle                     ( [String] $line ){ OutProgress $line -indentLevel:0 -color:$global:InfoLineColor; }
 function OutProgressSuccess                   ( [String] $line ){ OutProgress $line -color:"Green"; }
 function OutProgressQuestion                  ( [String] $str  ){ OutProgress $str -indentLevel:0 -noNewLine:$true -color:"Cyan"; }
 function OutInfo                              ( [String] $line ){ OutProgressTitle $line; } # deprecated
-
 function OutVerbose                           ( [String] $line ){
                                                 # Output depends on $VerbosePreference, used in general for tracing some important arguments or command results mainly of IO-operations.
                                                 Write-Verbose -Message "$(DateTimeNowAsStringIso) $line"; }

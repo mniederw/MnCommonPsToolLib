@@ -2197,6 +2197,7 @@ function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [St
                                                 [String] $m    = FsEntryGetAbsolutePath $targetMenuRootDir; # Example: "$env:APPDATA/Microsoft/Windows/Start Menu/MyPortableProg/"
                                                 [String] $sdir = FsEntryGetAbsolutePath $sourceDir; # Example: "D:/MyPortableProgs"
                                                 OutProgress "Create menu links to `"$m`" from files below `"$sdir`" with extension `"$srcFileExtMenuLink`" or `"$srcFileExtMenuLinkOpt`" files";
+                                                [String] $addTraceInfoCall = "ToolCreateMenuLinksByMenuItemRefFile `"$targetMenuRootDir`" `"$sourceDir`" `"$srcFileExtMenuLink`" `"$srcFileExtMenuLinkOpt`"; ";
                                                 Assert ($srcFileExtMenuLink    -ne "" -or (-not (FsEntryHasTrailingDirSep $srcFileExtMenuLink   ))) "srcMenuLinkFileExt=`"$srcFileExtMenuLink`" is empty or has trailing backslash";
                                                 Assert ($srcFileExtMenuLinkOpt -ne "" -or (-not (FsEntryHasTrailingDirSep $srcFileExtMenuLinkOpt))) "srcMenuLinkOptFileExt=`"$srcFileExtMenuLinkOpt`" is empty or has trailing backslash";
                                                 if( -not (DirExists $sdir) ){ OutWarning "Warning: Ignoring dir not exists: `"$sdir`""; }
@@ -2223,17 +2224,20 @@ function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [St
                                                     if( ($ar.Length-1) -gt 999 ){ throw [Exception] "Command line has more than the allowed 999 arguments at first line infile=`"$f`" nrOfArgs=$($ar.Length) cmdline=`"$cmdLine`""; }
                                                     [String] $srcFsEntry = $ar[0]; # ex: "./LocalDir/Demo.exe", "$env:ProgramFiles/Demo/Demo.exe", "notepad.exe", "./LocalDir/".
                                                     $srcFsEntry = FsEntryUnifyDirSep $srcFsEntry;
-                                                    if( $srcFsEntry.Contains((DirSep)) ){ # If it has no dir separator then it finds it in path env var ("notepad.exe").
-                                                      $srcFsEntry = StringOnEmptyReplace (ProcessFindExecutableInPath $exec) "$exec(!!!NOT-FOUND-IN-PATH-ENV-VAR-FIX-IT-ASAP!!!)";
+                                                    if( -not $srcFsEntry.Contains((DirSep)) ){ # If it has no dir separator then it finds it in path env var ("notepad.exe").
+                                                      $srcFsEntry = StringOnEmptyReplace (ProcessFindExecutableInPath $srcFsEntry) "$srcFsEntry(!!!NOT-FOUND-IN-PATH-ENV-VAR-FIX-IT-ASAP!!!)";
                                                     }elseif( -not (FsEntryHasRootPath $srcFsEntry) ){ # if it is relative then use relative under menulink file
                                                       $srcFsEntry = FsEntryGetAbsolutePath ([System.IO.Path]::Combine($dirOfLnk,$srcFsEntry));
                                                     }
                                                     [String[]] $arguments = @()+($ar | Select-Object -Skip 1);
-                                                    $addTraceInfo = "and calling (ToolCreateLnkIfNotExists `$$forceRecreate `"$workDir`" `"$lnkFile`" `"$srcFsEntry`" `"$arguments`" `$false `$$ignoreIfSrcNotExists) ";
-                                                                                  ToolCreateLnkIfNotExists $forceRecreate $workDir $lnkFile $srcFsEntry $arguments $false $ignoreIfSrcNotExists;
+                                                    $addTraceInfo = "ToolCreateLnkIfNotExists `$$forceRecreate `"$workDir`" `"$lnkFile`" `"$srcFsEntry`" `"$arguments`" `$false `$$ignoreIfSrcNotExists;";
+                                                                     ToolCreateLnkIfNotExists $forceRecreate $workDir $lnkFile $srcFsEntry $arguments $false $ignoreIfSrcNotExists;
                                                   }catch{
-                                                    [String] $msg = "$($_.Exception.Message).$(switch(-not $cmdLine.StartsWith('`"')){($true){' Maybe first file of content in menulink file should be quoted.'}default{' Maybe if first file not exists you may use file extension `".menulinkoptional`" instead of `".menulink`".'}})";
-                                                    OutWarning "Warning: Create menulink by reading file `"$f`", taking first line as cmdLine ($cmdLine) $addTraceInfo failed because $msg";
+                                                    [String] $msg = "Called ($addTraceInfoCall),`n  create menulink by reading file `"$f`",";
+                                                    $msg += "`n  taking first line as cmdLine ($cmdLine),`n  and calling ($addTraceInfo),";
+                                                    $msg += "`n  failed because $($_.Exception.Message)";
+                                                    $msg += "`n  Maybe first file $(switch(-not $cmdLine.StartsWith('`"')){($true){'of content in menulink file should be quoted.'}default{'not exists and you may use file extension `".menulinkoptional`" instead of `".menulink`".'}})";
+                                                    OutWarning "Warning: $msg";
                                                   } } }
 function ToolSignDotNetAssembly               ( [String] $keySnk, [String] $srcDllOrExe, [String] $tarDllOrExe, [Boolean] $overwrite = $false ){
                                                 # Sign (apply strong name) a given source executable (dll or exe) with a given key and write it to a target file.
