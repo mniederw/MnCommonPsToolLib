@@ -4,57 +4,66 @@ Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version
 
 function UnitTest_FsEntry_Dir_File(){
   OutProgress (ScriptGetCurrentFuncName);
+  function AssertFsEntryIsEqualForCurrentOs ( [String] $fsEntry, [String] $fsEntryConvertedToOsAndExpected ){
+    Assert ($fsEntry -eq (FsEntryUnifyDirSep $fsEntryConvertedToOsAndExpected));
+  }
   #
-  [String] $sep = switch((OsIsWindows)){($true){"\"}($false){"/"}};
-  [String] $notExistingDir  = "$HOME/MyDir/AnyUnknownFile_mm2gekmq9xzswkyzgxbwepzs/";
-  [String] $notExistingFile = "$HOME/MyDir/AnyUnknownFile_mm2gekmq9xzswkyzgxbwepzs";
-  #
-  Assert         ((FsEntryGetAbsolutePath "") -eq "" );
-  Assert         ((FsEntryMakeRelative "$HOME/MyDir/Dir1/File" "$HOME/MyDir/"      ).Replace("\","/") -eq   "Dir1/File");
-  Assert         ((FsEntryMakeRelative "$HOME/MyDir/Dir1/File" "$HOME/MyDir/" $true).Replace("\","/") -eq "./Dir1/File");
-  Assert         ((FsEntryMakeRelative "$HOME/MyDir/File"      "$HOME/MyDir/"      ).Replace("\","/") -eq "File");
-  Assert         ((FsEntryMakeRelative "$HOME/MyDir/"          "$HOME/MyDir/"      ).Replace("\","/") -eq "./");
+  #[String] $sep = switch((OsIsWindows)){($true){"\"}($false){"/"}}; # currently not yet used
+  [String] $notExistingDir  = "$HOME/MyDir/AnyNonExistingFile_uzwqyaxs/";
+  [String] $notExistingFile = "$HOME/MyDir/AnyNonExistingFile_uzwqyaxs";
   #
   Assert ((FsEntryEsc "aa[bb]cc?dd*ee``ff") -eq "aa``[bb``]cc``?dd``*ee``ff");
   #
-  Assert ((FsEntryUnifyDirSep "$HOME\MyDir/MyFile.txt") -eq $(switch((OsIsWindows)){($true){"$HOME\MyDir\MyFile.txt"}($false){"$HOME/MyDir/MyFile.txt"}}));
+  AssertFsEntryIsEqualForCurrentOs (FsEntryUnifyDirSep "$HOME\MyDir\MyFile.txt") "$HOME/MyDir/MyFile.txt"; # test AssertFsEntryIsEqualForCurrentOs
   #
   function Test_FsEntryGetAbsolutePath(){
-    Assert ((FsEntryGetAbsolutePath "$HOME\MyDir\MyFile.txt") -eq $(switch((OsIsWindows)){($true){"$HOME\MyDir\MyFile.txt"}($false){"$HOME/MyDir/MyFile.txt"}}));
-    Assert ((FsEntryGetAbsolutePath "$HOME/MyDir/MyFile.txt") -eq $(switch((OsIsWindows)){($true){"$HOME\MyDir\MyFile.txt"}($false){"$HOME/MyDir/MyFile.txt"}}));
-    Assert ((FsEntryGetAbsolutePath "$HOME/MyDir/"          ) -eq $(switch((OsIsWindows)){($true){"$HOME\MyDir\"          }($false){"$HOME/MyDir/"          }}));
-    Assert ((FsEntryGetAbsolutePath "$HOME/MyDir"           ) -eq $(switch((OsIsWindows)){($true){"$HOME\MyDir"           }($false){"$HOME/MyDir"           }}));
-    Assert ((FsEntryGetAbsolutePath "//MyDomain/MyShare"    ) -eq $(switch((OsIsWindows)){($true){"\\MyDomain\MyShare"    }($false){"//MyDomain/MyShare"    }}));
-    Assert ((FsEntryGetAbsolutePath "//MyDomain/MyShare/"   ) -eq $(switch((OsIsWindows)){($true){"\\MyDomain\MyShare\"   }($false){"//MyDomain/MyShare/"   }}));
-    Assert ((FsEntryGetAbsolutePath "//MyDomain/MyShare/f"  ) -eq $(switch((OsIsWindows)){($true){"\\MyDomain\MyShare\f"  }($false){"//MyDomain/MyShare/f"  }}));
+    AssertFsEntryIsEqualForCurrentOs (FsEntryGetAbsolutePath ""                      ) ""                      ;
+    AssertFsEntryIsEqualForCurrentOs (FsEntryGetAbsolutePath "$HOME\MyDir\MyFile.txt") "$HOME/MyDir/MyFile.txt";
+    AssertFsEntryIsEqualForCurrentOs (FsEntryGetAbsolutePath "$HOME/MyDir/MyFile.txt") "$HOME/MyDir/MyFile.txt";
+    AssertFsEntryIsEqualForCurrentOs (FsEntryGetAbsolutePath "$HOME/MyDir/"          ) "$HOME/MyDir/"          ;
+    AssertFsEntryIsEqualForCurrentOs (FsEntryGetAbsolutePath "$HOME/MyDir"           ) "$HOME/MyDir"           ;
+    AssertFsEntryIsEqualForCurrentOs (FsEntryGetAbsolutePath "//MyDomain/MyShare"    ) "//MyDomain/MyShare"    ;
+    AssertFsEntryIsEqualForCurrentOs (FsEntryGetAbsolutePath "//MyDomain/MyShare/"   ) "//MyDomain/MyShare/"   ;
+    AssertFsEntryIsEqualForCurrentOs (FsEntryGetAbsolutePath "//MyDomain/MyShare/f"  ) "//MyDomain/MyShare/f"  ;
     Push-Location "$HOME/";
-    Assert ((FsEntryGetAbsolutePath "."                      ) -eq $(switch((OsIsWindows)){($true){"$HOME"                }($false){"$HOME"                 }}));
-    Assert ((FsEntryGetAbsolutePath "./"                     ) -eq $(switch((OsIsWindows)){($true){"$HOME\"               }($false){"$HOME/"                }}));
-    Assert ((FsEntryGetAbsolutePath "./."                    ) -eq $(switch((OsIsWindows)){($true){"$HOME"                }($false){"$HOME"                 }}));
-    Assert ((FsEntryGetAbsolutePath "././"                   ) -eq $(switch((OsIsWindows)){($true){"$HOME\"               }($false){"$HOME/"                }}));
-    Assert ((FsEntryGetAbsolutePath "./d/"                   ) -eq $(switch((OsIsWindows)){($true){"$HOME\d\"             }($false){"$HOME/d/"              }}));
-    Assert ((FsEntryGetAbsolutePath "./f"                    ) -eq $(switch((OsIsWindows)){($true){"$HOME\f"              }($false){"$HOME/f"               }}));
+    AssertFsEntryIsEqualForCurrentOs (FsEntryGetAbsolutePath "."                     ) "$HOME"                 ;
+    AssertFsEntryIsEqualForCurrentOs (FsEntryGetAbsolutePath "./"                    ) "$HOME/"                ;
+    AssertFsEntryIsEqualForCurrentOs (FsEntryGetAbsolutePath "./."                   ) "$HOME"                 ;
+    AssertFsEntryIsEqualForCurrentOs (FsEntryGetAbsolutePath "././"                  ) "$HOME/"                ;
+    AssertFsEntryIsEqualForCurrentOs (FsEntryGetAbsolutePath "./d/"                  ) "$HOME/d/"              ;
+    AssertFsEntryIsEqualForCurrentOs (FsEntryGetAbsolutePath "./f"                   ) "$HOME/f"               ;
     Pop-Location;
   } Test_FsEntryGetAbsolutePath;
   #
-  Assert ((FsEntryGetUncShare "//MyHost/MyShare/MyDir/") -eq $(switch((OsIsWindows)){($true){"\\MyHost\MyShare\"          }($false){"//MyHost/MyShare/"     }}));
+  AssertFsEntryIsEqualForCurrentOs (FsEntryGetUncShare "//MyHost/MyShare/MyDir/") "//MyHost/MyShare/";
   #
-  # TODO: FsEntryMakeValidFileName             ( [String] $str )
+  AssertEqual (FsEntryMakeValidFileName ""           ) ""           ;
+  AssertEqual (FsEntryMakeValidFileName "abc.txt"    ) "abc.txt"    ;
+  AssertEqual (FsEntryMakeValidFileName "dir/abc.txt") "dir_abc.txt";
+  AssertEqual (FsEntryMakeValidFileName "doublequote(`") lessthan(`<) greaterthan(`>) pipe(`|) backspace(`b) null(`0) tab(`t) others(␦*`?/\)") "doublequote(_) lessthan(_) greaterthan(_) pipe(_) backspace(_) null(_) tab(_) others(␦____)";
   #
-  # TODO: FsEntryMakeRelative                  ( [String] $fsEntry, [String] $belowDir, [Boolean] $prefixWithDotDir = $false )
+  AssertFsEntryIsEqualForCurrentOs (FsEntryMakeRelative "$HOME/MyDir/Dir1/File" "$HOME/MyDir/"      )   "Dir1/File";
+  AssertFsEntryIsEqualForCurrentOs (FsEntryMakeRelative "$HOME/MyDir/Dir1/File" "$HOME/MyDir/" $true) "./Dir1/File";
+  AssertFsEntryIsEqualForCurrentOs (FsEntryMakeRelative "$HOME/MyDir/File"      "$HOME/MyDir/"      ) "File"       ;
+  AssertFsEntryIsEqualForCurrentOs (FsEntryMakeRelative "$HOME/MyDir/"          "$HOME/MyDir/"      ) "./"         ;
   #
-  # TODO: FsEntryHasTrailingDirSep             ( [String] $fsEntry )
+  Assert ((FsEntryHasTrailingDirSep "$HOME/MyDir/") -eq $true );
+  Assert ((FsEntryHasTrailingDirSep "$HOME/MyDir\") -eq $true );
+  Assert ((FsEntryHasTrailingDirSep "$HOME/MyDir" ) -eq $false);
   #
-  # TODO: FsEntryAssertHasTrailingDirSep
+  FsEntryAssertHasTrailingDirSep "$HOME/MyDir/";
+  FsEntryAssertHasTrailingDirSep "$HOME/MyDir\";
   #
   if( OsIsWindows ){
-    Assert ((FsEntryRemoveTrailingDirSep "C:/") -eq "C:"); # TODO on macos this fails, find a solution
+    AssertFsEntryIsEqualForCurrentOs (FsEntryRemoveTrailingDirSep "C:/") "C:"; # TODO on macos this fails, find a solution
   }
-  Assert ((FsEntryRemoveTrailingDirSep "$HOME/MyDir" )   -eq "$HOME${sep}MyDir" );
-  Assert ((FsEntryRemoveTrailingDirSep "$HOME/MyDir//" ) -eq "$HOME${sep}MyDir" );
+  AssertFsEntryIsEqualForCurrentOs (FsEntryRemoveTrailingDirSep "$HOME/MyDir"  ) "$HOME/MyDir";
+  AssertFsEntryIsEqualForCurrentOs (FsEntryRemoveTrailingDirSep "$HOME/MyDir/" ) "$HOME/MyDir";
+  AssertFsEntryIsEqualForCurrentOs (FsEntryRemoveTrailingDirSep "$HOME/MyDir//") "$HOME/MyDir";
   #
-  #
-  # TODO: FsEntryMakeTrailingDirSep            ( [String] $fsEntry
+  AssertFsEntryIsEqualForCurrentOs (FsEntryMakeTrailingDirSep "$HOME/MyDir"  ) "$HOME/MyDir/";
+  AssertFsEntryIsEqualForCurrentOs (FsEntryMakeTrailingDirSep "$HOME/MyDir/" ) "$HOME/MyDir/";
+  AssertFsEntryIsEqualForCurrentOs (FsEntryMakeTrailingDirSep "$HOME/MyDir//") "$HOME/MyDir/";
   #
   # TODO: FsEntryJoinRelativePatterns          ( [String] $rootDir [String[]] $relativeFsEntriesPatternsSemicolonSeparated )
   #
@@ -95,115 +104,123 @@ function UnitTest_FsEntry_Dir_File(){
   # TODO: FsEntryFsInfoFullNameDirWithTrailDSep( [System.IO.FileSystemInfo] $fsInfo ) return [String] ($fsInfo.FullName+$(switch($fsInfo.PSIsContainer){($true){$(DirSep)}default{""}}));
   #
   function Test_FsEntryListAsFileSystemInfo(){
-    [String]   $d = FsEntryRemoveTrailingDirSep (DirCreateTemp);
-    FileTouch "$d/f1.txt";
-    FileTouch "$d/f2.txt";
-    FileTouch "$d/d1/f1.txt";
-    FileTouch "$d/d1/f2.txt";
+    [String]$d = FsEntryUnifyToSlashes (FsEntryRemoveTrailingDirSep (DirCreateTemp));
+    #
+    function StrArrToStr( [String[]] $a ){
+      return [String] (($a | FsEntrySort | Where-Object{$null -ne $_} | ForEach-Object{ (StringRemoveLeft (FsEntryUnifyToSlashes $_) $d); }) -join ";");
+    }
+    function FseArrToStr( [System.IO.FileSystemInfo[]] $a ){
+      return [String] (StrArrToStr ($a | Where-Object{$null -ne $_} | ForEach-Object{ FsEntryFsInfoFullNameDirWithTrailDSep $_; }));
+    }
+    #         "$d/";
+    #         "$d/d1/";
+    #         "$d/d1/d1/";
     FileTouch "$d/d1/d1/f1.txt";
     FileTouch "$d/d1/d1/f2.txt";
+    #         "$d/d1/d2/";
     FileTouch "$d/d1/d2/f1.txt";
     FileTouch "$d/d1/d2/f2.txt";
-    FileTouch "$d/d2/f1.txt";
-    FileTouch "$d/d2/f2.txt";
+    FileTouch "$d/d1/f1.txt";
+    FileTouch "$d/d1/f2.txt";
+    #         "$d/d2/";
+    #         "$d/d2/d1/";
     FileTouch "$d/d2/d1/f1.txt";
     FileTouch "$d/d2/d1/f2.txt";
+    #         "$d/d2/d2/";
     FileTouch "$d/d2/d2/f1.txt";
     FileTouch "$d/d2/d2/f2.txt";
+    #         "$d/d2/d3/";
     FileTouch "$d/d2/d3/f1.txt";
     FileTouch "$d/d2/d3/f2.txt";
-    function ArrToStr( [System.IO.FileSystemInfo[]] $a ){
-      return ($a | Where-Object{$null -ne $_} | ForEach-Object{ (StringRemoveLeft (FsEntryFsInfoFullNameDirWithTrailDSep $_) $d) -replace "[\\/]","/"; }) -join ";";
-    }
-    function StrArrToStr( [String[]] $a ){
-      return ($a | Where-Object{$null -ne $_} | ForEach-Object{ (StringRemoveLeft $_ $d) -replace "[\\/]","/"; }) -join ";";
-    }
-    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo $notExistingFile -recursive:$false -includeDirs:$true -includeFiles:$true -inclTopDir:$true)) -eq "");
-    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo $notExistingDir  -recursive:$false -includeDirs:$true -includeFiles:$true -inclTopDir:$true)) -eq "");
-    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d"             -recursive:$false -includeDirs:$true -includeFiles:$true -inclTopDir:$true)) -eq "/;/d1/;/d2/;/f1.txt;/f2.txt");
-    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/"            -recursive:$false -includeDirs:$true -includeFiles:$true -inclTopDir:$true)) -eq "/;/d1/;/d2/;/f1.txt;/f2.txt");
-    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d1/f1.txt"   -recursive:$false -includeDirs:$true -includeFiles:$true -inclTopDir:$true)) -eq "/d1/f1.txt");
-    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d1/d2/"      -recursive:$false -includeDirs:$true -includeFiles:$true -inclTopDir:$true)) -eq "/d1/d2/;/d1/d2/f1.txt;/d1/d2/f2.txt");
-
-
-
-    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d?/"         -recursive:$false -includeDirs:$true -includeFiles:$true -inclTopDir:$true)) -eq "/d1/;/d2/;/d1/;/d2/");
-    #ERROR expected: Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d?/"         -recursive:$false -includeDirs:$true -includeFiles:$true -inclTopDir:$true)) -eq "/d1/;/d2/;/d1/d1/;/d1/d2/;/d1/f1.txt;/d1/f2.txt;/d2/d1/;/d2/d2/;/d2/d3/;/d2/f1.txt;/d2/f2.txt");
-
-
-
-    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d1/*1*/"     -recursive:$false -includeDirs:$true -includeFiles:$true -inclTopDir:$true)) -eq "/d1/d1/;/d1/d1/;/d1/f1.txt");
-    #ERROR expected: Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d1/*1*/"     -recursive:$false -includeDirs:$true -includeFiles:$true -inclTopDir:$true)) -eq "/d1/d1/;/d1/d1/f1.txt;/d1/d1/f2.txt;/d1/f1.txt");
-
-
-
-
-    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo $notExistingFile -recursive:$false)) -eq "");
-    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo $notExistingDir  -recursive:$false)) -eq "");
-    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d"             -recursive:$false)) -eq "/d1/;/d2/;/f1.txt;/f2.txt");
-    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/"            -recursive:$false)) -eq "/d1/;/d2/;/f1.txt;/f2.txt");
-    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d1/f1.txt"   -recursive:$false)) -eq "/d1/f1.txt");
-    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d1/d2/"      -recursive:$false)) -eq "/d1/d2/f1.txt;/d1/d2/f2.txt");
-
-
-
-    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d?/"         -recursive:$false)) -eq "/d1/;/d2/");
-    #ERROR expected: Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d?/"         -recursive:$false)) -eq "/d1/d1/;/d1/d2/;/d1/f1.txt;/d1/f2.txt;/d2/d1/;/d2/d2/;/d2/d3/;/d2/f1.txt;/d2/f2.txt");
-
-
-
-
-    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d1/*1*/"     -recursive:$false)) -eq "/d1/d1/;/d1/f1.txt");
-    #ERROR expected: Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d1/*1*/"     -recursive:$false)) -eq "/d1/d1/f1.txt;/d1/d1/f2.txt;/d1/f1.txt");
-
-
-
-
-    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d?/"         -recursive:$false -includeDirs:$false)) -eq "");
-    #ERROR expected: Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d?/"         -recursive:$false -includeDirs:$false)) -eq "/d1/f1.txt;/d1/f2.txt;/d2/f1.txt;/d2/f2.txt");
-
-
-
-
-
-
-    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo $notExistingFile -recursive:$true)) -eq "");
-    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo $notExistingDir  -recursive:$true)) -eq "");
-    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d"             -recursive:$true)) -eq "/");
-    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/"            -recursive:$true)) -eq "/");
-    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/*"           -recursive:$true)) -eq "/d1/;/d1/d1/;/d1/d1/f1.txt;/d1/d1/f2.txt;/d1/d2/;/d1/d2/f1.txt;/d1/d2/f2.txt;/d1/f1.txt;/d1/f2.txt;/d2/;/d2/d1/;/d2/d1/f1.txt;/d2/d1/f2.txt;/d2/d2/;/d2/d2/f1.txt;/d2/d2/f2.txt;/d2/d3/;/d2/d3/f1.txt;/d2/d3/f2.txt;/d2/f1.txt;/d2/f2.txt;/f1.txt;/f2.txt");
-    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/*1.txt"      -recursive:$true)) -eq "/d1/d1/f1.txt;/d1/d2/f1.txt;/d1/f1.txt;/d2/d1/f1.txt;/d2/d2/f1.txt;/d2/d3/f1.txt;/d2/f1.txt;/f1.txt");
-    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d?/*1.txt"   -recursive:$true)) -eq "/d1/d1/f1.txt;/d1/d2/f1.txt;/d1/f1.txt;/d2/d1/f1.txt;/d2/d2/f1.txt;/d2/d3/f1.txt;/d2/f1.txt");
-    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d1/*1.txt"   -recursive:$true)) -eq "/d1/d1/f1.txt;/d1/d2/f1.txt;/d1/f1.txt");
-    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d1/"         -recursive:$true)) -eq "/d1/;/d1/d1/;/d2/d1/");
-    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/d1/*"        -recursive:$true)) -eq "/d1/d1/;/d1/d1/f1.txt;/d1/d1/f2.txt;/d1/d2/;/d1/d2/f1.txt;/d1/d2/f2.txt;/d1/f1.txt;/d1/f2.txt");
-    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/*"           -recursive:$true -includeDirs:$false )) -eq "/d1/d1/f1.txt;/d1/d1/f2.txt;/d1/d2/f1.txt;/d1/d2/f2.txt;/d1/f1.txt;/d1/f2.txt;/d2/d1/f1.txt;/d2/d1/f2.txt;/d2/d2/f1.txt;/d2/d2/f2.txt;/d2/d3/f1.txt;/d2/d3/f2.txt;/d2/f1.txt;/d2/f2.txt;/f1.txt;/f2.txt");
-    Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "$d/*"           -recursive:$true -includeFiles:$false)) -eq "/d1/;/d1/d1/;/d1/d2/;/d2/;/d2/d1/;/d2/d2/;/d2/d3/");
-    if( OsIsWindows ){ Assert ( (FsEntryListAsFileSystemInfo "$env:SystemRoot/explo*.exe/"   -recursive:$false -includeDirs:$true ).Count -eq 0); }
-    if( OsIsWindows ){ Assert ( (FsEntryListAsFileSystemInfo "$env:SystemRoot/explo*.exe"    -recursive:$false -includeDirs:$true ).Count -eq 1); }
-    if( OsIsWindows ){ Assert ( (FsEntryListAsFileSystemInfo "$env:SystemRoot/explorer.exe/" -recursive:$false -includeDirs:$true ).Count -gt 1); }
-    if( OsIsWindows ){ Assert ( (FsEntryListAsFileSystemInfo "$env:SystemRoot/explorer.exe/" -recursive:$false -includeDirs:$false).Count -gt 0); }
-    if( OsIsWindows ){ Assert ( (FsEntryListAsFileSystemInfo "C:/Window*/explorer.exe/"      -recursive:$false -includeDirs:$false).Count -gt 0); }
-
-
-
-# TODO Get-ChildItem "C:\*\explorer.exe\";
-
-
-    Push-Location "$d/"; Assert ( (ArrToStr (FsEntryListAsFileSystemInfo   "d1/f1.txt" -recursive:$false -includeDirs:$true -includeFiles:$true -inclTopDir:$true)) -eq "/d1/f1.txt"); Pop-Location;
-    Push-Location "$d/"; Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "./d1/f1.txt" -recursive:$false -includeDirs:$true -includeFiles:$true -inclTopDir:$true)) -eq "/d1/f1.txt"); Pop-Location;
-    Push-Location "$d/"; Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "./f1.txt"    -recursive:$false)) -eq "/f1.txt"); Pop-Location;
-    Push-Location "$d/"; Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "f1.txt"      -recursive:$false)) -eq "/f1.txt"); Pop-Location;
-    Push-Location "$d/"; Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "./f1.txt"    -recursive:$true)) -eq "/d1/d1/f1.txt;/d1/d2/f1.txt;/d1/f1.txt;/d2/d1/f1.txt;/d2/d2/f1.txt;/d2/d3/f1.txt;/d2/f1.txt;/f1.txt"); Pop-Location;
-    Push-Location "$d/"; Assert ( (ArrToStr (FsEntryListAsFileSystemInfo "f1.txt"      -recursive:$true)) -eq "/d1/d1/f1.txt;/d1/d2/f1.txt;/d1/f1.txt;/d2/d1/f1.txt;/d2/d2/f1.txt;/d2/d3/f1.txt;/d2/f1.txt;/f1.txt"); Pop-Location;
-    #
+    FileTouch "$d/d2/f1.txt";
+    FileTouch "$d/d2/f2.txt";
+    FileTouch "$d/f1.txt";
+    FileTouch "$d/f2.txt";
+    # FsEntryListAsFileSystemInfo simple test
+    Assert (FsEntryListAsFileSystemInfo "$d" | ForEach-Object{ FsEntryFsInfoFullNameDirWithTrailDSep $_; }).Count -gt 10;
+    # test non-recursive
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo -recursive:$false $notExistingFile   )) "";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo -recursive:$false $notExistingDir    )) "";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo -recursive:$false "$d"               )) "/d1/;/d2/;/f1.txt;/f2.txt";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo -recursive:$false "$d/"              )) "/d1/;/d2/;/f1.txt;/f2.txt";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo -recursive:$false "$d/*"             )) "/d1/;/d2/;/f1.txt;/f2.txt";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo -recursive:$false "$d/*/"            )) "/d1/;/d2/;/f1.txt;/f2.txt";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo -recursive:$false "$d/**"            )) "/d1/;/d2/;/f1.txt;/f2.txt";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo -recursive:$false "$d/*/*"           )) "/d1/d1/;/d1/d2/;/d1/f1.txt;/d1/f2.txt;/d2/d1/;/d2/d2/;/d2/d3/;/d2/f1.txt;/d2/f2.txt";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo -recursive:$false "$d/d*"            )) "/d1/;/d2/";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo -recursive:$false "$d/d*/"           )) "/d1/;/d2/";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo -recursive:$false "$d/d?"            )) "/d1/;/d2/";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo -recursive:$false "$d/d?/"           )) "/d1/;/d2/";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo -recursive:$false "$d/d?/*"          )) "/d1/d1/;/d1/d2/;/d1/f1.txt;/d1/f2.txt;/d2/d1/;/d2/d2/;/d2/d3/;/d2/f1.txt;/d2/f2.txt";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo -recursive:$false "$d/d1/d?"         )) "/d1/d1/;/d1/d2/";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo -recursive:$false "$d/d1/d?/"        )) "/d1/d1/;/d1/d2/";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo -recursive:$false "$d/d1/d?/*"       )) "/d1/d1/f1.txt;/d1/d1/f2.txt;/d1/d2/f1.txt;/d1/d2/f2.txt";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo -recursive:$false "$d/d1/*1*/"       )) "/d1/d1/;/d1/f1.txt";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo -recursive:$false "$d/d1/d2"         )) "/d1/d2/f1.txt;/d1/d2/f2.txt";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo -recursive:$false "$d/d1/d2/"        )) "/d1/d2/f1.txt;/d1/d2/f2.txt";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo -recursive:$false "$d/d1/d2/*"       )) "/d1/d2/f1.txt;/d1/d2/f2.txt";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo -recursive:$false "$d/d1/d2/*/"      )) "/d1/d2/f1.txt;/d1/d2/f2.txt";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo -recursive:$false "$d/d1/d2/*/*"     )) "";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo -recursive:$false "$d/d1/f1.txt"     )) "/d1/f1.txt";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo -recursive:$false "$d/d1/*/f1.txt"   )) "/d1/d1/f1.txt;/d1/d2/f1.txt";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo -recursive:$false "$d/d1/*/*/f1.txt" )) "";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo -recursive:$false "$d"  -includeDirs:$true  -includeFiles:$true )) "/d1/;/d2/;/f1.txt;/f2.txt";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo -recursive:$false "$d"  -includeDirs:$true  -includeFiles:$false)) "/d1/;/d2/";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo -recursive:$false "$d"  -includeDirs:$false -includeFiles:$true )) "/f1.txt;/f2.txt";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo -recursive:$false "$d"  -includeDirs:$false -includeFiles:$false)) "";
+    Push-Location "$d/"; AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo -recursive:$false "./f1.txt"    )) "/f1.txt"   ; Pop-Location;
+    Push-Location "$d/"; AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo -recursive:$false   "f1.txt"    )) "/f1.txt"   ; Pop-Location;
+    Push-Location "$d/"; AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo -recursive:$false "./d1/f1.txt" )) "/d1/f1.txt"; Pop-Location;
+    Push-Location "$d/"; AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo -recursive:$false   "d1/f1.txt" )) "/d1/f1.txt"; Pop-Location;
+    # test recursive
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo $notExistingFile   )) "";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo $notExistingDir    )) "";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo "$d"               )) "/d1/;/d1/d1/;/d1/d1/f1.txt;/d1/d1/f2.txt;/d1/d2/;/d1/d2/f1.txt;/d1/d2/f2.txt;/d1/f1.txt;/d1/f2.txt;/d2/;/d2/d1/;/d2/d1/f1.txt;/d2/d1/f2.txt;/d2/d2/;/d2/d2/f1.txt;/d2/d2/f2.txt;/d2/d3/;/d2/d3/f1.txt;/d2/d3/f2.txt;/d2/f1.txt;/d2/f2.txt;/f1.txt;/f2.txt";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo "$d/"              )) "/d1/;/d1/d1/;/d1/d1/f1.txt;/d1/d1/f2.txt;/d1/d2/;/d1/d2/f1.txt;/d1/d2/f2.txt;/d1/f1.txt;/d1/f2.txt;/d2/;/d2/d1/;/d2/d1/f1.txt;/d2/d1/f2.txt;/d2/d2/;/d2/d2/f1.txt;/d2/d2/f2.txt;/d2/d3/;/d2/d3/f1.txt;/d2/d3/f2.txt;/d2/f1.txt;/d2/f2.txt;/f1.txt;/f2.txt";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo "$d/*"             )) "/d1/;/d1/d1/;/d1/d1/f1.txt;/d1/d1/f2.txt;/d1/d2/;/d1/d2/f1.txt;/d1/d2/f2.txt;/d1/f1.txt;/d1/f2.txt;/d2/;/d2/d1/;/d2/d1/f1.txt;/d2/d1/f2.txt;/d2/d2/;/d2/d2/f1.txt;/d2/d2/f2.txt;/d2/d3/;/d2/d3/f1.txt;/d2/d3/f2.txt;/d2/f1.txt;/d2/f2.txt;/f1.txt;/f2.txt";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo "$d/*/"            )) "/d1/;/d1/d1/;/d1/d1/f1.txt;/d1/d1/f2.txt;/d1/d2/;/d1/d2/f1.txt;/d1/d2/f2.txt;/d1/f1.txt;/d1/f2.txt;/d2/;/d2/d1/;/d2/d1/f1.txt;/d2/d1/f2.txt;/d2/d2/;/d2/d2/f1.txt;/d2/d2/f2.txt;/d2/d3/;/d2/d3/f1.txt;/d2/d3/f2.txt;/d2/f1.txt;/d2/f2.txt;/f1.txt;/f2.txt";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo "$d/**"            )) "/d1/;/d1/d1/;/d1/d1/f1.txt;/d1/d1/f2.txt;/d1/d2/;/d1/d2/f1.txt;/d1/d2/f2.txt;/d1/f1.txt;/d1/f2.txt;/d2/;/d2/d1/;/d2/d1/f1.txt;/d2/d1/f2.txt;/d2/d2/;/d2/d2/f1.txt;/d2/d2/f2.txt;/d2/d3/;/d2/d3/f1.txt;/d2/d3/f2.txt;/d2/f1.txt;/d2/f2.txt;/f1.txt;/f2.txt";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo "$d/*/*"           )) (    "/d1/d1/;/d1/d1/f1.txt;/d1/d1/f2.txt;/d1/d2/;/d1/d2/f1.txt;/d1/d2/f2.txt;/d1/f1.txt;/d1/f2.txt;"+  "/d2/d1/;/d2/d1/f1.txt;/d2/d1/f2.txt;/d2/d2/;/d2/d2/f1.txt;/d2/d2/f2.txt;/d2/d3/;/d2/d3/f1.txt;/d2/d3/f2.txt;/d2/f1.txt;/d2/f2.txt;/f1.txt;/f2.txt");
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo "$d/d*"            )) (    "/d1/d1/;/d1/d1/f1.txt;/d1/d1/f2.txt;/d1/d2/;/d1/d2/f1.txt;/d1/d2/f2.txt;/d1/f1.txt;/d1/f2.txt;"+  "/d2/d1/;/d2/d1/f1.txt;/d2/d1/f2.txt;/d2/d2/;/d2/d2/f1.txt;/d2/d2/f2.txt;/d2/d3/;/d2/d3/f1.txt;/d2/d3/f2.txt;/d2/f1.txt;/d2/f2.txt");
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo "$d/d*/"           )) (    "/d1/d1/;/d1/d1/f1.txt;/d1/d1/f2.txt;/d1/d2/;/d1/d2/f1.txt;/d1/d2/f2.txt;/d1/f1.txt;/d1/f2.txt;"+  "/d2/d1/;/d2/d1/f1.txt;/d2/d1/f2.txt;/d2/d2/;/d2/d2/f1.txt;/d2/d2/f2.txt;/d2/d3/;/d2/d3/f1.txt;/d2/d3/f2.txt;/d2/f1.txt;/d2/f2.txt");
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo "$d/d?"            )) (    "/d1/d1/;/d1/d1/f1.txt;/d1/d1/f2.txt;/d1/d2/;/d1/d2/f1.txt;/d1/d2/f2.txt;/d1/f1.txt;/d1/f2.txt;"+  "/d2/d1/;/d2/d1/f1.txt;/d2/d1/f2.txt;/d2/d2/;/d2/d2/f1.txt;/d2/d2/f2.txt;/d2/d3/;/d2/d3/f1.txt;/d2/d3/f2.txt;/d2/f1.txt;/d2/f2.txt");
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo "$d/d?/"           )) (    "/d1/d1/;/d1/d1/f1.txt;/d1/d1/f2.txt;/d1/d2/;/d1/d2/f1.txt;/d1/d2/f2.txt;/d1/f1.txt;/d1/f2.txt;"+  "/d2/d1/;/d2/d1/f1.txt;/d2/d1/f2.txt;/d2/d2/;/d2/d2/f1.txt;/d2/d2/f2.txt;/d2/d3/;/d2/d3/f1.txt;/d2/d3/f2.txt;/d2/f1.txt;/d2/f2.txt");
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo "$d/d?/*"          )) (    "/d1/d1/;/d1/d1/f1.txt;/d1/d1/f2.txt;/d1/d2/;/d1/d2/f1.txt;/d1/d2/f2.txt;/d1/f1.txt;/d1/f2.txt;"+  "/d2/d1/;/d2/d1/f1.txt;/d2/d1/f2.txt;/d2/d2/;/d2/d2/f1.txt;/d2/d2/f2.txt;/d2/d3/;/d2/d3/f1.txt;/d2/d3/f2.txt;/d2/f1.txt;/d2/f2.txt");
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo "$d/d1/d?"         )) (             "/d1/d1/f1.txt;/d1/d1/f2.txt;"+     "/d1/d2/f1.txt;/d1/d2/f2.txt");
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo "$d/d1/d?/"        )) (             "/d1/d1/f1.txt;/d1/d1/f2.txt;"+     "/d1/d2/f1.txt;/d1/d2/f2.txt");
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo "$d/d1/d?/*"       )) (             "/d1/d1/f1.txt;/d1/d1/f2.txt;"+     "/d1/d2/f1.txt;/d1/d2/f2.txt");
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo "$d/d1/*1*/"       )) (     "/d1/d1/;/d1/d1/f1.txt;"+                   "/d1/d2/f1.txt;/d1/f1.txt"   );
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo "$d/d1/d2"         )) "/d1/d2/f1.txt;/d1/d2/f2.txt";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo "$d/d1/d2/"        )) "/d1/d2/f1.txt;/d1/d2/f2.txt";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo "$d/d1/d2/*"       )) "/d1/d2/f1.txt;/d1/d2/f2.txt";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo "$d/d1/d2/*/"      )) "/d1/d2/f1.txt;/d1/d2/f2.txt";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo "$d/d1/d2/*/*"     )) "/d1/d2/f1.txt;/d1/d2/f2.txt";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo "$d/d1/f1.txt"     )) "/d1/d1/f1.txt;/d1/d2/f1.txt;/d1/f1.txt"
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo "$d/d1/*/f1.txt"   )) "/d1/d1/f1.txt;/d1/d2/f1.txt;/d1/f1.txt"
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo "$d/d1/*/*/f1.txt" )) "/d1/d1/f1.txt;/d1/d2/f1.txt"
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo "$d"  -includeDirs:$true  -includeFiles:$true )) "/d1/;/d1/d1/;/d1/d1/f1.txt;/d1/d1/f2.txt;/d1/d2/;/d1/d2/f1.txt;/d1/d2/f2.txt;/d1/f1.txt;/d1/f2.txt;/d2/;/d2/d1/;/d2/d1/f1.txt;/d2/d1/f2.txt;/d2/d2/;/d2/d2/f1.txt;/d2/d2/f2.txt;/d2/d3/;/d2/d3/f1.txt;/d2/d3/f2.txt;/d2/f1.txt;/d2/f2.txt;/f1.txt;/f2.txt";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo "$d"  -includeDirs:$true  -includeFiles:$false)) "/d1/;/d1/d1/;/d1/d2/;/d2/;/d2/d1/;/d2/d2/;/d2/d3/";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo "$d"  -includeDirs:$false -includeFiles:$true )) "/d1/d1/f1.txt;/d1/d1/f2.txt;/d1/d2/f1.txt;/d1/d2/f2.txt;/d1/f1.txt;/d1/f2.txt;/d2/d1/f1.txt;/d2/d1/f2.txt;/d2/d2/f1.txt;/d2/d2/f2.txt;/d2/d3/f1.txt;/d2/d3/f2.txt;/d2/f1.txt;/d2/f2.txt;/f1.txt;/f2.txt";
+    AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo "$d"  -includeDirs:$false -includeFiles:$false)) "";
+    Push-Location "$d/"; AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo "./f1.txt"    )) "/d1/d1/f1.txt;/d1/d2/f1.txt;/d1/f1.txt;/d2/d1/f1.txt;/d2/d2/f1.txt;/d2/d3/f1.txt;/d2/f1.txt;/f1.txt"; Pop-Location;
+    Push-Location "$d/"; AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo   "f1.txt"    )) "/d1/d1/f1.txt;/d1/d2/f1.txt;/d1/f1.txt;/d2/d1/f1.txt;/d2/d2/f1.txt;/d2/d3/f1.txt;/d2/f1.txt;/f1.txt"; Pop-Location;
+    Push-Location "$d/"; AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo "./d1/f1.txt" )) "/d1/d1/f1.txt;/d1/d2/f1.txt;/d1/f1.txt"                                                             ; Pop-Location;
+    Push-Location "$d/"; AssertEqual (FseArrToStr (FsEntryListAsFileSystemInfo   "d1/f1.txt" )) "/d1/d1/f1.txt;/d1/d2/f1.txt;/d1/f1.txt"                                                             ; Pop-Location;
     # Test FsEntryListAsStringArray
-    Assert ( (StrArrToStr (FsEntryListAsStringArray "$d"        -recursive:$false -includeDirs:$true -includeFiles:$true -inclTopDir:$true)) -eq "/;/d1/;/d2/;/f1.txt;/f2.txt");
-    Assert ( (StrArrToStr (FsEntryListAsStringArray "$d/d1/d2/" -recursive:$false)) -eq "/d1/d2/f1.txt;/d1/d2/f2.txt");
-    Assert ( (StrArrToStr (FsEntryListAsStringArray "$d/*"      -recursive:$true -includeFiles:$false)) -eq "/d1/;/d1/d1/;/d1/d2/;/d2/;/d2/d1/;/d2/d2/;/d2/d3/");
+    AssertEqual (StrArrToStr (FsEntryListAsStringArray "$d/d1/d2/" -recursive:$false))                     "/d1/d2/f1.txt;/d1/d2/f2.txt";
+    AssertEqual (StrArrToStr (FsEntryListAsStringArray "$d/*"      -recursive:$true -includeFiles:$false)) "/d1/;/d1/d1/;/d1/d2/;/d2/;/d2/d1/;/d2/d2/;/d2/d3/";
+    # TODO some performance relevant tests for later
+    #   if( OsIsWindows ){ Assert ( (FsEntryListAsFileSystemInfo "$env:SystemRoot/explorer.exe"                      ).Count -gt 1); } #  C:\Windows\SysWOW64\explorer.exe;C:\Windows\WinSxS\amd64_microsoft-windows-explorer_31bf3856ad364e35_10.0.22621.5983_none_316c1953f574dbce\f\explorer.exe;...;
+    #   if( OsIsWindows ){ Assert ( (FsEntryListAsFileSystemInfo "$env:SystemRoot/explorer.exe/"                     ).Count -eq 1); }
+    #   if( OsIsWindows ){ Assert ( (FsEntryListAsFileSystemInfo "$env:SystemRoot/explorer.exe"  -includeDirs:$false ).Count -eq 1); }
+    #   if( OsIsWindows ){ Assert ( (FsEntryListAsFileSystemInfo "$env:SystemRoot/explorer.exe"  -includeFiles:$false).Count -eq 0); }
+    #   if( OsIsWindows ){ Assert ( (FsEntryListAsFileSystemInfo "$env:SystemRoot/explo*.exe"                        ).Count -gt 1); }
+    #   if( OsIsWindows ){ Assert ( (FsEntryListAsFileSystemInfo "$env:SystemRoot/explo*.exe/"                       ).Count -gt 1); }
+    #   if( OsIsWindows ){ Assert ( (FsEntryListAsFileSystemInfo "C:/Window*/explorer.exe"                           ).Count -eq 1); }
     #
     DirDelete "$d/";
   } Test_FsEntryListAsFileSystemInfo;
+  #
   # TODO: FsEntryDelete                        ( [String] $fsEntry )
   #
   # TODO: FsEntryDeleteToRecycleBin            ( [String] $fsEntry )

@@ -23,12 +23,9 @@ function ExampleUseCommon(){
 function ExampleUseFsEntries(){
   OutProgressTitle "$($MyInvocation.MyCommand)";
   OutProgress "Current dir is: $(FsEntryGetAbsolutePath '.')";
-  [String] $d = "$HOME/Documents";
-  if( (OsIsMacOS) -and (IsProbablyRunningOnGithubActions) ){
-    OutWarning "Since V7.107 it seams FsEntryListAsStringArray is looping endless on MacOS on GithubActions, so we discard it. "; return;
-  }
-  [String[]] $a = @()+(FsEntryListAsStringArray $d $true $false $true | Where-Object{$null -ne $_});
-  OutProgress "The folder '$d' contains $($a.Count) number of files";
+  [String] $d = "$HOME/Documents/";
+  [String[]] $a = @()+(FsEntryListAsStringArray "$d/*" $true $false $true | Where-Object{$null -ne $_});
+  OutProgress "The folder `"$d`" contains $($a.Count) number of files";
   [String[]] $a2 = @()+($a | Select-Object -First 2);
   [Object[]] $o2 = @()+($a2 | Select-Object @{Name="FileName";Expression={("`"$_`"")}});
   OutProgress "The folder '$d' has the following first two files: $a2";

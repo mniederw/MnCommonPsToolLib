@@ -1019,7 +1019,7 @@ function NetFirewallListProfiles              (){ Get-NetFirewallProfile | Selec
 function NetFirewallListProfileActive         (){ return [String] "$((Get-NetConnectionProfile).NetworkCategory)"; # Example: "Private"
                                                   # More fields: NetworkCategory,DomainAuthenticationKind,IPv4Connectivity,IPv6Connectivity,Caption,Description,ElementName,InstanceID,InterfaceAlias,InterfaceIndex,Name
                                                 }
-function JuniperNcEstablishVpnConn            ( [String] $secureCredentialFile, [String] $url, [String] $realm ){
+function JuniperNcEstablishVpnConn            ( [String] $secureCXredentialFile, [String] $url, [String] $realm ){
                                                 [String] $serviceName = "DsNcService";
                                                 [String] $vpnProg = "${env:ProgramFiles(x86)}/Juniper Networks/Network Connect 8.0/nclauncher.exe";
                                                 # Using: nclauncher [-url Url] [-u username] [-p password] [-r realm] [-help] [-stop] [-signout] [-version] [-d DSID] [-cert client certificate] [-t Time(Seconds min:45, max:600)] [-ir true | false]
@@ -1036,8 +1036,8 @@ function JuniperNcEstablishVpnConn            ( [String] $secureCredentialFile, 
                                                 }
                                                 function JuniperNetworkConnectStart( [Int32] $maxPwTries = 9 ){
                                                   for ($i = 1; $i -le $maxPwTries; $i += 1){
-                                                    OutVerbose "Read last saved encrypted username and password: `"$secureCredentialFile`"";
-                                                    [System.Management.Automation.PSCredential] $cred = CredentialGetAndStoreIfNotExists $secureCredentialFile;
+                                                    OutVerbose "Read last saved encrypted username and password: `"$secureCXredentialFile`"";
+                                                    [System.Management.Automation.PSCredential] $cred = CredentialGetAndStoreIfNotExists $secureCXredentialFile;
                                                     [String] $us = CredentialGetUsername $cred;
                                                     [String] $pw = CredentialGetPassword $cred;
                                                     OutDebug "UserName=`"$us`"  Password=`"$pw`"";
@@ -1047,15 +1047,15 @@ function JuniperNcEstablishVpnConn            ( [String] $secureCredentialFile, 
                                                     if( $out -eq "The specified credentials do not authenticate." -or $out -eq "Die Authentifizierung ist mit den angegebenen Anmeldeinformationen nicht m÷glich." ){
                                                       # On some machines we got german messages.
                                                       OutProgress "Handling authentication failure by removing credential file and retry";
-                                                      CredentialRemoveFile $secureCredentialFile; }
+                                                      CredentialRemoveFile $secureCXredentialFile; }
                                                     elseif( $out -eq "Network Connect has started." -or $out -eq "Network Connect is already running" -or $out -eq "Network Connect wurde gestartet." ){ return; }
                                                     else{ OutWarning "Warning: Ignoring unexpected program output: `"$out`", will continue but maybe it does not work"; ProcessSleepSec 5; return; }
                                                   }
                                                   throw [Exception] "Authentication failed with specified credentials, credential file was removed, please retry";
                                                 }
                                                 OutProgress "Using vpn program `"$vpnProg`"";
-                                                OutProgress "Arguments: credentialFile=`"$secureCredentialFile`", url=$url , realm=`"$realm`"";
-                                                if( $url -eq "" -or $secureCredentialFile -eq "" -or $url -eq "" -or $realm  -eq "" ){ throw [Exception] "Missing an argument"; }
+                                                OutProgress "Arguments: credentialFile=`"$secureCXredentialFile`", url=$url , realm=`"$realm`"";
+                                                if( $url -eq "" -or $secureCXredentialFile -eq "" -or $url -eq "" -or $realm  -eq "" ){ throw [Exception] "Missing an argument"; }
                                                 FileAssertExists $vpnProg;
                                                 ServiceAssertExists $serviceName;
                                                 ServiceStart $serviceName;
@@ -1063,8 +1063,8 @@ function JuniperNcEstablishVpnConn            ( [String] $secureCredentialFile, 
                                                 JuniperNetworkConnectStart;
                                               }
 function JuniperNcEstablishVpnConnAndRdp      ( [String] $rdpfile, [String] $url, [String] $realm ){
-                                                [String] $secureCredentialFile = "$rdpfile.vpn-uspw.$ComputerName.txt";
-                                                JuniperNcEstablishVpnConn $secureCredentialFile $url $realm;
+                                                [String] $secureCXredentialFile = "$rdpfile.vpn-uspw.$ComputerName.txt";
+                                                JuniperNcEstablishVpnConn $secureCXredentialFile $url $realm;
                                                 ToolRdpConnect $rdpfile; }
 function InfoAboutComputerOverview            (){ return [String[]] @( "InfoAboutComputerOverview:", ""
                                                   ,"Common.Datetime                : $(DateTimeNowAsStringIso 'yyyy-MM-dd HH:mm')"
@@ -1493,10 +1493,13 @@ function SvnPreCommitCleanupRevertAndDelFiles ( [String] $workDir, [String[]] $r
                                                 }
                                                 OutProgress "Remove known unused temp, cache and log directories and files ";
                                                 OutProgress "  Is failing when locked by programs, then terminate programs first. ";
+                                                [String[]] $filesToDelete = @();
                                                 FsEntryJoinRelativePatterns $workDir (@()+$relativeDelFsEntryPatterns) |
                                                   Where-Object{$null -ne $_} | ForEach-Object{
-                                                    FsEntryListAsStringArray $_ | Where-Object{$null -ne $_} | ForEach-Object{
-                                                      FileAppendLines $svnLogFile "  Delete: `"$_`""; FsEntryDelete $_; }; };
+                                                    if( FsEntryContainsWildcards $_ ){ $filesToDelete += $_ }
+                                                    else{ FsEntryListAsStringArray $_ | Where-Object{$null -ne $_} | ForEach-Object{ $filesToDelete += $_; } }
+                                                  };
+                                                $filesToDelete | Where-Object{$null -ne $_} | ForEach-Object{ FileAppendLines $svnLogFile "  Delete: `"$_`""; FsEntryDelete $_; };
                                                 OutProgress "SvnRevert - Restore known unwanted changes of directories and files";
                                                 SvnRevert $workDir (@()+$relativeRevertFsEntries); }
 function SvnTortoiseCommitAndUpdate           ( [String] $workDir, [String] $svnUrl, [String] $svnUser, [Boolean] $ignoreIfHostNotReachable, [String] $pw = "" ){
@@ -2117,17 +2120,31 @@ function ToolActualizeHostsFileByMaster       ( [String] $srcHostsFile ){
 function ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [String] $workDir, [String] $lnkFile, [String] $srcFsEntry, [String[]] $arguments = @(),
                                                 [Boolean] $runElevated = $false, [Boolean] $ignoreIfSrcNotExists = $false ){
                                                 # Creates links to files as programs or document files or to directories.
-                                                # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA/Microsoft/Windows/Start Menu/Programs/LinkToNotepad.lnk" "$env:SystemRoot/notepad.exe";
+                                                # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA/Microsoft/Windows/Start Menu/Programs/LinkToNotepad.lnk"    "$env:SystemRoot/notepad.exe";
                                                 # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA/Microsoft/Internet Explorer/Quick Launch/LinkToNotepad.lnk" "$env:SystemRoot/notepad.exe";
-                                                # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA/Microsoft/Windows/Start Menu/- Folders/C - SendTo.lnk" "$HOME/AppData/Roaming/Microsoft/Windows/SendTo/";
+                                                # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA/Microsoft/Windows/Start Menu/- Folders/C - SendTo.lnk"      "$HOME/AppData/Roaming/Microsoft/Windows/SendTo/";
                                                 # forceRecreate: if is false and target lnkfile already exists then it does nothing.
                                                 # workDir             : can be empty string. Internally it then takes the parent of the file.
-                                                # srcFsEntry          : file or dir. An executable or a file to be called with its associated exec. A dir must be specified by a trailing dir separator!
+                                                # srcFsEntry          : file or dir. An executable or a media file to be called with its associated exec. A dir must be specified by a trailing dir separator!
+                                                #                       If it is a relative specified file then it is not taken based on the current dir but taken based on dir of lnk file
+                                                #                       and if it not exists then it assumes it is find in path environment variable.
+                                                #                       Environment variables as example $env:ProgramFiles or ${env:ProgramFiles(x86)} are expanded at the caller side.
+                                                #                       Example: "D:/MyPortableProgs/Manufactor ProgramName/AnyProgram.exe", "$env:APPDATA/Microsoft/Windows/SendTo/", "./LocalDir/Demo.exe", "notepad.exe",
                                                 # arguments           : arguments for the executable.
                                                 # runElevated         : the link is marked to request for run in elevated mode.
                                                 # ignoreIfSrcNotExists: if source not exists it will be silently ignored, but then the lnk file cannot be created.
                                                 # Icon: If next to the srcFile an ico file with the same filename exists then this will be taken.
                                                 AssertNotEmpty $srcFsEntry;
+                                                # Evaluate srcFsEntry
+                                                if( -not [System.IO.Path]::IsPathRooted($srcFsEntry) ){ # if it is relative
+                                                  # we first try to preceed with dir of lnk file
+                                                  [String] $exec = $srcFile;
+                                                  $srcFile = FsEntryGetAbsolutePath ([System.IO.Path]::Combine($dirOfLnk,$exec));
+                                                  if( FsEntryNotExists $srcFile ){ # if it not exists then try to find exec in path
+                                                    $exec = ProcessFindExecutableInPath $exec;
+                                                    if( $exec -ne "" -and (FileExists $exec) ){ $srcFile = $exec; }
+                                                  }
+                                                }
                                                 $workDir    = FsEntryGetAbsolutePath $workDir;
                                                 $lnkFile    = FsEntryGetAbsolutePath $lnkFile;
                                                 $srcFsEntry = FsEntryGetAbsolutePath $srcFsEntry;
@@ -2190,8 +2207,8 @@ function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [St
                                                 Assert ($srcFileExtMenuLink    -ne "" -or (-not (FsEntryHasTrailingDirSep $srcFileExtMenuLink   ))) "srcMenuLinkFileExt=`"$srcFileExtMenuLink`" is empty or has trailing backslash";
                                                 Assert ($srcFileExtMenuLinkOpt -ne "" -or (-not (FsEntryHasTrailingDirSep $srcFileExtMenuLinkOpt))) "srcMenuLinkOptFileExt=`"$srcFileExtMenuLinkOpt`" is empty or has trailing backslash";
                                                 if( -not (DirExists $sdir) ){ OutWarning "Warning: Ignoring dir not exists: `"$sdir`""; }
-                                                [String[]] $menuLinkFiles =  (@()+(FsEntryListAsStringArray "$sdir$(DirSep)*$srcFileExtMenuLink"    $true $false));
-                                                           $menuLinkFiles += (FsEntryListAsStringArray "$sdir$(DirSep)*$srcFileExtMenuLinkOpt" $true $false);
+                                                [String[]] $menuLinkFiles =  (@()+(FsEntryListAsStringArray "$sdir/*$srcFileExtMenuLink"    $true $false));
+                                                           $menuLinkFiles +=      (FsEntryListAsStringArray "$sdir/*$srcFileExtMenuLinkOpt" $true $false);
                                                            $menuLinkFiles =  (@()+($menuLinkFiles | Where-Object{$null -ne $_} | Sort-Object));
                                                 foreach( $f in $menuLinkFiles ){ # Example: ".../MyProg .menulinkoptional.txt"
                                                   [String] $dirOfLnk = FsEntryGetParentDir $f; # Example: "D:/MyPortableProgs/Appl/Graphic/"
@@ -2210,21 +2227,8 @@ function ToolCreateMenuLinksByMenuItemRefFile ( [String] $targetMenuRootDir, [St
                                                   try{
                                                     [String[]] $ar = @()+(StringCommandLineToArray $cmdLine); # can throw: Expected blank or tab char or end of string but got char ...
                                                     if( $ar.Length -eq 0 ){ throw [Exception] "Missing a command line at first line in file=`"$f`" cmdline=`"$cmdLine`""; }
-                                                    if( ($ar.Length-1) -gt 999 ){
-                                                      throw [Exception] "Command line has more than the allowed 999 arguments at first line infile=`"$f`" nrOfArgs=$($ar.Length) cmdline=`"$cmdLine`""; }
-                                                    # Example: "D:/MyPortableProgs/Manufactor ProgramName/AnyProgram.exe"
-                                                    # srcFsEntry : file or dir. An executable or a file to be called with its associated exec. A dir must be specified by a trailing dir separator!
-                                                    #   It can contain environment variables as example $env:ProgramFiles or ${env:ProgramFiles(x86)} which are expanded.
-                                                    [String] $cmdArg0 = $ar[0]; # ex: "./LocalDir/Demo.exe", "$env:ProgramFiles/Demo/Demo.exe", "notepad.exe", ...
-                                                    if( -not [System.IO.Path]::IsPathRooted($cmdArg0) ){ # is relative
-                                                      # we first try to preceed with dir of lnk file
-                                                      [String] $srcFile = FsEntryGetAbsolutePath ([System.IO.Path]::Combine($dirOfLnk,$cmdArg0));
-                                                      if( FsEntryNotExists $srcFile ){
-                                                        # try to find exec in path
-                                                        [String] $exec = ProcessFindExecutableInPath $cmdArg0;
-                                                        if( $exec -ne "" -and (FileExists $exec) ){ $srcFile = $exec; }
-                                                      }
-                                                    }
+                                                    if( ($ar.Length-1) -gt 999 ){ throw [Exception] "Command line has more than the allowed 999 arguments at first line infile=`"$f`" nrOfArgs=$($ar.Length) cmdline=`"$cmdLine`""; }
+                                                    [String] $srcFile = $ar[0]; # ex: "./LocalDir/Demo.exe", "$env:ProgramFiles/Demo/Demo.exe", "notepad.exe", ...
                                                     [String[]] $arguments = @()+($ar | Select-Object -Skip 1);
                                                     $addTraceInfo = "and calling (ToolCreateLnkIfNotExists $forceRecreate `"$workDir`" `"$lnkFile`" `"$srcFile`" `"$arguments`" $false $ignoreIfSrcNotExists) ";
                                                     ToolCreateLnkIfNotExists $forceRecreate $workDir $lnkFile $srcFile $arguments $false $ignoreIfSrcNotExists;
@@ -2250,10 +2254,10 @@ function ToolSignDotNetAssembly               ( [String] $keySnk, [String] $srcD
                                                 FsEntryCreateParentDir  $tarDllOrExe;
                                                 [String] $n = FsEntryGetFileName $tarDllOrExe;
                                                 [String] $d = DirCreateTemp "SignAssembly_";
-                                                OutProgress "ildasm.exe -NOBAR -all `"$srcDllOrExe`" `"-out=$d$(DirSep)$n.il`"";
-                                                & "ildasm.exe" -TEXT -all $srcDllOrExe "-out=$d$(DirSep)$n.il"; AssertRcIsOk;
-                                                OutProgress "ilasm.exe -QUIET -DLL -PDB `"-KEY=$keySnk`" `"$d$(DirSep)$n.il`" `"-RESOURCE=$d$(DirSep)$n.res`" `"-OUTPUT=$tarDllOrExe`"";
-                                                & "ilasm.exe" -QUIET -DLL -PDB "-KEY=$keySnk" "$d$(DirSep)$n.il" "-RESOURCE=$d$(DirSep)$n.res" "-OUTPUT=$tarDllOrExe"; AssertRcIsOk;
+                                                OutProgress "ildasm.exe -NOBAR -all `"$srcDllOrExe`" `"-out=$d/$n.il`"";
+                                                & "ildasm.exe" -TEXT -all $srcDllOrExe "-out=$d/$n.il"; AssertRcIsOk;
+                                                OutProgress "ilasm.exe -QUIET -DLL -PDB `"-KEY=$keySnk`" `"$d/$n.il`" `"-RESOURCE=$d/$n.res`" `"-OUTPUT=$tarDllOrExe`"";
+                                                & "ilasm.exe" -QUIET -DLL -PDB "-KEY=$keySnk" "$d/$n.il" "-RESOURCE=$d/$n.res" "-OUTPUT=$tarDllOrExe"; AssertRcIsOk;
                                                 DirDelete $d;
                                                 # Note: We do not take the pdb of original unsigned assembly because ilmerge would fail because pdb is outdated. But we created a new pdb if it is available.
                                                 [String] $srcXml = (StringRemoveRightNr $srcDllOrExe 4) + ".xml";
@@ -2353,7 +2357,7 @@ function ToolWin10PackageDeinstall            ( [String] $packageName ){
                                                   OutProgressTitle "Ok, deinstallation done, current state=$(ToolWin10PackageGetState $packageName) RestartNeeded=$restartNeeded Name=$name";
                                                 } }
 function ToolOsWindowsResetSystemFileIntegrity(){ # uses about 4 min
-                                                [String] $f = "$env:SystemRoot$(DirSep)Logs$(DirSep)CBS$(DirSep)CBS.log";
+                                                [String] $f = "$env:SystemRoot/Logs/CBS/CBS.log";
                                                 OutProgress "Check and repair missing, corrupted or ownership-settings of system files and afterwards dump last lines of logfile '$f'";
                                                 ProcessRestartInElevatedAdminMode;
                                                 # https://support.microsoft.com/de-ch/help/929833/use-the-system-file-checker-tool-to-repair-missing-or-corrupted-system
@@ -2366,7 +2370,7 @@ function ToolOsWindowsResetSystemFileIntegrity(){ # uses about 4 min
                                                 & "Dism.exe" "/Online" "/Cleanup-Image" "/CheckHealth"  ; ScriptResetRc; # uses about 2 sec
                                                 OutProgress "Run: Dism.exe /Online /Cleanup-Image /RestoreHealth ";
                                                 & "Dism.exe" "/Online" "/Cleanup-Image" "/RestoreHealth"; ScriptResetRc; # uses about 2 min; also repairs autoupdate;
-                                                OutProgress "Dump last lines of logfile '$f':";
+                                                OutProgress "Dump last lines of logfile `"$f`":";
                                                 FileGetLastLines $f 100 | Foreach-Object{ OutProgress "  $_"; };
                                                 OutProgressTitle "Ok, checked and repaired missing, corrupted or ownership-settings of system files and logged to '$env:Windows/Logs/CBS/CBS.log'"; }
 function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $url, [Boolean] $requireElevatedAdminMode = $false,
@@ -2765,7 +2769,7 @@ function ToolWinGetSetup                      (){ # install and update winget; u
                                                   [String] $wingetVersionString = & WinGet --version; AssertRcIsOk; # 2025-02: v1.9.25200; 2024-11: V1.9.25180; 2024-09: V1.8.1911; 2024-07: v1.2.10691;
                                                   return [System.Version] ($wingetVersionString -replace "^v","");
                                                 }
-                                                function WingetIsVeryOld (){ return [Boolean] (WingetVersion) -lt ([System.Version]"1.6"); }
+                                                function WingetIsVeryOld (){ return [Boolean] (Get-WingetVersion) -lt ([System.Version]"1.6"); }
                                                 function WinGetApproveEulas(){
                                                   OutProgress "Make sure eulas are approved by: Winget search; ";
                                                   Write-Output "y" | & WinGet search | Out-Null; # default source is "msstore"; alternative option: --accept-source-agreements
@@ -2843,7 +2847,7 @@ function ToolWinGetSetup                      (){ # install and update winget; u
                                                   #   Install-Module -Name Microsoft.WinGet.Client -Force -Repository PSGallery -Scope $instScope -ErrorAction SilentlyContinue | Out-Null; # Installing WinGet PowerShell module from PSGallery
                                                   #   Repair-WinGetPackageManager -ErrorAction SilentlyContinue; # bootstrap WinGet;
                                                 }
-                                                OutProgress "WinGet current version: V$(WingetVersion) "; 
+                                                OutProgress "WinGet current version: V$(Get-WingetVersion) "; 
                                                 WinGetApproveEulas;
                                                 WinGetSourcesListAndReset;
                                                 WinGetSourcesUpdate;
@@ -2883,7 +2887,7 @@ function ToolWinGetSetup                      (){ # install and update winget; u
                                                 #     --disable-interactivity     Interaktive Eingabeaufforderungen deaktivieren
                                                 #     --proxy                     Legen Sie einen Proxy fest, der für diese Ausführung verwendet werden soll.
                                                 #     --no-proxy                  Verwendung des Proxys für diese Ausführung deaktivieren
-                                                #   Weitere Hilfe finden Sie unter: „https://aka.ms/winget-command-help“
+                                                #   Weitere Hilfe finden Sie unter: https://aka.ms/winget-command-help
                                               }
 function ToolWingetListInstalledPackages      (){
                                                 # call the tool "winget" to list installed packages
