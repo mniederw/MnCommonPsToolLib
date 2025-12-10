@@ -1139,7 +1139,7 @@ function FsEntryContainsWildcards             ( [String] $fsentry ){ # Assumes i
 function FsEntryUnifyDirSep                   ( [String] $fsEntry ){ return [String] ($fsEntry -replace "[\\/]",(DirSep)); }
 function FsEntryUnifyToSlashes                ( [String] $fsEntry ){ return [String] ($fsEntry -replace "[\\/]","/"); }
 function FsEntryHasRootPath                   ( [String] $fsEntry ){ # return true for: "/any", "//any", "\any", "\\any". On Windows is true also for "C:/any", "C:\any".
-                                                return [Boolean] ([System.IO.Path]::IsPathRooted(FsEntryUnifyToSlashes $fsEntry) -and ($fsEntry -notmatch '^[A-Za-z]:[^\\/]')); }
+                                                return [Boolean] ([System.IO.Path]::IsPathRooted((FsEntryUnifyToSlashes $fsEntry)) -and ($fsEntry -notmatch '^[A-Za-z]:[^\\/]')); }
 function FsEntryGetAbsolutePath               ( [String] $fsEntry ){ # Works without IO, so no check to file system; does not remove a trailing dir-separator. Return empty for empty input.
                                                 # Convert dir-separators (slashes or backslashes) to correct os dependent dir-separators.
                                                 # On windows for entries as "C:" it returns "C:\".
