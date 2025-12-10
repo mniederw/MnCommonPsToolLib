@@ -86,7 +86,10 @@ function UnitTest_PsCommon(){
   #
   # using ref param
   function TestUsingRefParam{
-    function f ( [String] $key = "abc", [ref] [String] $s ){ if( $null -ne $s ){ $s.Value = "hello"; return "SET-S"; }else{ return "NO-REF-PAR"; } }
+    function f ( [String] $key = "abc", [ref] $s ){
+      Assert ($null -eq $s -or $s.Value -is [String]) "Argument s cannot be specified as [String] because it is [ref] and only one attr is allowed, but it must be of type String instead of: $($s.Value.GetType())";
+      if( $null -ne $s ){ $s.Value = "hello"; return "SET-S"; }else{ return "NO-REF-PAR"; }
+    }
     [String] $str = "";
     [String] $out = "";
     $out = f;                         Assert ($out -eq "NO-REF-PAR");

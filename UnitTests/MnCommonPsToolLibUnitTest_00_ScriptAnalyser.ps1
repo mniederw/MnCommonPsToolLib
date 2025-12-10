@@ -37,6 +37,7 @@ function UnitTest_ScriptAnalyser(){
   Write-Output "  Note: If PSScriptAnalyzer is not yet installed then install it with admin rights as follow:";
   Write-Output "    Set-PSRepository PSGallery -InstallationPolicy Trusted; Install-Module -ErrorAction Stop PSScriptAnalyzer;"
   #
+  Write-Output "  Call Invoke-ScriptAnalyzer -Path `"$dir`" -Recurse -ExcludeRule ($exclusionRules); ";
   [Object[]] $issues = Invoke-ScriptAnalyzer -Path $dir -Recurse -ExcludeRule $exclusionRules;
   # -ReportSummary would produce red line on console, example: 97 rule violations found.    Severity distribution:  Error = 3, Warning = 57, Information = 37
   $nrOfErrors = $issues.Where({$_.Severity -eq 'Error'  }).Count;

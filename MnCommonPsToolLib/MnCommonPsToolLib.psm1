@@ -163,7 +163,7 @@ Add-Type -Name Window -Namespace Console -MemberDefinition '[DllImport("Kernel32
 Add-Type -TypeDefinition 'using System; using System.Runtime.InteropServices; public class Window { [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect); [DllImport("User32.dll")] public extern static bool MoveWindow(IntPtr handle, int x, int y, int width, int height, bool redraw); } public struct RECT { public int Left; public int Top; public int Right; public int Bottom; }';
 Add-Type -WarningAction SilentlyContinue -TypeDefinition "using System; public class ExcMsg : Exception { public ExcMsg(String s):base(s){} } ";
   # Used for error messages which have a text which will be exact enough so no additionally information as stackdump or data are nessessary. Is handled in our StdErrHandleExc.
-  # Note: we need to suppress the warning: The generated type defines no public methods or properties
+  # Note: On type creation we suppressed the warnings because we got:  The generated type defines no public methods or properties.
 
 # Set some self defined constant global variables
 if( $null -eq (Get-Variable -Scope Global -ErrorAction SilentlyContinue -Name ComputerName) -or $null -eq $global:InfoLineColor ){ # check whether last variables already exists because reload safe
@@ -220,7 +220,7 @@ function ForEachParallelPS5 {
       # has no effect: $pool.ApartmentState = "MTA";
       $threads = @();
       $scriptBlock = $ExecutionContext.InvokeCommand.NewScriptBlock("Param(`$_)$([Environment]::NewLine)"+$scriptblock.ToString());
-    }catch{ $Host.UI.WriteErrorLine("ForEachParallel-BEGIN: $($_.Exception.Message)"); }
+    }catch{ $Host.UI.WriteErrorLine("ForEachParallel-BEGIN: $($_.Exception.Message)"); $error.clear(); }
   }PROCESS{ # runs once per input object
     try{
       # alternative:
@@ -229,7 +229,7 @@ function ForEachParallelPS5 {
       $powershell = [powershell]::Create().addscript($scriptblock).addargument($InputObject);
       $powershell.runspacepool = $pool;
       $threads += @{ instance = $powershell; handle = $powershell.BeginInvoke(); }; # $pipelineInputs,$pipelineOutput
-    }catch{ $Host.UI.WriteErrorLine("ForEachParallel-PROCESS: $($_.Exception.Message)"); }
+    }catch{ $Host.UI.WriteErrorLine("ForEachParallel-PROCESS: $($_.Exception.Message)"); $error.clear(); }
     [gc]::Collect();
   }END{ # runs only once per pipeline
     try{
@@ -346,34 +346,40 @@ function StringCompareVersionIsMinimum        ( [String] $version, [String] $min
                                                 return [Boolean] ((StringNormalizeAsVersion $version) -ge (StringNormalizeAsVersion $minVersion)); }
 function StringFromException                  ( [Exception] $exc ){
                                                 # Return full info of exception inclusive data and stacktrace, it can contain newlines.
-                                                # Use this if $_ which is equal to $_.Exception.Message is not enough.
-                                                # Usage: in catch block call it with $_.Exception
+                                                # Use this if in a catch block the $_ which is equal to $_.Exception.Message is not enough.
+                                                # Usage: in catch block call it with ($_.Exception).
                                                 # Example: "ArgumentOutOfRangeException: Specified argument was out of the range of valid values. Parameter name: times  at ..."
+                                                # if the exception is a ExcMsg then by definition the message contains all error info and so we should not output the stacktrace.
+                                                [Boolean] $isExcMsg = $exc.GetType().Name -eq "ExcMsg";
                                                 [String] $nl = [Environment]::NewLine;
-                                                [String] $typeName = switch($exc.GetType().Name -eq "ExcMsg" ){($true){"Error"}default{$exc.GetType().Name;}};
+                                                [String] $typeName = switch($isExcMsg){($true){"Error"}default{$exc.GetType().Name;}};
                                                 [String] $excMsg   = StringReplaceNewlines $exc.Message;
                                                 [String] $excData  = ""; foreach($key in $exc.Data.Keys){ $excData += "$nl  $key=`"$($exc.Data[$key])`"."; } # note: .Data is never null.
-                                                [String] $stackTr  = switch($null -eq $exc.StackTrace){($true){""}default{("$nl  StackTrace:$nl "+$exc.StackTrace.Replace("$nl","$nl "))}};
-                                                return [String] "$($typeName): $excMsg$excData$stackTr"; }
+                                                [String] $stackTr  = switch($isExcMsg -or $null -eq $exc.StackTrace){($true){""}default{("$nl  StackTrace:$nl "+$exc.StackTrace.Replace("$nl","$nl "))}};
+                                                return [String] "$($typeName): $excMsg$excData$stackTr."; }
 function StringFromErrorRecord                ( [System.Management.Automation.ErrorRecord] $er ){ # In powershell in a catch block always this type is used for $_ .
-                                                [String] $msg = (StringFromException $er.Exception);
-                                                [String] $nl = [Environment]::NewLine;
-                                                 $msg += "$nl  ScriptStackTrace: $nl    "+$er.ScriptStackTrace.Replace("$nl","$nl    "); # Example: at <ScriptBlock>, C:\myfile.psm1: line 800 at MyFunc
-                                                 $msg += "$nl  InvocationInfo:$nl    "+$er.InvocationInfo.PositionMessage.Replace("$nl","$nl    "); # At D:\myfile.psm1:800 char:83 \n   + ...   +   ~~~
-                                                 $msg += "$nl  Ts=$(DateTimeNowAsStringIso) User=$($env:USERNAME) mach=$ComputerName ";
-                                                 # $msg += "$nl  InvocationInfoLine: "+($er.InvocationInfo.Line.Replace("$nl"," ") -replace "\s+"," ");
-                                                 # $msg += "$nl  InvocationInfoMyCommand: $($er.InvocationInfo.MyCommand)"; # Example: ForEach-Object
-                                                 # $msg += "$nl  InvocationInfoInvocationName: $($er.InvocationInfo.InvocationName)"; # Example: ForEach-Object
-                                                 # $msg += "$nl  InvocationInfoPSScriptRoot: $($er.InvocationInfo.PSScriptRoot)"; # Example: D:\MyModuleDir
-                                                 # $msg += "$nl  InvocationInfoPSCommandPath: $($er.InvocationInfo.PSCommandPath)"; # Example: D:\MyToolModule.psm1
-                                                 # $msg += "$nl  FullyQualifiedErrorId: $($er.FullyQualifiedErrorId)"; # Example: "System.ArgumentOutOfRangeException,Microsoft.PowerShell.Commands.ForEachObjectCommand"
-                                                 # $msg += "$nl  ErrorRecord: "+$er.ToString().Replace("$nl"," "); # Example: "Specified argument was out of the range of valid values. Parametername: times"
-                                                 # $msg += "$nl  CategoryInfo: $(switch($null -ne $er.CategoryInfo){($true){$er.CategoryInfo.ToString()}default{''}})"; # https://msdn.microsoft.com/en-us/library/system.management.automation.errorcategory(v=vs.85).aspx
-                                                 # $msg += "$nl  PipelineIterationInfo: $($er.PipelineIterationInfo|Where-Object{$null -ne $_}|ForEach-Object{'$_, '})";
-                                                 # $msg += "$nl  TargetObject: $($er.TargetObject)"; # can be null
-                                                 # $msg += "$nl  ErrorDetails: $(switch($null -ne $er.ErrorDetails){($true){$er.ErrorDetails.ToString()}default{''}})";
-                                                 # $msg += "$nl  PSMessageDetails: $($er.PSMessageDetails)";
-                                                 return [String] $msg; }
+                                                [Exception] $exc = $er.Exception;
+                                                [String] $msg = (StringFromException $exc);
+                                                # if the exception is a ExcMsg then by definition the message contains all error info and so we should not output the stacktrace.
+                                                if( $exc.GetType().Name -ne "ExcMsg" ){
+                                                  [String] $nl = [Environment]::NewLine;
+                                                  $msg += "$nl  ScriptStackTrace: $nl    "+$er.ScriptStackTrace.Replace("$nl","$nl    "); # Example: at <ScriptBlock>, C:\myfile.psm1: line 800 at MyFunc
+                                                  $msg += "$nl  InvocationInfo:$nl    "+$er.InvocationInfo.PositionMessage.Replace("$nl","$nl    "); # At D:\myfile.psm1:800 char:83 \n   + ...   +   ~~~
+                                                  # $msg += "$nl  InvocationInfoLine: "+($er.InvocationInfo.Line.Replace("$nl"," ") -replace "\s+"," ");
+                                                  # $msg += "$nl  InvocationInfoMyCommand: $($er.InvocationInfo.MyCommand)"; # Example: ForEach-Object
+                                                  # $msg += "$nl  InvocationInfoInvocationName: $($er.InvocationInfo.InvocationName)"; # Example: ForEach-Object
+                                                  # $msg += "$nl  InvocationInfoPSScriptRoot: $($er.InvocationInfo.PSScriptRoot)"; # Example: D:\MyModuleDir
+                                                  # $msg += "$nl  InvocationInfoPSCommandPath: $($er.InvocationInfo.PSCommandPath)"; # Example: D:\MyToolModule.psm1
+                                                  # $msg += "$nl  FullyQualifiedErrorId: $($er.FullyQualifiedErrorId)"; # Example: "System.ArgumentOutOfRangeException,Microsoft.PowerShell.Commands.ForEachObjectCommand"
+                                                  # $msg += "$nl  ErrorRecord: "+$er.ToString().Replace("$nl"," "); # Example: "Specified argument was out of the range of valid values. Parametername: times"
+                                                  # $msg += "$nl  CategoryInfo: $(switch($null -ne $er.CategoryInfo){($true){$er.CategoryInfo.ToString()}default{''}})"; # https://msdn.microsoft.com/en-us/library/system.management.automation.errorcategory(v=vs.85).aspx
+                                                  # $msg += "$nl  PipelineIterationInfo: $($er.PipelineIterationInfo|Where-Object{$null -ne $_}|ForEach-Object{'$_, '})";
+                                                  # $msg += "$nl  TargetObject: $($er.TargetObject)"; # can be null
+                                                  # $msg += "$nl  ErrorDetails: $(switch($null -ne $er.ErrorDetails){($true){$er.ErrorDetails.ToString()}default{''}})";
+                                                  # $msg += "$nl  PSMessageDetails: $($er.PSMessageDetails)";
+                                                }
+                                                $msg += "$nl  Ts=$(DateTimeNowAsStringIso) User=$($env:USERNAME) mach=$ComputerName. ";
+                                                return [String] $msg; }
 function StringCommandLineToArray             ( [String] $commandLine ){
                                                 # Care spaces or tabs separated args and doublequoted args which can contain double doublequotes for escaping single doublequotes.
                                                 # Example: "my cmd.exe" arg1 "ar g2" "arg""3""" "arg4"""""
@@ -498,6 +504,7 @@ function ConsoleSetGuiProperties              ( [Int32] $width = 150, [Int32] $h
                                                     # seldom we got: PSArgumentOutOfRangeException: Cannot set the buffer size because the size specified is too large or too small.
                                                     OutWarning "Warning: Ignore setting buffersize failed because $($_.Exception.Message)";
                                                   }
+                                                  $error.clear();
                                                 }
                                                 $w = $Host.ui.RawUI; # refresh values, maybe meanwhile windows was resized
                                                 if( $null -ne $w.WindowSize ){ # is null in case of powershell-ISE
@@ -519,6 +526,7 @@ function ConsoleSetGuiProperties              ( [Int32] $width = 150, [Int32] $h
                                                       if( $_.Exception.Message.Contains("Operation is not supported on this platform.") ){
                                                         # On Ubuntu we get: exc: "Exception setting "windowsize": "Operation is not supported on this platform.""
                                                         OutVerbose "Warning: Ignore setting windowsize failed because $($_.Exception.Message)";
+                                                        $error.clear();
                                                       }else{ throw; }
                                                     }
                                                     ConsoleSetPos 40 40; # little indended from top and left
@@ -597,6 +605,7 @@ function StdErrHandleExc                      ( [System.Management.Automation.Er
                                                     Read-Host; return;
                                                   }catch{ # exc: PSInvalidOperationException:  Read-Host : Windows PowerShell is in NonInteractive mode. Read and Prompt functionality is not available.
                                                     OutWarning "Warning: In StdErrHandleExc cannot Read-Host because $($_.Exception.Message)";
+                                                    $error.clear();
                                                     if( $delayInSec -eq 0 ){ $delayInSec = 1; }
                                                   }
                                                 }
@@ -637,7 +646,7 @@ function AssertRcIsOk                         ( [String[]] $linesToOutProgress =
                                                     Get-Content -Encoding $encodingIfNoBom -LiteralPath $logFileToOutProgress |
                                                       Where-Object{$null -ne $_} | ForEach-Object{ OutProgress "  $_"; }
                                                   }catch{
-                                                    OutVerbose "Ignoring problems on reading $logFileToOutProgress failed because $($_.Exception.Message)";
+                                                    OutVerbose "Ignoring problems on reading $logFileToOutProgress failed because $($_.Exception.Message)"; $error.clear();
                                                   }
                                                 }
                                                 throw [Exception] $msg; }
@@ -672,10 +681,10 @@ function ScriptResetRc                        (){ $global:LASTEXITCODE = 0; $err
 function ScriptNrOfScopes                     (){ [Int32] $i = 1; while($true){
                                                 try{ Get-Variable null -Scope $i -ValueOnly -ErrorAction SilentlyContinue | Out-Null; $i++;
                                                 }catch{ # exc: System.Management.Automation.PSArgumentOutOfRangeException
-                                                  return [Int32] ($i-1); } } }
+                                                  Write-Verbose "Ignore exc on Get-VariableNrOfScopes."; $error.clear(); return [Int32] ($i-1); } } }
 function ScriptGetProcessCommandLine          (){ return [String] ([Environment]::commandline); } # Example: "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" "& \"C:\myscript.ps1\"";  or  "$env:ProgramFiles\PowerShell\7\pwsh.dll" -nologo
 function ScriptGetDirOfLibModule              (){ return [String] $PSScriptRoot ; } # Get dir       of this script file of this function or empty if not from a script; alternative: (Split-Path -Parent -Path ($script:MyInvocation.MyCommand.Path))
-function ScriptGetFileOfLibModule             (){ return [String] $PSCommandPath; } # Get full path of this script file of this function or empty if not from a script. alternative1: try{ return [String] (Get-Variable MyInvocation -Scope 1 -ValueOnly).MyCommand.Path; }catch{ return [String] ""; }  alternative2: $script:MyInvocation.MyCommand.Path
+function ScriptGetFileOfLibModule             (){ return [String] $PSCommandPath; } # Get full path of this script file of this function or empty if not from a script. alternative1: try{ return [String] (Get-Variable MyInvocation -Scope 1 -ValueOnly).MyCommand.Path; }catch{ $error.clear(); return [String] ""; }  alternative2: $script:MyInvocation.MyCommand.Path
 function ScriptGetCallerOfLibModule           (){ return [String] $MyInvocation.PSCommandPath; } # Result can be empty or implicit module if called interactive. alternative for dir: $MyInvocation.PSScriptRoot.
 function ScriptGetTopCaller                   (){ # return the command line with correct doublequotes.
                                                 # Result can be empty or implicit module if called interactive.
@@ -870,7 +879,8 @@ function ProcessKill                          ( [String] $processName ){ # kill 
                                                 [System.Diagnostics.Process[]] $p = Get-Process $processName.Replace(".exe","") -ErrorAction SilentlyContinue;
                                                 if( $null -ne $p ){ OutProgress "ProcessKill $processName"; $p.Kill(); } }
 function ProcessSleepSec                      ( [Int32] $sec ){ Start-Sleep -Seconds $sec; }
-function ProcessStart                         ( [String] $cmd, [String[]] $cmdArgs = @(), [Boolean] $careStdErrAsOut = $false, [Boolean] $traceCmd = $false, [Int64] $timeoutInSec = [Int64]::MaxValue, [ref] [String] $errorOutInsteadOfThrow ){
+function ProcessStart                         ( [String] $cmd, [String[]] $cmdArgs = @(), [Boolean] $careStdErrAsOut = $false, [Boolean] $traceCmd = $false,
+                                                [Int64] $timeoutInSec = [Int64]::MaxValue, [ref] $errorOutInsteadOfThrow ){
                                                 # Start any gui or console command including ps scripts in path and provide arguments in an array, waits for output
                                                 # and returns output as a single string. You can use StringSplitIntoLines on output to get it as lines.
                                                 # Console input is disabled.
@@ -920,6 +930,7 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 #   The double quote mark is interpreted as an escape sequence by the remaining backslash,
                                                 #   causing a literal double quote mark (") to be placed in argv.
                                                 AssertRcIsOk;
+                                                Assert ($null -eq $errorOutInsteadOfThrow -or $errorOutInsteadOfThrow.Value -is [String]) "Argument errorOutInsteadOfThrow cannot be specified as [String] because it is [ref] and only one attr is allowed, but it must be of type String instead of: $($errorOutInsteadOfThrow.Value.GetType())";
                                                 [String] $exec = (Get-Command $cmd).Source;
                                                 [Boolean] $isPs = $exec.EndsWith(".ps1");
                                                 [String] $traceInfo = "`"$cmd`" $(StringArrayDblQuoteItems $cmdArgs)";
@@ -1064,7 +1075,7 @@ function ProcessRefreshEnvVars                ( [Boolean] $traceCmd = $true ){ #
                                                 [Hashtable] $envVarNewP = [Hashtable]::new(@{},[StringComparer]::InvariantCultureIgnoreCase);
                                                 # On a default Windows 10 the path variable has the name "Path" but on linux and osx it has the name "PATH".
                                                 # Note: On Windows ps5/7 does automatically append ".CPL" to PATHEXT env var in process scope.
-                                                if( OsIsWindows -and -not $envVarMach["PATHEXT"].Contains(".CPL") ){ $envVarMach["PATHEXT"] = "$($envVarMach["PATHEXT"]);.CPL"; }
+                                                if( (OsIsWindows) -and -not $envVarMach["PATHEXT"].Contains(".CPL") ){ $envVarMach["PATHEXT"] = "$($envVarMach["PATHEXT"]);.CPL"; }
                                                 $envVarMach.Keys | ForEach-Object{ $envVarNewP[$_] = $envVarMach[$_]; }
                                                 $envVarUser.Keys | ForEach-Object{ $envVarNewP[$_] = $envVarUser[$_]; }
                                                 $envVarNewP["PATH"        ] = $envVarProc["PATH"        ];
@@ -1460,8 +1471,9 @@ function FsEntryTrySetOwner                   ( [String] $fsEntry, [System.Secur
                                                       if( ProcessIsLesserEqualPs5 ){
                                                         try{
                                                           $fs.SetAccessControl((PrivDirSecurityCreateOwner $account));
-                                                            # 2024-03: Method invocation failed because [System.IO.DirectoryInfo] does not contain a method named 'SetAccessControl'.
                                                         }catch{
+                                                          # 2024-03: Method invocation failed because [System.IO.DirectoryInfo] does not contain a method named 'SetAccessControl'.
+                                                          Write-Verbose "Ignore $_"; $error.clear();
                                                           OutProgress "taking ownership of dir `"$($fs.FullName)`" failed so setting fullControl for administrators of its parent `"$($fs.Parent.FullName)`"";
                                                           $fs.Parent.SetAccessControl((PrivDirSecurityCreateFullControl (PrivGetGroupAdministrators)));
                                                           $fs.SetAccessControl((PrivDirSecurityCreateOwner $account));
@@ -1477,6 +1489,7 @@ function FsEntryTrySetOwner                   ( [String] $fsEntry, [System.Secur
                                                       try{
                                                         $fs.SetAccessControl((PrivFileSecurityCreateOwner $account));
                                                       }catch{
+                                                        Write-Verbose "Ignore $_"; $error.clear();
                                                         OutProgress "taking ownership of file `"$($fs.FullName)`" failed so setting fullControl for administrators of its dir `"$($fs.Directory.FullName)`"";
                                                         $fs.Directory.SetAccessControl((PrivDirSecurityCreateFullControl (PrivGetGroupAdministrators)));
                                                         $fs.SetAccessControl((PrivFileSecurityCreateOwner $account));
@@ -1487,7 +1500,7 @@ function FsEntryTrySetOwner                   ( [String] $fsEntry, [System.Secur
                                                       ForEach-Object{ FsEntryTrySetOwner $_ $account $true };
                                                   }
                                                 }catch{ # Example: "Attempted to perform an unauthorized operation."
-                                                  OutProgress "Note: Ignoring FsEntryTrySetOwner(`"$fsEntry`",$account) failed because $($_.Exception.Message)";
+                                                  OutProgress "Note: Ignoring FsEntryTrySetOwner(`"$fsEntry`",$account) failed because $($_.Exception.Message)"; $error.clear();
                                                 } }
 function FsEntryTrySetOwnerAndAclsIfNotSet    ( [String] $fsEntry, [System.Security.Principal.IdentityReference] $account, [Boolean] $recursive = $false ){
                                                 # usually account is (PrivGetGroupAdministrators)
@@ -1507,7 +1520,7 @@ function FsEntryTrySetOwnerAndAclsIfNotSet    ( [String] $fsEntry, [System.Secur
                                                       ForEach-Object{ FsEntryTrySetOwnerAndAclsIfNotSet $_ $account $true };
                                                   }
                                                 }catch{
-                                                  OutProgress "Note: FsEntryTrySetOwnerAndAclsIfNotSet(`"$fsEntry`",$account,$recursive) failed because $($_.Exception.Message)";
+                                                  OutProgress "Note: FsEntryTrySetOwnerAndAclsIfNotSet(`"$fsEntry`",$account,$recursive) failed because $($_.Exception.Message)"; $error.clear();
                                                 } }
 function FsEntryTryForceRenaming              ( [String] $fsEntry, [String] $extension ){
                                                 $fsEntry = FsEntryGetAbsolutePath $fsEntry;
@@ -1518,7 +1531,7 @@ function FsEntryTryForceRenaming              ( [String] $fsEntry, [String] $ext
                                                     FsEntryRename $fsEntry $newFileName;
                                                   }catch{
                                                     # exc: System.UnauthorizedAccessException: Der Zugriff auf den Pfad wurde verweigert. bei System.IO.__Error.WinIOError(Int32 errorCode, String maybeFullPath) bei System.IO.FileInfo.MoveTo(String destFileName)
-                                                    OutProgress "Force set owner to administrators and retry because FsEntryRename(`"$fsEntry`",`"$newFileName`") failed because $($_.Exception.Message).";
+                                                    OutProgress "Force set owner to administrators and retry because FsEntryRename(`"$fsEntry`",`"$newFileName`") failed because $($_.Exception.Message)."; $error.clear();
                                                     [System.Security.Principal.IdentityReference] $account = PrivGetGroupAdministrators;
                                                     [System.Security.AccessControl.FileSystemAccessRule] $rule = (PrivFsRuleCreateFullControl $account (FsEntryIsDir $fsEntry));
                                                     try{
@@ -1531,7 +1544,7 @@ function FsEntryTryForceRenaming              ( [String] $fsEntry, [String] $ext
                                                       FsEntryAclRuleWrite "Set" $fsEntry $rule;
                                                       FsEntryRename $fsEntry $newFileName;
                                                     }catch{
-                                                      OutWarning "Warning: Ignoring FsEntryRename($fsEntry,$newFileName) failed because $($_.Exception.Message)";
+                                                      OutWarning "Warning: Ignoring FsEntryRename($fsEntry,$newFileName) failed because $($_.Exception.Message)"; $error.clear();
                                                     } } } }
 function FsEntryResetTs                       ( [String] $fsEntry, [Boolean] $recursive, [String] $tsInIsoFmt = "2000-01-01 00:00" ){
                                                 # Overwrite LastWriteTime, CreationTime and LastAccessTime. Drive ts cannot be changed and so are ignored. Used for example to anonymize ts.
@@ -1545,7 +1558,7 @@ function FsEntryResetTs                       ( [String] $fsEntry, [Boolean] $re
                                                   OutProgress "Set $(DateTimeAsStringIso $ts) of $(DateTimeAsStringIso $_.LastWriteTime) `"$f`"";
                                                   try{ $_.LastWriteTime = $ts; $_.CreationTime = $ts; $_.LastAccessTime = $ts;
                                                   }catch{
-                                                    OutWarning "Warning: Ignoring SetTs($f) failed because $($_.Exception.Message)";
+                                                    OutWarning "Warning: Ignoring SetTs($f) failed because $($_.Exception.Message)"; $error.clear();
                                                   } }; }
 function FsEntryFindInParents                 ( [String] $fromFsEntry, [String] $searchFsEntryName ){
                                                 # From an fsEntry scan its parent dir upwards to root until a search name has been found.
@@ -1768,7 +1781,7 @@ function FileDelete                           ( [String] $file, [Boolean] $ignor
                                                   }catch{ # exc: IOException: The process cannot access the file '$HOME\myprog.lnk' because it is being used by another process.
                                                     [Boolean] $isUsedByAnotherProc = $_.Exception -is [System.IO.IOException] -and
                                                       $_.Exception.Message.Contains("The process cannot access the file ") -and
-                                                      $_.Exception.Message.Contains(" because it is being used by another process.");
+                                                      $_.Exception.Message.Contains(" because it is being used by another process."); $error.clear();
                                                     if( -not $isUsedByAnotherProc ){ throw; }
                                                     if( $nrOfTries -ge 5 ){ throw; }
                                                     Start-Sleep -Milliseconds $(switch($nrOfTries){1{50}2{100}3{200}4{400}default{800}}); } } }
@@ -1893,7 +1906,7 @@ function CredentialGetAndStoreIfNotExists     ( [String] $secureCXredentialFile,
                                                 if( FileExists $secureCXredentialFile ){
                                                   try{
                                                     $cred = CredentialReadFromFile $secureCXredentialFile;
-                                                  }catch{ [String] $msg = $_.Exception.Message; # ... you changed pw ... may remove it ...
+                                                  }catch{ [String] $msg = $_.Exception.Message; $error.clear(); # ... you changed pw ... may remove it ...
                                                     OutWarning "Warning: $msg";
                                                     if( -not (StdInAskForBoolean "Do you want to remove the credential file and recreate it (y=delete/n=abort)?") ){
                                                       throw [Exception] "Aborted, please fix credential file `"$secureCXredentialFile`".";
@@ -1948,7 +1961,7 @@ function NetPingHostIsConnectable             ( [String] $hostName, [Boolean] $d
                                                 OutVerbose "Host $hostName not reachable, so flush dns, nslookup and retry";
                                                 if( OsIsWindows ){ & "ipconfig.exe" "/flushdns"  | Out-Null; AssertRcIsOk; }
                                                 else{              & "resolvectl" "flush-caches" | Out-Null; AssertRcIsOk; }
-                                                try{ [System.Net.Dns]::GetHostByName($hostName); }catch{ OutVerbose "Ignoring GetHostByName($hostName) failed because $($_.Exception.Message)"; }
+                                                try{ [System.Net.Dns]::GetHostByName($hostName); }catch{ OutVerbose "Ignoring GetHostByName($hostName) failed because $($_.Exception.Message)"; $error.clear(); }
                                                 # nslookup $hostName -ErrorAction SilentlyContinue | out-null;
                                                 return [Boolean] (Test-Connection -ComputerName $hostName -BufferSize 16 -Count 1 -ErrorAction SilentlyContinue -quiet); }
 function NetDnsGetFirstIp                     ( [String] $hostName, [String] $ipV4andV6Mode = "IPv6orV4" ){ # Requires some seconds. ipV4andV6Mode is one of: ["IPv4only","IPv6only","IPv4orV6","IPv6orV4"]. Return empty if no ip found.
@@ -1964,10 +1977,12 @@ function NetDnsGetFirstIp                     ( [String] $hostName, [String] $ip
                                                 return [String] $ip; }
 function NetRequestStatusCode                 ( [String] $url ){ # is fast, only access head, usually return 200=OK or 404=NotFound;
                                                 [Int32] $statusCode = -1;
-                                                try{ $statusCode = (Invoke-WebRequest -Uri $url -UseBasicParsing -Method Head -ErrorAction Stop).StatusCode;
+                                                try{
+                                                  $statusCode = (Invoke-WebRequest -Uri $url -UseBasicParsing -Method Head -ErrorAction Stop).StatusCode;
                                                 }catch{
                                                   try{ $statusCode = $_.Exception.Response.StatusCode; }
-                                                  catch{} # PropertyNotFoundException: The property 'Response' cannot be found on this object. Verify that the property exists
+                                                  catch{Write-Verbose "Ignore exc on statusCode.";$error.clear();} # PropertyNotFoundException: The property 'Response' cannot be found on this object. Verify that the property exists
+                                                  $error.clear();
                                                 }
                                                 return [Int32] $statusCode; }
 function NetWebRequestLastModifiedFailSafe    ( [String] $url ){ # Requests metadata from a downloadable file. Return DateTime.MaxValue in case of any problem
@@ -1981,7 +1996,7 @@ function NetWebRequestLastModifiedFailSafe    ( [String] $url ){ # Requests meta
                                                   if( $resp.LastModified -lt (DateTimeFromStringIso "1970-01-01") ){
                                                     throw [ExcMsg] "GetResponse($url) failed because LastModified=$($resp.LastModified) is unexpected lower than 1970"; }
                                                   return [DateTime] $resp.LastModified;
-                                                }catch{ return [DateTime] [DateTime]::MaxValue; }finally{ if( $null -ne $resp ){ $resp.Dispose(); } } }
+                                                }catch{ $error.clear(); return [DateTime] [DateTime]::MaxValue; }finally{ if( $null -ne $resp ){ $resp.Dispose(); } } }
 function NetDownloadFile                      ( [String] $url, [String] $tarFile, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Boolean] $onlyIfNewer = $false, [Boolean] $errorAsWarning = $false ){
                                                 # Download a single file by overwrite it (as NetDownloadFileByCurl),
                                                 #   powershell internal implementation of curl or wget which works for http, https and ftp only.
@@ -2071,7 +2086,7 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                   # exc: Ausnahme beim Aufrufen von "DownloadFile" mit 2 Argument(en):  "The server committed a protocol violation. Section=ResponseStatusLine"
                                                   # exc: System.Net.WebException: Der Remoteserver hat einen Fehler zurückgegeben: (404) Nicht gefunden.
                                                   # for future use: $fileNotExists = $_.Exception -is [System.Net.WebException] -and (([System.Net.WebException]($_.Exception)).Response.StatusCode.value__) -eq 404;
-                                                  [String] $msg = $_.Exception.Message;
+                                                  [String] $msg = $_.Exception.Message; $error.clear();
                                                   if( $msg.Contains("Section=ResponseStatusLine") ){ $msg = "Server returned not a valid HTTP response. "+$msg; }
                                                   $msg = "  NetDownloadFile(url=$url ,us=$us,tar=$tarFile) failed because $msg";
                                                   if( -not $errorAsWarning ){ throw [ExcMsg] $msg; } OutWarning "Warning: $msg";
@@ -2292,7 +2307,7 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                   OutVerbose $out;
                                                   OutProgress "  Ok, downloaded $(FileGetSize $tarFile) bytes.";
                                                 }catch{
-                                                  [String] $msg = "  ($curlExe $optForTrace) failed because $($_.Exception.Message)";
+                                                  [String] $msg = "  ($curlExe $optForTrace) failed because $($_.Exception.Message)"; $error.clear();
                                                   if( -not $errorAsWarning ){ throw [ExcMsg] $msg; } OutWarning "Warning: $msg";
                                                 } }
 function NetDownloadToString                  ( [String] $url, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false,
@@ -2723,7 +2738,7 @@ function GitMerge                             ( [String] $repoDir, [String] $bra
                                                   return $true;
                                                 }catch{
                                                   if( -not $errorAsWarning ){ throw [Exception] "Merge failed, fix conflicts manually: $($_.Exception.Message)."; }
-                                                  OutWarning "Warning: Merge of branch $branch into `"$repoDir`" failed, fix conflicts manually. ";
+                                                  OutWarning "Warning: Merge of branch $branch into `"$repoDir`" failed, fix conflicts manually. "; $error.clear();
                                                   return $false;
                                                 } }
 function GitListCommitComments                ( [String] $tarDir, [String] $localRepoDir, [String] $fileExtension = ".tmp",
@@ -2862,7 +2877,7 @@ function GitCloneOrPullUrls                   ( [String[]] $listOfRepoUrls, [Str
                                                   try{
                                                     GitCmd "CloneOrPull" $tarRootDirOfAllRepos $url $errorAsWarning;
                                                   }catch{
-                                                    [String] $msg = "Error: $($_.Exception.Message)"; OutError $msg; $errorLines += $msg;
+                                                    [String] $msg = "Error: $($_.Exception.Message)"; $error.clear(); OutError $msg; $errorLines += $msg;
                                                   }
                                                 }
                                                 if( $listOfRepoUrls.Count -ge 1 ){
@@ -2875,7 +2890,7 @@ function GitCloneOrPullUrls                   ( [String[]] $listOfRepoUrls, [Str
                                                       try{
                                                         GitCmd "CloneOrPull" $using:tarRootDirOfAllRepos $using:_ $using:errorAsWarning;
                                                       }catch{
-                                                        [String] $msg = "Error: $($_.Exception.Message)"; OutError $msg;
+                                                        [String] $msg = "Error: $($_.Exception.Message)"; $error.clear(); OutError $msg;
                                                         FileAppendLine $using:tmp $msg;
                                                       }
                                                     }
@@ -3412,7 +3427,7 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #       PS7: It works as it should, without additional double-double-quotes.
 #     - Resulttype is often [Object[]] (Example: (& dir).GetType()) but can also be [String] (Example: (& echo hi).GetType()).
 #       so be careful on applying string functions to it, for example do not use:  (& anycmd).Trim()  but use ([String](& anycmd)).Trim()
-#   - Evaluate (string expansion) and run a command given in a string, does not create a new script scope and so works in local scope. 
+#   - Evaluate (string expansion) and run a command given in a string, does not create a new script scope and so works in local scope.
 #       Invoke-Expression [-command] string [CommonParameters]
 #     Dangerous: Never call it with untrusted input, care for code injection.
 #     Very important: It performs string expansion before running, so it can be a severe problem if the string contains character $.

@@ -52,7 +52,7 @@ function DirExists                            ( [String] $dir ){ try{ return [Bo
 function DirListDirs                          ( [String] $dir ){ return [String[]] (@()+(Get-ChildItem -Force -Directory -LiteralPath $dir | ForEach-Object{ $_.FullName })); }
 function DirHasFiles                          ( [String] $dir, [String] $filePattern ){
                                                 return [Boolean] ($null -ne (Get-ChildItem -Force -Recurse -File -ErrorAction SilentlyContinue -Path "$dir/$filePattern")); }
-function FileExists                           ( [String] $file ){ 
+function FileExists                           ( [String] $file ){
                                                 [String] $f2 = FsEntryGetAbsolutePath $file; if( Test-Path -PathType Leaf -LiteralPath $f2 ){ return [Boolean] $true; }
                                                 return [Boolean] [System.IO.File]::Exists($f2); }
 function FileNotExists                        ( [String] $file ){ return [Boolean] -not (FileExists $file); }
@@ -123,13 +123,13 @@ function SetAllEnvsExecutionPolicy            ( [String] $mode = "Bypass" ){ # F
                                                   ProcessRestartInElevatedAdminMode;
                                                   OutProgress "$msg";
                                                   & $ps7Or5Exe -ExecutionPolicy Bypass -NoProfile -Command {
-                                                    param($mode); 
-                                                    try{ Set-Executionpolicy -Scope LocalMachine -Force $mode     -ErrorAction SilentlyContinue; }catch{} $error.clear();
-                                                    try{ Set-Executionpolicy -Scope CurrentUser  -Force Undefined -ErrorAction SilentlyContinue; }catch{} $error.clear();
+                                                    param($mode);
+                                                    try{ Set-Executionpolicy -Scope LocalMachine -Force -ErrorAction SilentlyContinue -ExecutionPolicy $mode    ; }catch{Write-Verbose "Ignore exc on Set-ExecPolLm.";} $error.clear();
+                                                    try{ Set-Executionpolicy -Scope CurrentUser  -Force -ErrorAction SilentlyContinue -ExecutionPolicy Undefined; }catch{Write-Verbose "Ignore exc on Set-ExecPolCu.";} $error.clear();
                                                   } -Args $mode;
                                                   # Note: for others than Bypass as RemoteSigned we get the following but it works:
                                                   #   Set-ExecutionPolicy: PowerShell updated your execution policy successfully, but the setting is overridden by a policy defined at a more specific scope.
-                                                  #   Due to the override, your shell will retain its current effective execution policy of Bypass. 
+                                                  #   Due to the override, your shell will retain its current effective execution policy of Bypass.
                                                   #   Type "Get-ExecutionPolicy -List" to view your execution policy settings. For more information please see "Get-Help Set-ExecutionPolicy".
                                                   #   Recommendation: Contact your system administrator.
                                                 }
@@ -137,8 +137,8 @@ function SetAllEnvsExecutionPolicy            ( [String] $mode = "Bypass" ){ # F
                                                 SetExecPolicyToBypassIfNotSet "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe";
                                                 SetExecPolicyToBypassIfNotSet "$env:SystemRoot\SysWOW64\WindowsPowerShell\v1.0\powershell.exe";
                                               }
-                                                
-                                                
+
+
 
 # see https://docs.microsoft.com/en-us/powershell/scripting/developer/module/installing-a-powershell-module
 [String]   $moduleRootDirCurrUserLinux = "$HOME/.local/share/powershell/Modules/";
