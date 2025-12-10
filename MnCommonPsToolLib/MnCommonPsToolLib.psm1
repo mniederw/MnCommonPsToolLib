@@ -930,7 +930,7 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 #   The double quote mark is interpreted as an escape sequence by the remaining backslash,
                                                 #   causing a literal double quote mark (") to be placed in argv.
                                                 AssertRcIsOk;
-                                                Assert ($null -eq $errorOutInsteadOfThrow -or $errorOutInsteadOfThrow.Value -is [String]) "Argument errorOutInsteadOfThrow cannot be specified as [String] because it is [ref] and only one attr is allowed, but it must be of type String instead of: $($errorOutInsteadOfThrow.Value.GetType())";
+                                                if( $null -ne $errorOutInsteadOfThrow){ Assert ($errorOutInsteadOfThrow.Value -is [String]) "Argument errorOutInsteadOfThrow cannot be specified as [String] because it is [ref] and only one attr is allowed, but it must be of type String instead of: $($errorOutInsteadOfThrow.Value?.GetType())"; }
                                                 [String] $exec = (Get-Command $cmd).Source;
                                                 [Boolean] $isPs = $exec.EndsWith(".ps1");
                                                 [String] $traceInfo = "`"$cmd`" $(StringArrayDblQuoteItems $cmdArgs)";

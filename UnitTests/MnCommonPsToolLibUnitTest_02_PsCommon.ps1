@@ -87,23 +87,43 @@ function UnitTest_PsCommon(){
   # using ref param
   function TestUsingRefParam{
     function f ( [String] $key = "abc", [ref] $s ){
-      Assert ($null -eq $s -or $s.Value -is [String]) "Argument s cannot be specified as [String] because it is [ref] and only one attr is allowed, but it must be of type String instead of: $($s.Value.GetType())";
-      if( $null -ne $s ){ $s.Value = "hello"; return "SET-S"; }else{ return "NO-REF-PAR"; }
+      if( $null -ne $s ){
+        Assert ($s.Value -is [String]) "Argument s cannot be specified as [String] because it is [ref] and only one attr is allowed, but it must be of type String instead of: $($s.Value?.GetType())";
+        $s.Value = "hello";
+        return "SET-S-TO-VAL";
+      }elseif( $null -ne $s ){
+        Assert ("$($s?.Value)" -eq "")
+        return "REF-TO-NUL";
+      }else{ # $null -eq $s
+        # Note: On accessing $s?.Value we would get: RuntimeException: The variable '$s?' cannot be retrieved because it has not been set.
+        return "REF-IS-UNINIT";
+      }
     }
     [String] $str = "";
     [String] $out = "";
-    $out = f;                         Assert ($out -eq "NO-REF-PAR");
-    $out = f "dummy";                 Assert ($out -eq "NO-REF-PAR");
-    $out = f -key "dummy";            Assert ($out -eq "NO-REF-PAR");
-    $out = f             ([ref]$str); Assert ($out -eq "NO-REF-PAR");
-    $out = f "dummy"     ([ref]$str); Assert ($out -eq "SET-S");
-    [Boolean] $doThrow = $false;
-    try{
-      $out = f -s ([ref]$str); # expect throw
-    }catch{ # Example: "f: Cannot process argument transformation on parameter 's'. Reference type is expected in argument."
-      $doThrow = $true;
-    }
-    Assert $doThrow;
+    $str = ""; $out = f          -s ([ref]$str); Assert ($out -eq "SET-S-TO-VAL"  -and $str -eq "hello");
+    $str = ""; $out = f "dummy"     ([ref]$str); Assert ($out -eq "SET-S-TO-VAL"  -and $str -eq "hello");
+    $str = ""; $out = f;                         Assert ($out -eq "REF-IS-UNINIT" -and $str -eq "");
+    $str = ""; $out = f "dummy";                 Assert ($out -eq "REF-IS-UNINIT" -and $str -eq "");
+    $str = ""; $out = f -key "dummy";            Assert ($out -eq "REF-IS-UNINIT" -and $str -eq "");
+    function TestRefToIntSoAnotherTypeAsStringExpectingThrow(){
+      [Boolean] $doThrow = $false;
+      try{
+        [Int32] $int32 = 0; f -s ([ref]$int32) | Out-Null;
+      }catch{
+        $doThrow = $true;
+      }
+      Assert $doThrow;
+    } TestRefToIntSoAnotherTypeAsStringExpectingThrow;
+    function TestRefToNullObjSoAnotherTypeAsStringExpectingThrow(){
+      [Boolean] $doThrow = $false;
+      try{
+        [Object] $nul = $null; f -s ([ref]$nul) | Out-Null;
+      }catch{
+        $doThrow = $true;
+      }
+      Assert $doThrow;
+    }TestRefToNullObjSoAnotherTypeAsStringExpectingThrow;
   }
   TestUsingRefParam;
   #
