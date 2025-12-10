@@ -408,7 +408,14 @@ function UnitTest_FsEntry_Dir_File(){
     Assert (FileNotExists $tmpFile1);
   } Test_FileDelete;
   #
-  # TODO: FileCopy                             ( [String] $srcFile, [String] $tarFile, [Boolean] $overwrite = $false )
+  function Test_FileCopy(){
+    [String] $tmpFile1 = (FileGetTempFile); FileWriteFromString $tmpFile1 "Hello`n World`n" $true;
+    [String] $tmpFile2 = (FileGetTempFile); FileWriteFromString $tmpFile2 "Hello`n World2`n" $true;
+    FileCopy $tmpFile1 $tmpFile2 -overwrite:$true;
+    Assert (FileContentsAreEqual $tmpFile1 $tmpFile2);
+    FileDelTempFile $tmpFile1;
+    FileDelTempFile $tmpFile2;
+  } Test_FileCopy;
   #
   # TODO: FileMove                             ( [String] $srcFile, [String] $tarFile, [Boolean] $overwrite = $false )
   #

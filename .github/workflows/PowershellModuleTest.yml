@@ -145,25 +145,32 @@ jobs:
 
       - name: If tests on trunk of a push or workflow_dispatch was successful then create pull request to main
         if: ${{ success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/trunk' && runner.os == 'Linux' }}
-        uses: devops-infra/action-pull-request@b2895bff2ff66579f6704d717a1ea75fad919e84 # V1.0.2 2012-12 https://github.com/devops-infra/action-pull-request/releases
+        uses: peter-evans/create-pull-request@98357b18bf14b5342f975ff684046ec3b2a07725 # V8.0.0 2025-12 https://github.com/peter-evans/create-pull-request/releases
         with:
-          github_token  : ${{ secrets.GITHUB_TOKEN }}  # If blank, default: secrets.GITHUB_TOKEN
-          title         : "Merge ${{github.ref_name}} to main - Unittests are successful - ${{ github.event.commits[0].message }}"
-          source_branch : ""                           # If blank, default: triggered branch
-          target_branch : "main"                       # .
-          template      : ""                           # example: .github/PULL_REQUEST_TEMPLATE.md
+          token  : ${{ secrets.GITHUB_TOKEN }}
+          title  : "Merge ${{github.ref_name}} to main - Unittests are successful - ${{ github.event.commits[0].message }}"
+          branch : ""       # source branch, If blank, default: triggered branch
+          base   : main     # target branch
 
-          #body         : ""                           # Body comment
-          #reviewer     : "user1,user2"                # Comma-separated list (no spaces)
-          #assignee     : "user1,user2"                # Comma-separated list (no spaces)
-          #label        : ""                           # Labels to apply, comma separated
-          #milestone    : ""                           # .
-          #draft        : false                        # false or true, Whether to mark it as a draft
-          #old_string   : ""                           # Old string for the replacement in the template
-          #new_string   : ""                           # New string for the replacement in the template. If not specified, but old_string was, it will gather commits subjects
-          #get_diff     : false                        # Whether to replace predefined comments with differences between branches
-          #ignore_users : "dependabot"                 # List of users to ignore, comma separated
-          #allow_no_diff: false                        # Allows to continue on merge commits with no diffs
+          # Alternative:
+          #  uses: devops-infra/action-pull-request@b2895bff2ff66579f6704d717a1ea75fad919e84 # V1.0.2 2012-12 https://github.com/devops-infra/action-pull-request/releases
+          #  with:
+          #    github_token  : ${{ secrets.GITHUB_TOKEN }}  # If blank, default: secrets.GITHUB_TOKEN
+          #    title         : "Merge ${{github.ref_name}} to main - Unittests are successful - ${{ github.event.commits[0].message }}"
+          #    source_branch : ""                           # If blank, default: triggered branch
+          #    target_branch : "main"                       # .
+          #    #template     : ""                           # example: .github/PULL_REQUEST_TEMPLATE.md
+          #    #body         : ""                           # Body comment
+          #    #reviewer     : "user1,user2"                # Comma-separated list (no spaces)
+          #    #assignee     : "user1,user2"                # Comma-separated list (no spaces)
+          #    #label        : ""                           # Labels to apply, comma separated
+          #    #milestone    : ""                           # .
+          #    #draft        : false                        # false or true, Whether to mark it as a draft
+          #    #old_string   : ""                           # Old string for the replacement in the template
+          #    #new_string   : ""                           # New string for the replacement in the template. If not specified, but old_string was, it will gather commits subjects
+          #    #get_diff     : false                        # Whether to replace predefined comments with differences between branches
+          #    #ignore_users : "dependabot"                 # List of users to ignore, comma separated
+          #    #allow_no_diff: false                        # Allows to continue on merge commits with no diffs
 
           # Old:
           #   uses: repo-sync/pull-request@7e79a9f5dc3ad0ce53138f01df2fad14a04831c5  # V2.12.1 2025-12 https://github.com/repo-sync/pull-request/releases works only on linux, repo was archived 2024
