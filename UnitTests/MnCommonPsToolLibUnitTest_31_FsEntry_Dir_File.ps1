@@ -401,7 +401,12 @@ function UnitTest_FsEntry_Dir_File(){
     FileDelTempFile $tmpFile5;
   } Test_FileContentsAreEqual;
   #
-  # TODO: FileDelete                           ( [String] $file, [Boolean] $ignoreReadonly = $true, [Boolean] $ignoreAccessDenied = $false )
+  function Test_FileDelete(){
+    [String] $tmpFile1 = (FileGetTempFile); FileWriteFromString $tmpFile1 "Hello`n World`n" $true;
+    Assert (FileExists $tmpFile1);
+    FileDelete $tmpFile1 -ignoreReadonly:$true -ignoreAccessDenied:$false;
+    Assert (FileNotExists $tmpFile1);
+  } Test_FileDelete;
   #
   # TODO: FileCopy                             ( [String] $srcFile, [String] $tarFile, [Boolean] $overwrite = $false )
   #
