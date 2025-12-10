@@ -31,10 +31,10 @@ function UnitTest_KnowBugsOrDesignErrors(){
   #                              Write-Output hi > .\a.tmp   ;
   #                              [System.IO.Path]::GetFullPath(".\a.tmp")     # is correct "$HOME\a.tmp"
   #     powershell.exe as Admin;
-  #                              Get-Location                                 # Example: C:\WINDOWS\System32
+  #                              Get-Location                                 # Example: $env:SystemRoot\System32
   #                              Set-Location $HOME;
-  #                              [System.IO.Path]::GetFullPath(".\a.tmp")     # is wrong   "C:\WINDOWS\System32\a.tmp"
-  #                              [System.IO.Directory]::GetCurrentDirectory() # is         "C:\WINDOWS\System32"
+  #                              [System.IO.Path]::GetFullPath(".\a.tmp")     # is wrong   "$env:SystemRoot\System32\a.tmp"
+  #                              [System.IO.Directory]::GetCurrentDirectory() # is         "$env:SystemRoot\System32"
   #                              (get-location).Path                          # is         "$HOME"
   #                              Resolve-Path .\a.tmp                         # is correct "$HOME\a.tmp"
   #                              (Get-Item -Path ".\a.tmp" -Verbose).FullName # is correct "$HOME\a.tmp"
@@ -123,13 +123,13 @@ function UnitTest_KnowBugsOrDesignErrors(){
   #     - ps5: %USERPROFILE%\Documents\WindowsPowerShell\Modules\  location for current users for any modules
   #     - ps7: %ProgramW6432%\PowerShell\Modules\                  location for all     users for any modules (ps7 and up, multiplatform)
   #     - ps7: %ProgramW6432%\powershell\7\Modules\                location for all     users for any modules (ps7 only  , multiplatform)
-  #     - ps5: %ProgramW6432%\WindowsPowerShell\Modules\           location for all     users for any modules (ps5 and up) and             64bit environment (Example: "C:\Program Files")
-  #     - ps5: %ProgramFiles(x86)%\WindowsPowerShell\Modules\      location for all     users for any modules (ps5 and up) and             32bit environment (Example: "C:\Program Files (x86")
-  #     - ps5: %ProgramFiles%\WindowsPowerShell\Modules\           location for all     users for any modules (ps5 and up) and current 64/32 bit environment (Example: "C:\Program Files (x86)" or "C:\Program Files")
+  #     - ps5: %ProgramW6432%\WindowsPowerShell\Modules\           location for all     users for any modules (ps5 and up) and             64bit environment (Example: "$env:ProgramFiles")
+  #     - ps5: %ProgramFiles(x86)%\WindowsPowerShell\Modules\      location for all     users for any modules (ps5 and up) and             32bit environment (Example: "${env:ProgramFiles(x86)}")
+  #     - ps5: %ProgramFiles%\WindowsPowerShell\Modules\           location for all     users for any modules (ps5 and up) and current 64/32 bit environment (Example: "${env:ProgramFiles(x86)}" or "$env:ProgramFiles")
   #
   #
   # Not automatically added but currently strongly recommended additional folder:
-  #     - %SystemRoot%\System32\WindowsPowerShell\v1.0\Modules\    location for windows modules for all users (ps5 and up)
+  #     - $env:SystemRoot\System32\WindowsPowerShell\v1.0\Modules\    location for windows modules for all users (ps5 and up)
   #       In future if ps7 can completely replace ps5 then we can remove this folder.
   #
   #

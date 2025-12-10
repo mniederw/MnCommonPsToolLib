@@ -47,16 +47,16 @@ jobs:
 
       - name: Checkout repository current branch
         if: github.event_name != 'schedule'
-        uses: actions/checkout@v4
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # V6.0.1 2025-12 https://github.com/actions/checkout/releases
 
       - name: Checkout repository main branch when started by a specific schedule
         if: github.event_name == 'schedule' && github.event.schedule == '1 0 * * 0'
-        uses: actions/checkout@v4
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # V6.0.1 2025-12 https://github.com/actions/checkout/releases
         with: { ref: main }
 
       - name: Checkout repository trunk branch when started by a specific schedule
         if: github.event_name == 'schedule' && github.event.schedule != '1 0 * * 0'
-        uses: actions/checkout@v4
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # V6.0.1 2025-12 https://github.com/actions/checkout/releases
         with: { ref: trunk }
 
       - name: Install tools
@@ -75,7 +75,7 @@ jobs:
           echo "Using curl: `"$((Get-Command "curl").Source)`" Version: $(curl --version) ";
             # Ubuntu  : /usr/bin/curl                 # 2024-02: V7.81.0(x86_64-pc-linux-gnu)        sudo apt install -y curl;
             # MacOS   : /usr/local/opt/curl/bin/curl  # 2024-02: V8.6.0 (x86_64-apple-darwin21.6.0)  brew install curl;
-            # Windows : C:\Windows\system32\curl.exe  # 2024-02: V8.4
+            # Windows : $env:SystemRoot\system32\curl.exe  # 2024-02: V8.4
           echo "github.event.schedule=${{github.event.schedule}} ";
           echo "List ps gallery repositories: "; Get-PSRepository;
           echo "List installed ps modules "; Get-Module -ListAvailable | Sort-Object ModuleType, Name, Version | Select-Object ModuleType, Name, Version | Format-Table -AutoSize;
@@ -102,7 +102,7 @@ jobs:
 
       # Checks-out your repository under $GITHUB_WORKSPACE, see https://github.com/actions/checkout
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # V6.0.1 2025-12 https://github.com/actions/checkout/releases
 
       - name: Show environment variables of bash
         shell: bash
@@ -145,19 +145,45 @@ jobs:
 
       - name: If tests on trunk of a push or workflow_dispatch was successful then create pull request to main
         if: ${{ success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/trunk' && runner.os == 'Linux' }}
-        uses: repo-sync/pull-request@7e79a9f5dc3ad0ce53138f01df2fad14a04831c5  # v2.12.1 2023-01 https://github.com/repo-sync/pull-request/releases
-          # for parameters see: https://github.com/repo-sync/pull-request
-          # works only on linux, see releases for updating version from time to time (2023-01: v2.12.1; 2024-02: no newer;)
+        uses: peter-evans/create-pull-request@98357b18bf14b5342f975ff684046ec3b2a07725 # V8.0.0 2025-12 https://github.com/peter-evans/create-pull-request/releases
         with:
-          pr_title:           "Merge ${{github.ref_name}} to main - Unittests are successful - ${{ github.event.commits[0].message }}"
-          source_branch:      ""                           # If blank, default: triggered branch
-          destination_branch: "main"                       #
-          github_token:       ${{ secrets.GITHUB_TOKEN }}  # If blank, default: secrets.GITHUB_TOKEN
-          pr_allow_empty:     false                        # Creates pull request even if there are no changes
-          pr_label:           ""                           # Comma-separated list (no spaces)
-          pr_milestone:       ""                           # Milestone name
-          #pr_reviewer: "user1,user2" # Comma-separated list (no spaces)
-          #pr_assignee: "user1,user2" # Comma-separated list (no spaces)
+          token  : ${{ secrets.GITHUB_TOKEN }}
+          title  : "Merge ${{github.ref_name}} to main - Unittests are successful - ${{ github.event.commits[0].message }}"
+          branch : ""       # source branch, If blank, default: triggered branch
+          base   : main     # target branch
+
+          # Alternative:
+          #  uses: devops-infra/action-pull-request@b2895bff2ff66579f6704d717a1ea75fad919e84 # V1.0.2 2012-12 https://github.com/devops-infra/action-pull-request/releases
+          #  with:
+          #    github_token  : ${{ secrets.GITHUB_TOKEN }}  # If blank, default: secrets.GITHUB_TOKEN
+          #    title         : "Merge ${{github.ref_name}} to main - Unittests are successful - ${{ github.event.commits[0].message }}"
+          #    source_branch : ""                           # If blank, default: triggered branch
+          #    target_branch : "main"                       # .
+          #    #template     : ""                           # example: .github/PULL_REQUEST_TEMPLATE.md
+          #    #body         : ""                           # Body comment
+          #    #reviewer     : "user1,user2"                # Comma-separated list (no spaces)
+          #    #assignee     : "user1,user2"                # Comma-separated list (no spaces)
+          #    #label        : ""                           # Labels to apply, comma separated
+          #    #milestone    : ""                           # .
+          #    #draft        : false                        # false or true, Whether to mark it as a draft
+          #    #old_string   : ""                           # Old string for the replacement in the template
+          #    #new_string   : ""                           # New string for the replacement in the template. If not specified, but old_string was, it will gather commits subjects
+          #    #get_diff     : false                        # Whether to replace predefined comments with differences between branches
+          #    #ignore_users : "dependabot"                 # List of users to ignore, comma separated
+          #    #allow_no_diff: false                        # Allows to continue on merge commits with no diffs
+
+          # Old:
+          #   uses: repo-sync/pull-request@7e79a9f5dc3ad0ce53138f01df2fad14a04831c5  # V2.12.1 2025-12 https://github.com/repo-sync/pull-request/releases works only on linux, repo was archived 2024
+          #   with:
+          #     pr_title:           "Merge ${{github.ref_name}} to main - Unittests are successful - ${{ github.event.commits[0].message }}"
+          #     source_branch:      ""                           # If blank, default: triggered branch
+          #     destination_branch: "main"                       #
+          #     github_token:       ${{ secrets.GITHUB_TOKEN }}  # If blank, default: secrets.GITHUB_TOKEN
+          #     pr_allow_empty:     false                        # Creates pull request even if there are no changes
+          #     pr_label:           ""                           # Comma-separated list (no spaces)
+          #     pr_milestone:       ""                           # Milestone name
+          #     #pr_reviewer: "user1,user2" # Comma-separated list (no spaces)
+          #     #pr_assignee: "user1,user2" # Comma-separated list (no spaces)
 
       - name: Output job state
         if: ${{ always() }}  # if alternatives: success(), failure(), cancelled(),
@@ -171,12 +197,12 @@ jobs:
           mkdir --parents "${{env.LogDir}}";
           echo "Example content." > "${{env.LogDir}}/Example.log";
           echo "Dump file content: "; cat "${{env.LogDir}}/Example.log";
-          echo "List temp logdir folder: "; ls -al "${{env.LogDir}}";
-          echo "List tmp folder: "; ls -al "/tmp";
+          echo "List temporary logdir folder: "; ls -al "${{env.LogDir}}";
+          echo "List /tmp folder: "; ls -al "/tmp/";
 
       - name: Upload intermediate files as zip build artefact
         #if: ${{ ! success() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # V5.0.0 2025-12 https://github.com/actions/upload-artifact/releases
         with:
           path: "${{env.LogDir}}/*"
           name: "IntermediateLogFiles"
@@ -186,11 +212,11 @@ jobs:
 #   if: github.ref == 'refs/heads/mybranch'
 #   steps:
 #   - name: Install package manager pnpm
-#     uses: pnpm/action-setup@v2
+#     uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # V4.2.0 2025-12 https://github.com/pnpm/action-setup/releases
 #     with: { version: 8.6.5 }
 #   - name: Install node.js (adds node and npm to path)
 #     if: steps.cache.outputs.cache-hit != 'true'
-#     uses: actions/setup-node@v3
+#     uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # V6.1.0 2025-12 https://github.com/actions/setup-node/releases
 #     with: { node-version: 18.16.1 }
 #   - name: Install nodejs modules locally and not globally
 #     run: |
@@ -221,12 +247,14 @@ jobs:
 # For future: Publish to Gallery: https://scriptingchris.tech/2021/05/16/how-to-setup-a-github-actions-pipeline-for-publishing-your-powershell-module/
 # For future: pnpm install --global lodash;
 # For future: autocommit
-#   uses: peter-evans/create-pull-request@v4.0.4  # see: https://github.com/peter-evans/create-pull-request
+#   uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # V7.0.11 2025-12 https://github.com/peter-evans/create-pull-request/releases
 #     with:
 #       title: 'Merge trunk to main and commit it - ${{ github.event.commits[0].message }}'
 #       body: 'Autogenerated PR and committed from trunk to main'
-# For future: alternative - same as repo-sync/pull-request@v2.6.2 but with another tool:
-#   uses: vsoch/pull-request-action@1.0.19  # see https://github.com/vsoch/pull-request-action  works only on linux
+# For future: alternative - same as
+#       uses: repo-sync/pull-request@7e79a9f5dc3ad0ce53138f01df2fad14a04831c5  # V2.12.1 2025-12 https://github.com/repo-sync/pull-request/releases works only on linux, repo was archived 2024
+# but with another tool:
+#   uses: vsoch/pull-request-action@882391869b75196e039a732df05085312c456995 # V1.1.1 2025-12 https://github.com/vsoch/pull-request-action/releases works only on linux
 #     env:
 #       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 #       PULL_REQUEST_BRANCH: "main"

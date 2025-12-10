@@ -45,11 +45,11 @@ function UnitTest_PsCommon(){
   Assert (("abc" -split ",",0).Count -eq 1 -and "abc,".Split(",").Count -eq 2 -and ",abc".Split(",").Count -eq 2);
   #
   # No IO is done for the followings:
-  if( (OsIsWindows) ){ # windows
+  if( OsIsWindows ){
     Assert ([System.IO.Path]::GetDirectoryName("\\anyhostname\AnyFolder\") -eq "\\anyhostname\AnyFolder");
     Assert ([System.IO.Path]::GetDirectoryName("//anyhostname/AnyFolder/") -eq "\\anyhostname\AnyFolder");
     Assert ($null -eq [System.IO.Path]::GetDirectoryName("C:\"));
-  }else{ # not windows
+  }else{ # is not windows
     Assert ([System.IO.Path]::GetDirectoryName("\\anyhostname\AnyFolder\") -eq "");
     Assert ([System.IO.Path]::GetDirectoryName("//anyhostname/AnyFolder/") -eq "/anyhostname/AnyFolder");
     Assert ("" -eq [System.IO.Path]::GetDirectoryName("C:\"));
@@ -70,12 +70,12 @@ function UnitTest_PsCommon(){
   Assert ("hello" -match "hallo|hello|hullo" -and -not ("hello" -match "hallo|xhello|hullo"));
   #
   # Unexpected behaviour (undocumented)
-  if( (OsIsWindows) ){
+  if( OsIsWindows ){
     Push-Location "C:\Windows";
     Assert ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath("C:") -eq "C:\Windows"); # returns unexpected current dir of the drive
     Assert ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath("C:\") -eq "C:\"); # ok, expected
     Assert ([IO.Path]::GetFullPath("C:\") -eq "C:\"); # ok, expected
-    if( (ProcessIsLesserEqualPs5) ){
+    if( ProcessIsLesserEqualPs5 ){
       Assert ([IO.Path]::GetFullPath("C:/") -eq "C:\" ); # returns unexpected current dir of the drive
     }else{
       [String] $d = [IO.Path]::GetFullPath("C:/");
@@ -86,21 +86,44 @@ function UnitTest_PsCommon(){
   #
   # using ref param
   function TestUsingRefParam{
-    function f ( [String] $key = "abc", [ref] [String] $s ){ if( $null -ne $s ){ $s.Value = "hello"; return "SET-S"; }else{ return "NO-REF-PAR"; } }
+    function f ( [String] $key = "abc", [ref] $s ){
+      if( $null -ne $s ){
+        Assert ($s.Value -is [String]) "Argument s cannot be specified as [String] because it is [ref] and only one attr is allowed, but it must be of type String instead of: $($s.Value?.GetType())";
+        $s.Value = "hello";
+        return "SET-S-TO-VAL";
+      }elseif( $null -ne $s ){
+        Assert ("$($s?.Value)" -eq "")
+        return "REF-TO-NUL";
+      }else{ # $null -eq $s
+        # Note: On accessing $s?.Value we would get: RuntimeException: The variable '$s?' cannot be retrieved because it has not been set.
+        return "REF-IS-UNINIT";
+      }
+    }
     [String] $str = "";
     [String] $out = "";
-    $out = f;                         Assert ($out -eq "NO-REF-PAR");
-    $out = f "dummy";                 Assert ($out -eq "NO-REF-PAR");
-    $out = f -key "dummy";            Assert ($out -eq "NO-REF-PAR");
-    $out = f             ([ref]$str); Assert ($out -eq "NO-REF-PAR");
-    $out = f "dummy"     ([ref]$str); Assert ($out -eq "SET-S");
-    [Boolean] $doThrow = $false;
-    try{
-      $out = f -s ([ref]$str); # expect throw
-    }catch{ # Example: "f: Cannot process argument transformation on parameter 's'. Reference type is expected in argument."
-      $doThrow = $true;
-    }
-    Assert $doThrow;
+    $str = ""; $out = f          -s ([ref]$str); Assert ($out -eq "SET-S-TO-VAL"  -and $str -eq "hello");
+    $str = ""; $out = f "dummy"     ([ref]$str); Assert ($out -eq "SET-S-TO-VAL"  -and $str -eq "hello");
+    $str = ""; $out = f;                         Assert ($out -eq "REF-IS-UNINIT" -and $str -eq "");
+    $str = ""; $out = f "dummy";                 Assert ($out -eq "REF-IS-UNINIT" -and $str -eq "");
+    $str = ""; $out = f -key "dummy";            Assert ($out -eq "REF-IS-UNINIT" -and $str -eq "");
+    function TestRefToIntSoAnotherTypeAsStringExpectingThrow(){
+      [Boolean] $doThrow = $false;
+      try{
+        [Int32] $int32 = 0; f -s ([ref]$int32) | Out-Null;
+      }catch{
+        $doThrow = $true;
+      }
+      Assert $doThrow;
+    } TestRefToIntSoAnotherTypeAsStringExpectingThrow;
+    function TestRefToNullObjSoAnotherTypeAsStringExpectingThrow(){
+      [Boolean] $doThrow = $false;
+      try{
+        [Object] $nul = $null; f -s ([ref]$nul) | Out-Null;
+      }catch{
+        $doThrow = $true;
+      }
+      Assert $doThrow;
+    }TestRefToNullObjSoAnotherTypeAsStringExpectingThrow;
   }
   TestUsingRefParam;
   #

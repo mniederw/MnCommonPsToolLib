@@ -12,11 +12,11 @@ function UnitTest_Win_Info(){
     # InfoAboutComputerOverview:
     #
     # ComputerName    : mycomputer
-    # UserName        : u1
+    # UserName        : myuser
     # Datetime        : 2022-12-31 13:14
     # ProductKey      : XY123-88888-88888-88888-88888
     # ConnectedDrives : C:\ D:\
-    # PathVariable    : C:\Program Files\...
+    # PathVariable    : $env:ProgramFiles\...
   Assert ($a -like "*PathVariable*");
   #
   OutProgressTitle "InfoAboutExistingShares:";
@@ -25,7 +25,7 @@ function UnitTest_Win_Info(){
     # Info about existing shares:
     #
     #   IPC$         = ''    Remote-IPC
-    #   print$       = 'C:\WINDOWS\system32\spool\drivers' Druckertreiber
+    #   print$       = '$env:SystemRoot\system32\spool\drivers' Druckertreiber
     #   Transfer     = 'D:\Transfer' Transfer dir for any user
   Assert ($a -like "*IPC$*");
   #

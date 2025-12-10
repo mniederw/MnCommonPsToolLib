@@ -25,7 +25,7 @@ function UnitTest_Process(){
   if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){ ProcessEnvVarPathAdd "PATH" "$HOME"; }
   OutProgress "ProcessEnvVarList:"; ProcessEnvVarList;
   Assert ((ProcessPathVarStringToUnifiedArray $env:PATH).Length -gt 10);
-  ProcessRefreshEnvVars;
+  ProcessRefreshEnvVars $true;
   if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){ ProcessRemoveAllAlias; }
   if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){ ProcessOpenAssocFile "./myfile.txt"; ProcessOpenAssocFile "https://duckduckgo.com/"; }
 }

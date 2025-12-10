@@ -7,6 +7,11 @@ function UnitTest_Assert(){
   Assert        $true  "Condition is not ok";
   AssertIsFalse $false "Condition is not ok";
   AssertNotEmpty "abc" "parm1";
+  AssertEqual $null $null;
+  AssertEqual $false $false;
+  AssertEqual $true $true;
+  AssertEqual 123 123;
+  AssertEqual "abc" "abc";
   AssertRcIsOk;
 }
 UnitTest_Assert;
