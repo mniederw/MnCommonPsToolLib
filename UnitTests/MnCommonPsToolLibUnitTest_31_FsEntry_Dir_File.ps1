@@ -47,7 +47,11 @@ function UnitTest_FsEntry_Dir_File(){
   AssertEqual (FsEntryMakeValidFileName ""           ) ""           ;
   AssertEqual (FsEntryMakeValidFileName "abc.txt"    ) "abc.txt"    ;
   AssertEqual (FsEntryMakeValidFileName "dir/abc.txt") "dir_abc.txt";
-  AssertEqual (FsEntryMakeValidFileName "doublequote(`") lessthan(`<) greaterthan(`>) pipe(`|) backspace(`b) null(`0) tab(`t) others(␦*`?/\)") "doublequote(_) lessthan(_) greaterthan(_) pipe(_) backspace(_) null(_) tab(_) others(␦____)";
+  [String] $expect = switch((OsIsWindows)){
+    ($true) { "doublequote(_) lessthan(_) greaterthan(_) pipe(_) backspace(_) null(_) tab(_) others(␦____)"; }
+    default { "doublequote(`") lessthan(<) greaterthan(>) pipe(|) backspace(`b) null(_) tab(`t) others(␦*`?_\)"; }
+  };
+  AssertEqual (FsEntryMakeValidFileName "doublequote(`") lessthan(`<) greaterthan(`>) pipe(`|) backspace(`b) null(`0) tab(`t) others(␦*`?/\)") $expect;
   #
   AssertFsEntryIsEqualForCurrentOs (FsEntryMakeRelative "$HOME/MyDir/Dir1/File" "$HOME/MyDir/"      )   "Dir1/File";
   AssertFsEntryIsEqualForCurrentOs (FsEntryMakeRelative "$HOME/MyDir/Dir1/File" "$HOME/MyDir/" $true) "./Dir1/File";
