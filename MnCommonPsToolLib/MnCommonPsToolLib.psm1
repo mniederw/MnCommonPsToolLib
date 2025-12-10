@@ -361,8 +361,8 @@ function StringFromErrorRecord                ( [System.Management.Automation.Er
                                                 [Exception] $exc = $er.Exception;
                                                 [String] $msg = (StringFromException $exc);
                                                 # if the exception is a ExcMsg then by definition the message contains all error info and so we should not output the stacktrace.
+                                                [String] $nl = [Environment]::NewLine;
                                                 if( $exc.GetType().Name -ne "ExcMsg" ){
-                                                  [String] $nl = [Environment]::NewLine;
                                                   $msg += "$nl  ScriptStackTrace: $nl    "+$er.ScriptStackTrace.Replace("$nl","$nl    "); # Example: at <ScriptBlock>, C:\myfile.psm1: line 800 at MyFunc
                                                   $msg += "$nl  InvocationInfo:$nl    "+$er.InvocationInfo.PositionMessage.Replace("$nl","$nl    "); # At D:\myfile.psm1:800 char:83 \n   + ...   +   ~~~
                                                   # $msg += "$nl  InvocationInfoLine: "+($er.InvocationInfo.Line.Replace("$nl"," ") -replace "\s+"," ");
