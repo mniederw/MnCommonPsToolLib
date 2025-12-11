@@ -36,13 +36,13 @@ run-name: "PowershellModuleTest on 3 platforms - ${{ github.event_name == 'pull_
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
 
-  Test:
+  RunAllTests:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
     runs-on: ${{matrix.os}} # run on multiple OS, if: ${{ runner.os == 'Linux' || runner.os == 'macOS' || runner.os == 'Windows' }}
-    name: "Test on ${{matrix.os}} ${{github.ref_type}}=${{github.ref_name}} ${{github.event.repository.updated_at}}"
-      # example: "Test: windows: branch=main 2021-12-31T23:59:59Z"
+    name: "RunAllTests on ${{matrix.os}} ${{github.ref_type}}=${{github.ref_name}} ${{github.event.repository.updated_at}}"
+      # Example: "RunAllTests on windows-latest branch=main 2025-12-10T16:29:38Z"
     steps:
 
       - name: Checkout repository current branch
@@ -80,7 +80,7 @@ jobs:
           echo "List ps gallery repositories: "; Get-PSRepository;
           echo "List installed ps modules "; Get-Module -ListAvailable | Sort-Object ModuleType, Name, Version | Select-Object ModuleType, Name, Version | Format-Table -AutoSize;
 
-      - name: Test all
+      - name: Run All Tests
         shell: pwsh
         run: |
           echo "Run ./TestAllExamplesAndUnitTestsInInteractiveMode.ps1 with closed input-stream.";
@@ -88,34 +88,33 @@ jobs:
 
   Merge:
     runs-on: ubuntu-latest  # must run on linux because tool for creating pr
-      # Available 2022-08:
-      # - ubuntu-latest   = Ubuntu-V20.04.3-LTS contains PowerShell-V7.2.9, already installed /usr/bin/pwsh
-      # - windows-latest  = WinServer2022
-      # - macos-latest    = macOS 11
+      # Available 2025-12:
+      # - ubuntu-latest   = Ubuntu-V24.04.3-LTS contains PowerShell-V7.4.13, already installed /usr/bin/pwsh
+      # - windows-latest  = WinServer2025 V10.0.26100 Datacenter
+      # - macos-latest    = macOS 15.7.2 24G325
       # - self-hosted     = own machine
       # - More see: https://github.com/actions/virtual-environments/
     name: "Merge to main if all unittests are ok"
     needs: [Test]
     env:
-      LogDir:  "unspecified"  # All files in this folder will be uploaded as zip
+      LogDir: "unspecified"  # All files in this folder will be uploaded as zip
     steps:
 
-      # Checks-out your repository under $GITHUB_WORKSPACE, see https://github.com/actions/checkout
-      - name: Checkout repository
+      - name: Checkout repository  # under $GITHUB_WORKSPACE, see https://github.com/actions/checkout
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # V6.0.1 2025-12 https://github.com/actions/checkout/releases
 
       - name: Show environment variables of bash
         shell: bash
         run: |
-          echo "Running on OS=${{runner.os}}; $(which pwsh); $(pwsh --version)"; # Example: "Linux; /usr/bin/pwsh; Powershell V7.2.9"
-          echo "RepoUrl    = "${{github.server_url}}/${{github.repository}}"     # Example: "https://github.com/mniederw/MnCommonPsToolLib/"
-          echo "RepoRef     = ${{github.ref}}"                                   # Example: "refs/heads/trunk"
-          echo "Repo        = ${{github.repository}}"                            # Example: "mniederw/MnCommonPsToolLib"
-          echo "Actor       = ${{github.actor}}"                                 # Example: "mniederw"
-          echo "EventName   = ${{github.event_name}}"                            # Example: "schedule", "push", "workflow_dispatch"
-          echo "Action      = ${{github.workflow}} #${{github.run_number}}"      # Example: "PowershellModuleTest #570"
-          echo "WorkflowRef = ${{github.workflow_ref}}"                          # Example: "mniederw/MnCommonPsToolLib/.github/workflows/PowershellModuleTest.yml@refs/heads/main"
-          echo "ActionUrl   = https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}" # Example: "https://github.com/mniederw/MnCommonPsToolLib/actions/runs/4272755554"
+          echo "Running on OS=${{runner.os}}; $(which pwsh); $(pwsh --version)"; # Example: "Linux; /usr/bin/pwsh; Powershell VX.X.XX"
+          echo "RepoUrl      = ${{github.server_url}}/${{github.repository}}"  ; # Example: "https://github.com/mniederw/MnCommonPsToolLib/"
+          echo "RepoRef      = ${{github.ref}}"                                ; # Example: "refs/heads/trunk"
+          echo "Repo         = ${{github.repository}}"                         ; # Example: "mniederw/MnCommonPsToolLib"
+          echo "Actor        = ${{github.actor}}"                              ; # Example: "mniederw"
+          echo "EventName    = ${{github.event_name}}"                         ; # Example: "schedule", "push", "workflow_dispatch"
+          echo "Action       = ${{github.workflow}} #${{github.run_number}}"   ; # Example: "PowershellModuleTest #570"
+          echo "WorkflowRef  = ${{github.workflow_ref}}"                       ; # Example: "mniederw/MnCommonPsToolLib/.github/workflows/PowershellModuleTest.yml@refs/heads/main"
+          echo "ActionUrl    = https://github.com/${{github.repository}}/actions/runs/${{github.run_id}}" # Example: "https://github.com/mniederw/MnCommonPsToolLib/actions/runs/4272755554"
           echo "List all environment variables in bash"; printenv;
           echo "List pnpm version: $((pnpm --version) || true)";
           echo "List npm version: $((npm --version) || true)";
@@ -143,57 +142,51 @@ jobs:
           #            Error: Process completed with exit code 127.
           #     Note: The error would also occurre if we would put into a comment line the variable: dollar-openbrace-openbrace toJson(github) closebrace-closebrace
 
-      # 2025-12: If added the following code then it overwrites trunk with the commitid of main, is totally wrong, so disabled
-      # - name: If tests on trunk of a push or workflow_dispatch was successful then create pull request to main
-      #   if: ${{ success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/trunk' && runner.os == 'Linux' }}
-      #   uses: peter-evans/create-pull-request@98357b18bf14b5342f975ff684046ec3b2a07725 # V8.0.0 2025-12 https://github.com/peter-evans/create-pull-request/releases
-      #   with:
-      #     token  : ${{ secrets.GITHUB_TOKEN }}
-      #     title  : "Merge ${{github.ref_name}} to main - Unittests are successful - ${{ github.event.commits[0].message }}"
-      #     branch : "${{github.ref_name}}"       # source branch, blank not allowed
-      #     base   : "main"                       # target branch
+      - name: If run-all-tests on trunk of a push or workflow_dispatch was successful then create pull request to main
+        if: ${{ success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/trunk'}}
+        shell: pwsh
+        run: |
+          echo "Create a PR to main";
+          [String] $repo =
+          [String] $toBranch = "main";
+          [String] $fromBranch = "${{github.ref_name}}";
+          [String] $title = "Merge ${{github.ref_name}} to main - All Tests on src branch were successful - ${{ github.event.commits[0].message }}";
+          & "gh" "pr" "create" "--base" $toBranch "--head" $fromBranch "--title" $title "--body" "autocreated by github action.";
 
-      # Alternative:
-      #  uses: devops-infra/action-pull-request@b2895bff2ff66579f6704d717a1ea75fad919e84 # V1.0.2 2012-12 https://github.com/devops-infra/action-pull-request/releases
-      #  with:
-      #    github_token  : ${{ secrets.GITHUB_TOKEN }}  # If blank, default: secrets.GITHUB_TOKEN
-      #    title         : "Merge ${{github.ref_name}} to main - Unittests are successful - ${{ github.event.commits[0].message }}"
-      #    source_branch : ""                           # If blank, default: triggered branch
-      #    target_branch : "main"                       # .
-      #    #template     : ""                           # example: .github/PULL_REQUEST_TEMPLATE.md
-      #    #body         : ""                           # Body comment
-      #    #reviewer     : "user1,user2"                # Comma-separated list (no spaces)
-      #    #assignee     : "user1,user2"                # Comma-separated list (no spaces)
-      #    #label        : ""                           # Labels to apply, comma separated
-      #    #milestone    : ""                           # .
-      #    #draft        : false                        # false or true, Whether to mark it as a draft
-      #    #old_string   : ""                           # Old string for the replacement in the template
-      #    #new_string   : ""                           # New string for the replacement in the template. If not specified, but old_string was, it will gather commits subjects
-      #    #get_diff     : false                        # Whether to replace predefined comments with differences between branches
-      #    #ignore_users : "dependabot"                 # List of users to ignore, comma separated
-      #    #allow_no_diff: false                        # Allows to continue on merge commits with no diffs
-
-      # Old:
-      #   uses: repo-sync/pull-request@7e79a9f5dc3ad0ce53138f01df2fad14a04831c5  # V2.12.1 2025-12 https://github.com/repo-sync/pull-request/releases works only on linux, repo was archived 2024
-      #   with:
-      #     pr_title:           "Merge ${{github.ref_name}} to main - Unittests are successful - ${{ github.event.commits[0].message }}"
-      #     source_branch:      ""                           # If blank, default: triggered branch
-      #     destination_branch: "main"                       #
-      #     github_token:       ${{ secrets.GITHUB_TOKEN }}  # If blank, default: secrets.GITHUB_TOKEN
-      #     pr_allow_empty:     false                        # Creates pull request even if there are no changes
-      #     pr_label:           ""                           # Comma-separated list (no spaces)
-      #     pr_milestone:       ""                           # Milestone name
-      #     #pr_reviewer: "user1,user2" # Comma-separated list (no spaces)
-      #     #pr_assignee: "user1,user2" # Comma-separated list (no spaces)
+      - name: If run-all-tests on main of a push or workflow_dispatch was successful then create a tag with the version from psd file
+        if: ${{ success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'}}
+        shell: pwsh
+        run: |
+          [String] $version = (Import-PowerShellDataFile "./MnCommonPsToolLib/MnCommonPsToolLib.psd1").ModuleVersion;
+          if( $version -eq "" ){ throw [Exception] "ModuleVersion not found in manifest."; }
+          echo "Create a tag with the version from psd file: `"$version`" ";
+          & git config user.name  "github-actions[bot]";                           # commonly used
+          & git config user.email "github-actions[bot]@users.noreply.github.com"; # commonly used
+          & git fetch --tags; # Ensure we have all remote tags
+          echo "find a free unused number. ";
+          function GetFreeVersionNumber(){
+            [Int32] $maxSuffix = 65535;
+            for( [Int32] $i = 0; $i -le $maxSuffix; $i++ ){
+              [String] $candidate = if( $i -eq 0 ){ $version; }else{ "$version.$i"; };
+              # Check existence (git tag -l outputs the tag exactly if it exists)
+              [String] $exists = & git tag --list $candidate;
+              if( $exists -eq $candidate ){ return $candidate; }
+            }
+            throw [Exception] "Could not find a free tag from $version.(1 .. $maxSuffix).";
+          }
+          $version = GetFreeVersionNumber; 
+          echo "found: `"$version`" ";
+          & git tag $version;
+          & git push origin $version;
 
       - name: Output job state
-        if: ${{ always() }}  # if alternatives: success(), failure(), cancelled(),
+        if: ${{ always() }}  # if alternatives: success(), failure(), cancelled(), !success(), ..
         run: |
           echo "Process ${{job.status}}."; # job.status = [success,failure,cancelled].
-          echo "LogDir=$RUNNER_TEMP/tmp"   >> $GITHUB_ENV ; # set env variable
+          echo "LogDir=$RUNNER_TEMP/tmp" >> $GITHUB_ENV ; # set env variable
 
       - name: Assemble intermediate files into temp dir
-        #if: ${{ ! success() }}
+        if: ${{ always() && runner.os == 'Linux' }}
         run: |
           mkdir --parents "${{env.LogDir}}";
           echo "Example content." > "${{env.LogDir}}/Example.log";
@@ -202,85 +195,8 @@ jobs:
           echo "List /tmp folder: "; ls -al "/tmp/";
 
       - name: Upload intermediate files as zip build artefact
-        #if: ${{ ! success() }}
+        if: ${{ always() }}
         uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # V5.0.0 2025-12 https://github.com/actions/upload-artifact/releases
         with:
           path: "${{env.LogDir}}/*"
           name: "IntermediateLogFiles"
-
-# More docu: https://docs.github.com/en/actions/learn-github-actions/understanding-github-actions
-# For future:
-#   if: github.ref == 'refs/heads/mybranch'
-#   steps:
-#   - name: Install package manager pnpm
-#     uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # V4.2.0 2025-12 https://github.com/pnpm/action-setup/releases
-#     with: { version: 8.6.5 }
-#   - name: Install node.js (adds node and npm to path)
-#     if: steps.cache.outputs.cache-hit != 'true'
-#     uses: actions/setup-node@395ad3262231945c25e8478fd5baf05154b1d79f # V6.1.0 2025-12 https://github.com/actions/setup-node/releases
-#     with: { node-version: 18.16.1 }
-#   - name: Install nodejs modules locally and not globally
-#     run: |
-#           pnpm install fs fs-extra xml2js jsonfile xmlmerge-js minimist path shelljs sfdx-cli@7.204.6;
-#           alias sfdx="$PWD/node_modules/sfdx-cli/bin/run"; # required (only global install would put it to path)
-#   - shell: bash
-#     run: |
-#           echo "Inputtags: ${{ github.event.inputs.tag }}"
-#           echo "BranchRef: ${{github.ref}}"; # Example: "refs/heads/main"
-#           BranchName=$(echo "${{github.ref}}" | cut --delimiter=/ --fields=3- -); # Example: "main"
-#           BranchEnv="";
-#           if   [[ "$BranchName" == "main"  ]]; then BranchEnv="MAIN";
-#           elif [[ "$BranchName" == "trunk" ]]; then BranchEnv="ENV1";
-#                                                else BranchEnv="UNKN-$BranchName"; fi;
-#           echo "Run BranchEnv=$BranchEnv BranchName=$BranchName BranchRef=${{github.ref}}";
-#           #
-#           m="^main$"   ; if [[ "$BranchName" =~ $m ]]; then BranchEnv="ENV2" ; fi;
-#           m="^main.*$" ;
-#           if [[ "$BranchName" =~ $m ]]; then BranchEnv="ENV2" ; fi;
-#           echo "Run SfEnv=$SfEnv BranchName=$BranchName BranchRef=${{github.ref}}";
-#           #
-#           if [[ $BranchEnv == "MAIN" ]]; then
-#             echo "MAIN";
-#           elif [[ $BranchEnv == "ENV1" ]]; then
-#             echo "ENV1";
-#           else echo "Expected BranchEnv=$BranchEnv is one of [MAIN,ENV1]"; exit 1; fi;
-# For future: Run all *.Tests.ps1 recursively by using https://pester-docs.netlify.app/docs/commands/Invoke-Pester
-# For future: Publish to Gallery: https://scriptingchris.tech/2021/05/16/how-to-setup-a-github-actions-pipeline-for-publishing-your-powershell-module/
-# For future: pnpm install --global lodash;
-# For future: autocommit
-#   uses: peter-evans/create-pull-request@22a9089034f40e5a961c8808d113e2c98fb63676 # V7.0.11 2025-12 https://github.com/peter-evans/create-pull-request/releases
-#     with:
-#       title: 'Merge trunk to main and commit it - ${{ github.event.commits[0].message }}'
-#       body: 'Autogenerated PR and committed from trunk to main'
-# For future: alternative - same as
-#       uses: repo-sync/pull-request@7e79a9f5dc3ad0ce53138f01df2fad14a04831c5  # V2.12.1 2025-12 https://github.com/repo-sync/pull-request/releases works only on linux, repo was archived 2024
-# but with another tool:
-#   uses: vsoch/pull-request-action@882391869b75196e039a732df05085312c456995 # V1.1.1 2025-12 https://github.com/vsoch/pull-request-action/releases works only on linux
-#     env:
-#       GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-#       PULL_REQUEST_BRANCH: "main"
-#       PULL_REQUEST_TITLE: "Merge trunk to main - ${{ github.event.commits[0].message }}"
-#       PASS_IF_EXISTS:
-#       CI: true
-# For future: cache: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-powershell
-# For future: query gh https://docs.github.com/en/actions/using-workflows/using-github-cli-in-workflows
-# For future: checking matrix context
-#   if: matrix.os == 'ubuntu-latest'
-#   if: matrix.os == 'windows-latest'
-#   if: matrix.os == 'macOS-latest'
-# For future: checking runner context
-#   if: runner.os == 'Linux'
-#   if: runner.os == 'Windows'
-#   if: runner.os == 'macOS'
-# For future: checking runner variable:
-#   if [ "$RUNNER_OS" == "Linux" ]; then
-# For future:
-#   run: |
-#        git config --local user.name github-actions
-#        git config --local user.email "actions@github.com"
-#        git add dir1/*
-#        git commit -am "Autocommit $(date)"
-#        git push origin main --force
-#      env:
-#        REPO_KEY: ${{secrets.GITHUB_TOKEN}}
-#        username: github-actions

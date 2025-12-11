@@ -438,13 +438,13 @@ function UnitTest_FsEntry_Dir_File(){
     FileDelTempFile $tmpFile2;
   } Test_FileSyncContent;
   #
-  # TODO: FileGetHexStringOfHash128BitsMd5     ( [String] $srcFile )
+  { [String] $tmpFile1 = (FileGetTempFile); FileWriteFromString $tmpFile1 "abc" $true "UTF8"; Assert ((FileGetHexStringOfHash128BitsMd5  $tmpFile1) -eq "900150983CD24FB0D6963F7D28E17F72"); }
   #
-  # TODO: FileGetHexStringOfHash256BitsSha2    ( [String] $srcFile )
+  { [String] $tmpFile1 = (FileGetTempFile); FileWriteFromString $tmpFile1 "abc" $true "UTF8"; Assert ((FileGetHexStringOfHash256BitsSha2 $tmpFile1) -eq "BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD"); }
   #
-  # TODO: FileGetHexStringOfHash512BitsSha2    ( [String] $srcFile )
+  { [String] $tmpFile1 = (FileGetTempFile); FileWriteFromString $tmpFile1 "abc" $true "UTF8"; Assert ((FileGetHexStringOfHash512BitsSha2 $tmpFile1) -eq "DDAF35A193617ABACC417349AE20413112E6FA4E89A97EA20A9EEEE64B55D39A2192992A274FC1A836BA3C23A3FEEBBD454D4423643CE80E2A9AC94FA54CA49F"); }
   #
-  # TODO: FileUpdateItsHashSha2FileIfNessessary( [String] $srcFile )
+  # TODO: FileUpdateItsHashSha2FileIfNessessary ( [String] $srcFile )
   #
 }
 UnitTest_FsEntry_Dir_File;
