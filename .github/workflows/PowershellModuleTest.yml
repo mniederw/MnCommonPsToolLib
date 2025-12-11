@@ -95,7 +95,7 @@ jobs:
       # - self-hosted     = own machine
       # - More see: https://github.com/actions/virtual-environments/
     name: "Merge to main if all unittests are ok"
-    needs: [Test]
+    needs: [RunAllTests]
     env:
       LogDir: "unspecified"  # All files in this folder will be uploaded as zip
     steps:
