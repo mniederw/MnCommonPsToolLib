@@ -34,7 +34,7 @@
   }
   HelpInfoURI            = 'https://github.com/mniederw/MnCommonPsToolLib/Readme.txt';
 
-  ModuleVersion          = '7.113';
+  ModuleVersion          = '7.114';
 
   <#
   Releasenotes
@@ -43,6 +43,7 @@
   Major version will reflect breaking changes, minor identifies extensions and third number identifies urgent bugfixes.
   Breaking changes are usually removed deprecated functions or changed behaviours.
 
+  2025-12-11  V7.114 Improve preconditions.
   2025-12-09  V7.113 Remove-Param FsEntryListAsFileSystemInfo(... [Boolean] $inclTopDir). FsEntryListAsStringArray(... [Boolean] $inclTopDir). Improve FsEntryListAsFileSystemInfo.
   2025-12-01  V7.112 Reformat if statements. Replace hardcoded folders. Improve ToolCreateLnkIfNotExists. Add FsEntrySort.
   2025-11-11  V7.111 Fix yml
