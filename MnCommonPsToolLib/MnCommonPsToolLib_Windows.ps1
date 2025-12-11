@@ -2133,7 +2133,7 @@ function ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [Strin
                                                 # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA/Microsoft/Internet Explorer/Quick Launch/LinkToWriter.lnk"     (ProcessFindExecutableInPath "write.exe");
                                                 # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA/Microsoft/Internet Explorer/Quick Launch/LinkToMyAnyProg.lnk"  "D:/MyPortableProgs/Manufactor ProgramName/AnyProgram.exe";
                                                 # Example: ToolCreateLnkIfNotExists $false "" "$env:APPDATA/Microsoft/Internet Explorer/Quick Launch/LinkToDemo.lnk"       "./LocalDirUnderCurrentDir/Demo.exe";
-                                                AssertNotEmpty $srcFsEntry;
+                                                AssertNotEmpty $srcFsEntry "srcFsEntry for lnkFile=$lnkFile";
                                                 $workDir    = FsEntryGetAbsolutePath $workDir;
                                                 $lnkFile    = FsEntryGetAbsolutePath $lnkFile;
                                                 $srcFsEntry = FsEntryGetAbsolutePath $srcFsEntry;
@@ -2733,7 +2733,7 @@ function ToolWinGetCleanLine                  ( [String] $s ){
                                                     ){}else{ $s = ""; }
                                                 $s = $s.Replace("Kein verfügbares Upgrade gefunden.","Is up to date.");                                                                   # for: winget install
                                                 $s = $s.Replace("Erfolgreich installiert","Successful installed.");                                                                       # for: winget install
-                                                $s = $s.Replace("Es wurde kein installiertes Paket gefunden, das den Eingabekriterien entspricht.","Already uninstalled, nothing done."); # for: winget uninstall
+                                                $s = $s.Replace("Es wurde kein installiertes Paket gefunden, das den Eingabekriterien entspricht.","Already uninstalled, nothing done."); # for: winget uninstall (2025-12 "Gyan.FFmpeg.Shared" scope:User
                                                 $s = $s.Replace("No installed package found matching input criteria.","Already uninstalled, nothing done.");                              # for: winget uninstall (2025-09: ...many...)
                                                 $s = $s.Replace("No version found matching: ","Nothing done, already uninstalled: ");                                                     # for: winget uninstall (2025-09)
                                                 $s = $s.Replace("Es wurde keine übereinstimmende Version gefunden: ","Already uninstalled, nothing done. Not found version: ");           # for: winget uninstall
