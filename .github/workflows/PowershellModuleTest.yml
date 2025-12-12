@@ -158,7 +158,7 @@ jobs:
         if: ${{ success() && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'}}
         shell: pwsh
         run: |
-          [String] $version = (Import-PowerShellDataFile "./MnCommonPsToolLib/MnCommonPsToolLib.psd1").ModuleVersion;
+          [String] $version = "V" + (Import-PowerShellDataFile "./MnCommonPsToolLib/MnCommonPsToolLib.psd1").ModuleVersion;
           if( $version -eq "" ){ throw [Exception] "ModuleVersion not found in manifest."; }
           echo "Create a tag with the version from psd file: `"$version`" ";
           & git config user.name  "github-actions[bot]";                           # commonly used
@@ -171,11 +171,11 @@ jobs:
               [String] $candidate = if( $i -eq 0 ){ $version; }else{ "$version.$i"; };
               # Check existence (git tag -l outputs the tag exactly if it exists)
               [String] $exists = & git tag --list $candidate;
-              if( $exists -eq $candidate ){ return $candidate; }
+              if( $exists -ne $candidate ){ return $candidate; }
             }
             throw [Exception] "Could not find a free tag from $version.(1 .. $maxSuffix).";
           }
-          $version = GetFreeVersionNumber; 
+          $version = GetFreeVersionNumber;
           echo "found: `"$version`" ";
           & git tag $version;
           & git push origin $version;

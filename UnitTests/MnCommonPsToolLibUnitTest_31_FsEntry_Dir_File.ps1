@@ -89,7 +89,8 @@ function UnitTest_FsEntry_Dir_File(){
   #
   # TODO: FsEntryGetDrive                      ( [String] $fsEntry
   #
-  # TODO: FsEntryIsDir                         ( [String] $fsEntry
+  Assert (FsEntryIsDir $HOME);
+  Assert (FsEntryIsDir "$HOME/");
   #
   # TODO: FsEntryGetParentDir                  ( [String] $fsEntry
   #
