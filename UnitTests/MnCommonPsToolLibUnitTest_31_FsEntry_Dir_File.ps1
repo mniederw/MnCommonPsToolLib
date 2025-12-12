@@ -78,9 +78,8 @@ function UnitTest_FsEntry_Dir_File(){
   #
   # TODO: FsEntryJoinRelativePatterns          ( [String] $rootDir [String[]] $relativeFsEntriesPatternsSemicolonSeparated )
   #
-  # works on win, but not on ubuntu: Assert ((OsIsWindows) -and (FsEntryPathIsEqual "C:\Temp\dir" "C:/temp\dir\")) -or (-not (OsIsWindows) -and (FsEntryPathIsEqual "/Temp/dir" "/Temp/dir/"));
-  #
   # TODO: FsEntryPathIsEqual
+  #   works on win, but not on ubuntu: Assert ((OsIsWindows) -and (FsEntryPathIsEqual "C:\Temp\dir" "C:/temp\dir\")) -or (-not (OsIsWindows) -and (FsEntryPathIsEqual "/Temp/dir" "/Temp/dir/"));
   #
   # TODO: FsEntryGetFileNameWithoutExt         ( [String] $fsEntry)
   #

@@ -98,6 +98,7 @@ jobs:
     needs: [RunAllTests]
     env:
       LogDir: "unspecified"  # All files in this folder will be uploaded as zip
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} # required for gh cli
     steps:
 
       - name: Checkout repository  # under $GITHUB_WORKSPACE, see https://github.com/actions/checkout
