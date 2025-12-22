@@ -2774,7 +2774,7 @@ function ToolWinGetSetup                      (){ # install and update winget; u
                                                   [String] $wingetVersionString = & WinGet --version; AssertRcIsOk; # 2025-02: v1.9.25200; 2024-11: V1.9.25180; 2024-09: V1.8.1911; 2024-07: v1.2.10691;
                                                   return [System.Version] ($wingetVersionString -replace "^v","");
                                                 }
-                                                function WingetIsVeryOld (){ return [Boolean] (Get-WingetVersion) -lt ([System.Version]"1.6"); }
+                                                function WingetIsVeryOld (){ return [Boolean] (WingetVersion) -lt ([System.Version]"1.6"); }
                                                 function WinGetApproveEulas(){
                                                   OutProgress "Make sure eulas are approved by: Winget search; ";
                                                   Write-Output "y" | & WinGet search | Out-Null; # default source is "msstore"; alternative option: --accept-source-agreements
@@ -2852,7 +2852,7 @@ function ToolWinGetSetup                      (){ # install and update winget; u
                                                   #   Install-Module -Name Microsoft.WinGet.Client -Force -Repository PSGallery -Scope $instScope -ErrorAction SilentlyContinue | Out-Null; # Installing WinGet PowerShell module from PSGallery
                                                   #   Repair-WinGetPackageManager -ErrorAction SilentlyContinue; # bootstrap WinGet;
                                                 }
-                                                OutProgress "WinGet current version: V$(Get-WingetVersion) ";
+                                                OutProgress "WinGet current version: V$(WingetVersion) ";
                                                 WinGetApproveEulas;
                                                 WinGetSourcesListAndReset;
                                                 WinGetSourcesUpdate;
