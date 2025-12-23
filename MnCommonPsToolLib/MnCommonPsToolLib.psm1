@@ -932,7 +932,8 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 AssertRcIsOk;
                                                 if( $null -ne $errorOutInsteadOfThrow ){
                                                   [Object] $obj = $errorOutInsteadOfThrow.Value;
-                                                  Assert ($obj -is [String]) "Argument errorOutInsteadOfThrow expected to be a ref-to-string, but got a ref to type: $($obj?.GetType()).";
+                                                  [String] $typeName = if( $null -eq $obj ){ "[Null]"; }elseif( $obj -is [String] ){ "[String]" }else{ "[$($obj.GetType().Name)]"; };
+                                                  Assert ($typeName -eq "[String]") "Argument errorOutInsteadOfThrow expected to be a ref-to-String, but got a ref to type: $typeName .";
                                                 }
                                                 [String] $exec = (Get-Command $cmd).Source;
                                                 [Boolean] $isPs = $exec.EndsWith(".ps1");
