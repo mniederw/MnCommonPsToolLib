@@ -704,7 +704,7 @@ function StreamFilterWhitespaceLines          (){ $input | Where-Object{ StringI
 function StreamToNull                         (){ $input | Out-Null; }
 function StreamToString                       (){ $input | Out-String -Width 999999999; }  # separated by os dependent newlines, can return empty string
 function StreamToStringDelEmptyLeadAndTrLines (){ $input | Out-String -Width 999999999 | ForEach-Object{ $_ -replace "[ \f\t\v]]+\r\n","\r\n" -replace "^(\r\n)+","" -replace "(\r\n)+$","" }; } # can return empty string
-function StreamToGridView                     (){ $input | Out-GridView -Title "TableData"; }
+function StreamToGridView                     (){ $input | Out-GridView -Title "TableData"; } # calls GUI app
 function StreamToCsvStrings                   (){ $input | ConvertTo-Csv -NoTypeInformation; }
                                                 # Note: For a simple string array as example  @("one","two")|StreamToCsvStrings  it results with 3 lines "Length","3","3".
 function StreamToJsonString                   (){ $input | ConvertTo-Json -Depth 100; }
@@ -930,7 +930,10 @@ function ProcessStart                         ( [String] $cmd, [String[]] $cmdAr
                                                 #   The double quote mark is interpreted as an escape sequence by the remaining backslash,
                                                 #   causing a literal double quote mark (") to be placed in argv.
                                                 AssertRcIsOk;
-                                                if( $null -ne $errorOutInsteadOfThrow){ Assert ($errorOutInsteadOfThrow.Value -is [String]) "Argument errorOutInsteadOfThrow cannot be specified as [String] because it is [ref] and only one attr is allowed, but it must be of type String instead of: $($errorOutInsteadOfThrow.Value?.GetType())"; }
+                                                if( $null -ne $errorOutInsteadOfThrow ){
+                                                  [Object] $obj = $errorOutInsteadOfThrow.Value;
+                                                  Assert ($obj -is [String]) "Argument errorOutInsteadOfThrow expected to be a ref-to-string, but got a ref to type: $($obj?.GetType()).";
+                                                }
                                                 [String] $exec = (Get-Command $cmd).Source;
                                                 [Boolean] $isPs = $exec.EndsWith(".ps1");
                                                 [String] $traceInfo = "`"$cmd`" $(StringArrayDblQuoteItems $cmdArgs)";
@@ -1423,7 +1426,7 @@ function FsEntryFindNotExistingVersionedName  ( [String] $fsEntry, [String] $ext
                                                 throw [Exception] "$(ScriptGetCurrentFunc)($fsEntry,$ext,$maxNr) not available because reached maxNr"; }
 function FsEntryAclGet                        ( [String] $fsEntry ){
                                                 ProcessRestartInElevatedAdminMode "Get-Acl requires elevated admin mode.";
-                                                return [System.Security.AccessControl.FileSystemSecurity] (Get-Acl -Path (FsEntryEsc $fsEntry)); }
+                                                return [System.Security.AccessControl.FileSystemSecurity] (Get-Acl -LiteralPath $fsEntry); }
 function FsEntryAclSetInheritance             ( [String] $fsEntry ){
                                                 [System.Security.AccessControl.FileSystemSecurity] $acl = FsEntryAclGet $fsEntry;
                                                 if( $acl.AreAccessRulesProtected ){
@@ -1456,45 +1459,32 @@ function PrivDirSecurityCreateOwner           ( [System.Security.Principal.Ident
                                                 $result.SetOwner($account);
                                                 return [System.Security.AccessControl.DirectorySecurity] $result; }
 function FsEntryTrySetOwner                   ( [String] $fsEntry, [System.Security.Principal.IdentityReference] $account, [Boolean] $recursive = $false ){
-                                                # usually account is (PrivGetGroupAdministrators); if the entry itself cannot be set then it tries to set on its parent the fullcontrol for admins.
+                                                # usually account is (PrivGetUserCurrent) or (PrivGetGroupAdministrators); 
+                                                # if the entry itself cannot be set then you should try to set on its parent the fullcontrol.
                                                 $fsEntry = FsEntryGetAbsolutePath $fsEntry;
                                                 ProcessRestartInElevatedAdminMode "TrySetOwner requires elevated admin mode.";
                                                 PrivEnableTokenPrivilege SeTakeOwnershipPrivilege;
                                                 PrivEnableTokenPrivilege SeRestorePrivilege;
                                                 PrivEnableTokenPrivilege SeBackupPrivilege;
                                                 [System.Security.AccessControl.FileSystemSecurity] $acl = FsEntryAclGet $fsEntry;
+                                                [System.Security.Principal.SecurityIdentifier] $sid = $account.Translate([System.Security.Principal.SecurityIdentifier]);
                                                 try{
                                                   [System.IO.FileSystemInfo] $fs = Get-Item -Force -LiteralPath $fsEntry;
                                                   if( $acl.Owner -ne $account ){
                                                     OutProgress "FsEntryTrySetOwner `"$fsEntry`" `"$($account.ToString())`" recursive=$recursive ";
                                                     if( $fs.PSIsContainer ){
-                                                      if( ProcessIsLesserEqualPs5 ){
-                                                        try{
-                                                          $fs.SetAccessControl((PrivDirSecurityCreateOwner $account));
-                                                        }catch{
-                                                          # 2024-03: Method invocation failed because [System.IO.DirectoryInfo] does not contain a method named 'SetAccessControl'.
-                                                          Write-Verbose "Ignore $_"; $error.clear();
-                                                          OutProgress "taking ownership of dir `"$($fs.FullName)`" failed so setting fullControl for administrators of its parent `"$($fs.Parent.FullName)`"";
-                                                          $fs.Parent.SetAccessControl((PrivDirSecurityCreateFullControl (PrivGetGroupAdministrators)));
-                                                          $fs.SetAccessControl((PrivDirSecurityCreateOwner $account));
-                                                        }
-                                                      }else{ # 2024-03 gets no error but no works for System Volume Information directory.
-                                                        $di = [System.IO.DirectoryInfo]::new($fsEntry);
-                                                        $ds = $di.GetAccessControl();
-                                                        [System.Security.Principal.SecurityIdentifier] $sid = $account.Translate([System.Security.Principal.SecurityIdentifier]);
-                                                        $ds.SetOwner($sid);
-                                                        $di.SetAccessControl($ds);
-                                                      }
+                                                      # Note: We use ps commands because on PS7 there is no [System.IO.DirectoryInfo].GetAccessControl() or SetAccessControl()
+                                                      $di = [System.IO.DirectoryInfo]::new($fsEntry);
+                                                      $ds = FsEntryAclGet $fsEntry;
+                                                      $ds.SetOwner($sid);
+                                                      Set-Acl -LiteralPath $fsEntry -AclObject $ds;
                                                     }else{ # is a file
-                                                      try{
-                                                        $fs.SetAccessControl((PrivFileSecurityCreateOwner $account));
-                                                      }catch{
-                                                        Write-Verbose "Ignore $_"; $error.clear();
-                                                        OutProgress "taking ownership of file `"$($fs.FullName)`" failed so setting fullControl for administrators of its dir `"$($fs.Directory.FullName)`"";
-                                                        $fs.Directory.SetAccessControl((PrivDirSecurityCreateFullControl (PrivGetGroupAdministrators)));
-                                                        $fs.SetAccessControl((PrivFileSecurityCreateOwner $account));
-                                                      }
-                                                    } }
+                                                      $di = [System.IO.FileInfo]::new($fsEntry);
+                                                      $ds = FsEntryAclGet $fsEntry;
+                                                      $ds.SetOwner($sid);
+                                                      Set-Acl -LiteralPath $fsEntry -AclObject $ds;
+                                                    }
+                                                  }
                                                   if( $recursive -and $fs.PSIsContainer ){
                                                     FsEntryListAsStringArray "$fs/*" $false | Where-Object{$null -ne $_} |
                                                       ForEach-Object{ FsEntryTrySetOwner $_ $account $true };
@@ -2967,7 +2957,7 @@ function GitInitGlobalConfig                  (){ # if git is installed the init
                                                 # filter.lfs.smudge         = git-lfs smudge -- %f
                                                 # filter.lfs.process        = git-lfs filter-process
                                                 # filter.lfs.required       = true
-                                                # core.editor               = "'${env:ProgramFiles(x86)}/Notepad++/notepad++.exe' -multiInst -notabbar -nosession -noPlugin"
+                                                # core.editor               = "'$env:ProgramFiles/Notepad++/notepad++.exe' -multiInst -notabbar -nosession -noPlugin"
                                                 # http.sslBackend           = openssl
                                                 # http.sslCAInfo            = $env:ProgramFiles/Git/mingw64/etc/ssl/certs/ca-bundle.crt
                                                 # user.name                 = "johndoe"

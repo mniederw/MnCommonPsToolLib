@@ -726,16 +726,15 @@ function ServiceGetState                      ( [String] $serviceName ){
                                                 if( $null -eq $s ){ return [String] ""; }
                                                 return [String] $s.Status; }
                                                 # ServiceControllerStatus: "","ContinuePending","Paused","PausePending","Running","StartPending","Stopped","StopPending".
-function ServiceStop                          ( [String] $serviceName, [Boolean] $ignoreIfFailed = $false, [Boolean] $suppressWarningIfFailed = $false ){
+function ServiceStop                          ( [String] $serviceName, [Boolean] $errorAsWarning = $false, [Boolean] $suppressWarningIfFailed = $false ){
                                                 [String] $s = ServiceGetState $serviceName;
                                                 if( $s -eq "" -or $s -eq "stopped" ){ return; }
-                                                OutProgress "ServiceStop $serviceName $(switch($ignoreIfFailed){($true){'ignoreIfFailed'}default{''}}) $(switch($suppressWarningIfFailed){($true){'suppressWarningIfFailed'}default{''}})";
+                                                OutProgress "ServiceStop $serviceName $(switch($errorAsWarning){($true){'-errorAsWarning'}default{''}}) $(switch($suppressWarningIfFailed){($true){'-suppressWarningIfFailed'}default{''}})";
                                                 ProcessRestartInElevatedAdminMode;
                                                 try{ Stop-Service -Name $serviceName; } # Instead of check for stopped service we could also use -PassThru.
                                                 catch{
-                                                  # Example:  ServiceCommandException: Service 'Check Point Endpoint Security VPN (TracSrvWrapper)' cannot be stopped due to the following error: Cannot stop 'TracSrvWrapper' service on computer '.'."
-                                                  # 2025-09-03/LN WARNING: Waiting for service 'Check Point Endpoint Security VPN (TracSrvWrapper)' to stop...
-                                                  if( $ignoreIfFailed ){
+                                                  # Example: ServiceCommandException: Service 'Check Point Endpoint Security VPN (TracSrvWrapper)' stop failed.
+                                                  if( $errorAsWarning ){
                                                     if( -not $suppressWarningIfFailed ){ OutWarning "Warning: Stopping service failed, ignored: $($_.Exception.Message)"; }
                                                   }else{ throw; }
                                                 } }
@@ -789,14 +788,14 @@ function ServiceMapHiddenToCurrentName        ( [String] $serviceName ){
                                                   Select-Object -First 1);
                                                 if( $result -eq "" ){ $result = $serviceName;}
                                                 return [String] $result; }
-function ServiceDisable                       ( [String] $serviceName, [Boolean] $useLikeOperator = $false ){
+function ServiceDisable                       ( [String] $serviceName, [Boolean] $useLikeOperator = $false, [Boolean] $errorAsWarning = $false ){
                                                 if( $useLikeOperator ){
-                                                  ServiceListExistings | Where-Object{ $_.Name -like $serviceName } | ForEach-Object{ ServiceDisable $_.Name $false; }
+                                                  ServiceListExistings | Where-Object{ $_.Name -like $serviceName } | ForEach-Object{ ServiceDisable $_.Name $false $errorAsWarning; }
                                                   return;
                                                 }
                                                 if( -not (ServiceExists $serviceName) ){ return; }
-                                                ServiceStop $serviceName;
-                                                ServiceSetStartType $serviceName "Disabled"; }
+                                                ServiceStop $serviceName $errorAsWarning;
+                                                ServiceSetStartType $serviceName "Disabled" $errorAsWarning; }
 function TaskList                             (){
                                                 Get-ScheduledTask | Where-Object{$null -ne $_} |
                                                   Select-Object @{Name="Name";Expression={($_.TaskPath+$_.TaskName)}}, State, Author, Description |
@@ -2660,14 +2659,23 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){ # runs in about 12-90 sec and 
                                                   #   'PSReadline, WindowsUpdateProvider' with UI culture(s) {en-US} : One or more errors occurred.
                                                   #   (Response status code does not indicate success: 404 (Not Found).).
                                                   #   English-US help content is available and can be installed using: Update-Help -UICulture en-US.
-                                                  # Example: 2025-01: Got known response 404=NotFound for en-US of: ConfigDefender, ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate.
+                                                  # Example: 2025-01: Got known response 404=NotFound for en-US of: ConfigDefender, 
+                                                  #   ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate.
                                                   # Example: 2025-01 Failed to update Help for the module(s)
                                                   #   'ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate' with UI culture(s) {en-US} :
                                                   #   One or more errors occurred. (Response status code does not indicate success: 404 (The specified blob does not exist.).).
                                                   #   English-US help content is available and can be installed using: Update-Help -UICulture en-US.
-                                                  # Example: 2025-02: Got known response 404=NotFound for en-US of: ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate.
+                                                  # Example: 2025-02: Got known response 404=NotFound for en-US of: 
+                                                  #   ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate.
+                                                  # Example: 2025-12: Failed to update Help for the module(s) 'Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate' 
+                                                  #   with UI culture(s) {en-US} : One or more errors occurred. 
+                                                  #   (Response status code does not indicate success: 404 (The requested content does not exist.).).
+                                                  #   English-US help content is available and can be installed using: Update-Help -UICulture en-US. 
+                                                  #   Failed to update Help for the module(s) 'MnCommonPsToolLib' with UI culture(s) {en-US} : 
+                                                  #   A Help URI cannot contain more than 10 redirections. Specify a valid Help URI..
+                                                  #   English-US help content is available and can be installed using: Update-Help -UICulture en-US.
                                                   return [Boolean] ($msg.StartsWith("Failed to update Help for the module(s) '") -and
-                                                    $msg.StartsWith("ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate") -and
+                                                    $msg.StartsWith("Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate") -and
                                                     $msg.StartsWith("(Response status code does not indicate success: 404 (The requested content does not exist.)") -and
                                                     $msg.StartsWith("Update-Help -UICulture en-US."));
                                                 }
@@ -2678,13 +2686,13 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){ # runs in about 12-90 sec and 
                                                 if( (FileNotExists $touchFile) -or (FsEntryGetLastModified $touchFile) -lt $lastModuleUpdateTs ){
                                                   OutProgress "Update-Help to en-US with continue-on-error ";
                                                   [String] $out = Update-Help -UICulture en-US -ErrorAction Continue *>&1 | ForEach-Object{ "$_"; }; ScriptResetRc;
-                                                  if( HasKnowErrMsg $out ){ $out = "Got known response 404=NotFound for en-US of: ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate. "; }
+                                                  if( HasKnowErrMsg $out ){ $out = "Got known response 404=NotFound for en-US modules: Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate. "; }
                                                   Write-Progress -Activity " " -Status " " -Completed;
                                                   OutProgress "  $out";
                                                   OutProgress "Update-Help to current Culture with continue-on-error: $((Get-Culture).Name) = $((Get-Culture).DisplayName)"; # Example: "de-CH"
                                                   [String] $out = Update-Help -ErrorAction Continue *>&1 | ForEach-Object{ "$_"; }; ScriptResetRc;
                                                     # Usually we get the same errors as with en-US
-                                                  if( HasKnowErrMsg $out ){ $out = "Got known response 404=NotFound for en-US of: ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate. "; }
+                                                  if( HasKnowErrMsg $out ){ $out = "Got known response 404=NotFound for en-US modules: Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate. "; }
                                                   Write-Progress -Activity " " -Status " " -Completed;
                                                   OutProgress "  $out";
                                                   FileTouch $touchFile;

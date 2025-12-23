@@ -56,15 +56,14 @@ function UnitTest_Win_Info(){
       #     Installed CLRs: v2.0.50727
       #     Installed CLRs: v4.0.30319
       #   List running DotNet Processes (clrver.exe -all):
-      #     Running Processes and its CLR: 8588 devenv.exe              v4.0.30319
-      #     Running Processes and its CLR: 8572 PerfWatson2.exe         v4.0.30319
-      #     Running Processes and its CLR: 3988 Microsoft.ServiceHub.Controller.exe     v4.0.30319
-      #     Running Processes and its CLR: 12664        ServiceHub.VSDetouredHost.exe   v4.0.30319
-      #     Running Processes and its CLR: 8376 ServiceHub.SettingsHost.exe     v4.0.30319
-      #     Running Processes and its CLR: 12968        ServiceHub.IntellicodeModelService.exe  v4.0.30319
-      #     Running Processes and its CLR: 4364 FcContextMenu64.exe     v4.0.30319
-      #     Running Processes and its CLR: 7672 notepad++.exe           v4.0.30319
-      #     Running Processes and its CLR: 9992 notepad++.exe           v4.0.30319
+      #     Running Processes and its CLR: 8588  devenv.exe                              v4.0.30319
+      #     Running Processes and its CLR: 8572  PerfWatson2.exe                         v4.0.30319
+      #     Running Processes and its CLR: 3988  Microsoft.ServiceHub.Controller.exe     v4.0.30319
+      #     Running Processes and its CLR: 12664 ServiceHub.VSDetouredHost.exe           v4.0.30319
+      #     Running Processes and its CLR: 8376  ServiceHub.SettingsHost.exe             v4.0.30319
+      #     Running Processes and its CLR: 12968 ServiceHub.IntellicodeModelService.exe  v4.0.30319
+      #     Running Processes and its CLR: 4364  FcContextMenu64.exe                     v4.0.30319
+      #     Running Processes and its CLR: 7672  notepad++.exe                           v4.0.30319
       # 4.7.2 or later (533325)
   }
   #
