@@ -107,7 +107,9 @@ function ExampleUseNetDownloadIsSuccessful {
 function ExampleUseListFirstFivePublicReposOfGithubOrg {
   OutProgressTitle "$($MyInvocation.MyCommand)";
   # find by: https://api.github.com/search/users?q=type:org
-  [String[]] $orgs = @( "arduino", "google", "microsoft", "github", "EpicGames", "facebook", "openai", "alibaba", "apple", "dotnet" );
+  # List orgs which have more than 100 repos
+  [String[]] $orgs = @( "arduino", "google", "microsoft", "github", "EpicGames", "facebook", "openai", 
+    "alibaba", "apple", "dotnet", "docker", "apache","nodejs","elastic","mozilla","rust-lang" );
   # note: using this can lead to error: "Response status code does not indicate success: 403 (rate limit exceeded)."
   # so we choose randomly one and hope this works.
   [String] $randomOrg = $orgs[(Get-Random -Minimum 0 -Maximum ($orgs.Count))];

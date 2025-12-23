@@ -116,6 +116,7 @@ function UnitTest_KnowBugsOrDesignErrors(){
   #       Remove-Item -Force "Alias:curl" -ErrorAction SilentlyContinue; Remove-Item -Force "Alias:wget" -ErrorAction SilentlyContinue;
   #     Alternative: If you want to use curl and have to bypass the curl alias you need to do the following:
   #     [String] $curlPath = "$(get-command -CommandType Application curl -ErrorAction SilentlyContinue | Select -First 1 | ForEach-Object{ $_.Source })";
+  #     2024-02 update: On windows ps7.4 the curl and wget alias are finally gone (but still in PS5)!
   #
   #
   # Automatically added folders (2023-02):

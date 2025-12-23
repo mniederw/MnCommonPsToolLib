@@ -1997,6 +1997,7 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                 #   because they returned 404=not-found, but NetDownloadFileByCurl worked successfully.
                                                 # If ignoreSslCheck is true then it will currently ignore all following calls,
                                                 #   so this is no good solution (use NetDownloadFileByCurl).
+                                                # If it fails because a tranient error httpCode=(-1,408,429,500,502,503,504) and for timeout we have time left then until 3 retries are performed.
                                                 # Maybe later: OAuth. Example: https://docs.github.com/en/free-pro-team@latest/rest/overview/other-authentication-methods
                                                 # Alternative on PS5 and PS7: Invoke-RestMethod -Uri "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/main/MnCommonPsToolLib/MnCommonPsToolLib.psm1" -OutFile "$env:TEMP/tmp/p.tmp";
                                                 $tarFile = FsEntryGetAbsolutePath $tarFile;
@@ -2040,55 +2041,88 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                 [String] $tarDir = FsEntryGetParentDir $tarFile;
                                                 DirCreate $tarDir;
                                                 [System.Management.Automation.PSCredential] $cred = $(switch($us -eq ""){ ($true){$null} default{(CredentialCreate $us $pw)} });
-                                                try{
-                                                  [Boolean] $useWebclient = $false; # we currently use Invoke-WebRequest because its more comfortable than WebClient.DownloadFile
-                                                  if( $useWebclient ){
-                                                    OutVerbose "WebClient.DownloadFile(url=$url,us=$us,tar=`"$tarFile`")";
-                                                    $webclient = New-Object System.Net.WebClient;
-                                                    # Defaults: AllowAutoRedirect is true.
-                                                    $webclient.Headers.Add("User-Agent",$userAgent);
-                                                    # For future use: $webclient.Headers.Add("Content-Type","application/x-www-form-urlencoded");
-                                                    # not relevant because getting byte array: $webclient.Encoding = "Default" or "UTF8";
-                                                    if( $us -ne "" ){
-                                                      $webclient.Credentials = $cred;
-                                                    }
-                                                    $webclient.DownloadFile($url,$tarFile); # use DotNet function WebClient.downloadFile (maybe we also would have to implement basic header for example when using api.github.com)
-                                                  }else{
-                                                    # For future use: -UseDefaultCredentials, -Method, -Body, -ContentType, -TransferEncoding, -InFile
-                                                    if( $us -ne "" ){
-                                                      If( $authMethod -cne "Basic" ){ throw [Exception] "Currently authMethod Basic is only implemented, unknown: `"$authMethod`""; }
-                                                      # https://www.ietf.org/rfc/rfc2617.txt
-                                                      [String] $base64 = [System.Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes("${us}:$pw"));
-                                                      [Hashtable] $headers = @{ Authorization = "Basic $base64" };
-                                                      # Note: on api.github.com the -Credential option is ignored
-                                                      #   (see https://docs.github.com/en/free-pro-team@latest/rest/overview/other-authentication-methods ),
-                                                      # so it requires the basic auth in header, but we also add $cred maybe for other servers. By the way curl -u works.
-                                                      OutVerbose "Invoke-WebRequest -Uri `"$url`" -OutFile `"$tarFile`" -MaximumRedirection 2 -TimeoutSec 70 -UserAgent `"$userAgent`" -Headers `"$headers`" (Credential-User=`"$us`",authMethod=$authMethod);";
-                                                      Invoke-WebRequest -Uri $url -OutFile $tarFile -MaximumRedirection 2 -TimeoutSec 70 -UserAgent $userAgent -Headers $headers -Credential $cred;
+                                                [Int32]    $timeoutInSec = 70;
+                                                [Int32]    $nrOfRetries = 0;
+                                                [Int32]    $maxNrOfRetries = 3;
+                                                [DateTime] $startedAt = Get-Date;
+                                                [Int32]    $invokeTimeoutInSec = $timeoutInSec;
+                                                while($true){
+                                                  try{
+                                                    [Boolean] $useWebclient = $false; # we currently use Invoke-WebRequest because its more comfortable than WebClient.DownloadFile
+                                                    if( $useWebclient ){
+                                                      OutVerbose "WebClient.DownloadFile(url=$url,us=$us,tar=`"$tarFile`")";
+                                                      $webclient = New-Object System.Net.WebClient;
+                                                      # Defaults: AllowAutoRedirect is true.
+                                                      $webclient.Headers.Add("User-Agent",$userAgent);
+                                                      # For future use: $webclient.Headers.Add("Content-Type","application/x-www-form-urlencoded");
+                                                      # not relevant because getting byte array: $webclient.Encoding = "Default" or "UTF8";
+                                                      if( $us -ne "" ){
+                                                        $webclient.Credentials = $cred;
+                                                      }
+                                                      $webclient.DownloadFile($url,$tarFile); # use DotNet function WebClient.downloadFile (maybe we also would have to implement basic header for example when using api.github.com)
                                                     }else{
-                                                      OutVerbose "Invoke-WebRequest -Uri `"$url`" -OutFile `"$tarFile`" -MaximumRedirection 2 -TimeoutSec 70 -UserAgent `"$userAgent`"; ";
-                                                      Invoke-WebRequest -Uri $url -OutFile $tarFile -MaximumRedirection 2 -TimeoutSec 70 -UserAgent $userAgent;
+                                                      # For future use: -UseDefaultCredentials, -Method, -Body, -ContentType, -TransferEncoding, -InFile
+                                                      if( $us -ne "" ){
+                                                        If( $authMethod -cne "Basic" ){ throw [Exception] "Currently authMethod Basic is only implemented, unknown: `"$authMethod`""; }
+                                                        # https://www.ietf.org/rfc/rfc2617.txt
+                                                        [String] $base64 = [System.Convert]::ToBase64String([System.Text.Encoding]::ASCII.GetBytes("${us}:$pw"));
+                                                        [Hashtable] $headers = @{ Authorization = "Basic $base64" };
+                                                        # Note: on api.github.com the -Credential option is ignored
+                                                        #   (see https://docs.github.com/en/free-pro-team@latest/rest/overview/other-authentication-methods ),
+                                                        # so it requires the basic auth in header, but we also add $cred maybe for other servers. By the way curl -u works.
+                                                        OutVerbose "Invoke-WebRequest -Uri `"$url`" -OutFile `"$tarFile`" -MaximumRedirection 2 -TimeoutSec $timeoutInSec -UserAgent `"$userAgent`" -Headers `"$headers`" (Credential-User=`"$us`",authMethod=$authMethod);";
+                                                        Invoke-WebRequest -Uri $url -OutFile $tarFile -MaximumRedirection 2 -TimeoutSec $timeoutInSec -UserAgent $userAgent -Headers $headers -Credential $cred;
+                                                      }else{
+                                                        OutVerbose "Invoke-WebRequest -Uri `"$url`" -OutFile `"$tarFile`" -MaximumRedirection 2 -TimeoutSec $timeoutInSec -UserAgent `"$userAgent`"; ";
+                                                        Invoke-WebRequest -Uri $url -OutFile $tarFile -MaximumRedirection 2 -TimeoutSec $timeoutInSec -UserAgent $userAgent;
+                                                      }
                                                     }
+                                                    [Int32] $usedMilliSec = [Int32]([Math]::Ceiling(((New-Timespan -Start $startedAt -End (Get-Date)).TotalMilliseconds)));
+                                                    [String] $stateMsg = "  Ok, downloaded $(FileGetSize $tarFile) bytes, usedMilliSec=$usedMilliSec.";
+                                                    OutProgress $stateMsg;
+                                                    return;
+                                                  }catch{
+                                                    # exc: The request was aborted: Could not create SSL/TLS secure channel.
+                                                    # exc: Ausnahme beim Aufrufen von "DownloadFile" mit 2 Argument(en):  "The server committed a protocol violation. Section=ResponseStatusLine"
+                                                    # exc PS5.1: System.Net.WebException: Der Remoteserver hat einen Fehler zurückgegeben: (404) Nicht gefunden.
+                                                    # exc PS7  : Microsoft.PowerShell.Commands.HttpResponseException: Response status code does not indicate success: 504 (Gateway Timeout).
+                                                    [Int32] $usedSec = [Int32]((New-Timespan -Start $startedAt -End (Get-Date)).TotalSeconds+0.999);
+                                                    [Int32] $timeLeftInSec = $timeoutInSec - $usedSec; # 
+                                                    [Int32] $httpResponseCode = if( $_.Exception -is [System.Net.WebException] ){ ([System.Net.WebException]($_.Exception)).Response.StatusCode; }
+                                                    elseif( $_.Exception -is [Microsoft.PowerShell.Commands.HttpResponseException] ){ [Int32](([Microsoft.PowerShell.Commands.HttpResponseException]($_.Exception)).Response.StatusCode); }
+                                                    else{ -1; };
+                                                    [Boolean] $httpResponseCodeMeansIsWorthToRetry = $httpResponseCode -in @(
+                                                        -1 # Some network exceptions without a status code (DNS hiccup, connection reset)
+                                                      ,408 # Request Timeout — server timed out waiting for request.
+                                                      ,429 # Too Many Requests — rate limiting; often includes Retry-After.
+                                                      ,500 # Internal Server Error — can be transient (bad deploy, overloaded).
+                                                      ,502 # Bad Gateway — upstream failure / proxy glitch.
+                                                      ,503 # Service Unavailable — overload / maintenance.
+                                                      ,504 # Gateway Timeout — upstream timeout
+                                                    );
+                                                    [Boolean] $doRetry = $usedSec -lt $timeoutInSec -and $httpResponseCodeMeansIsWorthToRetry -and $nrOfRetries -lt $maxNrOfRetries;
+                                                    if( -not $doRetry ){
+                                                      [String] $msg = $_.Exception.Message; $error.clear();
+                                                      if( $msg.Contains("Section=ResponseStatusLine") ){ $msg = "Server returned not a valid HTTP response. "+$msg; }
+                                                      $msg = "  NetDownloadFile(url=$url ,us=$us,tar=$tarFile) failed because $msg";
+                                                      if( -not $errorAsWarning ){ throw [ExcMsg] $msg; } OutWarning "Warning: $msg"; return;
+                                                    }
+                                                    [Int32] $invokeTimeoutInSec = $timeLeftInSec;
+                                                    OutProgress "Invoke-WebRequest -Uri `"$url`" -TimeoutSec $invokeTimeoutInSec; do retry because (usedSec=$usedSec < timeoutInSec=$timeoutInSec) and (httpResponseCode=$httpResponseCode means is worth to retry) and (nrOfRetries=$nrOfRetries < maxNrOfRetries=$maxNrOfRetries).";
+                                                    $nrOfRetries++;
+                                                    Start-Sleep -Seconds 1;
                                                   }
-                                                  [String] $stateMsg = "  Ok, downloaded $(FileGetSize $tarFile) bytes.";
-                                                  OutProgress $stateMsg;
-                                                }catch{
-                                                  # exc: The request was aborted: Could not create SSL/TLS secure channel.
-                                                  # exc: Ausnahme beim Aufrufen von "DownloadFile" mit 2 Argument(en):  "The server committed a protocol violation. Section=ResponseStatusLine"
-                                                  # exc: System.Net.WebException: Der Remoteserver hat einen Fehler zurückgegeben: (404) Nicht gefunden.
-                                                  # for future use: $fileNotExists = $_.Exception -is [System.Net.WebException] -and (([System.Net.WebException]($_.Exception)).Response.StatusCode.value__) -eq 404;
-                                                  [String] $msg = $_.Exception.Message; $error.clear();
-                                                  if( $msg.Contains("Section=ResponseStatusLine") ){ $msg = "Server returned not a valid HTTP response. "+$msg; }
-                                                  $msg = "  NetDownloadFile(url=$url ,us=$us,tar=$tarFile) failed because $msg";
-                                                  if( -not $errorAsWarning ){ throw [ExcMsg] $msg; } OutWarning "Warning: $msg";
-                                                } }
+                                                }
+                                              }
 function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false,
                                                 [Boolean] $onlyIfNewer = $false, [Boolean] $errorAsWarning = $false ){
                                                 # Download a single file by overwrite it (as NetDownloadFile).
-                                                # It requires and uses curl executable in path and it ignores any curl alias as you would find it in PS5 because this would references not a curl program.
+                                                # It requires and uses curl executable in path and it ignores any curl alias 
+                                                # as you would find it in PS5 because this would references not a curl program.
                                                 # Redirections are followed, timestamps are also fetched, logging info is stored in a global logfile,
                                                 # for user agent info a mozilla firefox is set,
                                                 # if file curl-ca-bundle.crt exists next to curl executable then this is taken.
+                                                # If it fails because a httpCode=(-1,408,500,502,503,504,429) and for timeout we have time left then until 3 retries are performed.
                                                 # Supported protocols: DICT, FILE, FTP, FTPS, Gopher, HTTP, HTTPS, IMAP, IMAPS, LDAP, LDAPS,
                                                 #                      POP3, POP3S, RTMP, RTSP, SCP, SFTP, SMB, SMTP, SMTPS, Telnet and TFTP.
                                                 # Supported features:  SSL certificates, HTTP POST, HTTP PUT, FTP uploading, HTTP form based upload,
@@ -2098,6 +2132,7 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                 $tarFile = FsEntryGetAbsolutePath $tarFile;
                                                 AssertNotEmpty $url "url";
                                                 if( $us -ne "" ){ AssertNotEmpty $pw "passwordForUsername=$us"; }
+                                                [DateTime] $startedAt = Get-Date;
                                                 [String[]] $opt = @( # see https://curl.haxx.se/docs/manpage.html
                                                    "--show-error"                            # Show error. With -s, make curl show errors when they occur
                                                   ,"--fail"                                  # if http response code is 4xx or 5xx then fail, but 3XX (redirects) are ok.
@@ -2105,8 +2140,9 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                   ,"--silent"                                # Silent mode (don't output anything), no progress meter
                                                   ,"--create-dirs"                           # create the necessary local directory hierarchy as needed of --output file
                                                   ,"--connect-timeout", "70"                 # in sec
-                                                  ,"--retry","2"                             # Retry request NUM times if transient problems occur
-                                                  ,"--retry-delay","5"                       # Wait SECONDS between retries
+                                                  ,"--retry","3"                             # Retry request NUM times if transient problems occur
+                                                  ,"--retry-delay","1"                       # Wait SECONDS between retries
+                                                  ,"--retry-max-time", "70"                  # Retry only within this period
                                                   ,"--tlsv1.2"                               # Use TLSv1.2 (SSL)
                                                   ,"--remote-time"                           # Set the remote file's time on the local output
                                                   ,"--location"                              # Follow redirects (H)
@@ -2216,7 +2252,6 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                   # --remote-time                            # Set the remote file's time on the local output
                                                   # --request COMMAND                        # Specify request command to use
                                                   # --resolve HOST:PORT:ADDRESS              # Force resolve of HOST:PORT to ADDRESS
-                                                  # --retry-max-time SECONDS                 # Retry only within this period
                                                   # --sasl-ir                                # Enable initial response in SASL authentication
                                                   # --socks4 HOST[:PORT]                     # SOCKS4 proxy on given host + port
                                                   # --socks4a HOST[:PORT]                    # SOCKS4a proxy on given host + port
@@ -2296,7 +2331,8 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                   #   77: "SEC_E_UNTRUSTED_ROOT certificate chain not trustworthy (alternatively use insecure option or add server to curl-ca-bundle.crt next to curl.exe)."
                                                   #       schannel: next InitializeSecurityContext failed: SEC_E_UNTRUSTED_ROOT (0x80090325) - Die Zertifikatkette wurde von einer nicht vertrauenswürdigen Zertifizierungsstelle ausgestellt.
                                                   OutVerbose $out;
-                                                  OutProgress "  Ok, downloaded $(FileGetSize $tarFile) bytes.";
+                                                  [Int32] $usedMilliSec = [Int32]([Math]::Ceiling(((New-Timespan -Start $startedAt -End (Get-Date)).TotalMilliseconds)));
+                                                  OutProgress "  Ok, downloaded $(FileGetSize $tarFile) bytes, usedMilliSec=$usedMilliSec.";
                                                 }catch{
                                                   [String] $msg = "  ($curlExe $optForTrace) failed because $($_.Exception.Message)"; $error.clear();
                                                   if( -not $errorAsWarning ){ throw [ExcMsg] $msg; } OutWarning "Warning: $msg";
@@ -3141,6 +3177,9 @@ function ToolGithubApiListOrgRepos            ( [String] $org, [System.Managemen
                                                 # List all repos (ordered by archived and url) from an org on github.
                                                 # If user and its Personal-Access-Token PAT instead of password is specified then not only public
                                                 # but also private repos are listed.
+                                                # Note: We sometimes get: "Response status code does not indicate success: 504 (Gateway Time-out)."
+                                                #                      or "Response status code does not indicate success: 403 (rate limit exceeded)."
+                                                AssertNotEmpty $org "org";
                                                 [String] $us = CredentialGetUsername $cred;
                                                 [String] $pw = CredentialGetPassword $cred;
                                                 OutProgress "List all github repos from $org with user=`"$us`"";
