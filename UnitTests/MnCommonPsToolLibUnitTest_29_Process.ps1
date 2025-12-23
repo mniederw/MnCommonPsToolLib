@@ -19,7 +19,12 @@ function UnitTest_Process(){
   ProcessKill            "notepad99";
   ProcessSleepSec 1;
   Assert ((ProcessGetApplInEnvPath "curl").Length -gt 10);
+  #
   ProcessStart "tar" @("--version") | Out-Null; # any exe which should exists on all platforms
+  [String] $errMsg = "";
+  ProcessStart "curl" @("--silent", "--url", "https://unknown-domain.ch/") $false $true 30 ([ref]$errMsg) 6>&1 | Out-Null;
+  Assert ($errMsg -eq 'ProcessStart("curl" "--silent" "--url" "https://unknown-domain.ch/") failed with rc=6.');
+  #
   Assert ((ProcessEnvVarGet "PATH").Length -gt 80);
   if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){ ProcessEnvVarSet; }
   if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){ ProcessEnvVarPathAdd "PATH" "$HOME"; }
