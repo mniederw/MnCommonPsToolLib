@@ -121,7 +121,7 @@ function ExampleUseListFirstFivePublicReposOfGithubOrg {
   }catch{ [String] $msg = $_.Exception.Message;
     if( -not ($msg.Contains("403 (rate limit exceeded)") -or $msg.Contains("504 (Gateway Time-out)")) ){ throw; }
     OutWarning "We got 403 or 504 which we must ignore because it occurrs sometimes ($msg).";
-    OutWarnProgressSuccess "Ok, done.";
+    OutProgressSuccess "Ok, done.";
   }
 }
 
