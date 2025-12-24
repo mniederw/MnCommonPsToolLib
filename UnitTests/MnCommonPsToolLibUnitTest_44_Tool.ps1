@@ -40,9 +40,10 @@ function UnitTest_Tool(){
     ToolGithubApiListOrgRepos "TheAlgorithms"  | Where-Object{ -not $_.archived -and -not $_.private } |
       Select-Object Url, default_branch, fork, forks, language, CreatedAt, UpdatedAt, PermAdm, PermPush, PermPull, LicName, Description -First 3;
     [String] $tmpDir = ToolGithubApiDownloadLatestReleaseDir "https://github.com/mniederw/MnCommonPsToolLib/"; Assert ($tmpDir.Length -gt 5);
-  }catch{ # Response status code does not indicate success: 403 (rate limit exceeded).
-    if( -not $_.Exception.Message.Contains("403 (rate limit exceeded)") ){ throw; }
-    OutWarning "Warning: Ignored: $_.Exception.Message";
+  }catch{ # Response status code does not indicate success: 403 (rate limit exceeded). Or: curl: (56) The requested URL returned error: 403
+    [String] $msg = $_.Exception.Message;
+    if( -not ($msg.Contains("403 (rate limit exceeded)") -or $msg.Contains("The requested URL returned error: 403")) ){ throw; }
+    OutWarning "Warning: Sometimes we get 403 (rate limit exceeded). Ignored: $_.Exception.Message";
   }
   #
   AssertIsEmpty (ToolNpmFilterIgnorableInstallMessages @(""

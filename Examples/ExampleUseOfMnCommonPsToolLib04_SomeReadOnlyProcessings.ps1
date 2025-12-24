@@ -107,7 +107,9 @@ function ExampleUseNetDownloadIsSuccessful {
 function ExampleUseListFirstFivePublicReposOfGithubOrg {
   OutProgressTitle "$($MyInvocation.MyCommand)";
   # find by: https://api.github.com/search/users?q=type:org
-  [String[]] $orgs = @( "arduino", "google", "microsoft", "github", "EpicGames", "facebook", "openai", "alibaba", "apple", "dotnet" );
+  # List orgs which have more than 100 repos
+  [String[]] $orgs = @( "arduino", "google", "microsoft", "github", "EpicGames", "facebook", "openai", 
+    "alibaba", "apple", "dotnet", "docker", "apache","nodejs","elastic","mozilla","rust-lang" );
   # note: using this can lead to error: "Response status code does not indicate success: 403 (rate limit exceeded)."
   # so we choose randomly one and hope this works.
   [String] $randomOrg = $orgs[(Get-Random -Minimum 0 -Maximum ($orgs.Count))];
@@ -116,9 +118,10 @@ function ExampleUseListFirstFivePublicReposOfGithubOrg {
   ToolGithubApiListOrgRepos $randomOrg | Select-Object -First 5 Url, archived, language, default_branch, LicName |
     StreamToTableString | Foreach-Object { OutProgress $_; };
     OutProgressSuccess "Ok, done.";
-  }catch{
-    if( -not $_.Exception.Message.Contains("403 (rate limit exceeded)") ){ throw; }
-    OutProgressSuccess "Ok, done. We got 403(rate-limit-exceeded) which we must ignore because it occurrs sometimes.";
+  }catch{ [String] $msg = $_.Exception.Message;
+    if( -not ($msg.Contains("403 (rate limit exceeded)") -or $msg.Contains("504 (Gateway Time-out)")) ){ throw; }
+    OutWarning "We got 403 or 504 which we must ignore because it occurrs sometimes ($msg).";
+    OutProgressSuccess "Ok, done.";
   }
 }
 
