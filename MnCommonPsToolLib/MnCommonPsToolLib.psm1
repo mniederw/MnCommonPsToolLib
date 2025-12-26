@@ -1681,7 +1681,6 @@ function FileWriteFromString                  ( [String] $file, [String] $conten
 function FileWriteFromLines                   ( [String] $file, [String[]] $lines, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM" ){
                                                 # Appends also a newline to last line.
                                                 $file = FsEntryGetAbsolutePath $file;
-                                                OutProgress "WriteFile `"$file`"";
                                                 FsEntryCreateParentDir $file;
                                                 $lines | StreamToFile $file $overwrite $encoding; }
 function FileCreateEmpty                      ( [String] $file, [Boolean] $overwrite = $false, [Boolean] $quiet = $false, [String] $encoding = "UTF8BOM" ){
@@ -2790,16 +2789,11 @@ function GitListCommitComments                ( [String] $tarDir, [String] $loca
                                                   if( -not (FsEntryNotExistsOrIsOlderThanNrDays $fout $doOnlyIfOlderThanAgeInDays) ){
                                                     OutProgress "Process git log not nessessary because file is newer than $doOnlyIfOlderThanAgeInDays days: `"$fout`"";
                                                   }else{
-                                                    [String[]] $options = @( "--git-dir=$($localRepoDir).git", "log", "--after=1990-01-01", "--pretty=format:%ci %cn [%ce] %s" );
+                                                    [String[]] $options = @( "--git-dir=$($localRepoDir).git", "log", "--after=1990-01-01", "--pretty=format:%ci %<(32)%cn %<(50)%ce %s" );
                                                     if( $doSummary ){ $options += "--summary"; }
                                                     [String] $out = "";
                                                     try{
                                                       # git can write warnings to stderr which we not handle as error.
-                                                      # 2025-12: Now solved but earlier we had this problem:
-                                                      #   Note: We have an unresolved problem, that ProcessStart would hang (more see: UnitTests/TodoUnresolvedProblems.ps1), so we use call operator.
-                                                      #   $out = (ProcessStart "git" $options -careStdErrAsOut:$true -traceCmd:$true);
-                                                      #   Example: ProcessStart of ("git" "--git-dir=D:/Workspace/mniederw/MnCommonPsToolLib/.git" "log" "--after=1990-01-01" "--pretty=format:%ci %cn [%ce] %s" "--summary")
-                                                      #   $out = & "git" "--git-dir=$($localRepoDir).git" "log" "--after=1990-01-01" "--pretty=format:%ci %cn [%ce] %s" 2>&1; AssertRcIsOk;
                                                       $out = (ProcessStart "git" $options -careStdErrAsOut:$true -traceCmd:$true);
                                                     }catch{
                                                       # 2024-03: m="Last operation failed [ExitCode=128]. For the reason see the previous output. "
