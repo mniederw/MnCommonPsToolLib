@@ -146,10 +146,10 @@ function SetAllEnvsExecutionPolicy            ( [String] $mode = "Bypass" ){ # F
 [String]   $tarRootDir32bit            = "${env:ProgramFiles(x86)}\WindowsPowerShell\Modules";
 [String]   $tarRootDir64bit            = "$env:ProgramW6432\WindowsPowerShell\Modules";
 [String]   $tarRootDirCurrUser         = "$HOME\Documents\WindowsPowerShell\Modules\";
-[String]   $srcRootDir                 = $PSScriptRoot; if( $srcRootDir -eq "" ){ $srcRootDir = FsEntryGetAbsolutePath "."; } # Example: "D:\WorkGit\myuser\MyNameOfPsToolLib_master"
+[String]   $srcRootDir                 = $PSScriptRoot; if( $srcRootDir -eq "" ){ $srcRootDir = FsEntryGetAbsolutePath "."; } # Example: "D:\WorkGit\myuser\MyNameOfPsToolLib_main"
 [String[]] $dirsWithPsm1Files          = @()+(DirListDirs $srcRootDir | Where-Object{ DirHasFiles $_ "*.psm1" });
                                          if( $dirsWithPsm1Files.Count -ne 1 ){ throw [Exception] "Tool is designed for working below '$srcRootDir' with exactly one directory which contains psm1 files but found $($dirsWithPsm1Files.Count) dirs ($dirsWithPsm1Files)"; }
-[String]   $moduleSrcDir               = $dirsWithPsm1Files[0]; # Example: "D:\WorkGit\myuser\MyNameOfPsToolLib_master\MyNameOfPsToolLib" or "/home/myuser/Workspace/mniederw/MnCommonPsToolLib#trunk/MnCommonPsToolLib"
+[String]   $moduleSrcDir               = $dirsWithPsm1Files[0]; # Example: "D:\WorkGit\myuser\MyNameOfPsToolLib_main\MyNameOfPsToolLib" or "/home/myuser/Workspace/mniederw/MyNameOfPsToolLib#trunk/MyNameOfPsToolLib"
 [String]   $moduleName                 = [System.IO.Path]::GetFileName($moduleSrcDir); # Example: "MyNameOfPsToolLib"
 [String]   $moduleTarDir32bit          = "$tarRootDir32bit\$moduleName";
 [String]   $moduleTarDir64bit          = "$tarRootDir64bit\$moduleName";
@@ -198,7 +198,7 @@ function UninstallLocalStandardAndDeveloperMode(){
       [String[]] $lines = @()+(Get-Content -Encoding UTF8 -LiteralPath $PROFILE |
         Where-Object { $_ -notmatch [regex]::Escape($profilePattern) } );
         [String] $encoding = $(switch(ProcessIsLesserEqualPs5){($true){ "UTF8" }($false){ "UTF8BOM" }}); # make UTF8BOM
-        $lines | Out-File -Force -NoClobber:$false -Encoding $encoding -LiteralPath $PROFILE; # Appends on each line an OS dependent nl.
+        $lines | StreamToFile $PROFILE $true $encoding; # Appends on each line an OS dependent nl.
     }
     OutProgress "  Remove entry from PSModulePath. ";
     [String[]] $a = @()+($env:PSModulePath.Split((OsPathSeparator),[System.StringSplitOptions]::RemoveEmptyEntries)) | Where-Object{$null -ne $_} |

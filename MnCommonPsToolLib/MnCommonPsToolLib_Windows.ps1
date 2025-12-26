@@ -182,7 +182,7 @@ function OsWindowsUpdatePerform               ( [Boolean] $withAutoReboot = $fal
                                                 Import-Module PSWindowsUpdate; # for Get-WindowsUpdate
                                                 # for performing on remote computers use: $c = "comp1, comp2, comp3";
                                                 #   Invoke-WUJob -ComputerName $c -Script {Import-Module PSWindowsUpdate; Install-WindowsUpdate -MicrosoftUpdate -AcceptAll -AutoReboot} -RunNow -Confirm:$false |
-                                                #     Out-File "/server/share/logs/$computer-$(Get-Date -f yyyy-MM-dd)-MSUpdates.log" -Force; # Appends an OS dependent nl to each line.
+                                                #     StreamToFile "/server/share/logs/$computer-$(Get-Date -f yyyy-MM-dd)-MSUpdates.log";
                                                 # Install-WindowsUpdate is an alias to Get-WindowsUpdate -Install; But Install-WindowsUpdate seams not to enabled on PS7
                                                 # Alternatives: -KBArticleID "KB9876543,KB9876542" -NotKBArticleID "KB9876541" -NotCategory "Drivers" -NotTitle "OneDrive"
                                                 # for unknown reason if we use: Get-WindowsUpdate | Select-Object Status, Size, KB, Title;  then the values are empty, so we use conversion to [Object[]]
