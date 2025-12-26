@@ -751,7 +751,7 @@ function StreamToXmlFile                      ( [String] $file, [Boolean] $overw
 function StreamToFile                         ( [String] $file, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM", [Boolean] $doAppend = $false ){
                                                 # Will create path of file. overwrite does ignore readonly attribute. Appends nl to each line.
                                                 # If doAppend is true then overwrite is not allowed to be true.
-                                                OutProgress "WriteFile$(switch($overwrite){($true){'-ByOverwrite'}($false){''}})$(switch($doAppend){($true){'-ByAppend'}($false){''}}) `"$file`""; }
+                                                OutProgress "WriteFile$(switch($overwrite){($true){'-ByOverwrite'}($false){''}})$(switch($doAppend){($true){'-ByAppend'}($false){''}}) `"$file`"";
                                                 FsEntryCreateParentDir $file;
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8" ){
                                                   # Out-File with UTF8 (NO-BOM) on PS5.1 or lower is not natively supported. So we apply a workaround
