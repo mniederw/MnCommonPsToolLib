@@ -748,12 +748,22 @@ function StreamToXmlFile                      ( [String] $file, [Boolean] $overw
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8" ){ throw [Exception] "StreamToXmlFile with UTF8 (NO-BOM) on PS5.1 or lower is not yet implemented."; } # TODO
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
                                                 $input | Export-Clixml -Force:$overwrite -NoClobber:$(-not $overwrite) -Depth 999999999 -Encoding $encoding -Path (FsEntryEsc $file); }
-function StreamToFile                         ( [String] $file, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM" ){
+function StreamToFile                         ( [String] $file, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM", [Boolean] $doAppend = $false ){
                                                 # Will create path of file. overwrite does ignore readonly attribute. Appends nl to each line.
-                                                OutProgress "WriteFile `"$file`""; FsEntryCreateParentDir $file;
-                                                if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8" ){ throw [Exception] "StreamToFile with UTF8 (NO-BOM) on PS5.1 or lower is not yet implemented."; } # TODO
+                                                # If doAppend is true then overwrite is not allowed to be true.
+                                                OutProgress "WriteFile$(switch($overwrite){($true){'-ByOverwrite'}($false){''}})$(switch($doAppend){($true){'-ByAppend'}($false){''}}) `"$file`"";
+                                                FsEntryCreateParentDir $file;
+                                                if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8" ){
+                                                  # Out-File with UTF8 (NO-BOM) on PS5.1 or lower is not natively supported. So we apply a workaround
+                                                  $utf8NoBomEncoding = New-Object System.Text.UTF8Encoding($false);
+                                                  if( $content -ne "" -and -not $content.EndsWith([Environment]::NewLine) ){ $content += [Environment]::NewLine; }
+                                                  if( $doAppend ){ [System.IO.File]::AppendAllText($file,$content,$utf8NoBomEncoding); }
+                                                  else {            [System.IO.File]::WriteAllText($file,$content,$utf8NoBomEncoding); }
+                                                  return;
+                                                }
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
-                                                $input | Out-File -Force -NoClobber:$(-not $overwrite) -Encoding $encoding -LiteralPath $file; } # Appends on each line an OS dependent nl.
+                                                $input | Out-File -Force -Encoding $encoding -LiteralPath $file -NoClobber:$(-not $overwrite) -Append:$doAppend; # Appends on each line an OS dependent nl.
+                                                }
 function OsPsVersion                          (){ return [String] (""+$Host.Version.Major+"."+$Host.Version.Minor); } # alternative: $PSVersionTable.PSVersion.Major
 function OsIsWindows                          (){ return [Boolean] ([System.Environment]::OSVersion.Platform -eq "Win32NT"); }
                                                 # Example: Win10Pro: Version="10.0.19044.0"
@@ -1659,36 +1669,29 @@ function FileWriteFromString                  ( [String] $file, [String] $conten
                                                 if( -not $quiet ){ OutProgress "WriteFile$(switch($overwrite){($true){'-ByOverwrite'}($false){''}}) `"$file`""; }
                                                 FsEntryCreateParentDir $file;
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8" ){
-                                                  # FileWriteFromString with UTF8 (NO-BOM) on PS5.1 or lower is not natively supported. So we apply a workaround
+                                                  # Out-File with UTF8 (NO-BOM) on PS5.1 or lower is not natively supported. So we apply a workaround
                                                   $utf8NoBomEncoding = New-Object System.Text.UTF8Encoding($false);
                                                   [System.IO.File]::WriteAllText($file, $content, $utf8NoBomEncoding);
                                                   return;
                                                 }
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
-                                                Out-File -NoNewline -Force -NoClobber:$(-not $overwrite) -Encoding $encoding -Inputobject $content -LiteralPath $file; }
+                                                Out-File -LiteralPath $file -Force -NoClobber:$(-not $overwrite) -Encoding $encoding -NoNewline -Inputobject $content; }
                                                 # alternative: Set-Content -Encoding $encoding -Path (FsEntryEsc $file) -Value $content; but this would lock file,
                                                 # more see http://stackoverflow.com/questions/10655788/powershell-set-content-and-out-file-what-is-the-difference
 function FileWriteFromLines                   ( [String] $file, [String[]] $lines, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM" ){
                                                 # Appends also a newline to last line.
                                                 $file = FsEntryGetAbsolutePath $file;
                                                 OutProgress "WriteFile `"$file`"";
-                                                if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8" ){ throw [Exception] "FileWriteFromLines with UTF8 (NO-BOM) on PS5.1 or lower is not yet implemented."; } # TODO
-                                                if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
                                                 FsEntryCreateParentDir $file;
-                                                $lines | Out-File -Force -NoClobber:$(-not $overwrite) -Encoding $encoding -LiteralPath $file; } # Appends on each line an OS dependent nl.
-function FileCreateEmpty                      ( [String] $file, [Boolean] $overwrite = $false, [Boolean] $quiet = $false, [String] $encoding = "UTF8BOM" ){ FileWriteFromString $file "" $overwrite $encoding $quiet; }
+                                                $lines | StreamToFile $file $overwrite $encoding; }
+function FileCreateEmpty                      ( [String] $file, [Boolean] $overwrite = $false, [Boolean] $quiet = $false, [String] $encoding = "UTF8BOM" ){
+                                                FileWriteFromString $file "" $overwrite $encoding $quiet; }
 function FileAppendLineWithTs                 ( [String] $file, [String] $line ){ FileAppendLine $file $line $true; }
-function FileAppendLine                       ( [String] $file, [String] $line, [Boolean] $tsPrefix = $false, [String] $encoding = "UTF8BOM" ){
-                                                if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8" ){ throw [Exception] "FileWriteFromLines with UTF8 (NO-BOM) on PS5.1 or lower is not yet implemented."; } # TODO
-                                                if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
-                                                FsEntryCreateParentDir $file;
+function FileAppendLine                       ( [String] $file, [String] $line, [Boolean] $tsPrefix = $false, [String] $encoding = "UTF8BOM" ){ # Appends on each line an OS dependent nl.
                                                 [String] $line2 = $(switch($tsPrefix){($true){"$(DateTimeNowAsStringIso) "}default{""}})+$line;
-                                                Out-File -Encoding $encoding -Append -LiteralPath $file -InputObject $line2; } # Appends on each line an OS dependent nl.
-function FileAppendLines                      ( [String] $file, [String[]] $lines, [String] $encoding = "UTF8BOM" ){ # Appends to each line a nl.
-                                                if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8" ){ throw [Exception] "FileWriteFromLines with UTF8 (NO-BOM) on PS5.1 or lower is not yet implemented."; } # TODO
-                                                if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
-                                                FsEntryCreateParentDir $file;
-                                                $lines | Out-File -Encoding $encoding -Append -LiteralPath $file; } # Appends on each line an OS dependent nl.
+                                                $line2 | StreamToFile $file $false $encoding $true; }
+function FileAppendLines                      ( [String] $file, [String[]] $lines, [String] $encoding = "UTF8BOM" ){ # Appends on each line an OS dependent nl.
+                                                $lines | StreamToFile $file $false $encoding $true; }
 function FileGetTempFile                      (){ return [String] [System.IO.Path]::GetTempFileName(); } # Example on linux: "/tmp/tmpFN3Gnz.tmp"; on windows: $env:SystemRoot\Temp\tmpE3B6.tmp
 function FileDelTempFile                      ( [String] $file ){ FileDelete $file -traceCmd:$false; } # As FileDelete but no progress msg.
 function FileReadEncoding                     ( [String] $file ){
@@ -1809,8 +1812,7 @@ function FileUpdateItsHashSha2FileIfNessessary( [String] $srcFile ){ # srcFile.s
                                                 if( $hashSrc -eq $hashTar ){
                                                   OutProgress "File is up to date, nothing done with `"$hashTarFile`".";
                                                 }else{
-                                                  Out-File -NoNewline -Encoding "UTF8" -LiteralPath $hashTarFile -Inputobject $hashSrc;
-                                                  OutProgress "Created `"$hashTarFile`".";
+                                                  FileWriteFromString $hashTarFile $hashSrc $false "UTF8";
                                                 } }
 function FileFindFirstExisting                ( [String[]] $files ){ foreach( $i in $files ){ if( FileExists $i ) { return [String] (FsEntryGetAbsolutePath $i); } } return [String] ""; }
 function FileCreateIfNotExistsByScript        ( [String] $targetFile, [ScriptBlock] $scriptBlock ){ # Example script block: { param( [String] $f ); FileWriteFromString $f "Hello"; };
@@ -2793,10 +2795,12 @@ function GitListCommitComments                ( [String] $tarDir, [String] $loca
                                                     [String] $out = "";
                                                     try{
                                                       # git can write warnings to stderr which we not handle as error.
-                                                      # Note: We have an unresolved problem, that ProcessStart would hang (more see: UnitTests/TodoUnresolvedProblems.ps1), so we use call operator.
+                                                      # 2025-12: Now solved but earlier we had this problem:
+                                                      #   Note: We have an unresolved problem, that ProcessStart would hang (more see: UnitTests/TodoUnresolvedProblems.ps1), so we use call operator.
                                                       #   $out = (ProcessStart "git" $options -careStdErrAsOut:$true -traceCmd:$true);
-                                                      # Example: ProcessStart of ("git" "--git-dir=D:/Workspace/mniederw/MnCommonPsToolLib/.git" "log" "--after=1990-01-01" "--pretty=format:%ci %cn [%ce] %s" "--summary")
-                                                      $out = & "git" "--git-dir=$($localRepoDir).git" "log" "--after=1990-01-01" "--pretty=format:%ci %cn [%ce] %s" 2>&1; AssertRcIsOk;
+                                                      #   Example: ProcessStart of ("git" "--git-dir=D:/Workspace/mniederw/MnCommonPsToolLib/.git" "log" "--after=1990-01-01" "--pretty=format:%ci %cn [%ce] %s" "--summary")
+                                                      #   $out = & "git" "--git-dir=$($localRepoDir).git" "log" "--after=1990-01-01" "--pretty=format:%ci %cn [%ce] %s" 2>&1; AssertRcIsOk;
+                                                      $out = (ProcessStart "git" $options -careStdErrAsOut:$true -traceCmd:$true);
                                                     }catch{
                                                       # 2024-03: m="Last operation failed [ExitCode=128]. For the reason see the previous output. "
                                                       # 2024-03: out="fatal: your current branch 'main' does not have any commits yet"

@@ -7,7 +7,7 @@
   CompanyName            = 'Private, Marc Niederwieser, Switzerland.';
   Copyright              = 'Copyright © by Marc Niederwieser, Switzerland, 2013-2025. Licensed under GPL3.';
   Description            = 'Common Powershell Tool Library for PS5.1 and PS7 and works on multiplatforms (Windows, Linux and OSX)';
-  PowerShellVersion      = '5.1'; # minimum version
+  PowerShellVersion      = '5.1'; # V5.1 is minimum version; Also for V7.x
   VariablesToExport      = '*';
   DotNetFrameworkVersion = '4.0';
   ClrVersion             = '4.0';
@@ -34,7 +34,7 @@
   }
   HelpInfoURI            = 'https://github.com/mniederw/MnCommonPsToolLib/Readme.txt';
 
-  ModuleVersion          = '7.116';
+  ModuleVersion          = '7.117';
 
   <#
   Releasenotes
@@ -44,6 +44,7 @@
   Breaking changes are usually removed deprecated functions or changed behaviours.
 
 
+  2025-12-26  V7.117 Improve StreamToFile.
   2025-12-23  V7.116 Improve NetDownloadFile by retries.
   2025-12-20  V7.115 Rename parameter ignoreIfFailed of ServiceStop to errorAsWarning. Improve ServiceDisable.
   2025-12-11  V7.114 Improve preconditions.
