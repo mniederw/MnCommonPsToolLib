@@ -318,7 +318,7 @@ function UnitTest_FsEntry_Dir_File(){
     [String] $text1 = "ä$([Environment]::NewLine)öü";
     [String] $text2 = switch(OsIsWindows){($true){$text1}($false){$text0}};
     OutProgress "Test_FileReadContentAsString beg";
-    function WriteText( [String] $enc ){ FileWriteFromString $src $text0 $true $enc; }
+    function WriteText( [String] $enc ){ FileWriteFromString $src $text0 $true $enc -traceCmd:$true; }
     function ReadText ( [String] $enc ){ [String] $s = (FileReadContentAsString $src $enc) -replace "`r",'CR' -replace "`n",'LF'; OutProgress "Text : `"$s`""; }
     #
     WriteText "UTF8BOM"; ReadText "Default";                                       Assert ((FileReadContentAsString $src "Default") -eq $text0);
@@ -336,7 +336,7 @@ function UnitTest_FsEntry_Dir_File(){
     [String] $content = "Hello`n World`n";
     [String] $tmp = (FileGetTempFile);
     Assert ((@()+(FileReadContentAsLines $tmp "UTF8")).Count -eq 0);
-    FileWriteFromString $tmp $content $true;
+    FileWriteFromString $tmp $content $true -traceCmd:$true;
     Assert ((FileReadContentAsLines $tmp "UTF8").Count -eq 2);
     FileDelTempFile $tmp;
   } Test_FileReadContentAsLines;
@@ -346,15 +346,15 @@ function UnitTest_FsEntry_Dir_File(){
   function Test_FileWriteFromString(){
     [String] $content = "Hello`n World`n";
     [String] $tmpFile0 = (FileGetTempFile); # empty 0 Bytes NonBOM
-    [String] $tmpFile2 = (FileGetTempFile); FileWriteFromString $tmpFile2 ""       $true; # UTF8BOM 3 bytes
-    [String] $tmpFile3 = (FileGetTempFile); FileWriteFromString $tmpFile3 $content $true;
-    [String] $tmpFile4 = (FileGetTempFile); FileWriteFromString $tmpFile4 $content $true;
+    [String] $tmpFile2 = (FileGetTempFile); FileWriteFromString $tmpFile2 ""       $true -traceCmd:$true; # UTF8BOM 3 bytes
+    [String] $tmpFile3 = (FileGetTempFile); FileWriteFromString $tmpFile3 $content $true -traceCmd:$true;
+    [String] $tmpFile4 = (FileGetTempFile); FileWriteFromString $tmpFile4 $content $true -traceCmd:$true;
     Assert (FileContentsAreEqual $tmpFile3 $tmpFile4);
     Assert (-not (FileContentsAreEqual $tmpFile0 "$([System.IO.Path]::GetTempPath())/unexistingFile.txt"));
     Assert (-not (FileContentsAreEqual $tmpFile0 $tmpFile2));
     if( -not (ProcessIsLesserEqualPs5) ){ # TODO in ps5 it fails
-      [String] $tmpFile1 = (FileGetTempFile); FileWriteFromString $tmpFile1 ""       $true "UTF8"; # 0 bytes
-      [String] $tmpFile5 = (FileGetTempFile) ;FileWriteFromString $tmpFile5 $content $true "UTF8";
+      [String] $tmpFile1 = (FileGetTempFile); FileWriteFromString $tmpFile1 ""       $true "UTF8" -traceCmd:$true; # 0 bytes
+      [String] $tmpFile5 = (FileGetTempFile) ;FileWriteFromString $tmpFile5 $content $true "UTF8" -traceCmd:$true;
       Assert (FileContentsAreEqual $tmpFile0 $tmpFile1);
       Assert (-not (FileContentsAreEqual $tmpFile3 $tmpFile5));
       FileDelTempFile $tmpFile1;
@@ -368,7 +368,7 @@ function UnitTest_FsEntry_Dir_File(){
   #
   # TODO: FileWriteFromLines                   ( [String] $file, [String[]] $lines, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM" )
   #
-  # TODO: FileCreateEmpty                      ( [String] $file, [Boolean] $overwrite = $false, [Boolean] $quiet = $false, [String] $encoding = "UTF8BOM" )
+  # TODO: FileCreateEmpty                      ( [String] $file, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM" )
   #
   # TODO: FileAppendLineWithTs                 ( [String] $file, [String] $line ) FileAppendLine $file $line $true; }
   #
@@ -389,13 +389,13 @@ function UnitTest_FsEntry_Dir_File(){
   function Test_FileContentsAreEqual(){
     [String] $content = "Hello`n World`n";
     [String] $tmpFile1 = (FileGetTempFile); # empty 0 Bytes NonBOM
-    [String] $tmpFile3 = (FileGetTempFile); FileWriteFromString $tmpFile3 ""       $true; # 3 Bytes UTF8BOM
-    [String] $tmpFile5 = (FileGetTempFile); FileWriteFromString $tmpFile5 $content $true "UTF8BOM";
+    [String] $tmpFile3 = (FileGetTempFile); FileWriteFromString $tmpFile3 ""       $true           -traceCmd:$true; # 3 Bytes UTF8BOM
+    [String] $tmpFile5 = (FileGetTempFile); FileWriteFromString $tmpFile5 $content $true "UTF8BOM" -traceCmd:$true;
     Assert (-not (FileContentsAreEqual $tmpFile1 "$([System.IO.Path]::GetTempPath())/unexistingFile.magic823621875349817636534.txt"));
     Assert (-not (FileContentsAreEqual $tmpFile1 $tmpFile3));
     if( -not (ProcessIsLesserEqualPs5) ){ # TODO in ps5 it fails
-      [String] $tmpFile2 = (FileGetTempFile); FileWriteFromString $tmpFile2 ""       $true "UTF8" ;# empty 0 Bytes NonBOM
-      [String] $tmpFile4 = (FileGetTempFile); FileWriteFromString $tmpFile4 $content $true "UTF8";
+      [String] $tmpFile2 = (FileGetTempFile); FileWriteFromString $tmpFile2 ""       $true "UTF8" -traceCmd:$true;# empty 0 Bytes NonBOM
+      [String] $tmpFile4 = (FileGetTempFile); FileWriteFromString $tmpFile4 $content $true "UTF8" -traceCmd:$true;
       Assert (      FileContentsAreEqual $tmpFile1 $tmpFile2);
       Assert (-not (FileContentsAreEqual $tmpFile1 $tmpFile4));
       Assert (-not (FileContentsAreEqual $tmpFile4 $tmpFile5));
@@ -408,15 +408,15 @@ function UnitTest_FsEntry_Dir_File(){
   } Test_FileContentsAreEqual;
   #
   function Test_FileDelete(){
-    [String] $tmpFile1 = (FileGetTempFile); FileWriteFromString $tmpFile1 "Hello`n World`n" $true;
+    [String] $tmpFile1 = (FileGetTempFile); FileWriteFromString $tmpFile1 "Hello`n World`n" $true -traceCmd:$true;
     Assert (FileExists $tmpFile1);
     FileDelete $tmpFile1 -ignoreReadonly:$true -ignoreAccessDenied:$false;
     Assert (FileNotExists $tmpFile1);
   } Test_FileDelete;
   #
   function Test_FileCopy(){
-    [String] $tmpFile1 = (FileGetTempFile); FileWriteFromString $tmpFile1 "Hello`n World`n" $true;
-    [String] $tmpFile2 = (FileGetTempFile); FileWriteFromString $tmpFile2 "Hello`n World2`n" $true;
+    [String] $tmpFile1 = (FileGetTempFile); FileWriteFromString $tmpFile1 "Hello`n World`n"  $true -traceCmd:$true;
+    [String] $tmpFile2 = (FileGetTempFile); FileWriteFromString $tmpFile2 "Hello`n World2`n" $true -traceCmd:$true;
     FileCopy $tmpFile1 $tmpFile2 -overwrite:$true;
     Assert (FileContentsAreEqual $tmpFile1 $tmpFile2);
     FileDelTempFile $tmpFile1;
@@ -427,12 +427,12 @@ function UnitTest_FsEntry_Dir_File(){
   #
   function Test_FileSyncContent(){
     [String] $content = "Hello`n World`n";
-    [String] $tmpFile1 = (FileGetTempFile); FileWriteFromString $tmpFile1 $content $true;
+    [String] $tmpFile1 = (FileGetTempFile); FileWriteFromString $tmpFile1 $content $true -traceCmd:$true;
     [String] $tmpFile2 = (FileGetTempFile);
     Assert (-not (FileContentsAreEqual $tmpFile1 $tmpFile2));
     FileSyncContent $tmpFile1 $tmpFile2;
     Assert (FileContentsAreEqual $tmpFile1 $tmpFile2);
-    FileWriteFromString $tmpFile2 "newContent" $true;
+    FileWriteFromString $tmpFile2 "newContent" $true -traceCmd:$true;
     Assert (-not (FileContentsAreEqual $tmpFile1 $tmpFile2));
     FileSyncContent $tmpFile1 $tmpFile2;
     Assert (FileContentsAreEqual $tmpFile1 $tmpFile2);
@@ -440,11 +440,11 @@ function UnitTest_FsEntry_Dir_File(){
     FileDelTempFile $tmpFile2;
   } Test_FileSyncContent;
   #
-  { [String] $tmpFile1 = (FileGetTempFile); FileWriteFromString $tmpFile1 "abc" $true "UTF8"; Assert ((FileGetHexStringOfHash128BitsMd5  $tmpFile1) -eq "900150983CD24FB0D6963F7D28E17F72"); }
+  { [String] $tmpFile1 = (FileGetTempFile); FileWriteFromString $tmpFile1 "abc" $true "UTF8" -traceCmd:$true; Assert ((FileGetHexStringOfHash128BitsMd5  $tmpFile1) -eq "900150983CD24FB0D6963F7D28E17F72"); }
   #
-  { [String] $tmpFile1 = (FileGetTempFile); FileWriteFromString $tmpFile1 "abc" $true "UTF8"; Assert ((FileGetHexStringOfHash256BitsSha2 $tmpFile1) -eq "BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD"); }
+  { [String] $tmpFile1 = (FileGetTempFile); FileWriteFromString $tmpFile1 "abc" $true "UTF8" -traceCmd:$true; Assert ((FileGetHexStringOfHash256BitsSha2 $tmpFile1) -eq "BA7816BF8F01CFEA414140DE5DAE2223B00361A396177A9CB410FF61F20015AD"); }
   #
-  { [String] $tmpFile1 = (FileGetTempFile); FileWriteFromString $tmpFile1 "abc" $true "UTF8"; Assert ((FileGetHexStringOfHash512BitsSha2 $tmpFile1) -eq "DDAF35A193617ABACC417349AE20413112E6FA4E89A97EA20A9EEEE64B55D39A2192992A274FC1A836BA3C23A3FEEBBD454D4423643CE80E2A9AC94FA54CA49F"); }
+  { [String] $tmpFile1 = (FileGetTempFile); FileWriteFromString $tmpFile1 "abc" $true "UTF8" -traceCmd:$true; Assert ((FileGetHexStringOfHash512BitsSha2 $tmpFile1) -eq "DDAF35A193617ABACC417349AE20413112E6FA4E89A97EA20A9EEEE64B55D39A2192992A274FC1A836BA3C23A3FEEBBD454D4423643CE80E2A9AC94FA54CA49F"); }
   #
   # TODO: FileUpdateItsHashSha2FileIfNessessary ( [String] $srcFile )
   #

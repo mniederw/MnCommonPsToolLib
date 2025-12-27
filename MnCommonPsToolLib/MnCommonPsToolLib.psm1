@@ -741,17 +741,17 @@ function StreamToCsvFile                      ( [String] $file, [Boolean] $overw
                                                 [String] $tmp = (FileGetTempFile);
                                                 OutProgress "Write csv to `"$file`"";
                                                 $input | Export-Csv -Force:$true -NoClobber:$false -NoTypeInformation -Delimiter ',' -Encoding $encoding -Path $tmp;
-                                                [String] $sep = [Environment]::NewLine; if( $forceLf ){ $sep = "`n"; }
-                                                ToolFileNormalizeNewline $tmp $file $overwrite $encodingSave $sep -quiet:$true; }
+                                                [String] $sep = $(switch($forceLf){$true{"`n"}default{[Environment]::NewLine}});
+                                                ToolFileNormalizeNewline $tmp $file $overwrite $encodingSave $sep; }
 function StreamToXmlFile                      ( [String] $file, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM" ){
                                                 # If overwrite is false then nothing done if target already exists.
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8" ){ throw [Exception] "StreamToXmlFile with UTF8 (NO-BOM) on PS5.1 or lower is not yet implemented."; } # TODO
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
                                                 $input | Export-Clixml -Force:$overwrite -NoClobber:$(-not $overwrite) -Depth 999999999 -Encoding $encoding -Path (FsEntryEsc $file); }
-function StreamToFile                         ( [String] $file, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM", [Boolean] $doAppend = $false ){
+function StreamToFile                         ( [String] $file, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM", [Boolean] $doAppend = $false, [Boolean] $traceCmd = $false ){
                                                 # Will create path of file. overwrite does ignore readonly attribute. Appends nl to each line.
                                                 # If doAppend is true then overwrite is not allowed to be true.
-                                                OutProgress "WriteFile$(switch($overwrite){($true){'-ByOverwrite'}($false){''}})$(switch($doAppend){($true){'-ByAppend'}($false){''}}) `"$file`"";
+                                                if( $traceCmd ){ OutProgress "WriteFile$(switch($overwrite){($true){'-ByOverwrite'}($false){''}})$(switch($doAppend){($true){'-ByAppend'}($false){''}}) `"$file`""; }
                                                 FsEntryCreateParentDir $file;
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8" ){
                                                   # Out-File with UTF8 (NO-BOM) on PS5.1 or lower is not natively supported. So we apply a workaround
@@ -1663,10 +1663,10 @@ function FileReadContentAsLines               ( [String] $file, [String] $encodi
 function FileReadJsonAsObject                 ( [String] $jsonFile ){
                                                 try{ Get-Content -Raw -LiteralPath $jsonFile | ConvertFrom-Json; }
                                                 catch{ throw [Exception] "FileReadJsonAsObject(`"$jsonFile`") failed because $($_.Exception.Message)"; } }
-function FileWriteFromString                  ( [String] $file, [String] $content, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM", [Boolean] $quiet = $false ){
+function FileWriteFromString                  ( [String] $file, [String] $content, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM", [Boolean] $traceCmd = $false ){
                                                 # Will create path of file. Use overwrite to ignore readonly attribute.
                                                 $file = FsEntryGetAbsolutePath $file;
-                                                if( -not $quiet ){ OutProgress "WriteFile$(switch($overwrite){($true){'-ByOverwrite'}($false){''}}) `"$file`""; }
+                                                if( $traceCmd ){ OutProgress "WriteFile$(switch($overwrite){($true){'-ByOverwrite'}($false){''}}) `"$file`""; }
                                                 FsEntryCreateParentDir $file;
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8" ){
                                                   # Out-File with UTF8 (NO-BOM) on PS5.1 or lower is not natively supported. So we apply a workaround
@@ -1678,13 +1678,11 @@ function FileWriteFromString                  ( [String] $file, [String] $conten
                                                 Out-File -LiteralPath $file -Force -NoClobber:$(-not $overwrite) -Encoding $encoding -NoNewline -Inputobject $content; }
                                                 # alternative: Set-Content -Encoding $encoding -Path (FsEntryEsc $file) -Value $content; but this would lock file,
                                                 # more see http://stackoverflow.com/questions/10655788/powershell-set-content-and-out-file-what-is-the-difference
-function FileWriteFromLines                   ( [String] $file, [String[]] $lines, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM" ){
+function FileWriteFromLines                   ( [String] $file, [String[]] $lines, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM", [Boolean] $traceCmd = $false ){
                                                 # Appends also a newline to last line.
-                                                $file = FsEntryGetAbsolutePath $file;
-                                                FsEntryCreateParentDir $file;
-                                                $lines | StreamToFile $file $overwrite $encoding; }
-function FileCreateEmpty                      ( [String] $file, [Boolean] $overwrite = $false, [Boolean] $quiet = $false, [String] $encoding = "UTF8BOM" ){
-                                                FileWriteFromString $file "" $overwrite $encoding $quiet; }
+                                                $lines | StreamToFile $file $overwrite $encoding $traceCmd; }
+function FileCreateEmpty                      ( [String] $file, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM", [Boolean] $traceCmd = $false ){
+                                                FileWriteFromString $file "" $overwrite $encoding $traceCmd; }
 function FileAppendLineWithTs                 ( [String] $file, [String] $line ){ FileAppendLine $file $line $true; }
 function FileAppendLine                       ( [String] $file, [String] $line, [Boolean] $tsPrefix = $false, [String] $encoding = "UTF8BOM" ){ # Appends on each line an OS dependent nl.
                                                 [String] $line2 = $(switch($tsPrefix){($true){"$(DateTimeNowAsStringIso) "}default{""}})+$line;
@@ -1718,9 +1716,9 @@ function FileReadEncoding                     ( [String] $file ){
                                                 else                                                                                                { return [String] "Default"          ; } } # codepage on windows 1252=ANSI and otherwise UTF8.
 function FileTouch                            ( [String] $file ){
                                                 $file = FsEntryGetAbsolutePath $file;
-                                                OutProgress "Touch: `"$file`"";
+                                                OutProgress "FileTouch: `"$file`"";
                                                 if( FileExists $file ){ (Get-Item -Force -LiteralPath $file).LastWriteTime = (Get-Date); }
-                                                else{ FileCreateEmpty $file $false $false "UTF8"; } }
+                                                else{ FileCreateEmpty $file $false "UTF8"; } }
 function FileGetLastLines                     ( [String] $file, [Int32] $nrOfLines ){
                                                 Get-content -tail $nrOfLines -LiteralPath $file; }
 function FileContentsAreEqual                 ( [String] $f1, [String] $f2, [Boolean] $allowSecondFileNotExists = $true ){
@@ -2494,6 +2492,7 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                   Where-Object{ $_ -notmatch "^Cannot\ resolve\ URI\ \'.*\'" } |
                                                   Where-Object{ $_ -notmatch "^\[[0-9]+\]\ Downloading\ \'.*" } );
                                                 FileWriteFromLines $logf2 $logLines $true;
+                                                OutProgress "  Ok, done.";
                                                 }
 # Script local variable: gitLogFile
 [String] $script:gitLogFile = FsEntryGetAbsolutePath "$env:TEMP/tmp/MnCommonPsToolLibLog/$(DateTimeNowAsStringIsoYear)/$(DateTimeNowAsStringIsoMonth)/Git.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
@@ -2817,7 +2816,7 @@ function GitListCommitComments                ( [String] $tarDir, [String] $loca
                                                       }
                                                       ScriptResetRc;
                                                     }
-                                                    FileWriteFromLines $fout $out $true;
+                                                    FileWriteFromLines $fout $out $true -traceCmd:$true;
                                                   }
                                                 }
                                                 GitGetLog $false "$tarDir/$prefix$repoName.CommittedComments$fileExtension";
@@ -3134,7 +3133,8 @@ function GithubBranchDelete                   ( [String] $repo, [String] $branch
                                                   ScriptResetRc;
                                                 } }
 function ToolTailFile                         ( [String] $file ){ OutProgress "Show tail of file until ctrl-c is entered of `"$file`":"; Get-Content -Wait $file; }
-function ToolFileNormalizeNewline             ( [String] $src, [String] $tar, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM", [String] $sep = [Environment]::NewLine, [String] $srcEncodingIfNoBom = "Default", [Boolean] $quiet = $false ){
+function ToolFileNormalizeNewline             ( [String] $src, [String] $tar, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM", 
+                                                [String] $sep = [Environment]::NewLine, [String] $srcEncodingIfNoBom = "Default", [Boolean] $traceCmd = $false ){
                                                 # If overwrite is false then nothing done if target already exists.
                                                 # When tar is identic to src then you have to specify overwrite and it will work inplace
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8"    ){ throw [Exception] "FileWriteFromLines with UTF8 (NO-BOM) on PS5.1 or lower is not yet implemented."; } # TODO
@@ -3143,12 +3143,15 @@ function ToolFileNormalizeNewline             ( [String] $src, [String] $tar, [B
                                                 $src = FsEntryGetAbsolutePath $src;
                                                 $tar = FsEntryGetAbsolutePath $tar;
                                                 [String] $content = StringReplaceNewlines (FileReadContentAsString $src $srcEncodingIfNoBom) $sep;
-                                                if( -not $quiet ){ OutProgress "ToolFileNormalizeNewline overwrite=$overwrite sepSize=$($sep.Length) read(encoding=$srcEncodingIfNoBom) `"$src`" and write(encoding=$encoding) `"$tar`" "; }
-                                                FileWriteFromString $tar $content $overwrite $encoding $quiet; }
+                                                if( $traceCmd ){ OutProgress "ToolFileNormalizeNewline overwrite=$overwrite sepSize=$($sep.Length) read(encoding=$srcEncodingIfNoBom) `"$src`" and write(encoding=$encoding) `"$tar`" "; }
+                                                FileWriteFromString $tar $content $overwrite $encoding; }
 function ToolAddLineToConfigFile              ( [String] $file, [String] $line, [String] $existingFileEncodingIfNoBom = "Default" ){ # TODO: try to replace Default by UTF8.
                                                 # if file not exists or line not found case sensitive in file then the line is appended.
-                                                if( FileNotExists $file ){ FileWriteFromLines $file $line; }
-                                                elseif( -not (StringExistsInStringArray $line (@()+(FileReadContentAsLines $file $existingFileEncodingIfNoBom))) ){ FileAppendLines $file $line; } }
+                                                if( FileNotExists $file ){
+                                                  FileWriteFromLines $file $line -traceCmd:$true;
+                                                }elseif( -not (StringExistsInStringArray $line (@()+(FileReadContentAsLines $file $existingFileEncodingIfNoBom))) ){
+                                                  FileAppendLines $file $line; OutProgress "FileAppendLines `"$file`" ";
+                                                } }
 function ToolFindOppositeProfileFromPs5orPs7  (){ # If we are running PS5 then find profile of PS7 and vice versa. Used for syncing operations between environments.
                                                 # Origin profile on PS5: $HOME\Documents\PowerShell\Microsoft.PowerShell_profile.ps1
                                                 # Origin profile on PS7: $HOME\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1

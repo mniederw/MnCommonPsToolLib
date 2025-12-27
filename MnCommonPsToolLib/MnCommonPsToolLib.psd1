@@ -44,7 +44,7 @@
   Breaking changes are usually removed deprecated functions or changed behaviours.
 
 
-  2025-12-26  V7.117 Improve StreamToFile.
+  2025-12-27  V7.117 Improve StreamToFile. Change in FileWriteFromString the 5th param quiet to traceCmd. Change in FileCreateEmpty migrate the 3th param "quiet" to 4th param traceCmd.
   2025-12-23  V7.116 Improve NetDownloadFile by retries.
   2025-12-20  V7.115 Rename parameter ignoreIfFailed of ServiceStop to errorAsWarning. Improve ServiceDisable.
   2025-12-11  V7.114 Improve preconditions.

@@ -1955,7 +1955,7 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                       ,"  NrOfTableTriggers    : $($tableTriggers.Count       )" # Example: 2
                                                       ,"  NrOfIndexesNonUnique : $($indexesNonUnique.Count    )" # Example: 20
                                                   );
-                                                  FileWriteFromLines $fileDbInfo $fileDbInfoContent $false; # throws if it already exists
+                                                  FileWriteFromLines $fileDbInfo $fileDbInfoContent $false -traceCmd:$true; # throws if it already exists
                                                   OutProgress ("DbInfo: $dbName Collation=$($db.Collation) CompatibilityLevel=$($db.CompatibilityLevel) " +
                                                     "UsedDataInMB=$spaceUsedDataInMB; " + "UsedIndexInMB=$spaceUsedIndexInMB; " +
                                                     "NrOfTabs=$($tables.Count); Views=$($views.Count); StProcs=$($storedProcedures.Count); " +
@@ -2061,7 +2061,7 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                   #        This property may not exist for this object, or may not be retrievable due to insufficient access rights. The text is encrypted.
                                                   #        at Microsoft.SqlServer.Management.Smo.ScriptNameObjectBase.GetTextProperty(String requestingProperty, ScriptingPreferences sp, Boolean bThrowIfCreating)
                                                   [String] $msg = $traceInfo + " failed because $($_.Exception)";
-                                                  FileWriteFromLines "$tarDir/DbInfo.$dbName.err" $msg;
+                                                  FileWriteFromLines "$tarDir/DbInfo.$dbName.err" $msg -traceCmd:$true;
                                                   if( -not $errorAsWarning ){ throw [ExcMsg] $msg; }
                                                   OutWarning "Warning: Ignore failing of $msg `nCreated `"$tarDir/DbInfo.$dbName.err`".";
                                                 }
@@ -2267,7 +2267,7 @@ function ToolSignDotNetAssembly               ( [String] $keySnk, [String] $srcD
                                                 [String] $srcXml = (StringRemoveRightNr $srcDllOrExe 4) + ".xml";
                                                 [String] $tarXml = (StringRemoveRightNr $tarDllOrExe 4) + ".xml";
                                                 [String] $tarOri = (StringRemoveRightNr $tarDllOrExe 4) + ".originalWasAlsoSigned.txt";
-                                                if( $execHasStrongName ){ FileWriteFromString $tarOri "Original executable has also a strong name: $srcDllOrExe" $true; }
+                                                if( $execHasStrongName ){ FileWriteFromString $tarOri "Original executable has also a strong name: $srcDllOrExe" $true -traceCmd:$true; }
                                                 if( FileExists $srcXml ){ FileCopy $srcXml $tarXml $true; } }
 function ToolSetAssocFileExtToCmd             ( [String[]] $fileExtensions, [String] $cmd, [String] $ftype = "", [Boolean] $assertPrgExists = $false ){ # Works only on Windows
                                                 # Sets the association of a file extension to a command by overwriting it.
