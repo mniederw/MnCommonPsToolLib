@@ -12,19 +12,19 @@ function UnitTest_Tool(){
   ToolGithubApiAssertValidRepoUrl "https://github.com/mniederw/MnCommonPsToolLib/";
   #
   function Test_ToolFileNormalizeNewline(){
-    [String] $src = FileGetTempFile; FileWriteFromString $src "Ä`r`nB" $true; Assert ((FileReadContentAsString $src "Default") -eq "Ä`r`nB");
+    [String] $src = FileGetTempFile; FileWriteFromString $src "Ä`r`nB" $true -traceCmd:$true; Assert ((FileReadContentAsString $src "Default") -eq "Ä`r`nB");
     [String] $tar = FileGetTempFile;
     if( -not (ProcessIsLesserEqualPs5) ){ # TODO in ps5 it fails, # TODO: try to replace Default by UTF8.
-      ToolFileNormalizeNewline $src $tar $true                            ; Assert ((FileReadContentAsString $tar "Default") -eq "Ä$([Environment]::NewLine)B");
-      ToolFileNormalizeNewline $src $tar $true  "UTF8BOM" "`n"   "Default"; Assert ((FileReadContentAsString $tar "Default") -eq "Ä`nB");
-      ToolFileNormalizeNewline $src $tar $true  "UTF8BOM" "`n"   "UTF8"   ; Assert ((FileReadContentAsString $tar "Default") -eq "Ä`nB");
-      ToolFileNormalizeNewline $src $tar $true  "UTF8BOM" "`r`n"          ; Assert ((FileReadContentAsString $tar "Default") -eq "Ä`r`nB");
-      ToolFileNormalizeNewline $src $tar $true  "UTF8"    "`r`n"          ; Assert ((FileReadContentAsString $tar "UTF8"   ) -eq "Ä`r`nB");
+      ToolFileNormalizeNewline $src $tar $true                             -traceCmd:$true; Assert ((FileReadContentAsString $tar "Default") -eq "Ä$([Environment]::NewLine)B");
+      ToolFileNormalizeNewline $src $tar $true  "UTF8BOM" "`n"   "Default" -traceCmd:$true; Assert ((FileReadContentAsString $tar "Default") -eq "Ä`nB");
+      ToolFileNormalizeNewline $src $tar $true  "UTF8BOM" "`n"   "UTF8"    -traceCmd:$true; Assert ((FileReadContentAsString $tar "Default") -eq "Ä`nB");
+      ToolFileNormalizeNewline $src $tar $true  "UTF8BOM" "`r`n"           -traceCmd:$true; Assert ((FileReadContentAsString $tar "Default") -eq "Ä`r`nB");
+      ToolFileNormalizeNewline $src $tar $true  "UTF8"    "`r`n"           -traceCmd:$true; Assert ((FileReadContentAsString $tar "UTF8"   ) -eq "Ä`r`nB");
     }
   } Test_ToolFileNormalizeNewline;
   #
-  [String] $srcFile = FileGetTempFile     ; FileWriteFromString $srcFile           "hello world" $true;
-  [String] $srcDir  = DirCreateTemp "MN7z"; FileWriteFromString "$srcDir/test.txt" "hello world" $true;
+  [String] $srcFile = FileGetTempFile     ; FileWriteFromString $srcFile           "hello world" $true -traceCmd:$true;
+  [String] $srcDir  = DirCreateTemp "MN7z"; FileWriteFromString "$srcDir/test.txt" "hello world" $true -traceCmd:$true;
   [String] $tar7zipFile1 = "$srcFile.7z";
   [String] $tar7zipFile2 = "$srcFile.7z";
   ToolCreate7zip $srcFile $tar7zipFile1; Assert ((FileGetSize $tar7zipFile1) -gt 0);

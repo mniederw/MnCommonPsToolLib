@@ -39,7 +39,7 @@ function UnitTest_Stream(){
   if( -not (ProcessIsLesserEqualPs5) ){ # TODO: later remove this if. Used as long as we get: FileWriteFromLines with UTF8 (NO-BOM) on PS5.1 or lower is not yet implemented.
     OutProgress "StreamToCsvFile"                      ; $obj | StreamToCsvFile $f $true; # "UTF8BOM"
       Assert ((FileReadContentAsString $f "Default") -eq "`"Name`",`"Age`"$nl`"John`",`"42`"$nl`"Ägid`",`"40`"$nl");
-    OutProgress "StreamToCsvFile"                      ; $obj | StreamToCsvFile $f $true "UTF8BOM" $true; # forceLf
+    OutProgress "StreamToCsvFile"                      ; $obj | StreamToCsvFile $f $true "UTF8BOM" -forceLf:$true;
       Assert ((FileReadContentAsString $f "Default") -eq "`"Name`",`"Age`"`n`"John`",`"42`"`n`"Ägid`",`"40`"`n");
   }
   OutProgress "StreamToXmlFile"                      ; $obj | StreamToXmlFile $f $true; # "UTF8BOM"
