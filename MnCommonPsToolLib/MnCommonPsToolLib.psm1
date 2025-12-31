@@ -1,4 +1,4 @@
-﻿# MnCommonPsToolLib - Common Powershell Tool Library for PS7 and PS5 and multiplatforms (Windows, Linux and OSX)
+# MnCommonPsToolLib - Common Powershell Tool Library for PS7 and PS5 and multiplatforms (Windows, Linux and OSX)
 # --------------------------------------------------------------------------------------------------------------
 # Published at: https://github.com/mniederw/MnCommonPsToolLib
 # Copyright © by Marc Niederwieser, Switzerland, 2013-2024.
@@ -20,11 +20,13 @@
 # - Typesafe: Functions and its arguments and return values are always specified with its type
 #   to assert type reliablility as far as possible.
 # - Avoid null values: Whenever possible null values are generally avoided. For example arrays gets empty instead of null.
-# - Encoding in PS is not consistent (different in PS5/PS7, Win/Linux). So for improving compatibility between multi platforms
+# - Encoding in PS is not consistent (different in PS5/PS7, Win/Linux). 
+#   So for improving compatibility between multi platforms
 #   we are generally writing text file contents per default as UTF8 with BOM (byte order mark).
 #   For reading if they have NO-BOM then they use the encoding "Default", which is Win-1252(=ANSI) on windows and UTF8 on other platforms.
 #   Note: On PS5 there is no encoding as UTF8NoBOM, so for UTF8 it generally writes a BOM and the specification UTF8BOM is not allowed.
 #   This library internally handles this so that it works as specified.
+#   2025-12: UPDATE: We will next migrate to generally use UTF8 without BOM because general recommendations even from Microsoft.
 # - Create files: On writing or appending files they automatically create its path parts.
 # - Notes about tracing information lines:
 #   - Progress : Any change of the system will be notified with color Gray. Is enabled as default.
@@ -50,6 +52,38 @@
 #   $Global:OutputEncoding = [Console]::OutputEncoding = [Console]::InputEncoding = [Text.UTF8Encoding]::UTF8;
 # - As further alternative switch your windows (intl.cpl):
 #   Region->Administrative->Change-System-Locale:Beta-Use-Unicode-utf-8-for-worldwide-lang-support: enable.
+#
+# Official Statements from Microsoft about UTF8-BOM and UTF8:
+# - https://learn.microsoft.com/en-us/windows/win32/intl/using-byte-order-marks
+#   For UTF-8, the byte order mark is optional, because UTF-8 has only one byte order.
+#   Note: Legacy Microsoft products either use Windows-1252 or UCS-2 (fixed-with UTF-16), little endian byte order, for "Unicode".
+#   For new applications, UTF-8 is recommended.
+# - https://www.bleepingcomputer.com/news/microsoft/windows-10-notepad-is-getting-better-utf-8-encoding-support
+#   Since Windows 10 v1903 (2019-03), Notepad defaults to saving files as UTF-8 without a BOM!
+# - https://en.wikipedia.org/wiki/Unicode_in_Microsoft_Windows
+#   UTF8: As of 2019, Microsoft recommends programmers use UTF-8 (e.g. instead of any other 8-bit encoding), on Windows and Xbox,
+#   and may be recommending its use instead of UTF-16, even stating "UTF-8 is the universal code page for internationalization ...".
+# - https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_character_encoding
+#   In PowerShell (v6 and higher), the default UTF-8 encoding for text output is without BOM. 
+#
+# Facts about CRLF or LF line endings (2025-12):
+# - Microsoft not states that Windows now uses LF.
+# - But ALL modern microsoft programs or tools fully support LF endings and preserves existing line endings
+#   as in (Notepad Win10+, PS1, GIT, Windows-Terminal, VS, VS-Code, WSL).
+# - Toolchains produces outputs with LF for all major languages (Cs,Python,Go,Rust,Java,NodeJs,Docker,Yaml,Json).
+# - Powershell-7x: read and write text file operations default to LF on Non-Windows-OS.
+# - Git for Windows: The system default is still core.autocrlf=true but for collaborating with cross platform teams the usage
+#   of .gitattributes disables the relying on core.autocrlf, which implies core.autocrlf=false as the safest global setting.
+# - Cmd.exe can perform LF-only lines except:
+#   - when used line continuation (^) which is CRLF sensitive.
+#   - when using parenthesized blocks for example:   if exist f.any ( <LF> echo found <LF> )    this results in "unexpected )" error.
+#   - when using labels for example:   :label <LF> echo test <LF>  goto label   this results in label not found error.
+#   - Note: Notepad does save batch files with CRLF.
+# - What is still missing:
+#   - Powershell on Windows should also use for read and write text file operations the default to LF.
+#   - Git for Windows: The system default should be put to core.autocrlf=false.
+# - Summary: Today strong recommendations on Windows: Configure editors to default to LF.
+#   It is: Accepted by Windows, preferred by developers, used internally by Microsoft tooling, cross-platform safe.
 #
 # Example usages of this module for a .ps1 script:
 #      # Simple example for using MnCommonPsToolLib
@@ -2828,7 +2862,8 @@ function GitAssertAutoCrLfIsDisabled          (){
                                                 #   the system settings (default for all users, stored in /etc/gitconfig) are not existing
                                                 #   and in the global settings (default for all repos of current user, stored in $HOME/.gitconfig)
                                                 #   this option also not exists and for the git command the default value of this mode is false.
-                                                # On Windows: The bad thing is that https://git-scm.com (for example in V2.43 from 2023-11-20) does create the file
+                                                # On Windows: The bad thing is that https://git-scm.com (for example in V2.43 from 2023-11-20, possibly still in 2025-12)
+                                                #   does create the file
                                                 #   C:\Install-dir-of-Git\etc\gitconfig with the entry "autocrlf = true" and so this is the default
                                                 #   for the system settings, which is not the same as on linux!
                                                 #   Probably this was done because in earlier days there were some windows text editors,
@@ -2839,7 +2874,7 @@ function GitAssertAutoCrLfIsDisabled          (){
                                                 #   for all contributors of a repo but this is also not reasonable because there is no consistent definition
                                                 #   which files are text files and which not.
                                                 # Best way: Use .editorconfig file in your repo and or on top of your workspace, ref: https://editorconfig.org/ .
-                                                # List current line endings, use:  git ls-files --eol
+                                                # List current line endings in a repo, use:  git ls-files --eol;
                                                 # More: https://www.aleksandrhovhannisyan.com/blog/crlf-vs-lf-normalizing-line-endings-in-git/
                                                 # More: https://git-scm.com/docs/git-config see under option core.safecrlf which depends on core.autocrlf=true
                                                 #   it has the description "CRLF conversion bears a slight chance of corrupting data."

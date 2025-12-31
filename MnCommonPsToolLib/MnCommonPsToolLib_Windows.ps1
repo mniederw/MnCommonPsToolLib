@@ -2915,8 +2915,8 @@ function ToolWingetListInstalledPackages      (){
                                                 [Int32] $len = StringArrayGetMaxItemLength ($out1+$out2);
                                                 $out1 = $out1 | Where-Object{ $_ -ne "" } | ForEach-Object{ "$($_.PadRight($len)) User    "; };
                                                 $out2 = $out2 | Where-Object{ $_ -ne "" } | ForEach-Object{ "$($_.PadRight($len)) Machine "; };
-                                                $out1 | Where-Object{ $_ -ne "" } | Select-Object -First 1 | ForEach-Object{ OutProgress $_ 2; };
-                                                $out2 | Where-Object{ $_ -ne "" } | Select-Object -First 1 | ForEach-Object{ OutProgress $_ 2; };
+                                                $out1         | Where-Object{ $_ -ne "" } | Select-Object -First 1 | ForEach-Object{ OutProgress $_ 2; };
+                                                $out2         | Where-Object{ $_ -ne "" } | Select-Object -First 1 | ForEach-Object{ OutProgress $_ 2; };
                                                 OutProgress "$('-'*$len)-------- " 2;
                                                 (($out1 | Select-Object -Skip 2) + ($out2 | Select-Object -Skip 2)) | Sort-Object | Where-Object{ $_ -ne "" } | ForEach-Object{ OutProgress $_ 2; };
                                                 # Example: Es wurde kein anwendbares Upgrade gefunden.
