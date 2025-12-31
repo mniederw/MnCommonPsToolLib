@@ -1,4 +1,4 @@
-﻿name: PowershellModuleTest
+name: PowershellModuleTest
 
 # Triggers the workflow on push or pull request events but only for the given branches and ignore changes of some file types.
 on:
