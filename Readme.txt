@@ -1,4 +1,4 @@
-﻿MnCommonPsToolLib - Common Powershell Tool Library for PS5 and PS7 and works on multiplatforms (Window, Linux, OSX)
+MnCommonPsToolLib - Common Powershell Tool Library for PS5 and PS7 and works on multiplatforms (Window, Linux, OSX)
 ===================================================================================================================
 
 Published at: https://github.com/mniederw/MnCommonPsToolLib

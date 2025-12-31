@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env pwsh
+#!/usr/bin/env pwsh
 
 Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 
@@ -67,10 +67,14 @@ function UnitTest_Win_Tool(){
   #                                          # Note: if not in elevated admin mode and if it is required then it will download file twice,
   #                                          #   once to check for differences and once after switching to elevated admin mode.
   #                                          # Example: ToolPerformFileUpdateAndIsActualized "C:\Temp\a.psm1" "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/master/MnCommonPsToolLib/MnCommonPsToolLib.psm1" $true $true "Please restart" $false $true;
-
+  #
+  ToolFsEntryListFileEolAndEncCategory $PSCommandPath;
+  ToolFsEntryListFileEolAndEncCategory $PSScriptRoot;
+  #
   if( -not (ProcessIsRunningInElevatedAdminMode) ){ OutProgress "Not running in elevated mode, so bypass test."; return; }
   OutProgress "ToolWin10PackageGetState of OpenSSH.Client: $(ToolWin10PackageGetState "OpenSSH.Client") ";
   if( "TEST_DISCARDED_BECAUSE_CHANGES_SYSTEM" -eq "" ){ ToolWin10PackageInstall   "OpenSSH.Client"; }
   if( "TEST_DISCARDED_BECAUSE_CHANGES_SYSTEM" -eq "" ){ ToolWin10PackageDeinstall "OpenSSH.Client"; }
+  #
 }
 UnitTest_Win_Tool;

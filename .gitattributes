@@ -9,7 +9,7 @@
 # So it also disables behaviour of git config core.autocrlf .
 * -text
 
-# For some known file extensions we force utf8 and line endings.
+# For some known file extensions we force line endings and utf8.
 *.txt           text  eol=lf    working-tree-encoding=UTF-8
 *.psd           text  eol=lf    working-tree-encoding=UTF-8
 *.ps1           text  eol=lf    working-tree-encoding=UTF-8

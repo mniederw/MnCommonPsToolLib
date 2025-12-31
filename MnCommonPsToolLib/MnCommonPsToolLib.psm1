@@ -20,7 +20,7 @@
 # - Typesafe: Functions and its arguments and return values are always specified with its type
 #   to assert type reliablility as far as possible.
 # - Avoid null values: Whenever possible null values are generally avoided. For example arrays gets empty instead of null.
-# - Encoding in PS is not consistent (different in PS5/PS7, Win/Linux). 
+# - Encoding in PS is not consistent (different in PS5/PS7, Win/Linux).
 #   So for improving compatibility between multi platforms
 #   we are generally writing text file contents per default as UTF8 with BOM (byte order mark).
 #   For reading if they have NO-BOM then they use the encoding "Default", which is Win-1252(=ANSI) on windows and UTF8 on other platforms.
@@ -64,7 +64,7 @@
 #   UTF8: As of 2019, Microsoft recommends programmers use UTF-8 (e.g. instead of any other 8-bit encoding), on Windows and Xbox,
 #   and may be recommending its use instead of UTF-16, even stating "UTF-8 is the universal code page for internationalization ...".
 # - https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_character_encoding
-#   In PowerShell (v6 and higher), the default UTF-8 encoding for text output is without BOM. 
+#   In PowerShell (v6 and higher), the default UTF-8 encoding for text output is without BOM.
 #
 # Facts about CRLF or LF line endings (2025-12):
 # - Microsoft not states that Windows now uses LF.
@@ -1504,7 +1504,7 @@ function PrivDirSecurityCreateOwner           ( [System.Security.Principal.Ident
                                                 $result.SetOwner($account);
                                                 return [System.Security.AccessControl.DirectorySecurity] $result; }
 function FsEntryTrySetOwner                   ( [String] $fsEntry, [System.Security.Principal.IdentityReference] $account, [Boolean] $recursive = $false ){
-                                                # usually account is (PrivGetUserCurrent) or (PrivGetGroupAdministrators); 
+                                                # usually account is (PrivGetUserCurrent) or (PrivGetGroupAdministrators);
                                                 # if the entry itself cannot be set then you should try to set on its parent the fullcontrol.
                                                 $fsEntry = FsEntryGetAbsolutePath $fsEntry;
                                                 ProcessRestartInElevatedAdminMode "TrySetOwner requires elevated admin mode.";
@@ -1725,13 +1725,18 @@ function FileAppendLines                      ( [String] $file, [String[]] $line
                                                 $lines | StreamToFile $file $false $encoding $true; }
 function FileGetTempFile                      (){ return [String] [System.IO.Path]::GetTempFileName(); } # Example on linux: "/tmp/tmpFN3Gnz.tmp"; on windows: $env:SystemRoot\Temp\tmpE3B6.tmp
 function FileDelTempFile                      ( [String] $file ){ FileDelete $file -traceCmd:$false; } # As FileDelete but no progress msg.
-function FileReadEncoding                     ( [String] $file ){
-                                                # read BOM = Byte order mark. Note: There exists no BOM for ANSI! Works also if file size is lesser than 4 bytes.
-                                                # Note: This cannot be used anymore because it not works for PS7: [Byte[]] $b = Get-Content -Encoding Byte -ReadCount 4 -TotalCount 4 -LiteralPath $file;
+function FileReadEncoding                     ( [String] $file, [String] $textForNoBom = "Default" ){
+                                                # Read BOM = Byte order mark. Note: There exists no BOM for ANSI! Works also if file size is lesser than 4 bytes.
+                                                # For textForNoBom a good alternative is "NoBOM".
+                                                # If it has no BOM then usually it is then defined by charset headers (xml,html) or by OS defaults as UTF8 on linux and 1252=ANSI on windows.
+                                                Assert (-not (FsEntryIsDir $file)) "FileReadEncoding(`"$file`") must not be called with a dir.";
+                                                # Note: We cannot use the code {[Byte[]] $b = Get-Content -Encoding Byte -ReadCount 4 -TotalCount 4 -LiteralPath $file;} because it not works for PS7.
                                                 [System.IO.FileStream] $fs = [System.IO.File]::OpenRead($file);
-                                                [Byte[]] $b = New-Object Byte[] 4;
-                                                [Int32] $nrOfBytesRead = $fs.Read($b, 0, 4);
-                                                $fs.Close();
+                                                try{
+                                                  [Byte[]] $b = New-Object Byte[] 4;
+                                                  [Int32] $nrOfBytesRead = $fs.Read($b, 0, 4);
+                                                  $fs.Close(); $f = $null;
+                                                }finally{ if($fs){ $fs.Dispose(); } }
                                                 [Byte[]] $b = if($nrOfBytesRead -gt 0){ $b[0..($nrOfBytesRead - 1)] }else{ @() };
                                                 if($b.Length -ge 3 -and $b[0] -eq 0xef -and $b[1] -eq 0xbb -and $b[2] -eq 0xbf                     ){ return [String] "UTF8"             ; } # codepage=65001;
                                                 if($b.Length -ge 2 -and $b[0] -eq 0xff -and $b[1] -eq 0xfe                                         ){ return [String] "UTF16LittleEndian"; } # codepage= 1200;
@@ -1747,7 +1752,57 @@ function FileReadEncoding                     ( [String] $file ){
                                                 if($b.Length -ge 3 -and $b[0] -eq 0x0e -and $b[1] -eq 0xfe -and $b[2] -eq 0xff                     ){ return [String] "SCSU"             ; }
                                                 if($b.Length -ge 4 -and $b[0] -eq 0xfb -and $b[1] -eq 0xee -and $b[2] -eq 0x28                     ){ return [String] "BOCU-1"           ; }
                                                 if($b.Length -ge 4 -and $b[0] -eq 0x84 -and $b[1] -eq 0x31 -and $b[2] -eq 0x95 -and $b[3] -eq 0x33 ){ return [String] "GB-18030"         ; }
-                                                else                                                                                                { return [String] "Default"          ; } } # codepage on windows 1252=ANSI and otherwise UTF8.
+                                                else                                                                                                { return [String] $textForNoBom      ; } } # no BOM
+function FileReadLineEndingCategory           ( [string] $file ){
+                                                # EMPTY           : file is empty.
+                                                # LF              : only LF (=0x0A) line breaks were found; file ends with LF.
+                                                # LF-NONE-AT-EOF  : only LF line breaks or no line breaks at all were found; file not ends with LF.
+                                                # CRLF            : only CRLF (=0x0D,0x0A) line breaks were found; file ends with CRLF.
+                                                # CRLF-NONE-AT-EOF: only CRLF pairs were found; file not ends with CRLF.
+                                                # MIXED_CR_LF     : more than one newline style appears (any combination of lone LF, CRLF, or CR-only).
+                                                # BINARY          : file contains NUL (0x00) byte (fast binary heuristic); stop early and return BINARY.
+                                                Assert (-not (FsEntryIsDir $file)) "FileReadLineEndingCategory(`"$file`") must not be called with a dir.";
+                                                [System.IO.FileStream] $fs = [System.IO.File]::Open($file,[System.IO.FileMode]::Open,[System.IO.FileAccess]::Read,[System.IO.FileShare]::ReadWrite);
+                                                try{
+                                                  if( $fs.Length -eq 0 ){ return "EMPTY"; }
+                                                  [Int32] $bufferSize = 65536; [Byte[]] $buf = New-Object Byte[] $bufferSize;
+                                                  [Byte]    $LF        = 0x0A;
+                                                  [Byte]    $CR        = 0x0D;
+                                                  [Byte]    $NUL       = 0x00;
+                                                  [Boolean] $sawLF     = $false; # lone LF not part of CRLF
+                                                  [Boolean] $sawCRLF   = $false; # CR LF pairs
+                                                  [Boolean] $sawCR     = $false; # CR not followed by LF
+                                                  [Boolean] $prevWasCR = $false; # last byte of previous chunk was CR
+                                                  $last1 = -1;                   # last byte seen (0..255)
+                                                  $last2 = -1;                   # second-to-last byte seen
+                                                  while( $true ){
+                                                    [Int32] $nrOfBytesRead = $fs.Read($buf, 0, $buf.Length);
+                                                    if( $nrOfBytesRead -le 0 ){ break }
+                                                    [Int32] $i = 0;
+                                                    if( $prevWasCR ){ if( $buf[0] -eq $LF ){ $sawCRLF = $true; $i = 1; }else{ $sawCR = $true; } $prevWasCR = $false; }
+                                                    for( ; $i -lt $nrOfBytesRead; $i++ ){
+                                                      [Byte] $b = $buf[$i];
+                                                      if( $b -eq $NUL ){ return 'BINARY'; }
+                                                      $last2 = $last1; $last1 = $b;
+                                                      if( $b -eq $CR ){ # Defer classification until we see next byte (could be CRLF, CR-only, or across-chunk CRLF)
+                                                        if( $i -eq ($nrOfBytesRead - 1) ){
+                                                          $prevWasCR = $true;
+                                                        }else{
+                                                          if( $buf[$i+1] -eq $LF ){ $sawCRLF = $true; $last2 = $last1; $last1 = $LF; $i++; }else{ $sawCR = $true; }
+                                                        }
+                                                        continue;
+                                                      }
+                                                      if( $b -eq $LF ){ $sawLF = $true; continue; }
+                                                    }
+                                                  }
+                                                  if( $prevWasCR ){ $sawCR = $true; } # If file ended with a dangling CR (not followed by LF), count it as CR-only.
+                                                  if( ([Int32]$sawCRLF + [Int32]$sawLF + [Int32]$sawCR) -gt 1 -or $sawCR ){ return 'MIXED_CR_LF'     ; }
+                                                  if( $sawCRLF -and ($last2 -eq $CR -and $last1 -eq $LF)                 ){ return 'CRLF'            ; }
+                                                  if( $sawCRLF                                                           ){ return 'CRLF-NONE-AT-EOF'; }
+                                                  if( $last1 -eq $LF                                                     ){ return 'LF'              ; }
+                                                  else                                                                    { return 'LF-NONE-AT-EOF'  ; }
+                                                  $fs.Close(); $f = $null;
+                                                }finally{ if( $fs ){ $fs.Dispose() } } }
 function FileTouch                            ( [String] $file ){
                                                 $file = FsEntryGetAbsolutePath $file;
                                                 OutProgress "FileTouch: `"$file`"";
@@ -2120,7 +2175,7 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                     # exc PS5.1: System.Net.WebException: Der Remoteserver hat einen Fehler zurückgegeben: (404) Nicht gefunden.
                                                     # exc PS7  : Microsoft.PowerShell.Commands.HttpResponseException: Response status code does not indicate success: 504 (Gateway Timeout).
                                                     [Int32] $usedSec = [Int32]((New-Timespan -Start $startedAt -End (Get-Date)).TotalSeconds+0.999);
-                                                    [Int32] $timeLeftInSec = $timeoutInSec - $usedSec; # 
+                                                    [Int32] $timeLeftInSec = $timeoutInSec - $usedSec; #
                                                     [Int32] $httpResponseCode = if( $_.Exception -is [System.Net.WebException] ){ ([System.Net.WebException]($_.Exception)).Response.StatusCode; }
                                                     elseif( $_.Exception -is [Microsoft.PowerShell.Commands.HttpResponseException] ){ [Int32](([Microsoft.PowerShell.Commands.HttpResponseException]($_.Exception)).Response.StatusCode); }
                                                     else{ -1; };
@@ -2150,7 +2205,7 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
 function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false,
                                                 [Boolean] $onlyIfNewer = $false, [Boolean] $errorAsWarning = $false ){
                                                 # Download a single file by overwrite it (as NetDownloadFile).
-                                                # It requires and uses curl executable in path and it ignores any curl alias 
+                                                # It requires and uses curl executable in path and it ignores any curl alias
                                                 # as you would find it in PS5 because this would references not a curl program.
                                                 # Redirections are followed, timestamps are also fetched, logging info is stored in a global logfile,
                                                 # for user agent info a mozilla firefox is set,
@@ -3168,7 +3223,7 @@ function GithubBranchDelete                   ( [String] $repo, [String] $branch
                                                   ScriptResetRc;
                                                 } }
 function ToolTailFile                         ( [String] $file ){ OutProgress "Show tail of file until ctrl-c is entered of `"$file`":"; Get-Content -Wait $file; }
-function ToolFileNormalizeNewline             ( [String] $src, [String] $tar, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM", 
+function ToolFileNormalizeNewline             ( [String] $src, [String] $tar, [Boolean] $overwrite = $false, [String] $encoding = "UTF8BOM",
                                                 [String] $sep = [Environment]::NewLine, [String] $srcEncodingIfNoBom = "Default", [Boolean] $traceCmd = $false ){
                                                 # If overwrite is false then nothing done if target already exists.
                                                 # When tar is identic to src then you have to specify overwrite and it will work inplace
@@ -3372,6 +3427,14 @@ function ToolEvalExecForWindsurf              ( [Boolean] $returnEmptyIfNotFound
                                                   throw [ExcMsg] "Windsurf executable was not found whether in path nor on windows at common locations for user or system programs.";
                                                 }
                                                 return [String] $result; }
+function ToolFsEntryListFileEolAndEncCategory ( [String] $fsEntry ){ # List End-of-Line Category (LF,CRLF,LF-NONE-AT-EOF,CRLF-NONE-AT-EOF,MIXED_CR_LF,BINARY)
+                                                # and Byte-Order-Mark (BOM) for files recursively under a dir or of a file.
+                                                [String] $exclPattern1 = "*$(DirSep).git$(DirSep)*";
+                                                $fsEntry = FsEntryGetAbsolutePath $FsEntry;
+                                                OutProgress "List End-of-Line and Byte-Order-Mark Category of `"$FsEntry`": ";
+                                                FsEntryListAsStringArray $fsEntry |
+                                                  Where-Object{ $null -ne $_ } | Where-Object{ $_ -notlike $exclPattern1 } | Where-Object{ -not (FsEntryIsDir $_) } |
+                                                  ForEach-Object{ OutProgress "$((FileReadLineEndingCategory $_).PadRight(16)) $((FileReadEncoding $_ NoBOM).PadRight(17)) $_"; } }
 
 # Deprecated functions, will be removed on next major version of this lib:
 function GetSetGlobalVar( [String] $var, [String] $val){ OutWarning "GetSetGlobalVar is DEPRECATED, replace it now by GitSetGlobalVar. ";  GitSetGlobalVar $var $val; }

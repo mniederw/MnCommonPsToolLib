@@ -1,4 +1,4 @@
-﻿# Extension of MnCommonPsToolLib.psm1 - Common powershell tool library - Parts for windows only
+# Extension of MnCommonPsToolLib.psm1 - Common powershell tool library - Parts for windows only
 
 if( [System.Environment]::OSVersion.Platform -ne "Win32NT" ){ OutVerbose "$PSScriptRoot : Not Running on windows"; [Environment]::Exit("0"); }
 
