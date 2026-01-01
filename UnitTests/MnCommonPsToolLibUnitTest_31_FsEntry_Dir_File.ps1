@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env pwsh
+#!/usr/bin/env pwsh
 
 Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 
@@ -382,6 +382,22 @@ function UnitTest_FsEntry_Dir_File(){
   #
   # TODO: FileReadEncoding                     ( [String] $file )
   #
+  function Test_FileReadLineEndingCategory(){
+    [String] $tmpFile0 = (FileGetTempFile); # empty 0 Bytes NonBOM
+    [String] $tmpFile2 = (FileGetTempFile); FileWriteFromString $tmpFile2 ""                    $true -traceCmd:$true; # UTF8BOM 3 bytes
+    [String] $tmpFile3 = (FileGetTempFile); FileWriteFromString $tmpFile3 "Hello`n World`n"     $true -traceCmd:$true;
+    [String] $tmpFile4 = (FileGetTempFile); FileWriteFromString $tmpFile4 "Hello`r`n World`r`n" $true -traceCmd:$true;
+    [String] $tmpFile5 = (FileGetTempFile); FileWriteFromString $tmpFile5 "Hello`r`n World"     $true -traceCmd:$true;
+    [String] $tmpFile6 = (FileGetTempFile); FileWriteFromString $tmpFile6 "Hello`r`n World`n"   $true -traceCmd:$true;
+    [String] $tmpFile7 = (FileGetTempFile); FileWriteFromString $tmpFile7 "Hello`n `0 World"    $true -traceCmd:$true;
+    Assert ((FileReadLineEndingCategory $tmpFile0) -eq "EMPTY" );
+    Assert ((FileReadLineEndingCategory $tmpFile2) -eq "LF-NONE-AT-EOF" );
+    Assert ((FileReadLineEndingCategory $tmpFile3) -eq "LF" );
+    Assert ((FileReadLineEndingCategory $tmpFile4) -eq "CRLF" );
+    Assert ((FileReadLineEndingCategory $tmpFile5) -eq "CRLF-NONE-AT-EOF" );
+    Assert ((FileReadLineEndingCategory $tmpFile6) -eq "MIXED_CR_LF" );
+    Assert ((FileReadLineEndingCategory $tmpFile7) -eq "BINARY" );
+    } Test_FileReadLineEndingCategory;
   # TODO: FileTouch                            ( [String] $file )
   #
   # TODO: FileGetLastLines                     ( [String] $file, [Int32] $nrOfLines )

@@ -1,0 +1,41 @@
+# file: .gitattributes
+
+# Works on storing files to the repo to normalize some file properties.
+# After adapting this file then perform:  git add --renormalize .; # and then commit changes
+
+# There is no consistent definition for files which are text or binary, so as default
+# git should not touch them in any kind as converting end of line characters or encoding.
+# We disable the Auto-detection and explicitly mark only known file extensions.
+# So it also disables behaviour of git config core.autocrlf .
+* -text
+
+# For some known file extensions we force line endings and utf8.
+*.txt           text  eol=lf    working-tree-encoding=UTF-8
+*.psd           text  eol=lf    working-tree-encoding=UTF-8
+*.ps1           text  eol=lf    working-tree-encoding=UTF-8
+*.psm1          text  eol=lf    working-tree-encoding=UTF-8
+*.yml           text  eol=lf    working-tree-encoding=UTF-8
+*.py            text  eol=lf    working-tree-encoding=UTF-8
+*.sh            text  eol=lf    working-tree-encoding=UTF-8
+*.json          text  eol=lf    working-tree-encoding=UTF-8
+*.md            text  eol=lf    working-tree-encoding=UTF-8
+*.c             text  eol=lf    working-tree-encoding=UTF-8
+*.h             text  eol=lf    working-tree-encoding=UTF-8
+*.cpp           text  eol=lf    working-tree-encoding=UTF-8
+*.hpp           text  eol=lf    working-tree-encoding=UTF-8
+.gitignore      text  eol=lf    working-tree-encoding=UTF-8
+.gitattributes  text  eol=lf    working-tree-encoding=UTF-8
+
+# Some known file extensions for files which are not working with lf or utf8.
+*.bat           text  eol=crlf  working-tree-encoding=ISO-8859-15
+*.cmd           text  eol=crlf  working-tree-encoding=ISO-8859-15
+
+# Preserve binaries explicit to be safer.
+*.png           binary
+*.jpg           binary
+*.jpeg          binary
+*.gif           binary
+*.pdf           binary
+*.zip           binary
+*.exe           binary
+*.dll           binary

@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env pwsh
+#!/usr/bin/env pwsh
 
 Param( [String] $sel = "" )
   # ""                           : Show interactive menu.
