@@ -46,7 +46,7 @@ function OsWindowsPackageUninstall            ( [String] $displayName ){
                                                 $a | ForEach-Object{
                                                   [String] $uninstallCmd = $_.UninstallString; # maybe we can append option: " /quiet"
                                                   OutProgress "Uninstall-Ignoring-Errors `"$displayName`" with: `"$uninstallCmd`" ";
-                                                  ProcessRestartInElevatedAdminMode;
+                                                  ProcessRestartInElevatedAdminMode "OsWindowsPackageUninstall($displayName) requires elevated admin mode.";
                                                   ProcessStartByCmdLine $uninstallCmd $true $true;
                                                 } }
 function OsWindowsFeatureGetInstalledNames    (){ # Requires windows-server-os or at least Win10Prof with installed RSAT https://www.microsoft.com/en-au/download/details.aspx?id=45520
@@ -147,7 +147,7 @@ function OsWinCreateUser                      ( [String] $us, [String] $pw, [Str
                                               }
 function OsWindowsUpdateEnableNonOsAppUpdates (){
                                                 OutProgress "Enable Microsoft Update for Non-OS-App-Updates";
-                                                ProcessRestartInElevatedAdminMode;
+                                                ProcessRestartInElevatedAdminMode "OsWindowsUpdateEnableNonOsAppUpdates requires elevated admin mode.";
                                                 Import-Module PSWindowsUpdate; # for Get-WUServiceManager
                                                 OutProgress "List Registered Service Manager:";
                                                 Get-WUServiceManager | Sort-Object Name | Select-Object Name, IsDefaultAUService, IsManaged, ServiceId, ServiceUrl |
@@ -170,7 +170,7 @@ function OsWindowsUpdateEnableNonOsAppUpdates (){
                                               }
 function OsWindowsUpdatePackagesShowPending   (){
                                                 OutProgress "Show Pending Microsoft Windows Update Packages";
-                                                ProcessRestartInElevatedAdminMode;
+                                                ProcessRestartInElevatedAdminMode "OsWindowsUpdatePackagesShowPending requires elevated admin mode.";
                                                 Import-Module PSWindowsUpdate; # for Get-WindowsUpdate
                                                 Get-WindowsUpdate | Select-Object ComputerName, Status, KB, Size, Title |
                                                   StreamToTableString | StreamToStringIndented | ForEach-Object{ OutProgress $_; };
@@ -178,7 +178,7 @@ function OsWindowsUpdatePackagesShowPending   (){
                                               }
 function OsWindowsUpdatePerform               ( [Boolean] $withAutoReboot = $false ){
                                                 OutProgress "Perform Microsoft Windows Update (withAutoReboot=$withAutoReboot)";
-                                                ProcessRestartInElevatedAdminMode;
+                                                ProcessRestartInElevatedAdminMode "OsWindowsUpdatePerform requires elevated admin mode.";
                                                 Import-Module PSWindowsUpdate; # for Get-WindowsUpdate
                                                 # for performing on remote computers use: $c = "comp1, comp2, comp3";
                                                 #   Invoke-WUJob -ComputerName $c -Script {Import-Module PSWindowsUpdate; Install-WindowsUpdate -MicrosoftUpdate -AcceptAll -AutoReboot} -RunNow -Confirm:$false |
@@ -458,7 +458,9 @@ function RegistryMapToShortKey                ( [String] $key ){ # Note: HKCU: w
                                                 if( -not $key.StartsWith("HKEY_","CurrentCultureIgnoreCase") ){ return [String] $key; }
                                                 return [String] $key.Replace("HKEY_LOCAL_MACHINE:","HKLM:").Replace("HKEY_CURRENT_USER:","HKCU:").Replace("HKEY_CLASSES_ROOT:","HKCR:").Replace("HKCR:","HKLM:\SOFTWARE\Classes").Replace("HKEY_USERS:","HKU:").Replace("HKEY_CURRENT_CONFIG:","HKCC:"); }
 function RegistryRequiresElevatedAdminMode    ( [String] $key ){
-                                                if( (RegistryMapToShortKey $key).StartsWith("HKLM:","CurrentCultureIgnoreCase") ){ ProcessRestartInElevatedAdminMode "HKLM registry requires elevated admin mode. "; } }
+                                                if( (RegistryMapToShortKey $key).StartsWith("HKLM:","CurrentCultureIgnoreCase") ){
+                                                  ProcessRestartInElevatedAdminMode "HKLM($key) registry requires elevated admin mode.";
+                                                } }
 function RegistryAssertIsKey                  ( [String] $key ){
                                                 $key = RegistryMapToShortKey $key;
                                                 if( $key.StartsWith("HK","CurrentCultureIgnoreCase") ){ return; }
@@ -730,7 +732,7 @@ function ServiceStop                          ( [String] $serviceName, [Boolean]
                                                 [String] $s = ServiceGetState $serviceName;
                                                 if( $s -eq "" -or $s -eq "stopped" ){ return; }
                                                 OutProgress "ServiceStop $serviceName $(switch($errorAsWarning){($true){'-errorAsWarning'}default{''}}) $(switch($suppressWarningIfFailed){($true){'-suppressWarningIfFailed'}default{''}})";
-                                                ProcessRestartInElevatedAdminMode;
+                                                ProcessRestartInElevatedAdminMode "ServiceStop($serviceName) requires elevated admin mode.";
                                                 try{ Stop-Service -Name $serviceName; } # Instead of check for stopped service we could also use -PassThru.
                                                 catch{
                                                   # Example: ServiceCommandException: Service 'Check Point Endpoint Security VPN (TracSrvWrapper)' stop failed.
@@ -744,7 +746,7 @@ function ServiceStart                         ( [String] $serviceName ){
                                                 if( $s -eq "" ){ throw [Exception] "Service not exists: `"$serviceName`""; }
                                                 if( $s -eq "Running" ){ return; }
                                                 OutProgress "ServiceStart $serviceName";
-                                                ProcessRestartInElevatedAdminMode;
+                                                ProcessRestartInElevatedAdminMode "ServiceStart($serviceName) requires elevated admin mode.";
                                                 Start-Service -Name $serviceName; } # alternative: -displayname or Restart-Service
 function ServiceSetStartType                  ( [String] $serviceName, [String] $startType, [Boolean] $errorAsWarning = $false ){
                                                 [String] $startTypeExt = switch($startType){ "Disabled" {$startType} "Manual" {$startType} "Automatic" {$startType} "Automatic_Delayed" {"Automatic"}
@@ -758,7 +760,7 @@ function ServiceSetStartType                  ( [String] $serviceName, [String] 
                                                 if( $s.StartType -ne $startTypeExt -or ($null -ne $targetDelayedAutostart -and $targetDelayedAutostart -ne $delayedAutostart) ){
                                                   OutProgress "$(ScriptGetCurrentFunc) `"$serviceName`" $startType";
                                                   if( $s.StartType -ne $startTypeExt ){
-                                                    ProcessRestartInElevatedAdminMode;
+                                                    ProcessRestartInElevatedAdminMode "ServiceSetStartType($serviceName) requires elevated admin mode.";
                                                     try{ Set-Service -Name $serviceName -StartupType $startTypeExt;
                                                     }catch{
                                                       # Example: for aswbIDSAgent which is antivir protection we got:
@@ -819,7 +821,8 @@ function TaskDisable                          ( [String] $taskPathAndName, [Bool
                                                 [CimInstance] $task = Get-ScheduledTask -TaskPath $taskPath -TaskName $taskName -ErrorAction SilentlyContinue;
                                                 if( $null -eq $task ){ Throw "Task not exists: `"$taskPathAndName`" "; }
                                                 if( -not (TaskIsDisabled $taskPathAndName) ){
-                                                  OutProgress "TaskDisable $taskPathAndName"; ProcessRestartInElevatedAdminMode;
+                                                  OutProgress "TaskDisable $taskPathAndName";
+                                                  ProcessRestartInElevatedAdminMode "TaskDisable($taskPathAndName) requires elevated admin mode.";
                                                   try{ Disable-ScheduledTask -TaskPath $taskPath -TaskName $taskName | Out-Null; }
                                                   catch{ OutWarning "Warning: Ignore failing of disabling task `"$taskPathAndName`" because $($_.Exception.Message)"; } } }
 function FileNtfsAlternativeDataStreamAdd     ( [String] $srcFile, [String] $adsName, [String] $val ){
@@ -857,13 +860,13 @@ function ShareListAll                         ( [String] $selectShareName = "" )
 function ShareLocksList                       ( [String] $fsEntryPath = "" ){
                                                 # list currenty read or readwrite locked open files of a share, requires elevated admin mode
                                                 $fsEntryPath = FsEntryGetAbsolutePath $fsEntryPath;
-                                                ProcessRestartInElevatedAdminMode "List locked open files of a share requires elevated admin mode. ";
+                                                ProcessRestartInElevatedAdminMode "List locked open files of a share requires elevated admin mode.";
                                                 return [Object] (Get-SmbOpenFile | Where-Object{$null -ne $_} | Where-Object{ $_.Path.StartsWith($fsEntryPath,"OrdinalIgnoreCase") } |
                                                   Select-Object FileId, SessionId, Path, ClientComputerName, ClientUserName, Locks | Sort-Object Path); }
 function ShareLocksClose                      ( [String] $fsEntryPath = "" ){
                                                 # closes locks, Example: $fsEntryPath="D:/Transfer/" or $fsEntryPath="D:/Transfer/MyFile.txt"
                                                 $fsEntryPath = FsEntryGetAbsolutePath $fsEntryPath;
-                                                ProcessRestartInElevatedAdminMode "Close locks of a share requires elevated admin mode. ";
+                                                ProcessRestartInElevatedAdminMode "Close locks of a share requires elevated admin mode.";
                                                 ShareLocksList $fsEntryPath |
                                                   Where-Object{$null -ne $_} |
                                                   ForEach-Object{
@@ -883,7 +886,7 @@ function ShareCreate                          ( [String] $shareName, [String] $d
                                                   if( $ignoreIfAlreadyExists ){ return; }
                                                 }
                                                 OutVerbose "CreateShare name=`"$shareName`" dir=`"$dir`" ";
-                                                ProcessRestartInElevatedAdminMode "Create share requires elevated admin mode. ";
+                                                ProcessRestartInElevatedAdminMode "Create share requires elevated admin mode.";
                                                 # alternative: -FolderEnumerationMode AccessBased; Note: this is not allowed but it is the default: -ContinuouslyAvailable $true
                                                 New-SmbShare -Path $dir -Name $shareName -Description $descr -ConcurrentUserLimit $nrOfAccessUsers -FolderEnumerationMode Unrestricted -FullAccess (PrivGetGroupEveryone) | Out-Null; }
 function ShareRemove                          ( [String] $shareName ){ # no action if it not exists
@@ -1136,7 +1139,7 @@ function InfoAboutRunningProcessesAndServices (){
                                                   # usually: AppLocker, BitsTransfer, PSDiagnostics, TroubleshootingPack, WebAdministration, SQLASCMDLETS, SQLPS.
                                                 ); }
 function InfoHdSpeed                          (){ # Works only on Windows
-                                                ProcessRestartInElevatedAdminMode "Run winsat.exe requires elevated admin mode. ";
+                                                ProcessRestartInElevatedAdminMode "Run winsat.exe requires elevated admin mode.";
                                                 [String[]] $out1 = @()+(& "winsat.exe" "disk" "-seq" "-read"  "-drive" "c"); AssertRcIsOk $out1;
                                                 [String[]] $out2 = @()+(& "winsat.exe" "disk" "-seq" "-write" "-drive" "c"); AssertRcIsOk $out2; return [String[]] ($out1+$out2); }
 function InfoAboutNetConfig                   (){
@@ -2078,7 +2081,7 @@ function ToolHibernateModeEnable              (){
                                                 }elseif( (DriveFreeSpace 'C') -le ((OsInfoMainboardPhysicalMemorySum) * 1.3) ){
                                                   OutWarning "Warning: Cannot enable hibernate because has not enought hd-space (RAM=$(OsInfoMainboardPhysicalMemorySum),DriveC-Free=$(DriveFreeSpace 'C'),expect RAM*1.3); ignored. You can manually try by: powercfg -HIBERNATE ON; ";
                                                 }else{
-                                                  ProcessRestartInElevatedAdminMode;
+                                                  ProcessRestartInElevatedAdminMode "ToolHibernateModeEnable requires elevated admin mode.";
                                                   & "$env:SystemRoot/System32/powercfg.exe" "-HIBERNATE" "ON"; AssertRcIsOk;
                                                 }
                                               }
@@ -2087,7 +2090,7 @@ function ToolHibernateModeDisable             (){
                                                 if( -not (OsIsHibernateEnabled) ){
                                                   OutProgress "Ok, is disabled.";
                                                 }else{
-                                                  ProcessRestartInElevatedAdminMode;
+                                                  ProcessRestartInElevatedAdminMode "ToolHibernateModeDisable requires elevated admin mode.";
                                                   & "$env:SystemRoot/System32/powercfg.exe" "-HIBERNATE" "OFF"; AssertRcIsOk;
                                                 }
                                               }
@@ -2340,7 +2343,7 @@ function ToolWin10PackageGetState             ( [String] $packageName ){ # Examp
                                                 return [String] ((Get-WindowsCapability -Online | Where-Object name -like "${packageName}~*").State); }
 function ToolWin10PackageInstall              ( [String] $packageName ){ # Example: "OpenSSH.Client"
                                                 OutProgress "Install Win10 Package if not installed: `"$packageName`"";
-                                                ProcessRestartInElevatedAdminMode;
+                                                ProcessRestartInElevatedAdminMode "ToolWin10PackageInstall($packageName) requires elevated admin mode.";
                                                 if( (ToolWin10PackageGetState $packageName) -eq "Installed" ){
                                                   OutProgress "Ok, `"$packageName`" is already installed."; }
                                                 else{
@@ -2351,7 +2354,7 @@ function ToolWin10PackageInstall              ( [String] $packageName ){ # Examp
                                                 } }
 function ToolWin10PackageDeinstall            ( [String] $packageName ){
                                                 OutProgress "Deinstall Win10 Package: `"$packageName`"";
-                                                ProcessRestartInElevatedAdminMode;
+                                                ProcessRestartInElevatedAdminMode "ToolWin10PackageDeinstall($packageName) requires elevated admin mode.";
                                                 if( (ToolWin10PackageGetState $packageName) -ne "Installed" ){
                                                   OutProgress "Ok, `"$packageName`" is already deinstalled."; }
                                                 else{
@@ -2363,7 +2366,7 @@ function ToolWin10PackageDeinstall            ( [String] $packageName ){
 function ToolOsWindowsResetSystemFileIntegrity(){ # uses about 4 min
                                                 [String] $f = "$env:SystemRoot/Logs/CBS/CBS.log";
                                                 OutProgress "Check and repair missing, corrupted or ownership-settings of system files and afterwards dump last lines of logfile '$f'";
-                                                ProcessRestartInElevatedAdminMode;
+                                                ProcessRestartInElevatedAdminMode "Run sfc.exe requires elevated admin mode.";
                                                 # https://support.microsoft.com/de-ch/help/929833/use-the-system-file-checker-tool-to-repair-missing-or-corrupted-system
                                                 # https://support.microsoft.com/en-us/kb/929833
                                                 OutProgress "Run: sfc.exe /scannow";
@@ -2416,7 +2419,7 @@ function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $
                                                     OutProgress "There are changes between the current file and the downloaded file, so overwrite it.";
                                                     if( $requireElevatedAdminMode ){
                                                       if( -not (ProcessIsRunningInElevatedAdminMode) ){ FileDelete $tmp; }
-                                                      ProcessRestartInElevatedAdminMode;
+                                                      ProcessRestartInElevatedAdminMode "ToolPerformFileUpdateAndIsActualized($targetFile) requires elevated admin mode.";
                                                       OutProgress "Is running in elevated admin mode.";
                                                     }
                                                     FileMove $tmp $targetFile $true;
@@ -2485,7 +2488,7 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){ # runs in about 12-90 sec and 
                                                    );
                                                 OutProgress "Install or update modules and its help: ";
                                                 OutProgress "  $moduleNames ";
-                                                ProcessRestartInElevatedAdminMode;
+                                                ProcessRestartInElevatedAdminMode "Install Nuget PckMgr and some common ps modules requires elevated admin mode.";
                                                 OutProgress "Import-Module PowerShellGet for command Install-Module:";
                                                 Import-Module "PowerShellGet"; # provides: Set-PSRepository, Install-Module
                                                 #

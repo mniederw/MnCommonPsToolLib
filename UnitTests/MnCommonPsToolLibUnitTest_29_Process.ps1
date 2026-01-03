@@ -8,7 +8,7 @@ function UnitTest_Process(){
   OutProgress "ProcessPsExecutable : $(ProcessPsExecutable) ";
   [Boolean] $b = ProcessIsRunningInElevatedAdminMode;
   if( $b ){ ProcessAssertInElevatedAdminMode; }
-  if( $b ){ ProcessRestartInElevatedAdminMode; }
+  if( $b ){ ProcessRestartInElevatedAdminMode "UnitTest_Process requires elevated admin mode."; }
   OutProgress "ProcessFindExecutableInPath pwsh: $(ProcessFindExecutableInPath "pwsh") ";
   Assert ((ProcessGetCurrentThreadId) -gt 0);
   Assert ((ProcessListRunnings).Count -gt 20);
