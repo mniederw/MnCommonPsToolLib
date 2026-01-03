@@ -600,12 +600,13 @@ function OutDebug                             ( [String] $line ){
 function OutGetTsPrefix                       ( [Boolean] $forceTsPrefix = $false ){
                                                 return [String] $(switch($forceTsPrefix -or $global:ModeOutputWithTsPrefix){($true){"$(DateTimeNowAsStringIso) "}default{""}}); }
 function OutClear                             (){ Clear-Host; }
-function OutStartTranscriptInTempDir          ( [String] $name = "MnCommonPsToolLib", [Boolean] $useHHMMSS = $false ){
-                                                 # Append everything from console to logfile as trace info, return full path name of logfile. Optionally use precision by seconds for file name.
-                                                if( $name -eq "" ){ $name = "MnCommonPsToolLib"; }
-                                                [String] $pattern = "yyyy yyyy-MM yyyy-MM-dd";
-                                                if( $useHHMMSS ){ $pattern += "_HH'h'mm'm'ss's'"; }
-                                                [String] $f = FsEntryGetAbsolutePath "$env:TEMP/tmp/$name/$((DateTimeNowAsStringIso $pattern).Replace(" ","/")).$name.txt"; # works for windows and linux
+function OutStartTranscriptInTempDir          ( [String] $name = "MnCommonPsToolLib" ){
+                                                # Append everything from console to logfile as trace info, return full path name of created logfile.
+                                                # Logfilename will be created uniquely by containing: date, time in precision of seconds, name, user, machine, pid, threadId.
+                                                $name = StringOnEmptyReplace $name.Trim() "MnCommonPsToolLib";
+                                                [String] $ts = (DateTimeNowAsStringIso "yyyy yyyy-MM yyyy-MM-dd_HH'h'mm'm'ss's'").Replace(" ","/");
+                                                [String] $us = $env:USERNAME;
+                                                [String] $f = FsEntryGetAbsolutePath "$env:TEMP/tmp/$name/$ts.$name.$us.$ComputerName.$PID.$(ProcessGetCurrentThreadId).txt"; # works for windows and linux
                                                 Start-Transcript -Path $f -Append -IncludeInvocationHeader | Out-Null;
                                                 return [String] $f; }
 function OutStopTranscript                    (){ Stop-Transcript | Out-Null; } # Writes to output: Transcript stopped, output file is C:/Temp/....txt
@@ -1560,7 +1561,7 @@ function FsEntryTrySetOwnerAndAclsIfNotSet    ( [String] $fsEntry, [System.Secur
 function FsEntryTryForceRenaming              ( [String] $fsEntry, [String] $extension ){
                                                 $fsEntry = FsEntryGetAbsolutePath $fsEntry;
                                                 if( FsEntryExists $fsEntry ){
-                                                  ProcessRestartInElevatedAdminMode "TryForceRenaming and change acls requires elevated admin mode.";
+                                                  ProcessRestartInElevatedAdminMode "FsEntryTryForceRenaming($fsEntry) requires elevated admin mode.";
                                                   [String] $newFileName = (FsEntryFindNotExistingVersionedName $fsEntry $extension);
                                                   try{
                                                     FsEntryRename $fsEntry $newFileName;
