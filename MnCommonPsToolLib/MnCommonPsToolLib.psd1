@@ -34,7 +34,7 @@
   }
   HelpInfoURI            = 'https://github.com/mniederw/MnCommonPsToolLib/Readme.txt';
 
-  ModuleVersion          = '7.119';
+  ModuleVersion          = '7.120';
 
   <#
   Releasenotes
@@ -43,7 +43,7 @@
   Major version will reflect breaking changes, minor identifies extensions and third number identifies urgent bugfixes.
   Breaking changes are usually removed deprecated functions or changed behaviours.
 
-  
+  2026-01-04  V7.120 Rename ToolWin10PackageGetState to ToolWinCapabilityPackageGetState, and ToolWin10PackageInstall to ToolWinCapabilityPackageInstall, and ToolWin10PackageDeinstall to ToolWinCapabilityPackageDeinstall. Add ToolPackageUninstallForce. Improve WingetInstall.
   2026-01-01  V7.119 OutStartTranscriptInTempDir handle as second param useHHMMSS is always true and remove this param. Improve ProcessRestartInElevatedAdminMode arg.
   2025-12-31  V7.118 Add doc. Store files as utf8 and with LF. Use gitattributes file. Add FileReadLineEndingCategory, ToolFsEntryListFileEolAndEncCategory.
   2025-12-27  V7.117 Improve StreamToFile. Change in FileWriteFromString the 5th param quiet to traceCmd. Change in FileCreateEmpty migrate the 3th param "quiet" to 4th param traceCmd.
