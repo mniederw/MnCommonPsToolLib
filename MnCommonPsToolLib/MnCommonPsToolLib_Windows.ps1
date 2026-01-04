@@ -2337,31 +2337,31 @@ function ToolGitTortoiseCommit                ( [String] $workDir, [String] $com
                                                 FsEntryAssertHasTrailingDirSep $workDir;
                                                 [String] $tortoiseExe = (RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseGit" "ProcPath"); # Example: "$env:ProgramFiles/TortoiseGit/bin/TortoiseGitProc.exe"
                                                 Start-Process -NoNewWindow -Wait -FilePath "$tortoiseExe" -ArgumentList @("/command:commit","/path:`"$workDir`"", "/logmsg:$commitMessage"); AssertRcIsOk; }
-function ToolWin10PackageGetState             ( [String] $packageName ){ # Example: for "OpenSSH.Client" return "Installed","NotPresent".
-                                                ProcessRestartInElevatedAdminMode "Getting package state requires elevated admin mode.";
+function ToolWinCapabilityPackageGetState     ( [String] $packageName ){ # Used for windows capabilities (features). Example: for "OpenSSH.Client" return "Installed","NotPresent".
+                                                ProcessRestartInElevatedAdminMode "Getting windows capability package state requires elevated admin mode.";
                                                 if( $packageName -eq "" ){ throw [Exception] "Missing packageName"; }
                                                 return [String] ((Get-WindowsCapability -Online | Where-Object name -like "${packageName}~*").State); }
-function ToolWin10PackageInstall              ( [String] $packageName ){ # Example: "OpenSSH.Client"
-                                                OutProgress "Install Win10 Package if not installed: `"$packageName`"";
-                                                ProcessRestartInElevatedAdminMode "ToolWin10PackageInstall($packageName) requires elevated admin mode.";
-                                                if( (ToolWin10PackageGetState $packageName) -eq "Installed" ){
+function ToolWinCapabilityPackageInstall      ( [String] $packageName ){ # Used for windows capabilities (features). Example: "OpenSSH.Client"
+                                                OutProgress "Install Windows Capability Package if not installed: `"$packageName`"";
+                                                ProcessRestartInElevatedAdminMode "ToolWinCapabilityPackageInstall($packageName) requires elevated admin mode.";
+                                                if( (ToolWinCapabilityPackageGetState $packageName) -eq "Installed" ){
                                                   OutProgress "Ok, `"$packageName`" is already installed."; }
                                                 else{
                                                   [String] $name = (Get-WindowsCapability -Online | Where-Object name -like "${packageName}~*").Name;
                                                   Add-WindowsCapability -Online -name $name | Out-Null; # example output: "Path          :\nOnline        : True\nRestartNeeded : False"
                                                   [String] $restartNeeded = (Get-WindowsCapability -Online -name $packageName).RestartNeeded;
-                                                  OutProgressTitle "Ok, installation done, current state=$(ToolWin10PackageGetState $packageName) RestartNeeded=$restartNeeded Name=$name";
+                                                  OutProgressTitle "Ok, installation done, current state=$(ToolWinCapabilityPackageGetState $packageName) RestartNeeded=$restartNeeded Name=$name";
                                                 } }
-function ToolWin10PackageDeinstall            ( [String] $packageName ){
-                                                OutProgress "Deinstall Win10 Package: `"$packageName`"";
-                                                ProcessRestartInElevatedAdminMode "ToolWin10PackageDeinstall($packageName) requires elevated admin mode.";
-                                                if( (ToolWin10PackageGetState $packageName) -ne "Installed" ){
+function ToolWinCapabilityPackageDeinstall    ( [String] $packageName ){ # Used for windows capabilities (features).
+                                                OutProgress "Deinstall Windows Capability Package: `"$packageName`"";
+                                                ProcessRestartInElevatedAdminMode "ToolWinCapabilityPackageDeinstall($packageName) requires elevated admin mode.";
+                                                if( (ToolWinCapabilityPackageGetState $packageName) -ne "Installed" ){
                                                   OutProgress "Ok, `"$packageName`" is already deinstalled."; }
                                                 else{
                                                   [String] $name = (Get-WindowsCapability -Online | Where-Object name -like "${packageName}~*").Name;
                                                   Remove-WindowsCapability -Online -name $name | Out-Null;
                                                   [String] $restartNeeded = (Get-WindowsCapability -Online -name $packageName).RestartNeeded;
-                                                  OutProgressTitle "Ok, deinstallation done, current state=$(ToolWin10PackageGetState $packageName) RestartNeeded=$restartNeeded Name=$name";
+                                                  OutProgressTitle "Ok, deinstallation done, current state=$(ToolWinCapabilityPackageGetState $packageName) RestartNeeded=$restartNeeded Name=$name";
                                                 } }
 function ToolOsWindowsResetSystemFileIntegrity(){ # uses about 4 min
                                                 [String] $f = "$env:SystemRoot/Logs/CBS/CBS.log";
@@ -2464,6 +2464,27 @@ function ToolInstallOrUpdate                  ( [String] $installMedia, [String]
                                                   }
                                                 }else{
                                                   OutProgress "Is up-to-date: `"$installMedia`"";
+                                                } }
+function ToolPackageUninstallForce            ( [String] $displayName, [String] $dirToDelete, [String] $scope ){
+                                                # When ToolWingetUninstallPackage not works because installer type is portable then this can be tried.
+                                                # It requests from machine or user registry the uninstall command and if it founds it then it is run.
+                                                function GetUninstallString ( [String] $entryDisplayName, [String] $scope ){
+                                                  # scope: ["Machine"|"User"]; return empty string if not found; throws if found more than one.
+                                                  [String] $regTree = ""; 
+                                                  if( $scope -eq "Machine" ){ $regTree = "HKLM"; }elseif( $scope -eq "User" ){ $regTree = "HKCU"; }else{ throw [Exception] "GetUninstallString: Expected [User,Machine] but got unknown scope=`"$scope`"."; }
+                                                  [String] $a = @()+(Get-ItemProperty "${regTree}:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" | Where-Object{ $_.DisplayName -eq $entryDisplayName });
+                                                  [String] $result = "";
+                                                  if( $a.Count -gt 1 ){ throw [Exception] "GetUninstallString: Found more than one entry for: scope=`"$scope`" and entryDisplayName=`"$entryDisplayName`"."; }
+                                                  $result = $a.UninstallString;
+                                                  return [String] $result;
+                                                }
+                                                if( DirExists $dirToDelete ){
+                                                  [String] $uninstallCmd = GetUninstallString $displayName $scope; # Dangerous! We need to trust this command.
+                                                  if( $uninstallCmd -ne "" ){
+                                                    OutProgress "Run uninstall command of `"displayName`": $uninstallCmd ";
+                                                    Invoke-Expression $uninstallCmd;
+                                                  }
+                                                  DirDelete $dirToDelete;
                                                 } }
 function ToolInstallNuPckMgrAndCommonPsGalMo  (){ # runs in about 12-90 sec and if nessessary then the update help requires about 2 minutes.
                                                 OutProgressTitle     "Install or actualize Nuget Package Manager and from PSGallery some common ps modules: ";
@@ -2958,20 +2979,22 @@ function ToolWingetUninstallPackage           ( [String] $idAndOptionalBlankSepV
                                                 # Call the tool "winget" to uninstall from a given source. Ignores errors.
                                                 # Id can be specifed by optional blanks separated version.
                                                 # Scope is one of: "User","Machine","Auto"(depends on elevated admin mode).
-                                                [String] $instScope = $scope; if( $scope -eq "Auto" ){ $instScope = switch(ProcessIsRunningInElevatedAdminMode){($true){"Machine"}($false){"User"}}; }
+                                                Assert (@("User","Machine","Auto") -contains $scope);
+                                                [Boolean] $isElevated = ProcessIsRunningInElevatedAdminMode;
                                                 [String[]] $a = ($idAndOptionalBlankSepVersion -split "\s+");
                                                 [String] $id = $a[0];
                                                 [String] $pckVersion = switch($a.Count -le 1){($true){""}($false){$a[1]}};
-                                                if( $a.Count -gt 2 ){ throw [Exception] "ToolWingetInstallPackage(id=`"$id`") unknown third blanks separated part: `"$a[2]`""; }
-                                                OutProgress "UnInstall-Package(source=$source,scope=$instScope): `"$id`" $pckVersion ";
-                                                [String[]] $arguments = @( "uninstall", "--silent", "--verbose", "--disable-interactivity", "--accept-source-agreements", "--scope", $instScope, "--source", $source, "--id", $id, "--version", $pckVersion );
+                                                if( $a.Count -gt 2 ){ throw [Exception] "ToolWingetUninstallPackage(id=`"$id`") unknown third blanks separated part: `"$a[2]`""; }
+                                                OutProgress "UnInstall-Package(source=$source,scope=$scope,isElevated=$isElevated): `"$id`" $pckVersion ";
+                                                [String[]] $arguments = @( "uninstall", "--silent", "--verbose", "--disable-interactivity", "--accept-source-agreements", "--source", $source, "--id", $id, "--version", $pckVersion );
+                                                if( $scope -ne "Auto" ){ $arguments += @("--scope", $scope); }
                                                 if( $force ){ $arguments += @( "--force" ); }
                                                 # We support force because for example :
                                                 #   UnInstall-Package(source=winget,scope=Machine): "Microsoft.NuGet" 6.13.2.1   Gefunden NuGet CLI [Microsoft.NuGet]
                                                 #   Das Portable-Paket kann nicht entfernt werden, da es geändert wurde. Um dies außer Kraft zu setzen, verwenden Sie „--force“
                                                 # Then we get:
                                                 #   Das Portable-Paket wurde geändert. Aufgrund von „--force“ wird fortgefahren
-                                                OutProgress "  & WinGet $(StringArrayDblQuoteItems $arguments) ";
+                                                OutProgress "  & WinGet $(StringArrayDblQuoteItems $arguments) ; # isElevated=$isElevated ";
                                                 [String[]] $out = & WinGet $arguments *>&1 | ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" };
                                                 ScriptResetRc; # Example: OperationStopped: Last operation failed [ExitCode=-1978335212]. For the reason see the previous output. Already uninstalled, nothing done.
                                                 $out | ForEach-Object{ OutProgress $_ 2; };
@@ -2979,30 +3002,33 @@ function ToolWingetUninstallPackage           ( [String] $idAndOptionalBlankSepV
 function ToolWingetInstallPackage             ( [String] $idAndOptionalBlankSepVersion, [String] $source = "winget", [Boolean] $canRetry = $false, [String] $scope = "Auto" ){
                                                 # Call the tool "winget" to intall from a given source. Ignores errors.
                                                 # Id can be specifed by optional blanks separated version.
-                                                # Scope is one of: "User","Machine","Auto"(depends on elevated admin mode).
+                                                # Scope is one of: "User", "Machine", "Auto" (depends on elevated admin mode, then option is not specified on commandline
+                                                #                                       because some installers will fail when User or Machine is specified as example Microsoft.DotNet.Runtime.6).
                                                 # If we get a message that install fails because install-technology changed then immediate an uninstall and install will be done.
                                                 # If canRetry and install-result is not up-to-date then it tries an uninstall and again an install.
-                                                [String] $instScope = $scope; if( $scope -eq "Auto" ){ $instScope = switch(ProcessIsRunningInElevatedAdminMode){($true){"Machine"}($false){"User"}}; }
+                                                Assert (@("User","Machine","Auto") -contains $scope);
+                                                [Boolean] $isElevated = ProcessIsRunningInElevatedAdminMode;
                                                 [String[]] $a = ($idAndOptionalBlankSepVersion.Trim() -split "\s+");
                                                 [String] $id = $a[0];
                                                 [String] $pckVersion = switch($a.Count -le 1){($true){""}($false){$a[1]}};
                                                 if( $a.Count -gt 2 ){ throw [Exception] "ToolWingetInstallPackage(id=`"$id`") unknown third blanks separated part: `"$a[2]`""; }
-                                                OutProgress "Install-or-Update-Package(source=$source,scope=$instScope$(switch($canRetry){($true){',canRetry'}($false){''}})): `"$id`" $pckVersion ";
+                                                OutProgress "Install-or-Update-Package(source=$source,scope=$scope,isElevated=$isElevated$(switch($canRetry){($true){',canRetry'}($false){''}})): `"$id`" $pckVersion ";
                                                 # We recommend to use source=winget because otherwise we can get for example for:  winget install --verbose --disable-interactivity "Google.Chrome";
                                                 #   Die Quelle "msstore" erfordert, dass Sie die folgenden Vereinbarungen vor der Verwendung anzeigen.
                                                 #   Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction
                                                 #   Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben an den Back-End-Dienst gesendet wird, damit er ordnungsgemäß funktioniert (z. B. „US“).
                                                 #   Mindestens einer der Quellvereinbarungen wurde nicht zugestimmt. Vorgang abgebrochen. Akzeptieren Sie bitte die Quellvereinbarungen, oder entfernen Sie die entsprechenden Quellen.
-                                                [String[]] $arguments = @( "install", "--silent", "--verbose", "--disable-interactivity", "--accept-source-agreements", "--scope", $instScope, "--source", $source, "--id", $id, "--version", $pckVersion );
+                                                [String[]] $arguments = @( "install", "--silent", "--verbose", "--disable-interactivity", "--accept-source-agreements", "--source", $source, "--id", $id, "--version", $pckVersion );
                                                   # silent: Does not show UI's of installers.
-                                                OutProgress "  & WinGet $(StringArrayDblQuoteItems $arguments) ";
+                                                if( $scope -ne "Auto" ){ $arguments += @("--scope", $scope); }
+                                                OutProgress "  & WinGet $(StringArrayDblQuoteItems $arguments) ; # isElevated=$isElevated ";
                                                 [String[]] $out = & WinGet $arguments *>&1 | ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" };
                                                 [Int32] $rc = ScriptGetAndClearLastRc; # Example: OperationStopped: Last operation failed [ExitCode=-1978335189]. For the reason see the previous output. Is up to date.
                                                 $out | ForEach-Object{ OutProgress $_ 2; };
                                                 if( ToolWinGetOutputIndicatesReinstall $out ){
                                                   OutProgress "Output message indicated that install-technology changed and so immediate perform an uninstall and install again. ";
                                                   ToolWingetUninstallPackage $idAndOptionalBlankSepVersion $source $scope;
-                                                  OutProgress "  & WinGet $(StringArrayDblQuoteItems $arguments) ";
+                                                  OutProgress "  & WinGet $(StringArrayDblQuoteItems $arguments) ; # isElevated=$isElevated ";
                                                   $out = & WinGet $arguments *>&1 | ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" };
                                                 }
                                                 $rc = ScriptGetAndClearLastRc;
@@ -3102,3 +3128,6 @@ function MnCommonPsToolLibSelfUpdate          (){
 
 function ToolVs2019UserFolderGetLatestUsed    (){ OutWarning "ToolVs2019UserFolderGetLatestUsed is DEPRECATED, replace it now by: ToolVsUserFolderGetLatestUsed "; return (ToolVsUserFolderGetLatestUsed); }
 function SvnExe                               (){ OutWarning "SvnExe is DEPRECATED, replace it now by (expect it in path): `"svn`" "; return "svn"; }
+function ToolWin10PackageGetState             ( [String] $packageName ){ OutWarning "ToolWin10PackageGetState is DEPRECATED, replace it now by ToolWinCapabilityPackageGetState"; return (ToolWinCapabilityPackageGetState $packageName); }
+function ToolWin10PackageInstall              ( [String] $packageName ){ OutWarning "ToolWin10PackageInstall is DEPRECATED, replace it now by ToolWinCapabilityPackageInstall";           ToolWinCapabilityPackageInstall               ; }
+function ToolWin10PackageDeinstall            ( [String] $packageName ){ OutWarning "ToolWin10PackageDeinstall is DEPRECATED, replace it now by ToolWinCapabilityPackageDeinstall";       ToolWinCapabilityPackageDeinstall             ; }

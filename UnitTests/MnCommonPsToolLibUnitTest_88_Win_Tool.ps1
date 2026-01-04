@@ -72,9 +72,9 @@ function UnitTest_Win_Tool(){
   ToolFsEntryListFileEolAndEncCategory $PSScriptRoot;
   #
   if( -not (ProcessIsRunningInElevatedAdminMode) ){ OutProgress "Not running in elevated mode, so bypass test."; return; }
-  OutProgress "ToolWin10PackageGetState of OpenSSH.Client: $(ToolWin10PackageGetState "OpenSSH.Client") ";
-  if( "TEST_DISCARDED_BECAUSE_CHANGES_SYSTEM" -eq "" ){ ToolWin10PackageInstall   "OpenSSH.Client"; }
-  if( "TEST_DISCARDED_BECAUSE_CHANGES_SYSTEM" -eq "" ){ ToolWin10PackageDeinstall "OpenSSH.Client"; }
+  OutProgress "ToolWinCapabilityPackageGetState of OpenSSH.Client: $(ToolWinCapabilityPackageGetState "OpenSSH.Client") ";
+  if( "TEST_DISCARDED_BECAUSE_CHANGES_SYSTEM" -eq "" ){ ToolWinCapabilityPackageInstall   "OpenSSH.Client"; }
+  if( "TEST_DISCARDED_BECAUSE_CHANGES_SYSTEM" -eq "" ){ ToolWinCapabilityPackageDeinstall "OpenSSH.Client"; }
   #
 }
 UnitTest_Win_Tool;
