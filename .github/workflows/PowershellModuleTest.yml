@@ -203,7 +203,7 @@ jobs:
 
       - name: Upload intermediate files as zip build artefact
         if: ${{ always() }}
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # V5.0.0 2025-12 https://github.com/actions/upload-artifact/releases
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # V5.0.0 2025-12 https://github.com/actions/upload-artifact/releases
         with:
           path: "${{env.LogDir}}/*"
           name: "IntermediateLogFiles"
