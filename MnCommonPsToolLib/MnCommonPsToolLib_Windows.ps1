@@ -85,11 +85,13 @@ function OsWindowsRegRunDisable               ( [String] $regItem, [Boolean] $fr
                                                                           else{                   $msg = "Autorunonce-LocalMachine"; $key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\RunOnce"            ; } }
                                                 else{                     if( $fromHklmNotHkcu ){ $msg = "Autorun-CurrentUser"     ; $key = "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Windows\CurrentVersion\Run"    ; }
                                                                           else{                   $msg = "Autorun-LocalMachine"    ; $key = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run"                ; } }
-                                                OutProgress "$($msg)-Remove: $regItem";
+                                                OutVerbose "$($msg)-Remove: $regItem";
                                                 [String] $val = RegistryGetValueAsString $key -Name $regItem;
-                                                if( $val -ne "" ){ RegistrySetValue "$key\AutorunsDisabled" $regItem "String" $val; }
-                                                Remove-ItemProperty -Path $key -Name $regItem -ErrorAction SilentlyContinue;
-                                              }
+                                                if( $val -ne "" ){
+                                                  OutProgress "$($msg)-Remove: $regItem";
+                                                  RegistrySetValue "$key\AutorunsDisabled" $regItem "String" $val;
+                                                  Remove-ItemProperty -Path $key -Name $regItem -ErrorAction SilentlyContinue;
+                                                } }
 function OsGetWindowsProductKey               (){
                                                 [String] $map = "BCDFGHJKMPQRTVWXY2346789";
                                                 [Object] $value = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion").digitalproductid[0x34..0x42]; [String] $p = "";
