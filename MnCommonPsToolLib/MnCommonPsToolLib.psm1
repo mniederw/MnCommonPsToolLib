@@ -2508,7 +2508,7 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                       # and parsed as if they had been retrieved from the Web.
                                                  #,"--hsts=on"                     # Use HTTP Strict Transport Security (HSTS). (default: on)
                                                   ,"--host-directories=off"        # Create host directories when retrieving recursively. (default: on). Off: no dir $tardir\domainname
-                                                  ,"--local-encoding=UTF-8"        # required if link urls contains utf8 which must be mapped to filesystem names (note: others as ISO-8859-1, windows-1251 does not work).
+                                                  ,"--local-encoding=UTF-8"        # required if link urls contains utf8 which must be mapped to filesystem names (note: others as ISO-8859-15, windows-1252 do not work).
                                                   ,"--user=$us"                    # we take this as last option because following pw
                                                   ,"--append-output=$logf"         # .
                                                   ,"--ca-certificate=$caCert"      # WGET2 option: File with the bundle of CAs to verify the peers. Must be in PEM format. Otherwise CAs are searched at system-specified locations,

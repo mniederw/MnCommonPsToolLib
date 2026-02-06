@@ -34,7 +34,7 @@
   }
   HelpInfoURI            = 'https://github.com/mniederw/MnCommonPsToolLib/Readme.txt';
 
-  ModuleVersion          = '7.121';
+  ModuleVersion          = '7.122';
 
   <#
   Releasenotes
@@ -43,6 +43,7 @@
   Major version will reflect breaking changes, minor identifies extensions and third number identifies urgent bugfixes.
   Breaking changes are usually removed deprecated functions or changed behaviours.
 
+  2026-02-06  V7.122 Improve OsWindowsRegRunDisable.
   2026-01-12  V7.121 Improve OsWindowsRegRunDisable.
   2026-01-04  V7.120 Rename ToolWin10PackageGetState to ToolWinCapabilityPackageGetState, and ToolWin10PackageInstall to ToolWinCapabilityPackageInstall, and ToolWin10PackageDeinstall to ToolWinCapabilityPackageDeinstall. Add ToolPackageUninstallForce. Improve WingetInstall.
   2026-01-01  V7.119 OutStartTranscriptInTempDir handle as second param useHHMMSS is always true and remove this param. Improve ProcessRestartInElevatedAdminMode arg.
