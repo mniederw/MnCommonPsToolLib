@@ -1178,8 +1178,9 @@ function ProcessRemoveAllAlias                ( [String[]] $excludeAliasNames = 
                                                 $removedAliasNames = $removedAliasNames | Select-Object -Unique | Sort-Object;
                                                 if( $doTrace -and $removedAliasNames.Count -gt 0 ){
                                                   OutProgress "Removed all existing $($removedAliasNames.Count) alias except [$excludeAliasNames]."; } }
-function FsEntryEsc                           ( [String] $fsentry ){ # Escaping a string by preceeding the globbing chars ('[',']','?','*') with a backtick char.
-                                                # Escaping is not nessessary if a command supports -LiteralPath.
+function FsEntryEsc                           ( [String] $fsentry ){ # Used for source file or dir specifications
+                                                # for escaping a string by preceeding the globbing chars ('[',']','?','*') with a backtick char.
+                                                # Escaping is not nessessary for destination specifications or if a command supports -LiteralPath.
                                                 AssertNotEmpty $fsentry "file-system-entry";
                                                 return [String] [Management.Automation.WildcardPattern]::Escape($fsentry); }
 function FsEntryContainsWildcards             ( [String] $fsentry ){ # Assumes it is unescaped and it contains at least one of the globbing chars ('[',']','?','*').
@@ -1240,6 +1241,8 @@ function FsEntryHasTrailingDirSep             ( [String] $fsEntry ){ return [Boo
 function FsEntryAssertHasTrailingDirSep       ( [String] $fsEntry ){ if( $fsEntry -eq "" -or (FsEntryHasTrailingDirSep $fsEntry) ){ return; }
                                                 OutWarning "Warning: For specifying a dir it expects a trailing dir separator for: `"$fsEntry`". NOTE: In MnCommonPsToolLib V7.x this is only a warning, but in next version this will throw! "; return;
                                                 throw [Exception] "For specifying a dir it expects a trailing dir separator for: `"$fsEntry`""; }
+function FsEntryAssertHasNoTrailingDirSep     ( [String] $fsEntry ){ if( $fsEntry -eq "" -or -not (FsEntryHasTrailingDirSep $fsEntry) ){ return; }
+                                                throw [Exception] "For specifying a file no trailing dir separator is allowed: `"$fsEntry`""; }
 function FsEntryRemoveTrailingDirSep          ( [String] $fsEntry ){ [String] $r = FsEntryGetAbsolutePath $fsEntry;
                                                 if( $r -ne "" ){ while( FsEntryHasTrailingDirSep $r ){ $r = $r.Remove($r.Length-1); }
                                                 if( $r -eq "" ){ $r = $fsEntry; } } return [String] $r; }
@@ -1412,6 +1415,9 @@ function FsEntryRename                        ( [String] $fsEntryFrom, [String] 
                                                 [String] $fs1 = FsEntryRemoveTrailingDirSep $fsEntryFrom;
                                                 [String] $fs2 = FsEntryRemoveTrailingDirSep $fsEntryTo;
                                                 Rename-Item -Path $fs1 -newName $fs2 -force; }
+function FsEntryMove                          ( [String] $fsEntrySrc, [String] $fsEntryDest, [Boolean] $overwrite = $false, [Boolean] $traceCmd = $true ){
+                                                # Move and rename, create containing targetdirs if required. Depends strongly on trailing dir separator.
+                                                if( FsEntryHasTrailingDirSep $fsEntrySrc ){ DirMove $fsEntrySrc $fsEntryDest $overwrite $traceCmd; }else{ FileMove $fsEntrySrc $fsEntryDest $overwrite $traceCmd; } }
 function FsEntryCreateSymLink                 ( [String] $newSymLink, [String] $fsEntryOrigin ){
                                                 # (junctions (=~symlinksToDirs) do not) (https://superuser.com/questions/104845/permission-to-make-symbolic-links-in-windows-7/105381).
                                                 New-Item -ItemType SymbolicLink -Name (FsEntryEsc $newSymLink) -Value (FsEntryEsc $fsEntryOrigin); }
@@ -1442,21 +1448,22 @@ function FsEntryReportMeasureInfo             ( [String] $fsEntry ){ # Must exis
                                                 if( $null -eq $size ){ return [String] "SizeInBytes=0; NrOfFsEntries=0;"; }
                                                 return [String] "SizeInBytes=$($size.sum); NrOfFsEntries=$($size.count);"; }
 function FsEntryCreateParentDir               ( [String] $fsEntry ){ [String] $dir = FsEntryGetParentDir $fsEntry; DirCreate $dir; }
-function FsEntryMoveByPatternToDir            ( [String] $dirAndFsEntryPattern, [String] $targetDir, [Boolean] $showProgress = $false ){ # Target dir must exists. pattern is non-recursive scanned.
+function FsEntryMoveByPatternToDir            ( [String] $dirAndFsEntryPattern, [String] $targetDir, [Boolean] $traceCmd = $false ){ # Target dir must exists. pattern is non-recursive scanned.
                                                 $targetDir = FsEntryGetAbsolutePath $targetDir;
-                                                OutProgress "FsEntryMoveByPatternToDir `"$dirAndFsEntryPattern`" to `"$targetDir`""; DirAssertExists $targetDir;
+                                                if( $traceCmd ){ OutProgress "FsEntryMoveByPatternToDir `"$dirAndFsEntryPattern`" to `"$targetDir`""; }
+                                                DirAssertExists $targetDir;
                                                 FsEntryListAsStringArray $dirAndFsEntryPattern $false |
                                                   Where-Object{$null -ne $_} | Sort-Object |
                                                   ForEach-Object{
-                                                    if( $showProgress ){ OutProgress "Source: `"$_`""; };
-                                                    Move-Item -Force -Path $_ -Destination (FsEntryEsc $targetDir);
+                                                    if( $traceCmd ){ OutProgress "  MoveFsEntry: `"$_`""; };
+                                                    Move-Item -Force -Path $_ -Destination $targetDir;
                                                   }; }
 function FsEntryCopyByPatternByOverwrite      ( [String] $dirAndFsEntryPattern, [String] $targetDir, [Boolean] $continueOnErr = $false ){
                                                 $targetDir = FsEntryGetAbsolutePath $targetDir;
                                                 OutProgress "FsEntryCopyByPatternByOverwrite `"$dirAndFsEntryPattern`" to `"$targetDir`" continueOnErr=$continueOnErr";
                                                 FsEntryAssertHasTrailingDirSep $targetDir;
                                                 DirCreate $targetDir;
-                                                Copy-Item -ErrorAction SilentlyContinue -Recurse -Force -Path $dirAndFsEntryPattern -Destination (FsEntryEsc $targetDir);
+                                                Copy-Item -ErrorAction SilentlyContinue -Recurse -Force -Path $dirAndFsEntryPattern -Destination $targetDir;
                                                 if( -not $? ){
                                                   [String] $trace = "CopyFiles `"$dirAndFsEntryPattern`" to `"$targetDir`" failed.";
                                                   if( -not $continueOnErr ){ throw [Exception] "$trace"; } else{ OutWarning "Warning: $trace, will continue."; } } }
@@ -1659,6 +1666,17 @@ function DirDeleteIfIsEmpty                   ( [String] $dir, [Boolean] $ignore
                                                 AssertNotEmpty $dir "dir";
                                                 FsEntryAssertHasTrailingDirSep $dir;
                                                 if( (DirExists $dir) -and (@()+(Get-ChildItem -Force -LiteralPath $dir)).Count -eq 0 ){ DirDelete $dir; } }
+function DirMove                              ( [String] $srcDir, [String] $destDir, [Boolean] $overwrite = $false, [Boolean] $traceCmd = $true ){
+                                                # move and rename, create containing folders of destDir if required. DestDir is the destination dir-path-name and not a containing folder.
+                                                AssertNotEmpty $srcDir  "srcDir";
+                                                AssertNotEmpty $destDir "destDir";
+                                                $srcDir  = FsEntryGetAbsolutePath $srcDir ;
+                                                $destDir = FsEntryGetAbsolutePath $destDir;
+                                                FsEntryAssertHasTrailingDirSep $srcDir;
+                                                FsEntryAssertHasTrailingDirSep $destDir;
+                                                if( $traceCmd ){ OutProgress "DirMove(Overwrite=$overwrite)$(switch($(DirExists $destDir)){($true){'(TargetExists)'}default{''}}) `"$srcDir`" to `"$destDir`" "; }
+                                                FsEntryCreateParentDir $destDir;
+                                                Move-Item -Force:$overwrite -LiteralPath $srcDir -Destination $destDir; }
 function DirCopyToParentDirByAddAndOverwrite  ( [String] $srcDir, [String] $tarParentDir ){
                                                 FsEntryAssertHasTrailingDirSep $srcDir;
                                                 FsEntryAssertHasTrailingDirSep $tarParentDir;
@@ -1666,7 +1684,7 @@ function DirCopyToParentDirByAddAndOverwrite  ( [String] $srcDir, [String] $tarP
                                                 $tarParentDir = FsEntryGetAbsolutePath $tarParentDir;
                                                 OutProgress "DirCopyToParentDirByAddAndOverwrite `"$srcDir`" to `"$tarParentDir`"";
                                                 if( -not (DirExists $srcDir) ){ throw [Exception] "Missing source dir `"$srcDir`""; }
-                                                DirCreate $tarParentDir; Copy-Item -Force -Recurse (FsEntryEsc $srcDir) (FsEntryEsc $tarParentDir); }
+                                                DirCreate $tarParentDir; Copy-Item -Force -Recurse (FsEntryEsc $srcDir) $tarParentDir; }
 function FileGetSize                          ( [String] $file ){
                                                 return [Int64] (Get-ChildItem -Force -File -LiteralPath $file).Length; }
 function FileExists                           ( [String] $file ){ AssertNotEmpty $file "file";
@@ -1866,18 +1884,24 @@ function FileDelete                           ( [String] $file, [Boolean] $ignor
                                                     if( -not $isUsedByAnotherProc ){ throw; }
                                                     if( $nrOfTries -ge 5 ){ throw; }
                                                     Start-Sleep -Milliseconds $(switch($nrOfTries){1{50}2{100}3{200}4{400}default{800}}); } } }
-function FileCopy                             ( [String] $srcFile, [String] $tarFile, [Boolean] $overwrite = $false ){
+function FileCopy                             ( [String] $srcFile, [String] $destFile, [Boolean] $overwrite = $false ){
                                                 $srcFile = FsEntryGetAbsolutePath $srcFile;
-                                                $tarFile = FsEntryGetAbsolutePath $tarFile;
-                                                OutProgress "FileCopy(Overwrite=$overwrite)$(switch($(FileExists $(FsEntryEsc $tarFile))){($true){'(TargetExists)'}default{''}}) `"$srcFile`" to `"$tarFile`" ";
-                                                FsEntryCreateParentDir $tarFile;
-                                                Copy-Item -Force:$overwrite (FsEntryEsc $srcFile) (FsEntryEsc $tarFile); }
-function FileMove                             ( [String] $srcFile, [String] $tarFile, [Boolean] $overwrite = $false ){
-                                                $srcFile = FsEntryGetAbsolutePath $srcFile;
-                                                $tarFile = FsEntryGetAbsolutePath $tarFile;
-                                                OutProgress "FileMove(Overwrite=$overwrite)$(switch($(FileExists $(FsEntryEsc $tarFile))){($true){'(TargetExists)'}default{''}}) `"$srcFile`" to `"$tarFile`" ";
-                                                FsEntryCreateParentDir $tarFile;
-                                                Move-Item -Force:$overwrite -LiteralPath $srcFile -Destination $tarFile; }
+                                                $destFile = FsEntryGetAbsolutePath $destFile;
+                                                OutProgress "FileCopy(Overwrite=$overwrite)$(switch($(FileExists $destFile)){($true){'(TargetExists)'}default{''}}) `"$srcFile`" to `"$destFile`" ";
+                                                FsEntryAssertHasNoTrailingDirSep $srcFile;
+                                                FsEntryAssertHasNoTrailingDirSep $destFile;
+                                                FsEntryCreateParentDir $destFile;
+                                                Copy-Item -Force:$overwrite (FsEntryEsc $srcFile) $destFile; }
+function FileMove                             ( [String] $srcFile, [String] $destFile, [Boolean] $overwrite = $false, [Boolean] $traceCmd = $true ){
+                                                AssertNotEmpty $srcFile  "srcFile";
+                                                AssertNotEmpty $destFile "destFile";
+                                                $srcFile  = FsEntryGetAbsolutePath $srcFile;
+                                                $destFile = FsEntryGetAbsolutePath $destFile;
+                                                if( $traceCmd ){ OutProgress "FileMove(Overwrite=$overwrite)$(switch($(FileExists $destFile)){($true){'(TargetExists)'}default{''}}) `"$srcFile`" to `"$destFile`" "; }
+                                                FsEntryAssertHasNoTrailingDirSep $srcFile;
+                                                FsEntryAssertHasNoTrailingDirSep $destFile;
+                                                FsEntryCreateParentDir $destFile;
+                                                Move-Item -Force:$overwrite -LiteralPath $srcFile -Destination $destFile; }
 function FileSyncContent                      ( [String] $fromFile, [String] $toFile, [Boolean] $createBackupFile = $false ){ # overwrite if different or if target file not exists, example of backup filename "MyName.001.bck", max 9999 versions.
                                                 if( -not (FileContentsAreEqual $fromFile $toFile) ){
                                                   if( $createBackupFile -and (FileExists $toFile) ){
@@ -2674,8 +2698,8 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                 #                   Branch in repo url can be optionally specified and then it is asserted that it matches. No switching branch will be done.
                                                 #   "Pull"        : First a Fetch and then it also merges current branch into current working files. Target dir must exist.
                                                 #                   Branch in repo url can be optionally specified and then it is asserted that it matches. No switching branch will be done.
-                                                #   "CloneOrPull" : if target not exists then Clone otherwise Pull.
-                                                #   "CloneOrFetch": if target not exists then Clone otherwise Fetch.
+                                                #   "CloneOrPull" : if target dir not exists then Clone otherwise Pull.
+                                                #   "CloneOrFetch": if target dir not exists then Clone otherwise Fetch.
                                                 #   "Revert"      : First a fetch, then a reset-hard to loose all local changes except new files and then do a clean to remove untracked files.
                                                 #                   Same as delete folder and clone, but faster.
                                                 # Target-Dir: see GitBuildLocalDirFromUrl.

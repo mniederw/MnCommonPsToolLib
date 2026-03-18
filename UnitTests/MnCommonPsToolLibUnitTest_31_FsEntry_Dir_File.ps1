@@ -240,6 +240,10 @@ function UnitTest_FsEntry_Dir_File(){
   #
   # TODO: FsEntryRename                        ( [String] $fsEntryFrom, [String] $fsEntryTo )
   #
+  # TODO: FsEntryMove                          ( [String] $fsEntryFrom, [String] $fsEntryTo, overwrite )
+  #
+  # TODO: DirMove                              ( [String] $srcDir, [String] $destDir, overwrite )
+  #
   # TODO: FsEntryCreateSymLink                 ( [String] $newSymLink, [String] $fsEntryOrigin )
   #
   # TODO: FsEntryCreateHardLink                ( [String] $newHardLink, [String] $fsEntryOrigin )
@@ -252,7 +256,7 @@ function UnitTest_FsEntry_Dir_File(){
   #
   # TODO: FsEntryCreateParentDir               ( [String] $fsEntry )
   #
-  # TODO: FsEntryMoveByPatternToDir            ( [String] $fsEntryPattern, [String] $targetDir, [Boolean] $showProgress = $false ) # Target dir must exists. pattern is non-recursive scanned.
+  # TODO: FsEntryMoveByPatternToDir            ( [String] $fsEntryPattern, [String] $targetDir ) # Target dir must exists. pattern is non-recursive scanned.
   #
   # TODO: FsEntryCopyByPatternByOverwrite      ( [String] $fsEntryPattern, [String] $targetDir, [Boolean] $continueOnErr = $false )
   #
