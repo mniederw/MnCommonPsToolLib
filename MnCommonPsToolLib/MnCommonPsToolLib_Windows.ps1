@@ -1020,7 +1020,7 @@ function NetFirewallListProfiles              (){ Get-NetFirewallProfile | Selec
                                                   #   ,AllowUserPorts,AllowUnicastResponseToMulticast,NotifyOnListen,EnableStealthModeForIPsec,LogMaxSizeKilobytes,Caption
                                                   #   ,Description,ElementName,InstanceID,DisabledInterfaceAliases,Name,PSComputerName,CimClass,CimInstanceProperties,CimSystemProperties
                                                 }
-function NetFirewallListProfileActive         (){ return [String] "$((Get-NetConnectionProfile).NetworkCategory)"; # Example: "Private"
+function NetFirewallListProfileActive         (){ return [String] "$((Get-NetConnectionProfile).NetworkCategory)"; # Example: One of ["Public", "Private", "DomainAuthenticated"]. Each network adapter has its own network-profile.
                                                   # More fields: NetworkCategory,DomainAuthenticationKind,IPv4Connectivity,IPv6Connectivity,Caption,Description,ElementName,InstanceID,InterfaceAlias,InterfaceIndex,Name
                                                 }
 function JuniperNcEstablishVpnConn            ( [String] $secureCXredentialFile, [String] $url, [String] $realm ){
@@ -1299,7 +1299,7 @@ function SvnGetDotSvnDir                      ( $workSubDir ){
                                                   if( DirExists "$d/.svn/" ){ return [String] (FsEntryGetAbsolutePath "$d/.svn/"); }
                                                   $d = FsEntryGetAbsolutePath (Join-Path $d "../");
                                                 }
-                                                throw [Exception] "Missing directory '.svn' within or up from the path `"$workSubDir`""; }
+                                                throw [Exception] "Missing directory '.svn/' within or up from the path `"$workSubDir`""; }
 function SvnAuthorizationSave                ( [String] $workDir, [String] $user ){
                                                 # If this part fails then you should clear authorization account in svn settings.
                                                 # Note: if certificate is not accepted then a pem file (for example lets-encrypt-r3.pem) can be added to file "$env:APPDATA/Subversion/servers"
@@ -1414,12 +1414,14 @@ function SvnUpdate                            ( [String] $workDir, [String] $use
                                                 $workDir = FsEntryGetAbsolutePath $workDir;
                                                 FsEntryAssertHasTrailingDirSep $workDir;
                                                 SvnCheckoutAndUpdate $workDir "" $user $true; }
-function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url, [String] $user, [Boolean] $doUpdateOnly = $false, [String] $pw = "", [Boolean] $ignoreSslCheck = $false ){
+function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url, [String] $user, [Boolean] $doUpdateOnly = $false, [String] $pw = "", [Boolean] $ignoreSslCheck = $false, [Boolean] $errorAsWarning = $false ){
                                                 # Init working copy and get (init and update) last changes. If pw is empty then it uses svn-credential-cache.
                                                 # If specified update-only then no url is nessessary but if given then it verifies it.
                                                 # Note: we do not use svn-update because svn-checkout does the same (the difference is only the use of an url).
+                                                # if ignoreSslCheck then server certificate is not verified.
                                                 # Note: sometimes often after 5-20 GB received there is a network problem which aborts svn-checkout,
-                                                #   so if it is recognised as a known exception then it will automatically do a cleanup, wait for 30 sec and retry (max 100 times).
+                                                #   so if it is recognised as a known exception then it will automatically do a cleanup,
+                                                #   wait for 30 sec and retry (max 100 times or 3 times in case of an unable-to-connect).
                                                 $workDir = FsEntryGetAbsolutePath $workDir;
                                                 FsEntryAssertHasTrailingDirSep $workDir;
                                                 if( $doUpdateOnly ){
@@ -1452,20 +1454,17 @@ function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url
                                                     # exc: "svn: E205000: Try 'svn help checkout' for more information"
                                                     # Note: if throwed then tmp file is empty.
                                                     [String] $m = $_.Exception.Message;
-                                                    if( $m.Contains(" E170013:") ){  # exc: "svn: E170013: Unable to connect to a repository at URL 'https://mycomp/svn/Work/mydir'"
-                                                      $m += " Note for E170013: Possibly a second error line with E230001=Server-SSL-certificate-verification-failed is given to output " +
+                                                    if( $m.Contains(" E170013:") ){
+                                                      $m += " (Note for E170013: Possibly a second error line with E230001=Server-SSL-certificate-verification-failed is given to output " +
                                                         "but if powershell trapping is enabled then this second error line is not given to exception message, so this information is lost " +
                                                         "and so after third retry it stops. Now you have the following three options in recommended order: " +
                                                         "Use 'svn list $url' to get certification issuer, and then if it is not a self signed " +
                                                         "then you may organize its pem file (for example get https://letsencrypt.org/certs/lets-encrypt-r3.pem) " +
                                                         "and add it to file `"$env:APPDATA/Subversion/servers`" under [global] ssl-authority-files=f1.pem;f2.pem. " +
                                                         "Or you call manually 'svn list $url' and accept permanently the issuer which adds its key to `"$env:APPDATA/Subversion/auth/svn.ssl.server`". " +
-                                                        "Or you may use insecure option ignoreSslCheck=true. ";
+                                                        "Or you may use insecure option ignoreSslCheck=true.) ";
                                                         # more: https://svnbook.red-bean.com/en/1.4/svn.serverconfig.httpd.html#svn.serverconfig.httpd.authn.sslcerts
-                                                      if( $nrOfTries -ge 3 ){ $nrOfTries = $maxNrOfTries; }
                                                     }
-                                                    [String] $msg = "$(ScriptGetCurrentFunc)(dir=`"$workDir`",url=$url,user=$user) failed because $m. Logfile=`"$svnLogFile`".";
-                                                    FileAppendLineWithTs $svnLogFile $msg;
                                                     [Boolean] $isKnownProblemToSolveWithRetry =
                                                       $m.Contains(" E120106:") -or # exc: "svn: E120106: ra_serf: The server sent a truncated HTTP response body"
                                                       $m.Contains(" E155037:") -or # exc: "svn: E155037: Previous operation has not finished; run 'cleanup' if it was interrupted"
@@ -1474,11 +1473,19 @@ function SvnCheckoutAndUpdate                 ( [String] $workDir, [String] $url
                                                       $m.Contains(" E200030:") -or # exc: "svn: E200030: sqlite[S10]: disk I/O error, executing statement 'VACUUM '"
                                                       $m.Contains(" E730054:") -or # exc: "svn: E730054: Error running context: Eine vorhandene Verbindung wurde vom Remotehost geschlossen."
                                                       $m.Contains(" E170013:") -or # exc: "svn: E170013: Unable to connect to a repository at URL 'https://mycomp/svn/Work/mydir'"
+                                                      $m.Contains(" E175012:") -or # exc: "svn: E175012: Connection timed out" (occurred as second error of E170013)
                                                       $m.Contains(" E200014:")   ; # exc: "svn: E200014: Checksum mismatch for '...file...'"
                                                                                    #        (2023-12: we had a case with a unicode name of length 237chars which did not repair; in case we get another case then do not retry anymore)
-                                                    if( -not $isKnownProblemToSolveWithRetry -or $nrOfTries -ge $maxNrOfTries ){ throw [ExcMsg] $msg; }
-                                                    [String] $msg2 = "Is try nr $nrOfTries of $maxNrOfTries, will do cleanup, wait 30 sec and if not reached max then retry.";
-                                                    OutWarning "Warning: $msg $msg2 ";
+                                                    [Boolean] $isKnownProblemToSolveWithRetryButWithLowerMaxNrOfRetries = $m.Contains(" E170013:");
+                                                    [Int32] $currentMaxNrOfTries = switch( $isKnownProblemToSolveWithRetryButWithLowerMaxNrOfRetries ){ $true{3} $false{$maxNrOfTries} };
+                                                    [String] $msg = "$(ScriptGetCurrentFunc)(dir=`"$workDir`",url=$url,user=$user) failed because $m. Reached try nr $nrOfTries of $currentMaxNrOfTries. Logfile=`"$svnLogFile`".";
+                                                    FileAppendLineWithTs $svnLogFile $msg;
+                                                    if( -not $isKnownProblemToSolveWithRetry -or $nrOfTries -ge $currentMaxNrOfTries ){
+                                                      if( $errorAsWarning ){ OutWarning "Warning: $msg"; return; }
+                                                      throw [ExcMsg] $msg;
+                                                    }
+                                                    [String] $msg2 = "Will do cleanup, wait 30 sec and if not reached max then retry.";
+                                                    OutProgress "Note: $msg $msg2 ";
                                                     FileAppendLineWithTs $svnLogFile $msg2;
                                                     SvnCleanup $workDir;
                                                     ProcessSleepSec 30;
@@ -2159,9 +2166,9 @@ function ToolCreateLnkIfNotExists             ( [Boolean] $forceRecreate, [Strin
                                                   try{
                                                     [Object] $wshShell = New-Object -comObject WScript.Shell;
                                                     [Object] $s = $wshShell.CreateShortcut($lnkFile); # do not use FsEntryEsc otherwise [ will be created as `[
-                                                    $s.TargetPath       = FsEntryEsc $srcFsEntry;
+                                                    $s.TargetPath       = FsEntryEsc $srcFsEntry; # note: maybe FsEntryEsc is not ness because it is not a source spec
                                                     $s.Arguments        = $argLine;
-                                                    $s.WorkingDirectory = FsEntryEsc $workDir;
+                                                    $s.WorkingDirectory = FsEntryEsc $workDir; # note: maybe FsEntryEsc is not ness because it is not a source spec
                                                     $s.Description      = $descr;
                                                     $s.IconLocation     = $ico; # one of: ",0" "myprog.exe, 0" "myprog.ico";
                                                     OutVerbose "WScript.Shell.CreateShortcut workDir=`"$workDir`" lnk=`"$lnkFile`" src=`"$srcFsEntry`" arg=`"$argLine`" descr=`"$descr`" ico==`"$ico`"";
