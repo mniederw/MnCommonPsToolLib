@@ -34,7 +34,7 @@
   }
   HelpInfoURI            = 'https://github.com/mniederw/MnCommonPsToolLib/Readme.txt';
 
-  ModuleVersion          = '7.123';
+  ModuleVersion          = '7.124';
 
   <#
   Releasenotes
@@ -43,6 +43,7 @@
   Major version will reflect breaking changes, minor identifies extensions and third number identifies urgent bugfixes.
   Breaking changes are usually removed deprecated functions or changed behaviours.
 
+  2026-03-19  V7.124 Extend ToolManuallyDownloadAndInstallProg, ToolWingetInstallPackage. ToolInstallOrUpdate is DEPRECATED (use ToolInstallOrUpdateProg).
   2026-03-18  V7.123 Improve SvnCheckoutAndUpdate. Add FsEntryMove, DirMove, FsEntryAssertHasNoTrailingDirSep. Unify argname of FsEntryMoveByPatternToDir.
   2026-02-06  V7.122 Doc
   2026-01-12  V7.121 Improve OsWindowsRegRunDisable.
