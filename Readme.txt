@@ -2,7 +2,7 @@ MnCommonPsToolLib - Common Powershell Tool Library for PS5 and PS7 and works on 
 ===================================================================================================================
 
 Published at: https://github.com/mniederw/MnCommonPsToolLib
-Copyright © by Marc Niederwieser, Switzerland, 2013-2025.
+Copyright © by Marc Niederwieser, Switzerland, 2013-2026.
 Licensed under GPL3. This is freeware, redistribute and or modify it under the terms of GPL3 or its later versions.
 
 Tribute
@@ -88,8 +88,13 @@ Files of this repository:
 - .github          : Github workflow configuration which runs on git actions as push.
                      It runs all examples and unit tests on all three platforms by using powershell 7.
 
-All files except BAT files are stored in UTF8-BOM (byte order mark).
-
+UTF8-BOM or UTF8:
+-----------------
+  All files except BAT files are stored in UTF8-BOM (byte order mark).
+  Todays for PS7.x it would be commmon to use UTF8 without BOM but because the compatibility to PS5.1 
+  we still use for PS1 files the UTF8-BOM (otherwise PSScriptAnalyzer would result with:
+  PSUseBOMForUnicodeEncodedFile - Missing BOM encoding for non-ASCII encoded file.)
+  Some PS1 files are nevertheless in UTF8 when PSScriptAnalyzer does not output a warning.
 
 Some notes and common approaches of this library:
 -------------------------------------------------
@@ -114,3 +119,4 @@ Some notes and common approaches of this library:
   because for arrays this is mandatory.
 - Null Arrays: All powershell functions returning an array will always return an empty array instead of null.
 - More powershell useful knowledge and additional documentations are added to the bottom of MnCommonPsToolLib.psm1
+- Conditional operator "?" as $x?.y; Cannot be used because in PS5.1 it not works.

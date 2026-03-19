@@ -1527,12 +1527,12 @@ function FsEntryTrySetOwner                   ( [String] $fsEntry, [System.Secur
                                                     OutProgress "FsEntryTrySetOwner `"$fsEntry`" `"$($account.ToString())`" recursive=$recursive ";
                                                     if( $fs.PSIsContainer ){
                                                       # Note: We use ps commands because on PS7 there is no [System.IO.DirectoryInfo].GetAccessControl() or SetAccessControl()
-                                                      $di = [System.IO.DirectoryInfo]::new($fsEntry);
+                                                      # not used: $di = [System.IO.DirectoryInfo]::new($fsEntry);
                                                       $ds = FsEntryAclGet $fsEntry;
                                                       $ds.SetOwner($sid);
                                                       Set-Acl -LiteralPath $fsEntry -AclObject $ds;
                                                     }else{ # is a file
-                                                      $di = [System.IO.FileInfo]::new($fsEntry);
+                                                      # not used: $di = [System.IO.FileInfo]::new($fsEntry);
                                                       $ds = FsEntryAclGet $fsEntry;
                                                       $ds.SetOwner($sid);
                                                       Set-Acl -LiteralPath $fsEntry -AclObject $ds;
@@ -1754,7 +1754,7 @@ function FileReadEncoding                     ( [String] $file, [String] $textFo
                                                 try{
                                                   [Byte[]] $b = New-Object Byte[] 4;
                                                   [Int32] $nrOfBytesRead = $fs.Read($b, 0, 4);
-                                                  $fs.Close(); $f = $null;
+                                                  $fs.Close(); $fs = $null;
                                                 }finally{ if($fs){ $fs.Dispose(); } }
                                                 [Byte[]] $b = if($nrOfBytesRead -gt 0){ $b[0..($nrOfBytesRead - 1)] }else{ @() };
                                                 if($b.Length -ge 3 -and $b[0] -eq 0xef -and $b[1] -eq 0xbb -and $b[2] -eq 0xbf                     ){ return [String] "UTF8"             ; } # codepage=65001;
@@ -1820,7 +1820,7 @@ function FileReadLineEndingCategory           ( [string] $file ){
                                                   if( $sawCRLF                                                           ){ return 'CRLF-NONE-AT-EOF'; }
                                                   if( $last1 -eq $LF                                                     ){ return 'LF'              ; }
                                                   else                                                                    { return 'LF-NONE-AT-EOF'  ; }
-                                                  $fs.Close(); $f = $null;
+                                                  $fs.Close(); $fs = $null;
                                                 }finally{ if( $fs ){ $fs.Dispose() } } }
 function FileTouch                            ( [String] $file ){
                                                 $file = FsEntryGetAbsolutePath $file;
@@ -2832,6 +2832,7 @@ function GitSwitch                            ( [String] $repoDir, [String] $bra
                                                 ProcessStart "git" @("-C", $repoDir, "switch", $branch) -careStdErrAsOut:$true -traceCmd:$true | Out-Null; }
 function GitAdd                               ( [String] $fsEntryToAdd ){ # automatically finds the repoDir.
                                                 AssertNotEmpty $fsEntryToAdd "fsEntryToAdd";
+                                                $fsEntryToAdd = FsEntryGetAbsolutePath $fsEntryToAdd;
                                                 [String] $repoDir = FsEntryGetAbsolutePath "$(FsEntryFindInParents $fsEntryToAdd ".git")/../"; # no trailing slash allowed for ".git"
                                                 ProcessStart "git" @("-C", $repoDir, "add", $fsEntryToAdd) -traceCmd:$true | Out-Null; }
 function GitAddAll                            ( [String] $repoDir ){
@@ -2902,12 +2903,22 @@ function GitListCommitComments                ( [String] $tarDir, [String] $loca
                                                   if( -not (FsEntryNotExistsOrIsOlderThanNrDays $fout $doOnlyIfOlderThanAgeInDays) ){
                                                     OutProgress "Process git log not nessessary because file is newer than $doOnlyIfOlderThanAgeInDays days: `"$fout`"";
                                                   }else{
-                                                    [String[]] $options = @( "--git-dir=$($localRepoDir).git", "log", "--after=1990-01-01", "--pretty=format:%ci %<(32)%cn %<(50)%ce %s" );
-                                                    if( $doSummary ){ $options += "--summary"; }
+                                                    [String[]] $options = @( "--no-pager", "--git-dir=$($localRepoDir).git", "log", "--after=1990-01-01", "--pretty=format:%ci %<(32)%cn %<(50)%ce %s" );
+                                                    if( $doSummary ){ $options += "--summary"; }else{ $options += "--date=iso-strict"; } # date=iso-strict is used as dummy option to make sure it has same nr of args.
                                                     [String] $out = "";
                                                     try{
                                                       # git can write warnings to stderr which we not handle as error.
-                                                      $out = (ProcessStart "git" $options -careStdErrAsOut:$true -traceCmd:$true);
+                                                      if( ProcessIsLesserEqualPs5 ){
+                                                        # 2026-03: On PS5.1 and with ProcessStart there is an unresolved problem that the git log command hangs.
+                                                        #   A workaround is to replace it by the call operator.
+                                                        #   If we list processes and kill the second git sub-process, then it would at least continue.
+                                                        #   The git log (and also diff) command uses internally a pager which does wait for a keyboard input.
+                                                        #   But even if we made sure that the paging was suppressed, it did not help.
+                                                        #   ($env:GIT_PAGER = ''; git --no-pager ...; GitSetGlobalVar "core.pager" "";)
+                                                        $out = & "git" $options[0] $options[1] $options[2] $options[3] $options[4] $options[5] 2>&1; AssertRcIsOk $out;
+                                                      }else{
+                                                        $out = (ProcessStart "git" $options -careStdErrAsOut:$true -traceCmd:$true);
+                                                      }
                                                     }catch{
                                                       # 2024-03: m="Last operation failed [ExitCode=128]. For the reason see the previous output. "
                                                       # 2024-03: out="fatal: your current branch 'main' does not have any commits yet"
@@ -3078,7 +3089,7 @@ function GitInitGlobalConfig                  (){ # if git is installed the init
                                                                                                # we also recommend for each repo: git config --local core.fileMode false
                                                 GitSetGlobalVar "diff.renamelimit" "12000"   ; # default value is 100, we increase value to avoid for (git log) warning: inexact rename detection was skipped due to too many files.
                                                                                                # required values for git repos: gnuwget/wget2 11000, CosmosOS/Cosmos 1900, usual repos 1300.
-                                                GitSetGlobalVar "core.pager" "cat"           ; # [cat,less] use cat for pager; "less" would stop after a page
+                                                GitSetGlobalVar "core.pager" ""              ; # [cat,less] use empty for pager; "less" would stop after a page; 2026-03: "cat" hangs on ps5.1;
                                                 GitSetGlobalVar "core.fscache" "true"        ; # Enable additional caching of file system data for some operations.
                                                 GitSetGlobalVar "core.symlinks" "false"      ; # Symlinks results in problems on windows so generally avoid them in repo and so
                                                                                                # false converts them on checkout as small plain files containing the link target which is also not really usefull.

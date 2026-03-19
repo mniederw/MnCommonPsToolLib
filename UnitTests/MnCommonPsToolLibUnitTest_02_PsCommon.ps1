@@ -1,4 +1,4 @@
-#!/usr/bin/env pwsh
+﻿#!/usr/bin/env pwsh
 
 Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 
@@ -87,12 +87,12 @@ function UnitTest_PsCommon(){
   # using ref param
   function TestUsingRefParam{
     function f ( [String] $key = "abc", [ref] $s ){
-      if( $null -ne $s ){
-        Assert ($s.Value -is [String]) "Argument s expected to be a ref-to-a-string instead of: $($s.Value?.GetType())";
+      if( $null -ne $s -and $null -ne $s.Value ){
+        Assert ($s.Value -is [String]) "Argument s expected to be a ref-to-a-string instead of: $($s.Value.GetType().FullName).";
         $s.Value = "hello";
         return "SET-S-TO-VAL";
       }elseif( $null -ne $s ){
-        Assert ("$($s?.Value)" -eq "")
+        Assert ("$($s.Value)" -eq "")
         return "REF-TO-NUL";
       }else{ # $null -eq $s
         # Note: On accessing $s?.Value we would get: RuntimeException: The variable '$s?' cannot be retrieved because it has not been set.
