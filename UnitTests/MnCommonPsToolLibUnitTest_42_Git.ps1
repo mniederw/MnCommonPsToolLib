@@ -5,8 +5,6 @@ Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version
 function UnitTest_Git(){
   OutProgress (ScriptGetCurrentFuncName);
   #
-  GitSetGlobalVar "core.pager" "cat"; # use cat for pager because waiting for keyboard is in most cases not neccessary
-  #
   GitDisableAutoCrLf; # on git for windows initial settings are systemwide AutoCrLf which produces problems.
   #
   [String] $d = DirCreateTemp;

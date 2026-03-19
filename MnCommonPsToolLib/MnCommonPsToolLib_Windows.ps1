@@ -1,4 +1,5 @@
-# Extension of MnCommonPsToolLib.psm1 - Common powershell tool library - Parts for windows only
+﻿# Extension of MnCommonPsToolLib.psm1 - Common powershell tool library - Parts for windows only
+# This file is stored as UTF8-BOM for compatibility to PS5.1 (because chars as äöü)
 
 if( [System.Environment]::OSVersion.Platform -ne "Win32NT" ){ OutVerbose "$PSScriptRoot : Not Running on windows"; [Environment]::Exit("0"); }
 
@@ -51,14 +52,14 @@ function OsWindowsPackageUninstall            ( [String] $displayName ){
                                                 } }
 function OsWindowsOptionalFeatureListEnabled  (){ # Example: "NetFx3", ...
                                                 ProcessRestartInElevatedAdminMode "OsWindowsOptionalFeatureListEnabled requires elevated admin mode.";
-                                                return (Get-WindowsOptionalFeature -Online | Where-Object{ $_.State -eq "Enabled" } | Sort FeatureName | Select-Object FeatureName); }
+                                                return (Get-WindowsOptionalFeature -Online | Where-Object{ $_.State -eq "Enabled" } | Sort-Object FeatureName | Select-Object FeatureName); }
 function OsWindowsOptionalFeatureIsEnabled    ( [String] $featureName ){ # Example: "NetFx3", ...
                                                 ProcessRestartInElevatedAdminMode "OsWindowsOptionalFeatureListEnabled requires elevated admin mode.";
                                                 return $null -ne (Get-WindowsOptionalFeature -Online | Where-Object{ $_.State -eq "Enabled" -and $_.FeatureName -eq $featureName }); }
 function OsWindowsOptionalFeatureDoEnable     ( [String] $featureName ){ # Example: "NetFx3", ...
                                                 ProcessRestartInElevatedAdminMode "OsWindowsOptionalFeatureListEnabled requires elevated admin mode.";
                                                 if( OsWindowsOptionalFeatureIsEnabled $featureName ){ OutProgress "Ok, WindowsOptionalFeature $featureName is already enabled."; return; }
-                                                [Object] $obj = Enable-WindowsOptionalFeature -Online -FeatureName "NetFx3" -All -NoRestart | Select Online, RestartNeeded, LogPath; # brings temporary progress bar
+                                                [Object] $obj = Enable-WindowsOptionalFeature -Online -FeatureName "NetFx3" -All -NoRestart | Select-Object Online, RestartNeeded, LogPath; # brings temporary progress bar
                                                 OutProgress "Ok, enabled WindowsOptionalFeature $featureName : (Online=$($obj.Online);RestartNeeded=$($obj.RestartNeeded)) "; }
 function OsWindowsFeatureGetInstalledNames    (){ # Requires windows-server-os or at least Win10Prof with installed RSAT https://www.microsoft.com/en-au/download/details.aspx?id=45520
                                                 # Otherwise we get error:  Import-Module: The specified module 'ServerManager' was not loaded because no valid module file was found in any module directory.
@@ -2497,7 +2498,7 @@ function ToolPackageUninstallForce            ( [String] $displayName, [String] 
                                                 # It requests from machine or user registry the uninstall command and if it founds it then it is run.
                                                 function GetUninstallString ( [String] $entryDisplayName, [String] $scope ){
                                                   # scope: ["Machine"|"User"]; return empty string if not found; throws if found more than one.
-                                                  [String] $regTree = ""; 
+                                                  [String] $regTree = "";
                                                   if( $scope -eq "Machine" ){ $regTree = "HKLM"; }elseif( $scope -eq "User" ){ $regTree = "HKCU"; }else{ throw [Exception] "GetUninstallString: Expected [User,Machine] but got unknown scope=`"$scope`"."; }
                                                   [String] $a = @()+(Get-ItemProperty "${regTree}:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*" | Where-Object{ $_.DisplayName -eq $entryDisplayName });
                                                   [String] $result = "";
@@ -2509,7 +2510,7 @@ function ToolPackageUninstallForce            ( [String] $displayName, [String] 
                                                   [String] $uninstallCmd = GetUninstallString $displayName $scope; # Dangerous! We need to trust this command.
                                                   if( $uninstallCmd -ne "" ){
                                                     OutProgress "Run uninstall command of `"displayName`": $uninstallCmd ";
-                                                    Invoke-Expression $uninstallCmd;
+                                                    Invoke-Expression $uninstallCmd; # We know we get: PSScriptAnalyzer:PSAvoidUsingInvokeExpression: Invoke-Expression is used. Please remove Invoke-Expression from script and find other options instead.
                                                   }
                                                   DirDelete $dirToDelete;
                                                 } }
@@ -2525,15 +2526,15 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){ # runs in about 12-90 sec and 
                                                     "PowerShellGet"                 # Provides: Set-PSRepository, Install-Module
                                                   , "PackageManagement"             # Provides: Install-PackageProvider, Get-Package
                                                   , "SqlServer"                     # UsedBy  : SqlPerformFile, SqlPerformCmd.
-                                                  , "ThreadJob"                     # UsedBy  : GitCloneOrPullUrls
+                                                  , "ThreadJob"                     # UsedBy  : GitCloneOrPullUrls;  Provides: Start-ThreadJob which also will be contained in newer ps7 versions in Microsoft.PowerShell.ThreadJob, so we need to use AllowClobber.
                                                   , "PSScriptAnalyzer"              # UsedBy  : testing files for analysing powershell code
                                                   , "Pester"                        # UsedBy  : Run ps tests
                                                   , "PSWindowsUpdate"               # On Windows only
                                                   , "PsReadline"                    # Provides: Write-Output
                                                   , "Microsoft.PowerShell.Archive"  # Provides: Compress-Archive, Expand-Archive
                                                   # for future use: Microsoft.EntityFrameworkCore.Tools
-                                                  # Import-Module Microsoft.PowerShell.Host;"; # seams to be required once for vs-code-terminal-pwsh
-                                                   );
+                                                  # Import-Module Microsoft.PowerShell.Host; # seams to be required once for vs-code-terminal-pwsh
+                                                );
                                                 OutProgress "Install or update modules and its help: ";
                                                 OutProgress "  $moduleNames ";
                                                 ProcessRestartInElevatedAdminMode "Install Nuget PckMgr and some common ps modules requires elevated admin mode.";
@@ -2633,8 +2634,14 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){ # runs in about 12-90 sec and 
                                                       OutProgress   "  Install-Module -Name $module                -Scope AllUsers; ";
                                                       $out = [String]( Install-Module -Name $module                -Scope AllUsers 3>&1 );
                                                     }else{
-                                                      OutProgress   "  Install-Module -Name $module -AcceptLicense -Scope AllUsers; ";
-                                                      $out = [String]( Install-Module -Name $module -AcceptLicense -Scope AllUsers 3>&1 );
+                                                      if( $module -eq "ThreadJob" ){
+                                                        # special handling because this module contains only Start-ThreadJob and it also will be contained in newer ps7 versions in Microsoft.PowerShell.ThreadJob, so we need to use AllowClobber.
+                                                        OutProgress   "  Install-Module -Name $module -AcceptLicense -Scope AllUsers -AllowClobber; ";
+                                                        $out = [String]( Install-Module -Name $module -AcceptLicense -Scope AllUsers -AllowClobber 3>&1 );
+                                                      }else{
+                                                        OutProgress   "  Install-Module -Name $module -AcceptLicense -Scope AllUsers; ";
+                                                        $out = [String]( Install-Module -Name $module -AcceptLicense -Scope AllUsers 3>&1 );
+                                                      }
                                                     }
                                                     $out | Where-Object{ $null -ne $_ } | Where-Object{ -not $_ -match "^Version\ \'[0-9\.]+\'\ of\ module\ \'[a-zA-Z0-9]+\'\ is\ already\ installed\ at\ .*$" } |
                                                       StreamToTableString | StreamToStringIndented 4 | Where-Object{ $_.Trim() -ne "" } | ForEach-Object{ OutProgress $_; };
@@ -2710,19 +2717,19 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){ # runs in about 12-90 sec and 
                                                   #   'PSReadline, WindowsUpdateProvider' with UI culture(s) {en-US} : One or more errors occurred.
                                                   #   (Response status code does not indicate success: 404 (Not Found).).
                                                   #   English-US help content is available and can be installed using: Update-Help -UICulture en-US.
-                                                  # Example: 2025-01: Got known response 404=NotFound for en-US of: ConfigDefender, 
+                                                  # Example: 2025-01: Got known response 404=NotFound for en-US of: ConfigDefender,
                                                   #   ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate.
                                                   # Example: 2025-01 Failed to update Help for the module(s)
                                                   #   'ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate' with UI culture(s) {en-US} :
                                                   #   One or more errors occurred. (Response status code does not indicate success: 404 (The specified blob does not exist.).).
                                                   #   English-US help content is available and can be installed using: Update-Help -UICulture en-US.
-                                                  # Example: 2025-02: Got known response 404=NotFound for en-US of: 
+                                                  # Example: 2025-02: Got known response 404=NotFound for en-US of:
                                                   #   ConfigDefenderPerformance, Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate.
-                                                  # Example: 2025-12: Failed to update Help for the module(s) 'Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate' 
-                                                  #   with UI culture(s) {en-US} : One or more errors occurred. 
+                                                  # Example: 2025-12: Failed to update Help for the module(s) 'Dism, Get-NetView, Kds, NetQos, Pester, PKI, Whea, WindowsUpdate'
+                                                  #   with UI culture(s) {en-US} : One or more errors occurred.
                                                   #   (Response status code does not indicate success: 404 (The requested content does not exist.).).
-                                                  #   English-US help content is available and can be installed using: Update-Help -UICulture en-US. 
-                                                  #   Failed to update Help for the module(s) 'MnCommonPsToolLib' with UI culture(s) {en-US} : 
+                                                  #   English-US help content is available and can be installed using: Update-Help -UICulture en-US.
+                                                  #   Failed to update Help for the module(s) 'MnCommonPsToolLib' with UI culture(s) {en-US} :
                                                   #   A Help URI cannot contain more than 10 redirections. Specify a valid Help URI..
                                                   #   English-US help content is available and can be installed using: Update-Help -UICulture en-US.
                                                   return [Boolean] ($msg.StartsWith("Failed to update Help for the module(s) '") -and
@@ -2767,12 +2774,12 @@ function ToolWinGetCleanLine                  ( [String] $s ){
                                                 if( $s -ne "" -and -not @("-","/","|","\").Contains($s)                                                                    -and
                                                     $s -notmatch "^\█*\▒*\¦*\ +[0-9\.]+\ [KMG]B\ \/\ +[0-9\.]+\ [KMG]B$"                                                   -and # ██████████████████████▒▒▒▒▒▒▒▒  1024 KB / 1.31 MB
                                                     $s -notmatch "^\█*\▒*\¦*\ +[0-9][0-9]?[0-9]?\%$"                                                                       -and # ███▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  10%
-                                                    $s -notmatch "^[ÔûêÆ]+\ +[0-9\.]+\ [KMG]B\ \/\ +[0-9\.]+\ [KMG]B$"                                                     -and # ÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûê  1.9 MB / 1.9 MB
-                                                    $s -notmatch "^[ÔûêÆ]+\ +[0-9][0-9]?[0-9]?\%$"                                                                         -and # ÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆ  0%
+                                                    $s -notmatch "^.+\ +[0-9\.]+\ [KMG]B\ \/\ +[0-9\.]+\ [KMG]B$"                                                          -and # ÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûê  1.9 MB / 1.9 MB
+                                                    $s -notmatch "^.+\ +[0-9][0-9]?[0-9]?\%$"                                                                              -and # ÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆ  0%
+                                                    $s -ne "Alle Quellen werden zurückgesetzt...Fertig"                                                                    -and # for: winget source reset
                                                     $s -ne "Alle Quellen werden aktualisiert..."                                                                           -and # for: winget source update
                                                     $s -ne "Fertig"                                                                                                        -and # for: winget source update
                                                     $s -ne "Alle Quellen werden zurückgesetzt...Fertig"                                                                    -and # for: winget source reset
-                                                    $s -ne "Alle Quellen werden zur├╝ckgesetzt...Fertig"                                                                   -and # for: winget source reset
                                                     $s -ne "Die Quelle `"msstore`" erfordert, dass Sie die folgenden Vereinbarungen vor der Verwendung anzeigen."          -and # for: winget list
                                                     $s -ne "Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction"                                     -and # for: winget list
                                                     $s -ne ("Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben " +
@@ -2829,11 +2836,11 @@ function ToolWinGetOutputIndicatesReinstall   ( [String[]] $s ){
                                                 return [Boolean] ($s -contains "Die Installationstechnologie der angegebenen neueren Version unterscheidet sich von der aktuell installierten Version. Deinstallieren Sie das Paket, und installieren Sie die neuere Version.");
                                                 }
 function ToolWinGetSetup                      (){ # install and update winget; update sources; if elevated it works for all users otherwise for current user; requires minimum: Windows 10 1709 (build 16299)
-                                                function WingetVersion(){
+                                                function WingetGetVersion(){
                                                   [String] $wingetVersionString = & WinGet --version; AssertRcIsOk; # 2025-02: v1.9.25200; 2024-11: V1.9.25180; 2024-09: V1.8.1911; 2024-07: v1.2.10691;
                                                   return [System.Version] ($wingetVersionString -replace "^v","");
                                                 }
-                                                function WingetIsVeryOld (){ return [Boolean] (WingetVersion) -lt ([System.Version]"1.6"); }
+                                                function WingetIsVeryOld (){ return [Boolean] (WingetGetVersion) -lt ([System.Version]"1.6"); }
                                                 function WinGetApproveEulas(){
                                                   OutProgress "Make sure eulas are approved by: Winget search; ";
                                                   Write-Output "y" | & WinGet search | Out-Null; # default source is "msstore"; alternative option: --accept-source-agreements

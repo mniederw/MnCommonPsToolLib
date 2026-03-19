@@ -108,7 +108,7 @@ function ExampleUseListFirstFivePublicReposOfGithubOrg {
   OutProgressTitle "$($MyInvocation.MyCommand)";
   # find by: https://api.github.com/search/users?q=type:org
   # List orgs which have more than 100 repos
-  [String[]] $orgs = @( "arduino", "google", "microsoft", "github", "EpicGames", "facebook", "openai", 
+  [String[]] $orgs = @( "arduino", "google", "microsoft", "github", "EpicGames", "facebook", "openai",
     "alibaba", "apple", "dotnet", "docker", "apache","nodejs","elastic","mozilla","rust-lang" );
   # note: using this can lead to error: "Response status code does not indicate success: 403 (rate limit exceeded)."
   # so we choose randomly one and hope this works.

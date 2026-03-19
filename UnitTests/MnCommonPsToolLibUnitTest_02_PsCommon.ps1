@@ -1,4 +1,4 @@
-#!/usr/bin/env pwsh
+﻿#!/usr/bin/env pwsh
 
 Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 
@@ -87,12 +87,12 @@ function UnitTest_PsCommon(){
   # using ref param
   function TestUsingRefParam{
     function f ( [String] $key = "abc", [ref] $s ){
-      if( $null -ne $s ){
-        Assert ($s.Value -is [String]) "Argument s expected to be a ref-to-a-string instead of: $($s.Value?.GetType())";
+      if( $null -ne $s -and $null -ne $s.Value ){
+        Assert ($s.Value -is [String]) "Argument s expected to be a ref-to-a-string instead of: $($s.Value.GetType().FullName).";
         $s.Value = "hello";
         return "SET-S-TO-VAL";
       }elseif( $null -ne $s ){
-        Assert ("$($s?.Value)" -eq "")
+        Assert ("$($s.Value)" -eq "")
         return "REF-TO-NUL";
       }else{ # $null -eq $s
         # Note: On accessing $s?.Value we would get: RuntimeException: The variable '$s?' cannot be retrieved because it has not been set.
@@ -106,6 +106,7 @@ function UnitTest_PsCommon(){
     $str = ""; $out = f;                         Assert ($out -eq "REF-IS-UNINIT" -and $str -eq "");
     $str = ""; $out = f "dummy";                 Assert ($out -eq "REF-IS-UNINIT" -and $str -eq "");
     $str = ""; $out = f -key "dummy";            Assert ($out -eq "REF-IS-UNINIT" -and $str -eq "");
+    [Object] $obj = $null; $out = f -s ([ref]$obj); Assert ($out -eq "REF-TO-NUL");
     function TestRefToIntSoAnotherTypeAsStringExpectingThrow(){
       [Boolean] $doThrow = $false;
       try{
@@ -115,15 +116,6 @@ function UnitTest_PsCommon(){
       }
       Assert $doThrow;
     } TestRefToIntSoAnotherTypeAsStringExpectingThrow;
-    function TestRefToNullObjSoAnotherTypeAsStringExpectingThrow(){
-      [Boolean] $doThrow = $false;
-      try{
-        [Object] $nul = $null; f -s ([ref]$nul) | Out-Null;
-      }catch{
-        $doThrow = $true;
-      }
-      Assert $doThrow;
-    }TestRefToNullObjSoAnotherTypeAsStringExpectingThrow;
   }
   TestUsingRefParam;
   #
