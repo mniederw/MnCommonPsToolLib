@@ -106,6 +106,7 @@ function UnitTest_PsCommon(){
     $str = ""; $out = f;                         Assert ($out -eq "REF-IS-UNINIT" -and $str -eq "");
     $str = ""; $out = f "dummy";                 Assert ($out -eq "REF-IS-UNINIT" -and $str -eq "");
     $str = ""; $out = f -key "dummy";            Assert ($out -eq "REF-IS-UNINIT" -and $str -eq "");
+    [Object] $obj = $null; $out = f -s ([ref]$obj); Assert ($out -eq "REF-TO-NUL");
     function TestRefToIntSoAnotherTypeAsStringExpectingThrow(){
       [Boolean] $doThrow = $false;
       try{
@@ -115,15 +116,6 @@ function UnitTest_PsCommon(){
       }
       Assert $doThrow;
     } TestRefToIntSoAnotherTypeAsStringExpectingThrow;
-    function TestRefToNullObjSoAnotherTypeAsStringExpectingThrow(){
-      [Boolean] $doThrow = $false;
-      try{
-        [Object] $nul = $null; f -s ([ref]$nul) | Out-Null;
-      }catch{
-        $doThrow = $true;
-      }
-      Assert $doThrow;
-    }TestRefToNullObjSoAnotherTypeAsStringExpectingThrow;
   }
   TestUsingRefParam;
   #
