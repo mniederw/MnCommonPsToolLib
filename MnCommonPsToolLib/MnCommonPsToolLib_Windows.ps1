@@ -2525,15 +2525,15 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){ # runs in about 12-90 sec and 
                                                     "PowerShellGet"                 # Provides: Set-PSRepository, Install-Module
                                                   , "PackageManagement"             # Provides: Install-PackageProvider, Get-Package
                                                   , "SqlServer"                     # UsedBy  : SqlPerformFile, SqlPerformCmd.
-                                                  , "ThreadJob"                     # UsedBy  : GitCloneOrPullUrls
                                                   , "PSScriptAnalyzer"              # UsedBy  : testing files for analysing powershell code
                                                   , "Pester"                        # UsedBy  : Run ps tests
                                                   , "PSWindowsUpdate"               # On Windows only
                                                   , "PsReadline"                    # Provides: Write-Output
                                                   , "Microsoft.PowerShell.Archive"  # Provides: Compress-Archive, Expand-Archive
+                                                  , "ThreadJob"                     # Provides: Start-ThreadJob which also will be contained in newer ps7 versions in Microsoft.PowerShell.ThreadJob, so we need to use AllowClobber.
                                                   # for future use: Microsoft.EntityFrameworkCore.Tools
                                                   # Import-Module Microsoft.PowerShell.Host;"; # seams to be required once for vs-code-terminal-pwsh
-                                                   );
+                                                );
                                                 OutProgress "Install or update modules and its help: ";
                                                 OutProgress "  $moduleNames ";
                                                 ProcessRestartInElevatedAdminMode "Install Nuget PckMgr and some common ps modules requires elevated admin mode.";
@@ -2633,8 +2633,14 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){ # runs in about 12-90 sec and 
                                                       OutProgress   "  Install-Module -Name $module                -Scope AllUsers; ";
                                                       $out = [String]( Install-Module -Name $module                -Scope AllUsers 3>&1 );
                                                     }else{
-                                                      OutProgress   "  Install-Module -Name $module -AcceptLicense -Scope AllUsers; ";
-                                                      $out = [String]( Install-Module -Name $module -AcceptLicense -Scope AllUsers 3>&1 );
+                                                      if( $module -eq "ThreadJob" ){
+                                                        # special handling because this module contains only Start-ThreadJob and it also will be contained in newer ps7 versions in Microsoft.PowerShell.ThreadJob, so we need to use AllowClobber.
+                                                        OutProgress   "  Install-Module -Name $module -AcceptLicense -Scope AllUsers -AllowClobber; ";
+                                                        $out = [String]( Install-Module -Name $module -AcceptLicense -Scope AllUsers -AllowClobber 3>&1 );
+                                                      }else{
+                                                        OutProgress   "  Install-Module -Name $module -AcceptLicense -Scope AllUsers; ";
+                                                        $out = [String]( Install-Module -Name $module -AcceptLicense -Scope AllUsers 3>&1 );
+                                                      }
                                                     }
                                                     $out | Where-Object{ $null -ne $_ } | Where-Object{ -not $_ -match "^Version\ \'[0-9\.]+\'\ of\ module\ \'[a-zA-Z0-9]+\'\ is\ already\ installed\ at\ .*$" } |
                                                       StreamToTableString | StreamToStringIndented 4 | Where-Object{ $_.Trim() -ne "" } | ForEach-Object{ OutProgress $_; };

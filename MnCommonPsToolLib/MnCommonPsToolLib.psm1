@@ -176,7 +176,7 @@ GlobalVariablesInit;
 #   Install-Module PowerShellGet                      ; # Provides: Set-PSRepository, Install-Module
 #   Install-Module PackageManagement                  ; # Provides: Install-PackageProvider, Get-Package
 #   Install-Module PSScriptAnalyzer                   ; # UsedBy  : testing files for analysing powershell code
-#   Install-Module ThreadJob                          ; # UsedBy  : GitCloneOrPullUrls
+#   Install-Module ThreadJob -AllowClobber            ; # UsedBy  : GitCloneOrPullUrls (module contains only Start-ThreadJob and it also will be contained in newer ps7 versions, so use AllowClobber
 #   Install-Module SqlServer                          ; # UsedBy  : SqlPerformFile, SqlPerformCmd.
 #   Install-Module Pester                             ; # UsedBy  : Run ps tests
 
