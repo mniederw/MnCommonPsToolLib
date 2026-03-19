@@ -49,7 +49,19 @@ function OsWindowsPackageUninstall            ( [String] $displayName ){
                                                   ProcessRestartInElevatedAdminMode "OsWindowsPackageUninstall($displayName) requires elevated admin mode.";
                                                   ProcessStartByCmdLine $uninstallCmd $true $true;
                                                 } }
+function OsWindowsOptionalFeatureListEnabled  (){ # Example: "NetFx3", ...
+                                                ProcessRestartInElevatedAdminMode "OsWindowsOptionalFeatureListEnabled requires elevated admin mode.";
+                                                return (Get-WindowsOptionalFeature -Online | Where-Object{ $_.State -eq "Enabled" } | Sort FeatureName | Select-Object FeatureName); }
+function OsWindowsOptionalFeatureIsEnabled    ( [String] $featureName ){ # Example: "NetFx3", ...
+                                                ProcessRestartInElevatedAdminMode "OsWindowsOptionalFeatureListEnabled requires elevated admin mode.";
+                                                return $null -ne (Get-WindowsOptionalFeature -Online | Where-Object{ $_.State -eq "Enabled" -and $_.FeatureName -eq $featureName }); }
+function OsWindowsOptionalFeatureDoEnable     ( [String] $featureName ){ # Example: "NetFx3", ...
+                                                ProcessRestartInElevatedAdminMode "OsWindowsOptionalFeatureListEnabled requires elevated admin mode.";
+                                                if( OsWindowsOptionalFeatureIsEnabled $featureName ){ OutProgress "Ok, WindowsOptionalFeature $featureName is already enabled."; return; }
+                                                [Object] $obj = Enable-WindowsOptionalFeature -Online -FeatureName "NetFx3" -All -NoRestart | Select Online, RestartNeeded, LogPath; # brings temporary progress bar
+                                                OutProgress "Ok, enabled WindowsOptionalFeature $featureName : (Online=$($obj.Online);RestartNeeded=$($obj.RestartNeeded)) "; }
 function OsWindowsFeatureGetInstalledNames    (){ # Requires windows-server-os or at least Win10Prof with installed RSAT https://www.microsoft.com/en-au/download/details.aspx?id=45520
+                                                # Otherwise we get error:  Import-Module: The specified module 'ServerManager' was not loaded because no valid module file was found in any module directory.
                                                 ScriptImportModuleIfNotDone "ServerManager";
                                                 return [String[]] (@()+(Get-WindowsFeature | Where-Object{ $_.InstallState -eq "Installed" } | ForEach-Object{ $_.Name })); } # states: Installed, Available, Removed.
 function OsWindowsFeatureDoInstall            ( [String] $name ){
@@ -1152,8 +1164,9 @@ function InfoAboutNetConfig                   (){
                                                 ,"NetGetRoute:"        ,(NetGetRoute                                                     ),""
                                                 ,"NetGetNbtStat:"      ,(NetGetNbtStat                                                   ),""
                                                 ,"NetGetAdapterSpeed:" ,(NetAdapterListAll | StreamToTableString | StreamToStringIndented),""); }
-function InfoGetInstalledDotNetVersion        ( [Boolean] $alsoOutInstalledClrAndRunningProc = $false ){
+function InfoGetInstalledDotNetFxVersion      ( [Boolean] $alsoOutInstalledClrAndRunningProc = $false ){
                                                 # Requires clrver.exe in path, for example "${env:ProgramFiles(x86)}/Microsoft SDKs/Windows/v10.0A/bin/NETFX 4.8.1 Tools/x64/clrver.exe"
+                                                # Return for example "4.8.1 or later (533320)"
                                                 if( $alsoOutInstalledClrAndRunningProc ){
                                                   [String[]] $a = @();
                                                   $a += "List Installed DotNet CLRs (clrver.exe):";
@@ -1166,6 +1179,10 @@ function InfoGetInstalledDotNetVersion        ( [Boolean] $alsoOutInstalledClrAn
                                                     Where-Object{ $_.Trim() -ne "" -and -not $_.StartsWith("Copyright (c) Microsoft Corporation.  All rights reserved.") -and
                                                       -not $_.StartsWith("Microsoft (R) .NET CLR Version Tool") -and -not $_.StartsWith("Versions installed on the machine:") } |
                                                     ForEach-Object{ "  Running Processes and its CLR: $_" }); AssertRcIsOk;
+                                                  $a += "List Installed Frameworks and ChildNames (HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP):";
+                                                  $a += (Get-ChildItem 'HKLM:\SOFTWARE\Microsoft\NET Framework Setup\NDP' -Recurse |
+                                                    Get-ItemProperty -Name Version -ErrorAction SilentlyContinue | Where-Object{ $_.Version } | Sort-Object Version, PSChildName |
+                                                    ForEach-Object{ "  InstalledDotNetFx: $($_.Version.PadRight(16)) $($_.PSChildName) " });
                                                   $a | ForEach-Object{ OutProgress $_; };
                                                 }
                                                 [Int32] $relKey = (Get-ItemProperty "HKLM:SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Full").Release;
@@ -2775,8 +2792,8 @@ function ToolWinGetCleanLine                  ( [String] $s ){
                                                     ){}else{ $s = ""; }
                                                 $s = $s.Replace("Kein verfügbares Upgrade gefunden.","Is up to date.");                                                                   # for: winget install
                                                 $s = $s.Replace("Erfolgreich installiert","Successful installed.");                                                                       # for: winget install
-                                                $s = $s.Replace("Es wurde kein installiertes Paket gefunden, das den Eingabekriterien entspricht.","Already uninstalled, nothing done."); # for: winget uninstall (2025-12 "Gyan.FFmpeg.Shared" scope:User
-                                                $s = $s.Replace("No installed package found matching input criteria.","Already uninstalled, nothing done.");                              # for: winget uninstall (2025-09: ...many...)
+                                                $s = $s.Replace("Es wurde kein installiertes Paket gefunden, das den Eingabekriterien entspricht.","Already uninstalled, nothing done."); # for: winget uninstall (2025-12 "Gyan.FFmpeg.Shared" scope:User)
+                                                $s = $s.Replace("No installed package found matching input criteria.","Already uninstalled, nothing done.");                              # for: winget uninstall (2025-09 "Gyan.FFmpeg.Shared" scope:User ...many...)
                                                 $s = $s.Replace("No version found matching: ","Nothing done, already uninstalled: ");                                                     # for: winget uninstall (2025-09)
                                                 $s = $s.Replace("Es wurde keine übereinstimmende Version gefunden: ","Already uninstalled, nothing done. Not found version: ");           # for: winget uninstall
                                                 $s = $s.Replace("Erfolgreich deinstalliert","Successful uninstalled.");                                                                   # for: winget uninstall
@@ -2829,10 +2846,11 @@ function ToolWinGetSetup                      (){ # install and update winget; u
                                                 function WinGetSourcesListAndReset(){
                                                   OutProgress "List WinGet Sources: ";
                                                   [String[]] $a = & winget source list | ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" }; AssertRcIsOk $a;
-                                                    #   Name    Argument                                      Anstößig
-                                                    #   --------------------------------------------------------------
-                                                    #   msstore https://storeedgefd.dsx.mp.microsoft.com/v9.0 false
-                                                    #   winget  https://cdn.winget.microsoft.com/cache        false
+                                                    #   Name        Argument                                      Explicit|Anstößig
+                                                    #   ---------------------------------------------------------------------------
+                                                    #   msstore     https://storeedgefd.dsx.mp.microsoft.com/v9.0 false
+                                                    #   winget      https://cdn.winget.microsoft.com/cache        false
+                                                    #   winget-font https://cdn.winget.microsoft.com/fonts        true
                                                   if( $a.Count -eq 4 -and $a[0].StartsWith("Name ") -and $a[1].StartsWith("-----") ){ $a = $a[2..($a.Length-1)] | Sort-Object; }
                                                   $a | ForEach-Object{ OutProgress "  $_"; }; # msstore, winget.
                                                   if( (ProcessIsRunningInElevatedAdminMode) -and $a[0].StartsWith("msstore ") -and $a[1].StartsWith("winget ") ){
@@ -3160,3 +3178,4 @@ function ToolWin10PackageInstall              ( [String] $packageName ){ OutWarn
 function ToolWin10PackageDeinstall            ( [String] $packageName ){ OutWarning "ToolWin10PackageDeinstall is DEPRECATED, replace it now by ToolWinCapabilityPackageDeinstall";       ToolWinCapabilityPackageDeinstall             ; }
 function ToolInstallOrUpdate                  ( [String] $installMedia, [String] $mainTargetFileMinIsoDate, [String] $mainTargetRelFile, [String] $installDirsSemicSep, [String] $installHints = "" ){
                                                 OutWarning "ToolInstallOrUpdate is DEPRECATED, replace it now by ToolInstallOrUpdateProg which only works with one installDir, we call the replace function which will fail if it has multiple installDirs "; ToolInstallOrUpdateProg $installMedia $mainTargetFileMinIsoDate "$installDirsSemicSep/$mainTargetRelFile" "" $installHints; }
+function InfoGetInstalledDotNetVersion        ( [Boolean] $alsoOutInstalledClrAndRunningProc = $false ){ OutWarning "InfoGetInstalledDotNetVersion is DEPRECATED, replace it now by InfoGetInstalledDotNetFxVersion"; InfoGetInstalledDotNetFxVersion $alsoOutInstalledClrAndRunningProc; }
