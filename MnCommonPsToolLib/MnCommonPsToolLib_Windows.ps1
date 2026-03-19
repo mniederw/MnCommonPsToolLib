@@ -2525,14 +2525,14 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){ # runs in about 12-90 sec and 
                                                     "PowerShellGet"                 # Provides: Set-PSRepository, Install-Module
                                                   , "PackageManagement"             # Provides: Install-PackageProvider, Get-Package
                                                   , "SqlServer"                     # UsedBy  : SqlPerformFile, SqlPerformCmd.
+                                                  , "ThreadJob"                     # UsedBy  : GitCloneOrPullUrls;  Provides: Start-ThreadJob which also will be contained in newer ps7 versions in Microsoft.PowerShell.ThreadJob, so we need to use AllowClobber.
                                                   , "PSScriptAnalyzer"              # UsedBy  : testing files for analysing powershell code
                                                   , "Pester"                        # UsedBy  : Run ps tests
                                                   , "PSWindowsUpdate"               # On Windows only
                                                   , "PsReadline"                    # Provides: Write-Output
                                                   , "Microsoft.PowerShell.Archive"  # Provides: Compress-Archive, Expand-Archive
-                                                  , "ThreadJob"                     # Provides: Start-ThreadJob which also will be contained in newer ps7 versions in Microsoft.PowerShell.ThreadJob, so we need to use AllowClobber.
                                                   # for future use: Microsoft.EntityFrameworkCore.Tools
-                                                  # Import-Module Microsoft.PowerShell.Host;"; # seams to be required once for vs-code-terminal-pwsh
+                                                  # Import-Module Microsoft.PowerShell.Host; # seams to be required once for vs-code-terminal-pwsh
                                                 );
                                                 OutProgress "Install or update modules and its help: ";
                                                 OutProgress "  $moduleNames ";
@@ -2773,12 +2773,12 @@ function ToolWinGetCleanLine                  ( [String] $s ){
                                                 if( $s -ne "" -and -not @("-","/","|","\").Contains($s)                                                                    -and
                                                     $s -notmatch "^\█*\▒*\¦*\ +[0-9\.]+\ [KMG]B\ \/\ +[0-9\.]+\ [KMG]B$"                                                   -and # ██████████████████████▒▒▒▒▒▒▒▒  1024 KB / 1.31 MB
                                                     $s -notmatch "^\█*\▒*\¦*\ +[0-9][0-9]?[0-9]?\%$"                                                                       -and # ███▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  10%
-                                                    $s -notmatch "^[ÔûêÆ]+\ +[0-9\.]+\ [KMG]B\ \/\ +[0-9\.]+\ [KMG]B$"                                                     -and # ÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûê  1.9 MB / 1.9 MB
-                                                    $s -notmatch "^[ÔûêÆ]+\ +[0-9][0-9]?[0-9]?\%$"                                                                         -and # ÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆ  0%
+                                                    $s -notmatch "^.+\ +[0-9\.]+\ [KMG]B\ \/\ +[0-9\.]+\ [KMG]B$"                                                          -and # ÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûê  1.9 MB / 1.9 MB
+                                                    $s -notmatch "^.+\ +[0-9][0-9]?[0-9]?\%$"                                                                              -and # ÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆ  0%
+                                                    $s -ne "Alle Quellen werden zurückgesetzt...Fertig"                                                                    -and # for: winget source reset
                                                     $s -ne "Alle Quellen werden aktualisiert..."                                                                           -and # for: winget source update
                                                     $s -ne "Fertig"                                                                                                        -and # for: winget source update
                                                     $s -ne "Alle Quellen werden zurückgesetzt...Fertig"                                                                    -and # for: winget source reset
-                                                    $s -ne "Alle Quellen werden zur├╝ckgesetzt...Fertig"                                                                   -and # for: winget source reset
                                                     $s -ne "Die Quelle `"msstore`" erfordert, dass Sie die folgenden Vereinbarungen vor der Verwendung anzeigen."          -and # for: winget list
                                                     $s -ne "Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction"                                     -and # for: winget list
                                                     $s -ne ("Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben " +
