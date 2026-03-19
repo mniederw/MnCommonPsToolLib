@@ -1,4 +1,4 @@
-﻿# Extension of MnCommonPsToolLib.psm1 - Common powershell tool library - Parts for windows only
+# Extension of MnCommonPsToolLib.psm1 - Common powershell tool library - Parts for windows only
 # This file is stored as UTF8-BOM for compatibility to PS5.1 (because chars as äöü)
 
 if( [System.Environment]::OSVersion.Platform -ne "Win32NT" ){ OutVerbose "$PSScriptRoot : Not Running on windows"; [Environment]::Exit("0"); }
@@ -2919,7 +2919,7 @@ function ToolWinGetSetup                      (){ # install and update winget; u
                                                   #   Install-Module -Name Microsoft.WinGet.Client -Force -Repository PSGallery -Scope $instScope -ErrorAction SilentlyContinue | Out-Null; # Installing WinGet PowerShell module from PSGallery
                                                   #   Repair-WinGetPackageManager -ErrorAction SilentlyContinue; # bootstrap WinGet;
                                                 }
-                                                OutProgress "WinGet current version: V$(WingetVersion) ";
+                                                OutProgress "WinGet current version: V$(WingetGetVersion) ";
                                                 WinGetApproveEulas;
                                                 WinGetSourcesListAndReset;
                                                 WinGetSourcesUpdate;
