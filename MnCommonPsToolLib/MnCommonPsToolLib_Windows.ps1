@@ -1033,7 +1033,9 @@ function NetFirewallListProfiles              (){ Get-NetFirewallProfile | Selec
                                                   #   ,AllowUserPorts,AllowUnicastResponseToMulticast,NotifyOnListen,EnableStealthModeForIPsec,LogMaxSizeKilobytes,Caption
                                                   #   ,Description,ElementName,InstanceID,DisabledInterfaceAliases,Name,PSComputerName,CimClass,CimInstanceProperties,CimSystemProperties
                                                 }
-function NetFirewallListProfileActive         (){ return [String] "$((Get-NetConnectionProfile).NetworkCategory)"; # Example: One of ["Public", "Private", "DomainAuthenticated"]. Each network adapter has its own network-profile.
+function NetFirewallListProfileActive         (){ [Object] $p = Get-NetConnectionProfile;
+                                                  if( $null -eq $p ){ return [String] ""; }
+                                                  return [String] "$($p.NetworkCategory)"; # Example: One of ["Public", "Private", "DomainAuthenticated"]. Each network adapter has its own network-profile.
                                                   # More fields: NetworkCategory,DomainAuthenticationKind,IPv4Connectivity,IPv6Connectivity,Caption,Description,ElementName,InstanceID,InterfaceAlias,InterfaceIndex,Name
                                                 }
 function JuniperNcEstablishVpnConn            ( [String] $secureCXredentialFile, [String] $url, [String] $realm ){
