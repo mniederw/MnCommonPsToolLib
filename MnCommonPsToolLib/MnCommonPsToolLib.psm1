@@ -203,7 +203,7 @@ Add-Type -WarningAction SilentlyContinue -TypeDefinition "using System; public c
 if( $null -eq (Get-Variable -Scope Global -ErrorAction SilentlyContinue -Name ComputerName) -or $null -eq $global:InfoLineColor ){ # check whether last variables already exists because reload safe
   New-Variable -option Constant -Scope Global -name CurrentMonthAndWeekIsoString -Value ([String]((Get-Date -format "yyyy-MM-")+(Get-Date -uformat "W%V")));
   New-Variable -option Constant -Scope Global -name InfoLineColor                -Value $(switch($Host.Name -eq "Windows PowerShell ISE Host"){($true){"Gray"}default{"White"}}); # ise is white so we need a contrast color
-  New-Variable -option Constant -Scope Global -name ComputerName                 -Value $([System.Environment]::MachineName.ToLower()); # provide unified lowercase ComputerName
+  New-Variable -option Constant -Scope Global -name ComputerName                 -Value $([System.Environment]::MachineName.ToLower()); # provide unified lowercase ComputerName, from NetBIOS from DotNet-Runtime, accesses the OS-level machine name via managed code. same as cli: hostname;
 }
 
 # Statement extensions
@@ -2108,14 +2108,14 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                 # If url not exists then it will throw.
                                                 # It seams the internal commands (WebClient and Invoke-WebRequest) cannot work with urls as "https://token@host/path"
                                                 #   because they returned 404=not-found, but NetDownloadFileByCurl worked successfully.
-                                                # If ignoreSslCheck is true then it will currently ignore all following calls,
-                                                #   so this is no good solution (use NetDownloadFileByCurl).
-                                                # If it fails because a tranient error httpCode=(-1,408,429,500,502,503,504) and for timeout we have time left then until 3 retries are performed.
-                                                # Maybe later: OAuth. Example: https://docs.github.com/en/free-pro-team@latest/rest/overview/other-authentication-methods
+                                                # If ignoreSslCheck is true then it will ignore this check also on all following url requests by this session,
+                                                #   so this is not a good solution (use NetDownloadFileByCurl).
+                                                # If it fails because a transient error httpCode=(-1,408,429,500,502,503,504) and for timeout we have time left then until 3 retries are performed.
+                                                # For future use: OAuth. Example: https://docs.github.com/en/free-pro-team@latest/rest/overview/other-authentication-methods
                                                 # Alternative on PS5 and PS7: Invoke-RestMethod -Uri "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/main/MnCommonPsToolLib/MnCommonPsToolLib.psm1" -OutFile "$env:TEMP/tmp/p.tmp";
                                                 $tarFile = FsEntryGetAbsolutePath $tarFile;
                                                 OutProgress "NetDownloadFile $url";
-                                                OutProgress "  $(switch($onlyIfNewer){($true){"(onlyIfNewer=$onlyIfNewer) "}($false){" "}})to `"$tarFile`" ";
+                                                OutProgress " $(switch($onlyIfNewer){($true){" (onlyIfNewer=$onlyIfNewer) "}($false){" "}})to `"$tarFile`" "; # syntax note: if the single space in " " is removed then script is invalid.
                                                 Assert (-not (FsEntryHasTrailingDirSep $tarFile));
                                                 [String] $authMethod = "Basic"; # Current implemented authMethods: "Basic".
                                                 AssertNotEmpty $url "url"; # alternative check: -or $url.EndsWith("/")

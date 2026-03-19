@@ -2443,34 +2443,35 @@ function ToolPerformFileUpdateAndIsActualized ( [String] $targetFile, [String] $
                                                   }
                                                   return [Boolean] $false;
                                                 } }
-function ToolInstallOrUpdate                  ( [String] $installMedia, [String] $mainTargetFileMinIsoDate, [String] $mainTargetRelFile, [String] $installDirsSemicSep, [String] $installHints = "" ){
-                                                # Check if a main target file exists in one of the installDirs and whether it has a minimum expected date.
+function ToolInstallOrUpdateProg              ( [String] $installMedia, [String] $mainTargetFileMinIsoDate, [String] $mainTargetFile, [String] $hash256BitsSha2 = "", [String] $installHints = "" ){
+                                                # Check if a main target file exists and whether it has a minimum expected date.
                                                 # If not it will be installed or updated by calling installmedia asynchronously which is in general a half automatic installation procedure.
-                                                # Example: ToolInstallOrUpdate "Freeware\NetworkClient\Browser\OpenSource-MPL2 Firefox V89.0 64bit multilang 2021.exe" "2021-05-27" "firefox.exe" "$env:ProgramFiles/Mozilla Firefox ; C:/Prg/Network/Browser/OpenSource-MPL2 Firefox/" "Not install autoupdate";
+                                                # hash256BitsSha2        : Hash of the downloaded media. If not empty then it must match otherwise it throws.
+                                                # Example: ToolInstallOrUpdate "Freeware\NetworkClient\Browser\OpenSource-MPL2 Firefox V89.0 64bit multilang 2021.exe" "2021-05-27" "" "$env:ProgramFiles/Mozilla Firefox/firefox.exe" "Not install autoupdate";
                                                 $installMedia   = FsEntryGetAbsolutePath $installMedia;
-                                                [String[]] $installDirs = @()+(StringSplitToArray ";" $installDirsSemicSep);
                                                 [DateTime] $mainTargetFileMinDate = DateTimeFromStringIso $mainTargetFileMinIsoDate;
                                                 [DateTime] $mainTargetFileDate = [DateTime]::MinValue; # default also means not installed
-                                                [String]   $installDirsStr = $installDirs | ForEach-Object{ FsEntryGetAbsolutePath $_; }| ForEach-Object{ "`"$_`"; " };
-                                                Assert ($installDirs.Count -gt 0) "Missing an installDir";
-                                                $installDirs | ForEach-Object{
-                                                  [String] $f = FsEntryGetAbsolutePath ([System.IO.Path]::Combine($_,$mainTargetRelFile));
-                                                  if( FileExists $f ){
-                                                    if( $mainTargetFileDate -ne [DateTime]::MinValue ){
-                                                      OutWarning "Warning: Installed main target file already found in previous installDir so ignore duplicate also installed main target file: `"$f`"";
-                                                    }else{ $mainTargetFileDate = FsEntryGetLastModified $f; }
-                                                  }
-                                                };
-                                                OutProgress "Target: MinDate=$mainTargetFileMinIsoDate FileTs=$(DateTimeAsStringIso $mainTargetFileDate "yyyy-MM-dd") File=`"$mainTargetRelFile`" InstallDirs=$installDirsStr";
+                                                [String] $f = FsEntryGetAbsolutePath $mainTargetFile;
+                                                if( FileExists $f ){
+                                                  if( $mainTargetFileDate -ne [DateTime]::MinValue ){
+                                                    OutWarning "Warning: Installed main target file already found in previous installDir so ignore duplicate also installed main target file: `"$f`"";
+                                                  }else{ $mainTargetFileDate = FsEntryGetLastModified $f; }
+                                                }
+                                                OutProgress "Target: MinDate=$mainTargetFileMinIsoDate FileTs=$(DateTimeAsStringIso $mainTargetFileDate "yyyy-MM-dd") File=`"$mainTargetFile`" ";
+                                                OutProgress "  Expected hash is `"$hash256BitsSha2`" ";
                                                 if( FileNotExists $installMedia ){
                                                   OutWarning "Warning: Missing Installmedia `"$installMedia`"";
                                                 }elseif( $mainTargetFileDate -lt $mainTargetFileMinDate ){
                                                   OutProgressTitle "Installmedia `"$installMedia`"";
-                                                  $installDirs | ForEach-Object{ OutProgressTitle "  Accepted-Installdir: `"$_`""; };
                                                   if( $installHints -ne "" ){ OutProgressTitle "  InstallHints: $installHints"; }
-                                                  if( StdInAskForBoolean ){
-                                                    & $installMedia; AssertRcIsOk;
+                                                  if( $hash256BitsSha2 -eq "" ){
+                                                    if( -not (StdInAskForBoolean) ){ OutWarning "InstallMedia not run."; return; }
+                                                  }else{
+                                                    [String] $hashOfFile = FileGetHexStringOfHash256BitsSha2 $installMedia;
+                                                    if( $hash256BitsSha2 -ne $hashOfFile ){ throw [Exception] "InstallMedia `"$installMedia`" has HashSha256 $hashOfFile which does not match expected $hash256BitsSha2. Fix media or hash. "; }
+                                                    OutProgress "  Matches hash so running installer. ";
                                                   }
+                                                  ProcessStart $installMedia @() $false $true 600;
                                                 }else{
                                                   OutProgress "Is up-to-date: `"$installMedia`"";
                                                 } }
@@ -3008,13 +3009,14 @@ function ToolWingetUninstallPackage           ( [String] $idAndOptionalBlankSepV
                                                 ScriptResetRc; # Example: OperationStopped: Last operation failed [ExitCode=-1978335212]. For the reason see the previous output. Already uninstalled, nothing done.
                                                 $out | ForEach-Object{ OutProgress $_ 2; };
                                               }
-function ToolWingetInstallPackage             ( [String] $idAndOptionalBlankSepVersion, [String] $source = "winget", [Boolean] $canRetry = $false, [String] $scope = "Auto" ){
+function ToolWingetInstallPackage             ( [String] $idAndOptionalBlankSepVersion, [String] $source = "winget", [Boolean] $canRetry = $false, [String] $scope = "Auto", [String[]] $additionalOptions = @() ){
                                                 # Call the tool "winget" to intall from a given source. Ignores errors.
                                                 # Id can be specifed by optional blanks separated version.
                                                 # Scope is one of: "User", "Machine", "Auto" (depends on elevated admin mode, then option is not specified on commandline
                                                 #                                       because some installers will fail when User or Machine is specified as example Microsoft.DotNet.Runtime.6).
                                                 # If we get a message that install fails because install-technology changed then immediate an uninstall and install will be done.
                                                 # If canRetry and install-result is not up-to-date then it tries an uninstall and again an install.
+                                                # additionalOptions : example: @( "--location", "D:\Workspace\GameClientStorage\BattleNet" );
                                                 Assert (@("User","Machine","Auto") -contains $scope);
                                                 [Boolean] $isElevated = ProcessIsRunningInElevatedAdminMode;
                                                 [String[]] $a = ($idAndOptionalBlankSepVersion.Trim() -split "\s+");
@@ -3030,6 +3032,7 @@ function ToolWingetInstallPackage             ( [String] $idAndOptionalBlankSepV
                                                 [String[]] $arguments = @( "install", "--silent", "--verbose", "--disable-interactivity", "--accept-source-agreements", "--source", $source, "--id", $id, "--version", $pckVersion );
                                                   # silent: Does not show UI's of installers.
                                                 if( $scope -ne "Auto" ){ $arguments += @("--scope", $scope); }
+                                                $additionalOptions | Where-Object{ $_ -ne "" } | ForEach-Object{ $arguments += $_; };
                                                 OutProgress "  & WinGet $(StringArrayDblQuoteItems $arguments) ; # isElevated=$isElevated ";
                                                 [String[]] $out = & WinGet $arguments *>&1 | ForEach-Object{ ToolWinGetCleanLine $_; } | Where-Object{ $_ -ne "" };
                                                 [Int32] $rc = ScriptGetAndClearLastRc; # Example: OperationStopped: Last operation failed [ExitCode=-1978335189]. For the reason see the previous output. Is up to date.
@@ -3048,7 +3051,7 @@ function ToolWingetInstallPackage             ( [String] $idAndOptionalBlankSepV
                                                     if( $id -eq "Discord.Discord"      ){ ProcessSleepSec 20; } # 2025-08: version 1.0.9205: we got problem as cannot uninstall because Installation fehlgeschlagen mit Exitcode: 3221225477. rc=-1978335226; so we wait now 20 sec.
                                                     ToolWingetUninstallPackage $idAndOptionalBlankSepVersion $source $scope;
                                                     if( $id -eq "Microsoft.OpenJDK.21" ){ ProcessSleepSec 30; } # see wait before uninstall
-                                                    ToolWingetInstallPackage   $idAndOptionalBlankSepVersion $source $false $scope;
+                                                    ToolWingetInstallPackage   $idAndOptionalBlankSepVersion $source $false $scope $additionalOptions;
                                                   }
                                                 }
                                                 # 2025-02: winget install $id;
@@ -3069,37 +3072,52 @@ function ToolWingetInstallPackage             ( [String] $idAndOptionalBlankSepV
                                                 # 2025-06: "Microsoft.VisualStudio.2022.Community": Starten Sie den PC neu, um die Installation abzuschließen.
                                               }
 function ToolManuallyDownloadAndInstallProg   ( [String] $programName, [String] $programDownloadUrl, [String] $mainTargetFileMinIsoDate = "0001-01-01",
-                                                [String[]] $programExecutableOrDir = "", [String] $programConfigurations = "" ){
-                                                # programExecutableOrDir: one or alternative targets can be specified.
-                                                # Example: ToolManuallyDownloadAndInstallProg "Powershell-V7"     "https://learn.microsoft.com/de-de/powershell/scripting/install/installing-powershell-on-windows" "0001-01-01" "pwsh.exe" "";
-                                                # Example: ToolManuallyDownloadAndInstallProg "TortoiseGit 64bit" "https://tortoisegit.org/download/" "0001-01-01" "$env:ProgramFiles/TortoiseGit/bin/TortoiseGit.dll" "";
+                                                [String[]] $programExecutableOrDir = "", [String] $hash256BitsSha2 = "", [String] $programConfigHints = "" ){
+                                                # Checks wether a program is installed and if not then it downloads, matches its hash and installs it.
+                                                # If hash is not specified then it waits for Enter until you install it in general by the download in browser and it will retry forever until it is installed.
+                                                # programExecutableOrDir : Installed artefacts, an array of executables or dirs, takes first existing exec or dir, for an exec it also checkes against MinIsoDate.
+                                                # programName            : Just a display name for the program to be installed.
+                                                # programExecutableOrDir : One or alternative targets can be specified.
+                                                # programConfigHints     : Hints for the half automatic installation.
+                                                # hash256BitsSha2        : Hash of the downloaded media. If not empty then it must match otherwise it throws.
+                                                # Example: ToolManuallyDownloadAndInstallProg "Powershell-V7"     "https://learn.microsoft.com/de-de/powershell/scripting/install/installing-powershell-on-windows" "0001-01-01" "pwsh.exe";
+                                                # Example: ToolManuallyDownloadAndInstallProg "TortoiseGit 64bit" "https://tortoisegit.org/download/" "0001-01-01" "$env:ProgramFiles/TortoiseGit/bin/TortoiseGit.dll";
                                                 for( [Int32] $i = 0; $i -lt $programExecutableOrDir.Count; $i++ ){ $programExecutableOrDir[$i] = FsEntryUnifyDirSep $programExecutableOrDir[$i]; }
-                                                OutProgressTitle ("Check "+ "`"$programName`"".PadRight(40));
-                                                OutProgress "Expecting newer existance than minimum $mainTargetFileMinIsoDate of one of the target executables or dirs ";
-                                                OutProgress ("[" + (($programExecutableOrDir|ForEach-Object{"`"$_`""}) -join ",") + "] ");
+                                                OutProgressTitle ("Install "+ "`"$programName`"".PadRight(40) + "");
+                                                OutProgress "  Expecting newer existance than minimum $mainTargetFileMinIsoDate of one of the target executables or dirs ";
+                                                OutProgress ("  [" + (($programExecutableOrDir|ForEach-Object{"`"$_`""}) -join ",") + "] ");
                                                 [Boolean] $noExecSoReturnAfterOneRun = $programExecutableOrDir[0] -eq "" -and $programExecutableOrDir.Count -le 1;
                                                 [String] $tar = $programExecutableOrDir[0];
                                                 [Boolean] $isDir = (FsEntryHasTrailingDirSep $tar);
                                                 [DateTime] $mainTargetFileMinDate = DateTimeFromStringIso $mainTargetFileMinIsoDate;
-                                                function TargetReached(){
-                                                  return [String] ($programExecutableOrDir | Where-Object{ "" -ne "$_" } |
-                                                    Where-Object{
-                                                      if( $isDir ){ return (DirExists $_); }
-                                                      [String] $exe = ProcessFindExecutableInPath $_;
-                                                      if( $exe -eq "" ){ return $false; }
-                                                      return $mainTargetFileMinDate -eq [DateTime]::MinValue -or (FsEntryGetLastModified $exe) -ge $mainTargetFileMinDate; } |
-                                                    Select-Object -First 1);
-                                                }
                                                 while($true){
-                                                  [String] $tar = TargetReached;
-                                                  if( -not $noExecSoReturnAfterOneRun -and $tar -ne "" ){ OutProgress "Found installed: `"$tar`""; return; }
-                                                  OutProgress "No target found so please download and install `"$programName`" ";
-                                                  OutProgress "Follow the configurations: `"$programConfigurations`" ";
-                                                  ProcessOpenAssocFile $programDownloadUrl;
-                                                  StdInReadLine "Press Enter to continue.";
-                                                  ProcessRefreshEnvVars;
-                                                  if( $noExecSoReturnAfterOneRun ){ return; }
-                                                } }
+                                                  function TargetDirExistsOrExeWithMinDateExists(){
+                                                    return [String] ($programExecutableOrDir | Where-Object{ "" -ne "$_" } |
+                                                      Where-Object{
+                                                        if( $isDir ){ return (DirExists $_); }
+                                                        [String] $exe = ProcessFindExecutableInPath $_;
+                                                        if( $exe -eq "" ){ return $false; }
+                                                        return $mainTargetFileMinDate -eq [DateTime]::MinValue -or (FsEntryGetLastModified $exe) -ge $mainTargetFileMinDate;
+                                                      } | Select-Object -First 1 );
+                                                  }
+                                                  [String] $tar = TargetDirExistsOrExeWithMinDateExists;
+                                                  if( -not $noExecSoReturnAfterOneRun -and $tar -ne "" ){ OutProgress "  Ok, found installed: `"$tar`""; return; }
+                                                  OutProgress "  On installing care the following configurations: `"$programConfigHints`" ";
+                                                  OutProgress "  No target found so download and install `"$programDownloadUrl`" ";
+                                                  OutProgress "  Expected hash is `"$hash256BitsSha2`" ";
+                                                  if( $hash256BitsSha2 -eq "" ){
+                                                    ProcessOpenAssocFile $programDownloadUrl;
+                                                    StdInReadLine "Press Enter to continue.";
+                                                  }else{
+                                                    [String] $tmp = (FileGetTempFile);
+                                                    NetDownloadFile $programDownloadUrl $tmp;
+                                                    [String] $hashOfDownloadedFile = FileGetHexStringOfHash256BitsSha2 $tmp;
+                                                    if( $hash256BitsSha2 -ne $hashOfDownloadedFile ){ throw [Exception] "Downloaded $programDownloadUrl has HashSha256 $hashOfDownloadedFile which does not match expected $hash256BitsSha2. Fix url or hash. "; }
+                                                    OutProgress "  Matches hash so running installer. ";
+                                                    try{ ProcessStart $tmp @() $false $true 600; }catch{ OutWarning $_; }
+                                                  }
+                                                  if( $noExecSoReturnAfterOneRun ){ break; }
+                                                } ProcessRefreshEnvVars; }
 function MnCommonPsToolLibSelfUpdate          (){
                                                 # If installed in global standard mode (saved under $env:ProgramFiles/WindowsPowerShell/Modules/)
                                                 # then it performs a self update to the newest version from github otherwise output a note.
@@ -3140,3 +3158,5 @@ function SvnExe                               (){ OutWarning "SvnExe is DEPRECAT
 function ToolWin10PackageGetState             ( [String] $packageName ){ OutWarning "ToolWin10PackageGetState is DEPRECATED, replace it now by ToolWinCapabilityPackageGetState"; return (ToolWinCapabilityPackageGetState $packageName); }
 function ToolWin10PackageInstall              ( [String] $packageName ){ OutWarning "ToolWin10PackageInstall is DEPRECATED, replace it now by ToolWinCapabilityPackageInstall";           ToolWinCapabilityPackageInstall               ; }
 function ToolWin10PackageDeinstall            ( [String] $packageName ){ OutWarning "ToolWin10PackageDeinstall is DEPRECATED, replace it now by ToolWinCapabilityPackageDeinstall";       ToolWinCapabilityPackageDeinstall             ; }
+function ToolInstallOrUpdate                  ( [String] $installMedia, [String] $mainTargetFileMinIsoDate, [String] $mainTargetRelFile, [String] $installDirsSemicSep, [String] $installHints = "" ){
+                                                OutWarning "ToolInstallOrUpdate is DEPRECATED, replace it now by ToolInstallOrUpdateProg which only works with one installDir, we call the replace function which will fail if it has multiple installDirs "; ToolInstallOrUpdateProg $installMedia $mainTargetFileMinIsoDate "$installDirsSemicSep/$mainTargetRelFile" "" $installHints; }
