@@ -34,7 +34,7 @@
   }
   HelpInfoURI            = 'https://github.com/mniederw/MnCommonPsToolLib/Readme.txt';
 
-  ModuleVersion          = '7.126';
+  ModuleVersion          = '7.127';
 
   <#
   Releasenotes
@@ -43,6 +43,7 @@
   Major version will reflect breaking changes, minor identifies extensions and third number identifies urgent bugfixes.
   Breaking changes are usually removed deprecated functions or changed behaviours.
 
+  2026-03-20  V7.127 Improve ToolPackageUninstallForce.
   2026-03-19  V7.126 Fix for PS5.1 ToolWinGetCleanLine, GitListCommitComments, UTF8-BOM issues, NetFirewallListProfileActive. Improve ToolInstallNuPckMgrAndCommonPsGalMo.
   2026-03-19  V7.125 InfoGetInstalledDotNetVersion is DEPRECATED (use InfoGetInstalledDotNetFxVersion). Added OsWindowsOptionalFeatureListEnabled, OsWindowsOptionalFeatureIsEnabled, OsWindowsOptionalFeatureDoEnable.
   2026-03-19  V7.124 Extend ToolManuallyDownloadAndInstallProg, ToolWingetInstallPackage. ToolInstallOrUpdate is DEPRECATED (use ToolInstallOrUpdateProg).

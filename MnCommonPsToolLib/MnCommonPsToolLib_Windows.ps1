@@ -2508,6 +2508,7 @@ function ToolPackageUninstallForce            ( [String] $displayName, [String] 
                                                   $result = $a.UninstallString;
                                                   return [String] $result;
                                                 }
+                                                OutProgress "ToolPackageUninstallForce: $displayName (scope=$scope; dirToDelete=$dirToDelete)";
                                                 if( DirExists $dirToDelete ){
                                                   [String] $uninstallCmd = GetUninstallString $displayName $scope; # Dangerous! We need to trust this command.
                                                   if( $uninstallCmd -ne "" ){
@@ -2515,7 +2516,7 @@ function ToolPackageUninstallForce            ( [String] $displayName, [String] 
                                                     Invoke-Expression $uninstallCmd; # We know we get: PSScriptAnalyzer:PSAvoidUsingInvokeExpression: Invoke-Expression is used. Please remove Invoke-Expression from script and find other options instead.
                                                   }
                                                   DirDelete $dirToDelete;
-                                                } }
+                                                } OutProgress "  Ok, dir not exists."; }
 function ToolInstallNuPckMgrAndCommonPsGalMo  (){ # runs in about 12-90 sec and if nessessary then the update help requires about 2 minutes.
                                                 OutProgressTitle     "Install or actualize Nuget Package Manager and from PSGallery some common ps modules: ";
                                                 [String[]] $moduleNames = @(
@@ -2773,6 +2774,7 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){ # runs in about 12-90 sec and 
 function ToolWinGetCleanLine                  ( [String] $s ){
                                                 if( $null -eq $s ){ $s = ""; }
                                                 $s = "$s".Trim();
+                                                # remove the following patterns
                                                 if( $s -ne "" -and -not @("-","/","|","\").Contains($s)                                                                    -and
                                                     $s -notmatch "^\█*\▒*\¦*\ +[0-9\.]+\ [KMG]B\ \/\ +[0-9\.]+\ [KMG]B$"                                                   -and # ██████████████████████▒▒▒▒▒▒▒▒  1024 KB / 1.31 MB
                                                     $s -notmatch "^\█*\▒*\¦*\ +[0-9][0-9]?[0-9]?\%$"                                                                       -and # ███▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  10%
@@ -2799,6 +2801,7 @@ function ToolWinGetCleanLine                  ( [String] $s ){
                                                     $s -ne "Failed when searching source; results will not be included: msstore"                                           -and # for: winget uninstall (2025-09: "MSIX\Microsoft.MicrosoftEdge.Stable_127.0.2651.74_neutral__8wekyb3d8bbwe","ARP\Machine\X64\MozillaMaintenanceService")
                                                     $s -ne "Fehler beim Durchsuchen der Quelle. Ergebnisse werden nicht einbezogen: msstore"                                    # for: winget uninstall (2025-08: Edge)
                                                     ){}else{ $s = ""; }
+                                                # replace some patterns
                                                 $s = $s.Replace("Kein verfügbares Upgrade gefunden.","Is up to date.");                                                                   # for: winget install
                                                 $s = $s.Replace("Erfolgreich installiert","Successful installed.");                                                                       # for: winget install
                                                 $s = $s.Replace("Es wurde kein installiertes Paket gefunden, das den Eingabekriterien entspricht.","Already uninstalled, nothing done."); # for: winget uninstall (2025-12 "Gyan.FFmpeg.Shared" scope:User)
