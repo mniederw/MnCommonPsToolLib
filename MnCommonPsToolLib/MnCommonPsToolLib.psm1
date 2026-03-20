@@ -2908,17 +2908,14 @@ function GitListCommitComments                ( [String] $tarDir, [String] $loca
                                                     [String] $out = "";
                                                     try{
                                                       # git can write warnings to stderr which we not handle as error.
-                                                      if( ProcessIsLesserEqualPs5 ){
-                                                        # 2026-03: On PS5.1 and with ProcessStart there is an unresolved problem that the git log command hangs.
-                                                        #   A workaround is to replace it by the call operator.
-                                                        #   If we list processes and kill the second git sub-process, then it would at least continue.
-                                                        #   The git log (and also diff) command uses internally a pager which does wait for a keyboard input.
-                                                        #   But even if we made sure that the paging was suppressed, it did not help.
-                                                        #   ($env:GIT_PAGER = ''; git --no-pager ...; GitSetGlobalVar "core.pager" "";)
-                                                        $out = & "git" $options[0] $options[1] $options[2] $options[3] $options[4] $options[5] 2>&1; AssertRcIsOk $out;
-                                                      }else{
-                                                        $out = (ProcessStart "git" $options -careStdErrAsOut:$true -traceCmd:$true);
-                                                      }
+                                                      # 2026-03: On PS5.1 and PS7 with ProcessStart there is an unresolved problem that the git log command hangs.
+                                                      #   A workaround is to replace it by the call operator.
+                                                      #   If we list processes and kill the second git sub-process, then it would at least continue.
+                                                      #   The git log (and also diff) command uses internally a pager which does wait for a keyboard input.
+                                                      #   But even if we made sure that the paging was suppressed, it did not help.
+                                                      #   ($env:GIT_PAGER = ''; git --no-pager ...; GitSetGlobalVar "core.pager" "";)
+                                                      # Cannot use: $out = (ProcessStart "git" $options -careStdErrAsOut:$true -traceCmd:$true);
+                                                      $out = & "git" $options[0] $options[1] $options[2] $options[3] $options[4] $options[5] 2>&1; AssertRcIsOk $out;
                                                     }catch{
                                                       # 2024-03: m="Last operation failed [ExitCode=128]. For the reason see the previous output. "
                                                       # 2024-03: out="fatal: your current branch 'main' does not have any commits yet"
