@@ -3019,6 +3019,7 @@ function ToolWingetUninstallPackage           ( [String] $idAndOptionalBlankSepV
                                                 # Call the tool "winget" to uninstall from a given source. Ignores errors.
                                                 # Id can be specifed by optional blanks separated version.
                                                 # Scope is one of: "User","Machine","Auto"(depends on elevated admin mode).
+                                                $idAndOptionalBlankSepVersion = $idAndOptionalBlankSepVersion.Trim();
                                                 Assert (@("User","Machine","Auto") -contains $scope);
                                                 [Boolean] $isElevated = ProcessIsRunningInElevatedAdminMode;
                                                 [String[]] $a = ($idAndOptionalBlankSepVersion -split "\s+");
@@ -3047,9 +3048,10 @@ function ToolWingetInstallPackage             ( [String] $idAndOptionalBlankSepV
                                                 # If we get a message that install fails because install-technology changed then immediate an uninstall and install will be done.
                                                 # If canRetry and install-result is not up-to-date then it tries an uninstall and again an install.
                                                 # additionalOptions : example: @( "--location", "D:\Workspace\GameClientStorage\BattleNet" );
+                                                $idAndOptionalBlankSepVersion = $idAndOptionalBlankSepVersion.Trim();
                                                 Assert (@("User","Machine","Auto") -contains $scope);
                                                 [Boolean] $isElevated = ProcessIsRunningInElevatedAdminMode;
-                                                [String[]] $a = ($idAndOptionalBlankSepVersion.Trim() -split "\s+");
+                                                [String[]] $a = ($idAndOptionalBlankSepVersion -split "\s+");
                                                 [String] $id = $a[0];
                                                 [String] $pckVersion = switch($a.Count -le 1){($true){""}($false){$a[1]}};
                                                 if( $a.Count -gt 2 ){ throw [Exception] "ToolWingetInstallPackage(id=`"$id`") unknown third blanks separated part: `"$a[2]`""; }
