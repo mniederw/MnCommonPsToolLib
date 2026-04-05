@@ -850,10 +850,10 @@ function FileAdsDownloadedFromInternetDel     ( [String] $srcFile ){
                                                 FileNtfsAlternativeDataStreamDel $srcFile "Zone.Identifier"; } # alternative: Unblock-File -LiteralPath $file
 function DriveMapTypeToString                 ( [UInt32] $driveType ){
                                                 return [String] $(switch($driveType){ 1{"NoRootDir"} 2{"RemovableDisk"} 3{"LocalDisk"} 4{"NetworkDrive"} 5{"CompactDisk"} 6{"RamDisk"} default{"UnknownDriveType=driveType"}}); }
-function DriveList                            (){
+function DriveList                            (){ # for table display append:  | Format-Table -AutoSize
                                                 return [Object[]] (@()+(Get-CimInstance "Win32_LogicalDisk" |
                                                   Where-Object{$null -ne $_} |
-                                                  Select-Object DeviceID, FileSystem, Size, FreeSpace, VolumeName, DriveType, @{Name="DriveTypeName";Expression={(DriveMapTypeToString $_.DriveType)}}, ProviderName)) | Format-Table -AutoSize; }
+                                                  Select-Object DeviceID, FileSystem, Size, FreeSpace, VolumeName, DriveType, @{Name="DriveTypeName";Expression={(DriveMapTypeToString $_.DriveType)}}, ProviderName)); }
 function ShareGetTypeName                     ( [UInt32] $typeNr ){
                                                 return [String] $(switch($typeNr){ 0{"DiskDrive"} 1 {"PrintQueue"} 2{"Device"} 3{"IPC"}
                                                 2147483648{"DiskDriveAdmin"} 2147483649{"PrintQueueAdmin"} 2147483650{"DeviceAdmin"} 2147483651{"IPCAdmin"} default{"unknownNr=$typeNr"} }); }

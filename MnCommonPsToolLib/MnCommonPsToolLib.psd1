@@ -5,7 +5,7 @@
   GUID                   = 'b0d61b3d-cd52-4b36-82e1-df89c8476128';
   Author                 = 'Marc Niederwieser';
   CompanyName            = 'Private, Marc Niederwieser, Switzerland.';
-  Copyright              = 'Copyright © by Marc Niederwieser, Switzerland, 2013-2025. Licensed under GPL3.';
+  Copyright              = 'Copyright © by Marc Niederwieser, Switzerland, 2013-2026. Licensed under GPL3.';
   Description            = 'Common Powershell Tool Library for PS5.1 and PS7 and works on multiplatforms (Windows, Linux and OSX)';
   PowerShellVersion      = '5.1'; # V5.1 is minimum version; Also for V7.x
   VariablesToExport      = '*';
@@ -34,7 +34,7 @@
   }
   HelpInfoURI            = 'https://github.com/mniederw/MnCommonPsToolLib/Readme.txt';
 
-  ModuleVersion          = '7.129';
+  ModuleVersion          = '7.130';
 
   <#
   Releasenotes
@@ -43,6 +43,7 @@
   Major version will reflect breaking changes, minor identifies extensions and third number identifies urgent bugfixes.
   Breaking changes are usually removed deprecated functions or changed behaviours.
 
+  2026-04-05  V7.130 Improve DriveList.
   2026-03-26  V7.129 Improve ToolWingetUninstallPackage.
   2026-03-20  V7.128 Fix GitListCommitComments.
   2026-03-20  V7.127 Improve ToolPackageUninstallForce. Fix GitListCommitComments.
