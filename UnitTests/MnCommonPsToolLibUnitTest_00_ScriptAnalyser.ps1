@@ -53,7 +53,7 @@ function UnitTest_ScriptAnalyser(){
     [String] $msgL = $_.Message + " in line " + $_.Line + " col " + $_.Column;
     # $_.IsSuppressed         : False
     # $_.Extent               : $global:MyVariable
-    # $_.ScriptPath           : D:\Workspace\SrcGit\mniederw\MnCommonPsToolLib#trunk\MnCommonPsToolLib\MnCommonPsToolLib.psm1
+    # $_.ScriptPath           : C:\MyWorkspace\SrcGit\mniederw\MnCommonPsToolLib#trunk\MnCommonPsToolLib\MnCommonPsToolLib.psm1
     # $_.RuleSuppressionID    : global:MyVariable
     # $_.SuggestedCorrections :
     "  $scr $sev $rul : $msgL";

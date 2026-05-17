@@ -5,7 +5,7 @@ Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version
 function UnitTest_Win_Priv(){
   OutProgress (ScriptGetCurrentFuncName);
   if( ! (OsIsWindows) ){ OutProgress "Not running on windows, so bypass test."; return; }
-  Assert ((PrivGetUserFromName $env:USERNAME).GetType().FullName -eq "System.Security.Principal.NTAccount");
+  Assert ((PrivGetUserFromName (OsEnvUser)).GetType().FullName -eq "System.Security.Principal.NTAccount");
   #   PrivGetUserCurrent                   (){
   #   PrivGetUserSystem                    (){
   #   PrivGetGroupAdministrators           (){

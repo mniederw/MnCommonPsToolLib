@@ -412,7 +412,7 @@ function StringFromErrorRecord                ( [System.Management.Automation.Er
                                                   # $msg += "$nl  ErrorDetails: $(switch($null -ne $er.ErrorDetails){($true){$er.ErrorDetails.ToString()}default{''}})";
                                                   # $msg += "$nl  PSMessageDetails: $($er.PSMessageDetails)";
                                                 }
-                                                $msg += "$nl  Ts=$(DateTimeNowAsStringIso) User=$($env:USERNAME) mach=$ComputerName. ";
+                                                $msg += "$nl  Ts=$(DateTimeNowAsStringIso) User=$(OsEnvUser) mach=$ComputerName. ";
                                                 return [String] $msg; }
 function StringCommandLineToArray             ( [String] $commandLine ){
                                                 # Care spaces or tabs separated args and doublequoted args which can contain double doublequotes for escaping single doublequotes.
@@ -605,7 +605,7 @@ function OutStartTranscriptInTempDir          ( [String] $name = "MnCommonPsTool
                                                 # Logfilename will be created uniquely by containing: date, time in precision of seconds, name, user, machine, pid, threadId.
                                                 $name = StringOnEmptyReplace $name.Trim() "MnCommonPsToolLib";
                                                 [String] $ts = (DateTimeNowAsStringIso "yyyy yyyy-MM yyyy-MM-dd_HH'h'mm'm'ss's'").Replace(" ","/");
-                                                [String] $us = $env:USERNAME;
+                                                [String] $us = OsEnvUser;
                                                 [String] $f = FsEntryGetAbsolutePath "$env:TEMP/tmp/$name/$ts.$name.$us.$ComputerName.$PID.$(ProcessGetCurrentThreadId).txt"; # works for windows and linux
                                                 Start-Transcript -Path $f -Append -IncludeInvocationHeader | Out-Null;
                                                 return [String] $f; }
@@ -793,7 +793,7 @@ function StreamToFile                         ( [String] $file, [Boolean] $overw
                                                   $utf8NoBomEncoding = New-Object System.Text.UTF8Encoding($false);
                                                   if( $content -ne "" -and -not $content.EndsWith([Environment]::NewLine) ){ $content += [Environment]::NewLine; }
                                                   if( $doAppend ){ [System.IO.File]::AppendAllText($file,$content,$utf8NoBomEncoding); }
-                                                  else {            [System.IO.File]::WriteAllText($file,$content,$utf8NoBomEncoding); }
+                                                  else           { [System.IO.File]::WriteAllText($file,$content,$utf8NoBomEncoding); }
                                                   return;
                                                 }
                                                 if( (ProcessIsLesserEqualPs5) -and $encoding -eq "UTF8BOM" ){ $encoding = "UTF8"; }
@@ -809,6 +809,7 @@ function OsIsMacOS                            (){ return [Boolean] (-not (OsIsWi
 function OsIsWinVistaOrHigher                 (){ return [Boolean] ((OsIsWindows) -and [Environment]::OSVersion.Version -ge (New-Object "Version" 6,0)); }
 function OsIsWin7OrHigher                     (){ return [Boolean] ((OsIsWindows) -and [Environment]::OSVersion.Version -ge (New-Object "Version" 6,1)); }
 function OsIsWin11OrHigher                    (){ return [Boolean] ((OsIsWindows) -and [Environment]::OSVersion.Version -ge (New-Object "Version" 10,0,22000)); }
+function OsEnvUser                            (){ return [String] $(switch(OsIsWindows){$true{$env:USERNAME}default{$env:USER}}); }
 function OsPathSeparator                      (){ return [String] $(switch(OsIsWindows){$true{";"}default{":"}}); } # separator for PATH environment variable
 function OsPsModulePathList                   (){ # return content of $env:PSModulePath as string-array with os dependent dir separators.
                                                 # Usual entries: On Windows, PS5/PS7, scope MACHINE:
@@ -860,7 +861,7 @@ function PrivAclRegRightsToString             ( [System.Security.AccessControl.R
 function ProcessIsLesserEqualPs5              (){ return [Boolean] ($PSVersionTable.PSVersion.Major -le 5); }
 function ProcessPsExecutable                  (){ return [String] $(switch((ProcessIsLesserEqualPs5)){ $true{"powershell.exe"} default{"pwsh"}}); }
 function ProcessIsRunningInElevatedAdminMode  (){ if( OsIsWindows ){ return [Boolean] ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"); }
-                                                  return [Boolean] ("$env:SUDO_USER" -ne "" -or "$env:USER" -eq "root"); }
+                                                  return [Boolean] ("$env:SUDO_USER" -ne "" -or (OsEnvUser) -eq "root"); }
 function ProcessAssertInElevatedAdminMode     (){ Assert (ProcessIsRunningInElevatedAdminMode) "requires to be in elevated admin mode"; }
 function ProcessRestartInElevatedAdminMode    ( [String] $reason = "" ){
                                                 if( ProcessIsRunningInElevatedAdminMode ){ return; }
@@ -1973,7 +1974,7 @@ function CredentialGetTextFromSecureString    ( [System.Security.SecureString] $
                                                 return [String] [System.Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr); }
 function CredentialGetUsername                ( [System.Management.Automation.PSCredential] $cred = $null, [Boolean] $onNullCredGetCurrentUserInsteadOfEmpty = $false ){
                                                 # if cred is null then take current user.
-                                                return [String] $(switch($null -eq $cred){ ($true){$(switch($onNullCredGetCurrentUserInsteadOfEmpty){($true){$env:USER}default{""}})} default{$cred.UserName}}); }
+                                                return [String] $(switch($null -eq $cred){ ($true){$(switch($onNullCredGetCurrentUserInsteadOfEmpty){($true){(OsEnvUser)}default{""}})} default{$cred.UserName}}); }
 function CredentialGetPassword                ( [System.Management.Automation.PSCredential] $cred = $null ){
                                                 # if cred is null then return empty string.
                                                 # $cred.GetNetworkCredential().Password is the same as (CredentialGetTextFromSecureString $cred.Password)

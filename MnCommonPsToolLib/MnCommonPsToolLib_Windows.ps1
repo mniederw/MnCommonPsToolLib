@@ -287,7 +287,7 @@ function JobWaitForState                      ( [String] $state = "Completed", [
 function JobWaitForEnd                        ( [Int32] $id ){ JobWaitForNotRunning $id; return [Object] (Receive-Job -Id $id); } # Return result object of script block, job is afterwards deleted.
 function PrivGetUserFromName                  ( [String] $username ){ # optionally as domain\username
                                                 return [System.Security.Principal.NTAccount] $username; }
-function PrivGetUserCurrent                   (){ return [System.Security.Principal.IdentityReference] ([System.Security.Principal.WindowsIdentity]::GetCurrent().User); } # alternative: PrivGetUserFromName "$env:userdomain\$env:USERNAME"
+function PrivGetUserCurrent                   (){ return [System.Security.Principal.IdentityReference] ([System.Security.Principal.WindowsIdentity]::GetCurrent().User); } # alternative: PrivGetUserFromName "$env:userdomain\$(OsEnvUser)
 function PrivGetUserSystem                    (){ return [System.Security.Principal.IdentityReference] (New-Object System.Security.Principal.SecurityIdentifier("S-1-5-18"                                                      )).Translate([System.Security.Principal.NTAccount]); } # NT AUTHORITY\SYSTEM = NT-AUTORITÄT\SYSTEM
 function PrivGetGroupAdministrators           (){ return [System.Security.Principal.IdentityReference] (New-Object System.Security.Principal.SecurityIdentifier("S-1-5-32-544"                                                  )).Translate([System.Security.Principal.NTAccount]); } # BUILTIN\Administrators = VORDEFINIERT\Administratoren  (more https://msdn.microsoft.com/en-us/library/windows/desktop/aa379649(v=vs.85).aspx)
 function PrivGetGroupAuthenticatedUsers       (){ return [System.Security.Principal.IdentityReference] (New-Object System.Security.Principal.SecurityIdentifier("S-1-5-11"                                                      )).Translate([System.Security.Principal.NTAccount]); } # NT AUTHORITY\Authenticated Users = NT-AUTORITÄT\Authentifizierte Benutzer
@@ -850,10 +850,10 @@ function FileAdsDownloadedFromInternetDel     ( [String] $srcFile ){
                                                 FileNtfsAlternativeDataStreamDel $srcFile "Zone.Identifier"; } # alternative: Unblock-File -LiteralPath $file
 function DriveMapTypeToString                 ( [UInt32] $driveType ){
                                                 return [String] $(switch($driveType){ 1{"NoRootDir"} 2{"RemovableDisk"} 3{"LocalDisk"} 4{"NetworkDrive"} 5{"CompactDisk"} 6{"RamDisk"} default{"UnknownDriveType=driveType"}}); }
-function DriveList                            (){
+function DriveList                            (){ # for table display append:  | Format-Table -AutoSize
                                                 return [Object[]] (@()+(Get-CimInstance "Win32_LogicalDisk" |
                                                   Where-Object{$null -ne $_} |
-                                                  Select-Object DeviceID, FileSystem, Size, FreeSpace, VolumeName, DriveType, @{Name="DriveTypeName";Expression={(DriveMapTypeToString $_.DriveType)}}, ProviderName)) | Format-Table -AutoSize; }
+                                                  Select-Object DeviceID, FileSystem, Size, FreeSpace, VolumeName, DriveType, @{Name="DriveTypeName";Expression={(DriveMapTypeToString $_.DriveType)}}, ProviderName)); }
 function ShareGetTypeName                     ( [UInt32] $typeNr ){
                                                 return [String] $(switch($typeNr){ 0{"DiskDrive"} 1 {"PrintQueue"} 2{"Device"} 3{"IPC"}
                                                 2147483648{"DiskDriveAdmin"} 2147483649{"PrintQueueAdmin"} 2147483650{"DeviceAdmin"} 2147483651{"IPCAdmin"} default{"unknownNr=$typeNr"} }); }
@@ -1090,7 +1090,7 @@ function InfoAboutComputerOverview            (){ return [String[]] @( "InfoAbou
                                                   ,"OS.ComputerName                : $ComputerName"
                                                   ,"OS.Win.ProductKey              : $(OsGetWindowsProductKey)"
                                                   ,"FS.ConnectedDrives             : $([System.IO.DriveInfo]::getdrives())"
-                                                  ,"Session.UserName               : $env:UserName"
+                                                  ,"Session.UserName               : $(OsEnvUser)"
                                                   ,"Session.PathVariable           : $env:PATH"
                                                   ,"Session.PSVersion              : $((Get-Host).Version.ToString())"
                                                   ,"Session.Culture                : $((Get-Host).CurrentCulture.Name)" # "de-CH", "en-US"
@@ -1863,7 +1863,7 @@ function SqlPerformFile                       ( [String] $connectionString, [Str
                                                 $sqlfile = FsEntryGetAbsolutePath $sqlfile;
                                                 $logFileToAppend = FsEntryGetAbsolutePath $logFileToAppend;
                                                 ScriptImportModuleIfNotDone "SqlServer";
-                                                [String] $currentUser = "$env:USERDOMAIN\$env:USERNAME";
+                                                [String] $currentUser = "$env:USERDOMAIN\$(OsEnvUser)";
                                                 [String] $traceInfo = "SqlPerformCmd(connectionString=`"$connectionString`",sqlFile=`"$sqlFile`",queryTimeoutInSec=$queryTimeoutInSec,showPrint=$showPrint,showRows=$showRows,currentUser=$currentUser)";
                                                 OutProgress $traceInfo;
                                                 if( $logFileToAppend -ne "" ){ FileAppendLineWithTs $logFileToAppend $traceInfo; }
@@ -1910,7 +1910,7 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                 # It creates file "DbInfo.dbname.out" with some db infos. In case of an error it creates file "DbInfo.dbname.err".
                                                 # Example: SqlGenerateFullDbSchemaFiles "MyLogicEnvironment" "MySqlInstance" "MyDbName" "$env:TEMP/tmp/DumpFullDbSchemas"
                                                 $targetRootDir = FsEntryGetAbsolutePath $targetRootDir;
-                                                [String] $currentUser = "$env:USERDOMAIN\$env:USERNAME";
+                                                [String] $currentUser = "$env:USERDOMAIN\$(OsEnvUser)";
                                                 [String] $traceInfo = "SqlGenerateFullDbSchemaFiles(logicalEnv=$logicalEnv,dbInstanceServerName=$dbInstanceServerName,dbname=$dbName,targetRootDir=$targetRootDir,currentUser=$currentUser)";
                                                 OutProgressTitle $traceInfo;
                                                 [String] $tarDir = "$targetRootDir/$(Get-Date -Format yyyy-MM-dd)/$logicalEnv/$dbName/";
@@ -1971,7 +1971,7 @@ function SqlGenerateFullDbSchemaFiles         ( [String] $logicalEnv, [String] $
                                                   [Int64] $spaceUsedIndexInMB  = [Math]::Ceiling( $db.IndexSpaceUsage                       / 1000000);
                                                   [Int64] $spaceAvailableInMB  = [Math]::Ceiling( $db.SpaceAvailable                        / 1000000);
                                                   [String[]] $fileDbInfoContent = @(
-                                                      "DbInfo: $dbName (current-user=$env:USERDOMAIN\$env:USERNAME)"
+                                                      "DbInfo: $dbName (current-user=$env:USERDOMAIN\$(OsEnvUser))"
                                                       ,"  Parent               : $($db.Parent                 )" # Example: [MySqlInstance.MyDomain.ch]
                                                       ,"  Collation            : $($db.Collation              )" # Example: Latin1_General_CI_AS
                                                       ,"  CompatibilityLevel   : $($db.CompatibilityLevel     )" # Example: Version100
@@ -3047,7 +3047,7 @@ function ToolWingetInstallPackage             ( [String] $idAndOptionalBlankSepV
                                                 #                                       because some installers will fail when User or Machine is specified as example Microsoft.DotNet.Runtime.6).
                                                 # If we get a message that install fails because install-technology changed then immediate an uninstall and install will be done.
                                                 # If canRetry and install-result is not up-to-date then it tries an uninstall and again an install.
-                                                # additionalOptions : example: @( "--location", "D:\Workspace\GameClientStorage\BattleNet" );
+                                                # additionalOptions : example: @( "--location", "C:\MyWorkspace\GameClientStorage\BattleNet" );
                                                 $idAndOptionalBlankSepVersion = $idAndOptionalBlankSepVersion.Trim();
                                                 Assert (@("User","Machine","Auto") -contains $scope);
                                                 [Boolean] $isElevated = ProcessIsRunningInElevatedAdminMode;
