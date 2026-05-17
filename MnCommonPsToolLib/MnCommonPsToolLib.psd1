@@ -34,7 +34,7 @@
   }
   HelpInfoURI            = 'https://github.com/mniederw/MnCommonPsToolLib/Readme.txt';
 
-  ModuleVersion          = '7.130';
+  ModuleVersion          = '7.131';
 
   <#
   Releasenotes
@@ -43,6 +43,7 @@
   Major version will reflect breaking changes, minor identifies extensions and third number identifies urgent bugfixes.
   Breaking changes are usually removed deprecated functions or changed behaviours.
 
+  2026-04-18  V7.131 Add OsEnvUser. Improve install for linux.
   2026-04-05  V7.130 Improve DriveList.
   2026-03-26  V7.129 Improve ToolWingetUninstallPackage.
   2026-03-20  V7.128 Fix GitListCommitComments.

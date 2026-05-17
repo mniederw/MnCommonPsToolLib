@@ -33,6 +33,7 @@ function FsEntryMakeTrailingDirSep            ( [String] $fsEntry ){
                                                 [String] $result = $fsEntry; if( -not (FsEntryHasTrailingDirSep $result) ){ $result += $(DirSep); } return [String] $result; }
 function FsEntryGetAbsolutePath               ( [String] $fsEntry ){ return [String] ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($fsEntry)); }
 function OsIsWindows                          (){ return [Boolean] ([System.Environment]::OSVersion.Platform -eq "Win32NT"); }
+function OsEnvUser                            (){ return [String] $(switch(OsIsWindows){$true{$env:USERNAME}default{$env:USER}}); }
 function OsPathSeparator                      (){ return [String] $(switch(OsIsWindows){$true{";"}default{":"}}); } # separator for PATH environment variable
 function OsPsModulePathList                   (){ # on non-windows there is no permanent machine env var.
                                                 [String] $varScope = $(switch(OsIsWindows){$true{"Machine"}default{"Process"}});
@@ -64,7 +65,7 @@ function ScriptGetTopCaller                   (){ [String] $f = $global:MyInvoca
 function ProcessIsLesserEqualPs5              (){ return [Boolean] ($PSVersionTable.PSVersion.Major -le 5); }
 function ProcessPsExecutable                  (){ return [String] $(switch((ProcessIsLesserEqualPs5)){ $true{"powershell.exe"} default{"pwsh"}}); } # usually in $PSHOME
 function ProcessIsRunningInElevatedAdminMode  (){ if( OsIsWindows ){ return [Boolean] ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"); }
-                                                  return [Boolean] ("$env:SUDO_USER" -ne "" -or "$env:USERNAME" -eq "root"); }
+                                                  return [Boolean] ("$env:SUDO_USER" -ne "" -or (OsEnvUser) -eq "root"); }
 function ProcessRestartInElevatedAdminMode    (){ if( ProcessIsRunningInElevatedAdminMode ){ return; }
                                                 if( OsIsWindows ){
                                                   [String] $cmd = @( (ScriptGetTopCaller) ) + $sel;
@@ -149,11 +150,11 @@ function SetAllEnvsExecutionPolicy            ( [String] $mode = "Bypass" ){ # F
 [String]   $srcRootDir                 = $PSScriptRoot; if( $srcRootDir -eq "" ){ $srcRootDir = FsEntryGetAbsolutePath "."; } # Example: "D:\WorkGit\myuser\MyNameOfPsToolLib_main"
 [String[]] $dirsWithPsm1Files          = @()+(DirListDirs $srcRootDir | Where-Object{ DirHasFiles $_ "*.psm1" });
                                          if( $dirsWithPsm1Files.Count -ne 1 ){ throw [Exception] "Tool is designed for working below '$srcRootDir' with exactly one directory which contains psm1 files but found $($dirsWithPsm1Files.Count) dirs ($dirsWithPsm1Files)"; }
-[String]   $moduleSrcDir               = $dirsWithPsm1Files[0]; # Example: "D:\WorkGit\myuser\MyNameOfPsToolLib_main\MyNameOfPsToolLib" or "/home/myuser/Workspace/mniederw/MyNameOfPsToolLib#trunk/MyNameOfPsToolLib"
+[String]   $moduleSrcDir               = $dirsWithPsm1Files[0]; # Example: "C:\MyWorkGit\myuser\MyNameOfPsToolLib_main\MyNameOfPsToolLib" or "/home/myuser/MyHomeWorkspace/mniederw/MyNameOfPsToolLib#trunk/MyNameOfPsToolLib"
 [String]   $moduleName                 = [System.IO.Path]::GetFileName($moduleSrcDir); # Example: "MyNameOfPsToolLib"
 [String]   $moduleTarDir32bit          = "$tarRootDir32bit\$moduleName";
 [String]   $moduleTarDir64bit          = "$tarRootDir64bit\$moduleName";
-[String]   $moduleTarDirCurrUser       = "$tarRootDirCurrUser\$moduleName";
+[String]   $moduleTarDirCurrUserWin    = "$tarRootDirCurrUser\$moduleName";
 [String]   $moduleTarDirCurrUserLinux  = "$moduleRootDirCurrUserLinux/$moduleName";
 [String]   $moduleTarDirAllUsersLinux  = "$moduleRootDirAllUsersLinux/$moduleName";
 [String]   $psVersion                  = "$($PSVersionTable.PSVersion.ToString()) $(switch((ShellSessionIs64not32Bit)){($true){"64bit"}($false){"32bit"}})";
@@ -165,12 +166,12 @@ function CurrentInstallationModes(){
   if( OsIsWindows ){
     if( DirExists $moduleTarDir64bit         ){ $modes += "Installed-in-Global-Std-Mode-AllUsers-64bit"; }
     if( DirExists $moduleTarDir32bit         ){ $modes += "Installed-in-Global-Std-Mode-AllUsers-32bit"; }
-    if( DirExists $moduleTarDirCurrUser      ){ $modes += "Installed-in-Local-Std-Mode-Current-User($env:USERNAME)"; }
+    if( DirExists $moduleTarDirCurrUserWin   ){ $modes += "Installed-in-Local-Std-Mode-Current-User($(OsEnvUser))"; }
   }else{
     if( DirExists $moduleTarDirAllUsersLinux ){ $modes += "Installed-in-Global-Std-Mode-AllUsers"; }
-    if( DirExists $moduleTarDirCurrUserLinux ){ $modes += "Installed-in-Local-Std-Mode-Current-User($env:USERNAME)"; }
+    if( DirExists $moduleTarDirCurrUserLinux ){ $modes += "Installed-in-Local-Std-Mode-Current-User($(OsEnvUser))"; }
   }
-  if( OsPsModulePathContains $srcRootDir     ){ $modes += "Installed-in-Local-Developer-Mode-Current-User($env:USERNAME)"; }
+  if( OsPsModulePathContains $srcRootDir     ){ $modes += "Installed-in-Local-Developer-Mode-Current-User($(OsEnvUser))"; }
   if( $modes.Count -eq 0 ){ $modes += "Not-Installed"; }
   return [String] "$modes.";
 }
@@ -189,18 +190,18 @@ function UninstallGlobalStandardMode(){
 function UninstallLocalStandardAndDeveloperMode(){
   OutProgress "Uninstall local standard and developer mode. ";
   if( OsIsWindows ){
-    DirDelete $moduleTarDirCurrUser
+    DirDelete $moduleTarDirCurrUserWin;
     UninstallSrcPath $srcRootDir;
   }else{
     DirDelete $moduleTarDirCurrUserLinux;
-    OutProgress "  Remove addition entry of PSModulePath from `"$PROFILE`". ";
+    OutProgress "  Remove entry of PSModulePath having our pattern from `"$PROFILE`". ";
     if( Test-Path -Path $PROFILE ){
       [String[]] $lines = @()+(Get-Content -Encoding UTF8 -LiteralPath $PROFILE |
         Where-Object { $_ -notmatch [regex]::Escape($profilePattern) } );
         [String] $encoding = $(switch(ProcessIsLesserEqualPs5){($true){ "UTF8" }($false){ "UTF8BOM" }}); # make UTF8BOM
-        $lines | StreamToFile $PROFILE $true $encoding; # Appends on each line an OS dependent nl.
+        Set-Content -Encoding $encoding -Path $PROFILE -Value $lines; # Overwrite, using on each line an OS dependent nl.
     }
-    OutProgress "  Remove entry from PSModulePath. ";
+    OutProgress "  Remove entry from envvar PSModulePath. ";
     [String[]] $a = @()+($env:PSModulePath.Split((OsPathSeparator),[System.StringSplitOptions]::RemoveEmptyEntries)) | Where-Object{$null -ne $_} |
       ForEach-Object{ FsEntryMakeTrailingDirSep $_ } |
       Where-Object{ $_ -ne (FsEntryMakeTrailingDirSep $srcRootDir) };
@@ -318,7 +319,7 @@ function Menu(){
     OutProgress     "Current environment:";
     OutProgressText "    Current installation modes              = "; OutProgressText -color:Green (CurrentInstallationModes); OutProgress "";
     OutProgress     "  PsVersion                               = `"$psVersion`" on Platform=$([System.Environment]::OSVersion.Platform). ";
-    OutProgress     "  Current-User                            = `"$env:USERNAME`". ";
+    OutProgress     "  Current-User                            = `"$(OsEnvUser)`". ";
     OutProgress     "  CurrentProcessExecutionPolicy           = $(Get-Executionpolicy -Scope Process). ";
     OutProgress     "  IsInElevatedAdminMode                   = $(ProcessIsRunningInElevatedAdminMode). ";
     OutProgress     "  SrcRootDir                              = `"$srcRootDir`". ";
@@ -354,8 +355,8 @@ function Menu(){
         OutWarning "PsModulePath not contains Ps5ModuleDir, it is strongly recommended to add them (see menu items)! ";
       }
     }else{ # non-windows as linux or macos
-      OutProgress   "  ModuleRootDirAllUsers              = `"$moduleRootDirAllUsersLinux`". ";
-      OutProgress   "  ModuleRootDirCurrUser              = `"$moduleRootDirCurrUserLinux`". ";
+      OutProgress   "  ModuleRootDirAllUsers                   = `"$moduleRootDirAllUsersLinux`". ";
+      OutProgress   "  ModuleRootDirCurrUser                   = `"$moduleRootDirCurrUserLinux`". ";
       OutProgress   "  PSModulePath = `"$env:PSModulePath`". ";
     }
     # OutProgress   "  Running OS:                        = Unix-Like. ";
