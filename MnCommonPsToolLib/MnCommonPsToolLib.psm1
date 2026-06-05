@@ -3080,12 +3080,12 @@ function GitInitGlobalConfig                  (){ # if git is installed the init
                                                 OutProgress "Init git to usual config ";
                                                 [String] $credHlp = switch(OsIsWindows){($true){"manager"}($false){"store"}};
                                                 GitDisableAutoCrLf                           ; # make sure: core.autocrlf = false
-                                                GitSetGlobalVar "core.fileMode" "false"      ; # ignore executable-bit for diffs;
+                                                GitSetGlobalVar "core.fileMode" "false"      ; # Ignore executable-bit for diffs; Note: The current value of this flag in a repo is not pushed to other repos.
                                                                                                # default is true, honor executable bit of a file if fs system supports it.
                                                                                                # Use false to not trust file modes and ignore the executable bit differences between the index and the working tree;
                                                                                                # useful for filesystems having no file modes like FAT.
-                                                                                               # we also recommend for each repo: git config --local core.fileMode false
-                                                GitSetGlobalVar "diff.renamelimit" "12000"   ; # default value is 100, we increase value to avoid for (git log) warning: inexact rename detection was skipped due to too many files.
+                                                                                               # We also recommend for each repo: git config --local core.fileMode false
+                                                GitSetGlobalVar "diff.renamelimit" "12000"   ; # Default value is 100, we increase value to avoid for (git log) warning: inexact rename detection was skipped due to too many files.
                                                                                                # required values for git repos: gnuwget/wget2 11000, CosmosOS/Cosmos 1900, usual repos 1300.
                                                 GitSetGlobalVar "core.pager" ""              ; # [cat,less] use empty for pager; "less" would stop after a page; 2026-03: "cat" hangs on ps5.1;
                                                 GitSetGlobalVar "core.fscache" "true"        ; # Enable additional caching of file system data for some operations.
@@ -3101,11 +3101,11 @@ function GitInitGlobalConfig                  (){ # if git is installed the init
                                                                                                # For remove pw in ram for a repo: git credential reject https://github.com/myuser/myrepo.git;
                                                                                                # For remove current cached password info use: git credential-cache exit ;
                                                                                                # Example content for ".git-credentials": https://myuser:ghp_MyPATword...@github.com
-                                                # log.abbrevcommit          = yes            ; # abbreviate some log outs.
-                                                # core.abbrev               = 8              ; # object name abbreviation length, min is 4, can also be auto.
-                                                # rebase.autosquash         = true           ; # auto modify the todo list when commit msg is one of "squash! …", "fixup! …" or "amend! …".
-                                                # format.pretty             = oneline        ; # one log line per commit, is standard pretty format for commands as log, show, whatchanged.
-                                                # diff.astextplain.textconv = astextplain    ; # converts *.doc,*.pdf,*.rtf to textfiles before generating diff.
+                                                # log.abbrevcommit          = yes            ; # Abbreviate some log outs.
+                                                # core.abbrev               = 8              ; # Object name abbreviation length, min is 4, can also be auto.
+                                                # rebase.autosquash         = true           ; # Auto modify the todo list when commit msg is one of "squash! …", "fixup! …" or "amend! …".
+                                                # format.pretty             = oneline        ; # One log line per commit, is standard pretty format for commands as log, show, whatchanged.
+                                                # diff.astextplain.textconv = astextplain    ; # Converts *.doc,*.pdf,*.rtf to textfiles before generating diff.
                                                 # color.interactive         = auto           ; # [always,auto=true,never] use colors for prompts, auto means only when out to terminal. Default is auto.
                                                 # color.ui                  = auto
                                                 # help.format               = html
