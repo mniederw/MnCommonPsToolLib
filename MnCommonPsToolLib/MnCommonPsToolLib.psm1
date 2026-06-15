@@ -103,14 +103,21 @@ if( ((test-path "variable:LASTEXITCODE") -and $null -ne $LASTEXITCODE -and $LAST
 # Standard header for unhandled exceptions:
 # - Set-StrictMode: Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object;
 #   function calls that use the syntax for calling methods; variable without a name (${}).
-# - trap: Assert that the following executed statements from here to the end of this script are not ignored.
+# - trap: Asserts that errors of the following executed statements from there to the end of this script are not ignored.
 #   The functions which are later called by a caller of this script are not affected by this trap statement.
 #   Trap statement are not cared if a catch block is used!
+#   Microsoft recommends to use try/catch/finally for the preferred structured mechanism for precise and maintainable error handling.
+#   Important Note: A second trap in same scope is ignored, only the first one is used!!!
+#   This implyes to always only use one trap per scope or bette use try-catch or alternatively use
+#       trap [Exception] { "Outer trap"; break; }
+#       & { trap [Exception] { "Inner trap"; break; }
+#           ... throw "error" ...
+#       }
 # - ErrorActionPreference to Stop: Throw on first error.
 # Note: If client code wants to handle exceptions than it should use catch blocks!
 # We strongly recommended that callers of this script perform after the import-module statement the following statements:
 #   Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
-# In ALL scripts which are not using this module we stongly recommend the following line:
+# In ALL scripts which are not using this module we stongly recommend the following immediate lines:
 Set-StrictMode -Version Latest; $ErrorActionPreference = "Stop"; trap [Exception] { $nl = [Environment]::NewLine; Write-Progress -Activity " " -Status " " -Completed;
   Write-Error -ErrorAction Continue "$($_.Exception.GetType().Name): $($_.Exception.Message)${nl}$($_.InvocationInfo.PositionMessage)$nl$($_.ScriptStackTrace)";
   Read-Host "Press Enter to Exit"; break; }
@@ -199,12 +206,12 @@ Add-Type -WarningAction SilentlyContinue -TypeDefinition "using System; public c
   # Used for error messages which have a text which will be exact enough so no additionally information as stackdump or data are nessessary. Is handled in our StdErrHandleExc.
   # Note: On type creation we suppressed the warnings because we got:  The generated type defines no public methods or properties.
 
-# Set some self defined constant global variables
-if( $null -eq (Get-Variable -Scope Global -ErrorAction SilentlyContinue -Name ComputerName) -or $null -eq $global:InfoLineColor ){ # check whether last variables already exists because reload safe
-  New-Variable -option Constant -Scope Global -name CurrentMonthAndWeekIsoString -Value ([String]((Get-Date -format "yyyy-MM-")+(Get-Date -uformat "W%V")));
-  New-Variable -option Constant -Scope Global -name InfoLineColor                -Value $(switch($Host.Name -eq "Windows PowerShell ISE Host"){($true){"Gray"}default{"White"}}); # ise is white so we need a contrast color
-  New-Variable -option Constant -Scope Global -name ComputerName                 -Value $([System.Environment]::MachineName.ToLower()); # provide unified lowercase ComputerName, from NetBIOS from DotNet-Runtime, accesses the OS-level machine name via managed code. same as cli: hostname;
-}
+# Set some self defined constant global variables, reload safe
+function GlobalConstantInit ( [String] $varName, [String] $varValue ){ if( $null -eq (Get-Variable -Scope Global -ErrorAction SilentlyContinue -Name $varName ) ){
+                                                                       New-Variable -option Constant -Scope Global -name $varName -Value $varValue; } }
+GlobalConstantInit "ComputerName" $([System.Environment]::MachineName.ToLower()); # provide unified lowercase ComputerName, from NetBIOS from DotNet-Runtime, accesses the OS-level machine name via managed code. same as cli: hostname;
+GlobalConstantInit "CurrentMonthAndWeekIsoString" ([String]((Get-Date -format "yyyy-MM-")+(Get-Date -uformat "W%V")));
+GlobalConstantInit "InfoLineColor"                $(switch($Host.Name -eq "Windows PowerShell ISE Host"){($true){"Gray"}default{"White"}}); # ise is white so we need a contrast color
 
 # Statement extensions
 function ForEachParallel {
@@ -602,6 +609,7 @@ function OutGetTsPrefix                       ( [Boolean] $forceTsPrefix = $fals
 function OutClear                             (){ Clear-Host; }
 function OutStartTranscriptInTempDir          ( [String] $name = "MnCommonPsToolLib" ){
                                                 # Append everything from console to logfile as trace info, return full path name of created logfile.
+                                                # The file is write protected While the calling process is running and Stop-Transcript was not yet called.
                                                 # Logfilename will be created uniquely by containing: date, time in precision of seconds, name, user, machine, pid, threadId.
                                                 $name = StringOnEmptyReplace $name.Trim() "MnCommonPsToolLib";
                                                 [String] $ts = (DateTimeNowAsStringIso "yyyy yyyy-MM yyyy-MM-dd_HH'h'mm'm'ss's'").Replace(" ","/");

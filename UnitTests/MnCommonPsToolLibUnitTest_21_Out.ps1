@@ -15,8 +15,8 @@ function UnitTest_Out(){
   Assert ([String](funcOutProgress 6>&1) -eq "Test OutProgress   Eol" );
   OutVerbose "Test OutVerbose";
   OutDebug "Test OutDebug";
-  OutStartTranscriptInTempDir;
-  OutStopTranscript;
+  [String] $f = OutStartTranscriptInTempDir; OutProgress "Logfile started to: `"$f`"";
+  OutStopTranscript; OutProgress "Logfile ended.";
   if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){ OutClear; }
 }
 UnitTest_Out;
