@@ -12,7 +12,7 @@ if( $null -ne (Import-Module -NoClobber -Name "SmbShare"       -ErrorAction Cont
 if( $null -ne (Import-Module -NoClobber -Name "CimCmdlets"     -ErrorAction Continue *>&1) ){ $error.clear(); Write-Warning "Ignored failing of Import-Module CimCmdlets     because it will fail later if a function is used from it."; } # Example: Get-CimInstance.
 # Import-Module "PSWindowsUpdate"; # Is used for some funtions but currently we do not warn if it is not loadable
 # Import-Module "SmbWitness"; # for later usage
-# Import-Module "ServerManager"; # Is not always available, requires windows-server-os or at least Win10Prof with installed RSAT. Because seldom used we do not try to load it here.
+# Import-Module "ServerManager"; # Is not always available, sometimes loaded in compatibility mode by calling PS5.1, requires windows-server-os or at least Win10Prof with installed RSAT. Because seldom used we do not try to load it here.
 
 # Set some self defined constant global variables
 if( $null -eq (Get-Variable -Scope Global -ErrorAction SilentlyContinue -Name AllUsersMenuDir) ){ # check whether last variable already exists because reload safe
@@ -50,38 +50,6 @@ function OsWindowsPackageUninstall            ( [String] $displayName ){
                                                   ProcessRestartInElevatedAdminMode "OsWindowsPackageUninstall($displayName) requires elevated admin mode.";
                                                   ProcessStartByCmdLine $uninstallCmd $true $true;
                                                 } }
-function OsWindowsOptionalFeatureListEnabled  (){ # Example: "NetFx3", ...
-                                                ProcessRestartInElevatedAdminMode "OsWindowsOptionalFeatureListEnabled requires elevated admin mode.";
-                                                return (Get-WindowsOptionalFeature -Online | Where-Object{ $_.State -eq "Enabled" } | Sort-Object FeatureName | Select-Object FeatureName); }
-function OsWindowsOptionalFeatureIsEnabled    ( [String] $featureName ){ # Example: "NetFx3", ...
-                                                ProcessRestartInElevatedAdminMode "OsWindowsOptionalFeatureListEnabled requires elevated admin mode.";
-                                                return $null -ne (Get-WindowsOptionalFeature -Online | Where-Object{ $_.State -eq "Enabled" -and $_.FeatureName -eq $featureName }); }
-function OsWindowsOptionalFeatureDoEnable     ( [String] $featureName ){ # Example: "NetFx3", ...
-                                                ProcessRestartInElevatedAdminMode "OsWindowsOptionalFeatureListEnabled requires elevated admin mode.";
-                                                if( OsWindowsOptionalFeatureIsEnabled $featureName ){ OutProgress "Ok, WindowsOptionalFeature $featureName is already enabled."; return; }
-                                                [Object] $obj = Enable-WindowsOptionalFeature -Online -FeatureName "NetFx3" -All -NoRestart | Select-Object Online, RestartNeeded, LogPath; # brings temporary progress bar
-                                                OutProgress "Ok, enabled WindowsOptionalFeature $featureName : (Online=$($obj.Online);RestartNeeded=$($obj.RestartNeeded)) "; }
-function OsWindowsFeatureGetInstalledNames    (){ # Requires windows-server-os or at least Win10Prof with installed RSAT https://www.microsoft.com/en-au/download/details.aspx?id=45520
-                                                # Otherwise we get error:  Import-Module: The specified module 'ServerManager' was not loaded because no valid module file was found in any module directory.
-                                                ScriptImportModuleIfNotDone "ServerManager";
-                                                return [String[]] (@()+(Get-WindowsFeature | Where-Object{ $_.InstallState -eq "Installed" } | ForEach-Object{ $_.Name })); } # states: Installed, Available, Removed.
-function OsWindowsFeatureDoInstall            ( [String] $name ){
-                                                # Example: Web-Server, Web-Mgmt-Console, Web-Scripting-Tools, Web-Basic-Auth, Web-Windows-Auth, NET-FRAMEWORK-45-Core,
-                                                #   NET-FRAMEWORK-45-ASPNET, Web-HTTP-Logging, Web-NET-Ext45, Web-ASP-Net45, Telnet-Server, Telnet-Client.
-                                                ScriptImportModuleIfNotDone "ServerManager";
-                                                  # Used for Install-WindowsFeature; Requires at least Win10Prof: RSAT https://www.microsoft.com/en-au/download/details.aspx?id=45520
-                                                OutProgress "Install-WindowsFeature -name $name -IncludeManagementTools";
-                                                [Object] $res = Install-WindowsFeature -name $name -IncludeManagementTools;
-                                                [String] $out = "Result: IsSuccess=$($res.Success) RequiresRestart=$($res.RestartNeeded) ExitCode=$($res.ExitCode) FeatureResult=$($res.FeatureResult)";
-                                                # Example: "Result: IsSuccess=True RequiresRestart=No ExitCode=NoChangeNeeded FeatureResult="
-                                                OutProgress $out; if( -not $res.Success ){ throw [Exception] "Install $name was not successful, please solve manually. $out"; } }
-function OsWindowsFeatureDoUninstall          ( [String] $name ){
-                                                ScriptImportModuleIfNotDone "ServerManager";
-                                                OutProgress "Uninstall-WindowsFeature -name $name";
-                                                [Object] $res = Uninstall-WindowsFeature -name $name;
-                                                [String] $out = "Result: IsSuccess=$($res.Success) RequiresRestart=$($res.RestartNeeded) ExitCode=$($res.ExitCode) FeatureResult=$($res.FeatureResult)";
-                                                OutProgress $out;
-                                                if( -not $res.Success ){ throw [Exception] "Uninstall $name was not successful, please solve manually. $out"; } }
 function OsWindowsAppxImportModule            (){ # On pwsh the Appx module must be loaded by an internal ps5 shell.
                                                 # 2023-03: Problems using Get-AppxPackage in PS7, see end of: https://github.com/PowerShell/PowerShell/issues/13138
                                                 # We suppress the output: WARNING: Module Appx is loaded in Windows PowerShell using WinPSCompatSession remoting session;
@@ -2366,32 +2334,6 @@ function ToolGitTortoiseCommit                ( [String] $workDir, [String] $com
                                                 FsEntryAssertHasTrailingDirSep $workDir;
                                                 [String] $tortoiseExe = (RegistryGetValueAsString "HKLM:\SOFTWARE\TortoiseGit" "ProcPath"); # Example: "$env:ProgramFiles/TortoiseGit/bin/TortoiseGitProc.exe"
                                                 Start-Process -NoNewWindow -Wait -FilePath "$tortoiseExe" -ArgumentList @("/command:commit","/path:`"$workDir`"", "/logmsg:$commitMessage"); AssertRcIsOk; }
-function ToolWinCapabilityPackageGetState     ( [String] $packageName ){ # Used for windows capabilities (features). Example: for "OpenSSH.Client" return "Installed","NotPresent".
-                                                ProcessRestartInElevatedAdminMode "Getting windows capability package state requires elevated admin mode.";
-                                                if( $packageName -eq "" ){ throw [Exception] "Missing packageName"; }
-                                                return [String] ((Get-WindowsCapability -Online | Where-Object name -like "${packageName}~*").State); }
-function ToolWinCapabilityPackageInstall      ( [String] $packageName ){ # Used for windows capabilities (features). Example: "OpenSSH.Client"
-                                                OutProgress "Install Windows Capability Package if not installed: `"$packageName`"";
-                                                ProcessRestartInElevatedAdminMode "ToolWinCapabilityPackageInstall($packageName) requires elevated admin mode.";
-                                                if( (ToolWinCapabilityPackageGetState $packageName) -eq "Installed" ){
-                                                  OutProgress "Ok, `"$packageName`" is already installed."; }
-                                                else{
-                                                  [String] $name = (Get-WindowsCapability -Online | Where-Object name -like "${packageName}~*").Name;
-                                                  Add-WindowsCapability -Online -name $name | Out-Null; # example output: "Path          :\nOnline        : True\nRestartNeeded : False"
-                                                  [String] $restartNeeded = (Get-WindowsCapability -Online -name $packageName).RestartNeeded;
-                                                  OutProgressTitle "Ok, installation done, current state=$(ToolWinCapabilityPackageGetState $packageName) RestartNeeded=$restartNeeded Name=$name";
-                                                } }
-function ToolWinCapabilityPackageDeinstall    ( [String] $packageName ){ # Used for windows capabilities (features).
-                                                OutProgress "Deinstall Windows Capability Package: `"$packageName`"";
-                                                ProcessRestartInElevatedAdminMode "ToolWinCapabilityPackageDeinstall($packageName) requires elevated admin mode.";
-                                                if( (ToolWinCapabilityPackageGetState $packageName) -ne "Installed" ){
-                                                  OutProgress "Ok, `"$packageName`" is already deinstalled."; }
-                                                else{
-                                                  [String] $name = (Get-WindowsCapability -Online | Where-Object name -like "${packageName}~*").Name;
-                                                  Remove-WindowsCapability -Online -name $name | Out-Null;
-                                                  [String] $restartNeeded = (Get-WindowsCapability -Online -name $packageName).RestartNeeded;
-                                                  OutProgressTitle "Ok, deinstallation done, current state=$(ToolWinCapabilityPackageGetState $packageName) RestartNeeded=$restartNeeded Name=$name";
-                                                } }
 function ToolOsWindowsResetSystemFileIntegrity(){ # uses about 4 min
                                                 [String] $f = "$env:SystemRoot/Logs/CBS/CBS.log";
                                                 OutProgress "Check and repair missing, corrupted or ownership-settings of system files and afterwards dump last lines of logfile '$f'";
@@ -3103,6 +3045,89 @@ function ToolWingetInstallPackage             ( [String] $idAndOptionalBlankSepV
                                                 # 2025-06: "MsSQLSvMaSt": rc=-1978335216: Es wurde kein anwendbarer Installer gefunden. Weitere Informationen finden Sie in den Protokollen.
                                                 # 2025-06: "Microsoft.VisualStudio.2022.Community": Starten Sie den PC neu, um die Installation abzuschließen.
                                               }
+function OsWindowsOptionalFeatureListEnabled  (){ # Example: "NetFx3", ...
+                                                ProcessRestartInElevatedAdminMode "OsWindowsOptionalFeatureListEnabled requires elevated admin mode.";
+                                                # Note: Is in PS7.6.2 unsupported and so We cannot use anymore: (Get-WindowsOptionalFeature -Online | Where-Object{ $_.State -eq "Enabled" } | Select-Object FeatureName); 
+                                                return (Get-CimInstance -ClassName Win32_OptionalFeature | Where-Object { $_.InstallState -eq 1 } | Sort-Object Name | Select-Object Name); }
+function OsWindowsOptionalFeatureIsEnabled    ( [String] $featureName ){ # Example: "NetFx3", ...
+                                                ProcessRestartInElevatedAdminMode "OsWindowsOptionalFeatureListEnabled requires elevated admin mode.";
+                                                return $null -ne (Get-CimInstance -ClassName Win32_OptionalFeature | Where-Object { $_.InstallState -eq 1 -and $_.Name -eq $featureName } | Select-Object Name); }
+function OsWindowsOptionalFeatureDoEnable     ( [String] $featureName ){ # Restart is not performed. Example: "NetFx3", ...
+                                                ProcessRestartInElevatedAdminMode "OsWindowsOptionalFeatureListEnabled requires elevated admin mode.";
+                                                if( OsWindowsOptionalFeatureIsEnabled $featureName ){ OutProgress "Ok, WindowsOptionalFeature $featureName is already enabled."; return; }
+                                                # Note: Is in PS7.6.2 unsupported and so We cannot use anymore: Enable-WindowsOptionalFeature -Online -FeatureName "$featureName" -All -NoRestart | Select-Object Online, RestartNeeded, LogPath; # brings temporary progress bar
+                                                & "dism.exe" "/Online" "/Enable-Feature" "/FeatureName:$featureName" "/All" "/NoRestart"; AssertRcIsOk;
+                                                OutProgress "Ok, enabled WindowsOptionalFeature $featureName (maybe it requires a restart). "; }
+function OsWindowsOptionalFeatureDoDisable    ( [String] $featureName ){ # Restart is not performed. Example: "NetFx3", ...
+                                                ProcessRestartInElevatedAdminMode "OsWindowsOptionalFeatureDoDisable requires elevated admin mode.";
+                                                if( -not (OsWindowsOptionalFeatureIsEnabled $featureName) ){ OutProgress "Ok, WindowsOptionalFeature $featureName is already disabled."; return; }
+                                                & "dism.exe" "/Online" "/Disable-Feature" "/FeatureName:$featureName" "/NoRestart"; AssertRcIsOk;
+                                                OutProgress "Ok, disabled WindowsOptionalFeature $featureName (maybe it requires a restart). "; }
+function ToolWinCapabilityPackageGetState     ( [String] $packageName ){ # Used for windows capabilities (features). Example: for "OpenSSH.Client" return "Installed","NotPresent".
+                                                ProcessRestartInElevatedAdminMode "Getting windows capability package state requires elevated admin mode.";
+                                                if( $packageName -eq "" ){ throw [Exception] "Missing packageName"; }
+                                                # Note: Since PS7.6.2 we get "Get-WindowsCapability: Klasse nicht registriert", so we cannot use anymore: ((Get-WindowsCapability -Online | Where-Object name -like "${packageName}~*").State);
+                                                [String] $ending = "~~~~0.0.1.0"; # At least for OpenSSH.Client and OpenSSH.Server, probably for all. If not then this has to be changed.
+                                                [String] $capabilityName = $packageName + $ending;
+                                                [String] $out = dism.exe "/Online" "/Get-CapabilityInfo" "/CapabilityName:$capabilityName" "/English";
+                                                if( $LASTEXITCODE -ne 0 ){
+                                                  if( ($out | Select-String -Pattern "A Windows capability name was not recognized." -Quiet) ){ ScriptResetRc; return [String] "NotPresent"; }
+                                                  AssertRcIsOk;
+                                                }
+                                                if( ($out | Select-String -Pattern "State : Not Present" -Quiet) ){ return [String] "NotPresent"; }
+                                                if( ($out | Select-String -Pattern "State : Installed"   -Quiet) ){ return [String] "Installed" ; }
+                                                throw [Exception] "In output of (dism.exe /Online /Get-CapabilityInfo /CapabilityName:$capabilityName /English) the state was not detectable in output: $out"; }
+function ToolWinCapabilityPackageInstall      ( [String] $packageName ){ # Used for windows capabilities (features). Example: "OpenSSH.Client"
+                                                OutProgress "Install Windows Capability Package if not installed: `"$packageName`"";
+                                                ProcessRestartInElevatedAdminMode "ToolWinCapabilityPackageInstall($packageName) requires elevated admin mode.";
+                                                if( (ToolWinCapabilityPackageGetState $packageName) -eq "Installed" ){ OutProgress "Ok, `"$packageName`" is already installed."; return; }
+                                                # Note: Since PS7.6.2 we get "Get-WindowsCapability: Klasse nicht registriert", so we cannot use anymore:
+                                                #   [String] $name = (Get-WindowsCapability -Online | Where-Object name -like "${packageName}~*").Name;
+                                                #   Add-WindowsCapability -Online -name $name | Out-Null; # example output: "Path          :\nOnline        : True\nRestartNeeded : False"
+                                                #   [String] $restartNeeded = (Get-WindowsCapability -Online -name $packageName).RestartNeeded; # OutProgress "RestartNeeded=$restartNeeded Name=$name";
+                                                [String] $ending = "~~~~0.0.1.0"; # At least for OpenSSH.Client and OpenSSH.Server, probably for all. If not then this has to be changed.
+                                                [String] $capabilityName = $packageName + $ending;
+                                                & "dism.exe" "/English" "/Online" "/Add-Capability" "/CapabilityName:$capabilityName"; AssertRcIsOk;
+                                                OutProgressTitle "Ok, installation done, current state=$(ToolWinCapabilityPackageGetState $packageName) "; }
+function ToolWinCapabilityPackageDeinstall    ( [String] $packageName ){ # Used for windows capabilities (features).
+                                                OutProgress "Deinstall Windows Capability Package: `"$packageName`"";
+                                                ProcessRestartInElevatedAdminMode "ToolWinCapabilityPackageDeinstall($packageName) requires elevated admin mode.";
+                                                if( (ToolWinCapabilityPackageGetState $packageName) -ne "Installed" ){ OutProgress "Ok, `"$packageName`" is already deinstalled."; return; }
+                                                # Note: Since PS7.6.2 we get "Get-WindowsCapability: Klasse nicht registriert", so we cannot use anymore:
+                                                #   [String] $name = (Get-WindowsCapability -Online | Where-Object name -like "${packageName}~*").Name;
+                                                #   Remove-WindowsCapability -Online -name $name | Out-Null;
+                                                #   [String] $restartNeeded = (Get-WindowsCapability -Online -name $packageName).RestartNeeded;
+                                                [String] $ending = "~~~~0.0.1.0"; # At least for OpenSSH.Client and OpenSSH.Server, probably for all. If not then this has to be changed.
+                                                [String] $capabilityName = $packageName + $ending;
+                                                & "dism.exe" "/English" "/Online" "/Remove-Capability" "/CapabilityName:$capabilityName"; AssertRcIsOk;
+                                                OutProgressTitle "Ok, deinstallation done, current state=$(ToolWinCapabilityPackageGetState $packageName)"; }
+<# We cannot use this anymore because it requires PS5.1 and since PS7.6.2 it requires loading Rsat.ServerManager.Tools.
+function OsWindowsFeatureDoInstall            ( [String] $name ){ # server features
+                                                # Example: Web-Server, Web-Mgmt-Console, Web-Scripting-Tools, Web-Basic-Auth, Web-Windows-Auth, NET-FRAMEWORK-45-Core,
+                                                #   NET-FRAMEWORK-45-ASPNET, Web-HTTP-Logging, Web-NET-Ext45, Web-ASP-Net45, Telnet-Server.
+                                                & dism.exe "/Online" "/Add-Capability" "/CapabilityName:Rsat.ServerManager.Tools~~~~0.0.1.0"; AssertRcIsOk; # required before import module ServerManager
+                                                ScriptImportModuleIfNotDone "ServerManager";
+                                                  # 2026-06 in PS7.6.2: we get: "WARNING: Module ServerManager is loaded in Windows PowerShell using WinPSCompatSession remoting session; please note that all input and output of commands from this module will be deserialized objects.
+                                                  # If you want to load this module into PowerShell please use 'Import-Module -SkipEditionCheck' syntax.". This means it started a hidden PS5.1 compatibility session named WinPSCompatSession.
+                                                  # The alternative does not work: Import-Module ServerManager -SkipEditionCheck
+                                                # Used for Install-WindowsFeature; Requires at least Win10Prof: RSAT https://www.microsoft.com/en-au/download/details.aspx?id=45520
+                                                OutProgress "Install-WindowsFeature -name $name -IncludeManagementTools";
+                                                [Object] $res = Install-WindowsFeature -name $name -IncludeManagementTools;
+                                                [String] $out = "Result: IsSuccess=$($res.Success) RequiresRestart=$($res.RestartNeeded) ExitCode=$($res.ExitCode) FeatureResult=$($res.FeatureResult)";
+                                                # Example: "Result: IsSuccess=True RequiresRestart=No ExitCode=NoChangeNeeded FeatureResult="
+                                                OutProgress $out; if( -not $res.Success ){ throw [Exception] "Install $name was not successful, please solve manually. $out"; } }
+function OsWindowsFeatureGetInstalledNames    (){ # Requires windows-server-os or at least Win10Prof with installed RSAT https://www.microsoft.com/en-au/download/details.aspx?id=45520
+                                                # Otherwise we get error:  Import-Module: The specified module 'ServerManager' was not loaded because no valid module file was found in any module directory.
+                                                ScriptImportModuleIfNotDone "ServerManager";
+                                                return [String[]] (@()+(Get-WindowsFeature | Where-Object{ $_.InstallState -eq "Installed" } | ForEach-Object{ $_.Name })); } # states: Installed, Available, Removed.
+function OsWindowsFeatureDoUninstall          ( [String] $name ){
+                                                ScriptImportModuleIfNotDone "ServerManager";
+                                                OutProgress "Uninstall-WindowsFeature -name $name";
+                                                [Object] $res = Uninstall-WindowsFeature -name $name;
+                                                [String] $out = "Result: IsSuccess=$($res.Success) RequiresRestart=$($res.RestartNeeded) ExitCode=$($res.ExitCode) FeatureResult=$($res.FeatureResult)";
+                                                OutProgress $out;
+                                                if( -not $res.Success ){ throw [Exception] "Uninstall $name was not successful, please solve manually. $out"; } }
+#>
 function ToolManuallyDownloadAndInstallProg   ( [String] $programName, [String] $programDownloadUrl, [String] $mainTargetFileMinIsoDate = "0001-01-01",
                                                 [String[]] $programExecutableOrDir = "", [String] $hash256BitsSha2 = "", [String] $programConfigHints = "" ){
                                                 # Checks wether a program is installed and if not then it downloads, matches its hash and installs it.

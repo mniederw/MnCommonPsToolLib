@@ -34,7 +34,7 @@
   }
   HelpInfoURI            = 'https://github.com/mniederw/MnCommonPsToolLib/Readme.txt';
 
-  ModuleVersion          = '7.133';
+  ModuleVersion          = '7.134';
 
   <#
   Releasenotes
@@ -43,7 +43,8 @@
   Major version will reflect breaking changes, minor identifies extensions and third number identifies urgent bugfixes.
   Breaking changes are usually removed deprecated functions or changed behaviours.
 
-  2026-06-15  V7.133 Improve init global const vars. Doc trap.
+  2026-06-16  V7.134 Remove in PS7.6.2 unsupported: OsWindowsFeatureGetInstalledNames, OsWindowsFeatureDoInstall, OsWindowsFeatureDoUninstall.
+  2026-06-15  V7.133 Improve init global const vars. Doc trap. Add OsWindowsOptionalFeatureDoDisable. Rewrite OsWindowsOptionalFeatureListEnabled, OsWindowsOptionalFeatureIsEnabled, OsWindowsOptionalFeatureDoEnable, ToolWinCapabilityPackageGetState, ToolWinCapabilityPackageInstall, ToolWinCapabilityPackageDeinstall.
   2026-06-05  V7.132 Doc git.
   2026-04-18  V7.131 Add OsEnvUser. Improve install for linux.
   2026-04-05  V7.130 Improve DriveList.
