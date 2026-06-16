@@ -207,9 +207,9 @@ Add-Type -WarningAction SilentlyContinue -TypeDefinition "using System; public c
   # Note: On type creation we suppressed the warnings because we got:  The generated type defines no public methods or properties.
 
 # Set some self defined constant global variables, reload safe
-function GlobalConstantInit ( [String] $varName, [String] $varValue ){ if( $null -eq (Get-Variable -Scope Global -ErrorAction SilentlyContinue -Name $varName ) ){
+function GlobalConstantInit ( [String] $varName, [String] $varValue ){ if( $null -eq (Get-Variable -Scope Global -ErrorAction SilentlyContinue -Name $varName) ){
                                                                        New-Variable -option Constant -Scope Global -name $varName -Value $varValue; } }
-GlobalConstantInit "ComputerName" $([System.Environment]::MachineName.ToLower()); # provide unified lowercase ComputerName, from NetBIOS from DotNet-Runtime, accesses the OS-level machine name via managed code. same as cli: hostname;
+GlobalConstantInit "ComputerName"                 $([System.Environment]::MachineName.ToLower()); # provide unified lowercase ComputerName, from NetBIOS from DotNet-Runtime, accesses the OS-level machine name via managed code. same as cli: hostname;
 GlobalConstantInit "CurrentMonthAndWeekIsoString" ([String]((Get-Date -format "yyyy-MM-")+(Get-Date -uformat "W%V")));
 GlobalConstantInit "InfoLineColor"                $(switch($Host.Name -eq "Windows PowerShell ISE Host"){($true){"Gray"}default{"White"}}); # ise is white so we need a contrast color
 
