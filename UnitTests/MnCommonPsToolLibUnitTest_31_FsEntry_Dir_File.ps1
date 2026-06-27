@@ -12,8 +12,9 @@ function UnitTest_FsEntry_Dir_File(){
   [String] $notExistingDir  = "$HOME/MyDir/AnyNonExistingFile_uzwqyaxs/";
   [String] $notExistingFile = "$HOME/MyDir/AnyNonExistingFile_uzwqyaxs";
   #
-  OutProgress "FsEntryEsc: a=`"$a`" a=`"$b`" ";
-  $a = (FsEntryEsc "aa[bb]cc?dd*ee``ff"); $b = "aa``[bb``]cc``?dd``*ee``ff";
+  $a = (FsEntryEsc "aa[bb]cc?dd*ee``ff");
+  $b = "aa``[bb``]cc``?dd``*ee``ff";
+  OutProgress "FsEntryEsc: a=`"$a`" b=`"$b`" ";
   if( OsIsMacOS ){
     OutProgress "2026-06-28 After github action switched for macos-latest from Mac-15 to Mac-26, these are not equal anymore: a=`"$a`" a=`"$b`" ";
     # ref https://github.com/actions/runner-images/issues/14167
