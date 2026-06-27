@@ -93,6 +93,9 @@
 #      OutProgress "Working";
 #      StdInReadLine "Press Enter to exit.";
 # More examples see: https://github.com/mniederw/MnCommonPsToolLib/tree/main/Examples
+#
+# This file uses for all NON-ASCII chars (as äöüß) its \uXXXX syntax to be able to be stored as UTF8, otherwise for compatibility to PS5.1 it would have to be stored as UTF8-BOM.
+#   ä = \u00E4; ö = \u00F6; ü = \u00FC; Ä = \u00C4; Ö = \u00D6; Ü = \u00DC; ß = \u00DF
 
 # Check last-exit-code status
 if( ((test-path "variable:LASTEXITCODE") -and $null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) ){
@@ -866,6 +869,16 @@ function PrivAclRegRightsToString             ( [System.Security.AccessControl.R
                                                   if( $s.Contains("R") ){ $s = $s.Replace("p,","").Replace("n,","").Replace("l,","").Replace("r,",""); }
                                                   if( $s.Contains("W") ){ $s = $s.Replace("p,","").Replace("c,","").Replace("w,",""); }
                                                 } return [String] $s; }
+function PrivFsRuleCreate                     ( [System.Security.Principal.IdentityReference] $account, [System.Security.AccessControl.FileSystemRights] $rights,
+                                                [System.Security.AccessControl.InheritanceFlags] $inherit, [System.Security.AccessControl.PropagationFlags] $propagation, [System.Security.AccessControl.AccessControlType] $access ){
+                                                # usually account is (PrivGetGroupAdministrators)
+                                                # combinations see: https://msdn.microsoft.com/en-us/library/ms229747(v=vs.100).aspx
+                                                # https://technet.microsoft.com/en-us/library/ff730951.aspx  Rights=(AppendData,ChangePermissions,CreateDirectories,CreateFiles,Delete,DeleteSubdirectoriesAndFiles,ExecuteFile,FullControl,ListDirectory,Modify,Read,ReadAndExecute,ReadAttributes,ReadData,ReadExtendedAttributes,ReadPermissions,Synchronize,TakeOwnership,Traverse,Write,WriteAttributes,WriteData,WriteExtendedAttributes) Inherit=(ContainerInherit,ObjectInherit,None) Propagation=(InheritOnly,NoPropagateInherit,None) Access=(Allow,Deny)
+                                                return [System.Security.AccessControl.FileSystemAccessRule] (New-Object System.Security.AccessControl.FileSystemAccessRule($account, $rights, $inherit, $propagation, $access)); }
+function PrivDirSecurityCreateOwner           ( [System.Security.Principal.IdentityReference] $account ){
+                                                [System.Security.AccessControl.DirectorySecurity] $result = New-Object System.Security.AccessControl.DirectorySecurity;
+                                                $result.SetOwner($account);
+                                                return [System.Security.AccessControl.DirectorySecurity] $result; }
 function ProcessIsLesserEqualPs5              (){ return [Boolean] ($PSVersionTable.PSVersion.Major -le 5); }
 function ProcessPsExecutable                  (){ return [String] $(switch((ProcessIsLesserEqualPs5)){ $true{"powershell.exe"} default{"pwsh"}}); }
 function ProcessIsRunningInElevatedAdminMode  (){ if( OsIsWindows ){ return [Boolean] ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"); }
@@ -1510,16 +1523,6 @@ function FsEntryAclRuleWrite                  ( [String] $modeSetAddOrDel, [Stri
                                                   FsEntryListAsStringArray "$fsEntry/*" $false | Where-Object{$null -ne $_} |
                                                     ForEach-Object{ FsEntryAclRuleWrite $modeSetAddOrDel $_ $rule $true };
                                                 } }
-function PrivFsRuleCreate                     ( [System.Security.Principal.IdentityReference] $account, [System.Security.AccessControl.FileSystemRights] $rights,
-                                                [System.Security.AccessControl.InheritanceFlags] $inherit, [System.Security.AccessControl.PropagationFlags] $propagation, [System.Security.AccessControl.AccessControlType] $access ){
-                                                # usually account is (PrivGetGroupAdministrators)
-                                                # combinations see: https://msdn.microsoft.com/en-us/library/ms229747(v=vs.100).aspx
-                                                # https://technet.microsoft.com/en-us/library/ff730951.aspx  Rights=(AppendData,ChangePermissions,CreateDirectories,CreateFiles,Delete,DeleteSubdirectoriesAndFiles,ExecuteFile,FullControl,ListDirectory,Modify,Read,ReadAndExecute,ReadAttributes,ReadData,ReadExtendedAttributes,ReadPermissions,Synchronize,TakeOwnership,Traverse,Write,WriteAttributes,WriteData,WriteExtendedAttributes) Inherit=(ContainerInherit,ObjectInherit,None) Propagation=(InheritOnly,NoPropagateInherit,None) Access=(Allow,Deny)
-                                                return [System.Security.AccessControl.FileSystemAccessRule] (New-Object System.Security.AccessControl.FileSystemAccessRule($account, $rights, $inherit, $propagation, $access)); }
-function PrivDirSecurityCreateOwner           ( [System.Security.Principal.IdentityReference] $account ){
-                                                [System.Security.AccessControl.DirectorySecurity] $result = New-Object System.Security.AccessControl.DirectorySecurity;
-                                                $result.SetOwner($account);
-                                                return [System.Security.AccessControl.DirectorySecurity] $result; }
 function FsEntryTrySetOwner                   ( [String] $fsEntry, [System.Security.Principal.IdentityReference] $account, [Boolean] $recursive = $false ){
                                                 # usually account is (PrivGetUserCurrent) or (PrivGetGroupAdministrators);
                                                 # if the entry itself cannot be set then you should try to set on its parent the fullcontrol.
@@ -2724,8 +2727,9 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                 DirCreate $tarRootDir;
                                                 if( @("Clone","Fetch","Pull","CloneOrPull","CloneOrFetch","Revert") -notcontains $cmd ){
                                                   throw [Exception] "Expected one of (Clone,Fetch,Pull,CloneOrPull,CloneOrFetch,Revert) instead of: $cmd"; }
-                                                if( ($urlAndOptionalBranch -split "/",0)[-1] -notmatch "^[A-Za-z0-9]+[A-Za-z0-9._-]*(#[A-Za-z0-9]+[A-Za-z0-9._-]*)?`$" ){
-                                                  throw [Exception] "Expected only ident-chars as (letter,numbers,.,_,-) for last part of `"$urlAndOptionalBranch`"."; }
+                                                [String] $repoName = ($urlAndOptionalBranch -split "/",0)[-1];
+                                                if( $repoName -notmatch "^[A-Za-z0-9]+[A-Za-z0-9._-]*(#[A-Za-z0-9]+[A-Za-z0-9._-]*)?`$" ){
+                                                  throw [Exception] "Expected only ident-chars as (letter,numbers,.,_,-) for last part `"$repoName`" of slash separated `"$urlAndOptionalBranch`"."; }
                                                 [String[]] $urlOpt = @()+(StringSplitToArray "#" $urlAndOptionalBranch); # Example: @( "https://github.com/mniederw/MnCommonPsToolLib", "MyBranch" )
                                                 if( $urlOpt.Count -gt 2 ){ throw [Exception] "Unknown third param in sharp-char separated urlAndBranch=`"$urlAndOptionalBranch`". "; }
                                                 if( $urlOpt.Count -gt 1 ){ AssertNotEmpty $urlOpt[1] "branch is empty in sharp-char separated urlAndBranch=`"$urlAndOptionalBranch`". "; }

@@ -23,7 +23,7 @@ try{ # part before Import-Module "MnCommonPsToolLib.psm1";
   Import-Module "MnCommonPsToolLib.psm1";
 }catch{ $nl = [Environment]::NewLine; Write-Progress -Activity " " -Status " " -Completed;
   Write-Error -ErrorAction Continue "$($_.Exception.GetType().Name): $($_.Exception.Message)${nl}$($_.InvocationInfo.PositionMessage)$nl$($_.ScriptStackTrace)";
-  Read-Host "Press Enter to Exit"; throw; }
+  Read-Host "Press Enter to Exit"; throw;
 }
 Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 

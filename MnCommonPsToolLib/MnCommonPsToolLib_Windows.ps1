@@ -1,5 +1,6 @@
 # Extension of MnCommonPsToolLib.psm1 - Common powershell tool library - Parts for windows only
-# This file is stored as UTF8-BOM for compatibility to PS5.1 (because chars as äöü)
+# This file uses for all NON-ASCII chars (as äöüß) its \uXXXX syntax to be able to be stored as UTF8, otherwise for compatibility to PS5.1 it would have to be stored as UTF8-BOM.
+#   ä = \u00E4; ö = \u00F6; ü = \u00FC; Ä = \u00C4; Ö = \u00D6; Ü = \u00DC; ß = \u00DF
 
 if( [System.Environment]::OSVersion.Platform -ne "Win32NT" ){ OutVerbose "$PSScriptRoot : Not Running on windows"; [Environment]::Exit("0"); }
 
@@ -525,7 +526,7 @@ function RegistryImportFile                   ( [String] $regFile ){ # regFile s
                                                 try{
                                                   # unbelievable, it writes success to stderr.
                                                   $out = & "$env:SystemRoot/System32/reg.exe" "IMPORT" $regFile *>&1 | ForEach-Object{ "$_"; };
-                                                    # Example: FEHLER: Die angegebene Datei ist keine Registrierungsdatei. Es können nur Registrierungsdateien importiert werden.
+                                                    # Example: FEHLER: Die angegebene Datei ist keine Registrierungsdatei. Es k\u00F6nnen nur Registrierungsdateien importiert werden.
                                                   AssertRcIsOk;
                                                 }catch{ <# ignore always: System.Management.Automation.RemoteException Der Vorgang wurde erfolgreich beendet. #>
                                                   [String] $m = $_.Exception.Message;
@@ -944,8 +945,8 @@ function MountPointCreate                     ( [String] $drive, [String] $mount
                                                   elseif( $excMsg -eq "Das angegebene Netzwerkkennwort ist falsch."                 ){ $msg = "WrongPassword."; } # 86 INVALID_PASSWORD
                                                   elseif( $excMsg -eq "Mehrfache Verbindungen zu einem Server oder einer "+
                                                                      "freigegebenen Ressource von demselben Benutzer unter "+
-                                                                     "Verwendung mehrerer Benutzernamen sind nicht zulässig. "+
-                                                                     "Trennen Sie alle früheren Verbindungen zu dem Server bzw. "+
+                                                                     "Verwendung mehrerer Benutzernamen sind nicht zul\u00E4ssig. "+
+                                                                     "Trennen Sie alle fr\u00FCheren Verbindungen zu dem Server bzw. "+
                                                                      "der freigegebenen Ressource, und versuchen Sie es erneut."   ){ $msg = "MultiConnectionsByMultiUserNamesNotAllowed."; } # 1219 SESSION_CREDENTIAL_CONFLICT
                                                   else {}
                                                   OutProgress "$($traceInfo)$msg";
@@ -1707,7 +1708,7 @@ function TfsGetNewestNoOverwrite              ( [String] $wsdir, [String] $tfsPa
                                                   TfsInitLocalWorkspaceIfNotDone $url (FsEntryGetParentDir $wsdir);
                                                 }else{
                                                   # If workspace was some months not used then for the get command we got the error:
-                                                  # "Der Arbeitsbereich kann nicht bestimmt werden. Dies lässt sich möglicherweise durch Ausführen von "tf workspaces /collection:Teamprojektsammlungs-URL" beheben."
+                                                  # "Der Arbeitsbereich kann nicht bestimmt werden. Dies lässt sich m\u00F6glicherweise durch Ausführen von "tf workspaces /collection:Teamprojektsammlungs-URL" beheben."
                                                   # After performing this it worked, so we now perform this each time.
                                                   TfsHasLocalMachWorkspace $url | Out-Null;
                                                 }
@@ -2709,33 +2710,35 @@ function ToolInstallNuPckMgrAndCommonPsGalMo  (){ # runs in about 12-90 sec and 
                                                 #   Note: Ein zuvor installiertes, von Microsoft signiertes Modul Pester V3.4.0 verursacht Konflikte
                                                 #     mit dem neuen Modul Pester V5.3.1 vom Herausgeber CN=DigiCert Assured ID Root CA, OU=www.digicert.com, O=DigiCert Inc, C=US.
                                                 #     Durch die Installation des neuen Moduls kann das System instabil werden.
-                                                #     Falls Sie trotzdem eine Installation oder ein Update durchführen möchten, verwenden Sie den -SkipPublisherCheck-Parameter.
+                                                #     Falls Sie trotzdem eine Installation oder ein Update durchführen m\u00F6chten, verwenden Sie den -SkipPublisherCheck-Parameter.
                                                 #     And Update-Module : Das Modul 'Pester' wurde nicht mithilfe von 'Install-Module' installiert und kann folglich nicht aktualisiert werden.
                                                 # - Example: Uninstall-Module -MaximumVersion "0.9.99" -Name SqlServer;
                                                 }
 function ToolWinGetCleanLine                  ( [String] $s ){
                                                 if( $null -eq $s ){ $s = ""; }
                                                 $s = "$s".Trim();
+                                                # Note: The following chars are in \uXXXX syntax, otherwise for PS5.1 this current PS script would have to be stored as UTF8-with-BOM.
+                                                # $block = [char]0x2588; <# \u2588 = █ #>  $shade = [char]0x2592; <# \u2592 = ▒ #>  $bar = [char]0x00A6; <# \u00A6 = ¦ #>
                                                 # remove the following patterns
                                                 if( $s -ne "" -and -not @("-","/","|","\").Contains($s)                                                                    -and
-                                                    $s -notmatch "^\█*\▒*\¦*\ +[0-9\.]+\ [KMG]B\ \/\ +[0-9\.]+\ [KMG]B$"                                                   -and # ██████████████████████▒▒▒▒▒▒▒▒  1024 KB / 1.31 MB
-                                                    $s -notmatch "^\█*\▒*\¦*\ +[0-9][0-9]?[0-9]?\%$"                                                                       -and # ███▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  10%
+                                                    $s -notmatch "^\\u2588*\\u2592*\\u00A6*\ +[0-9\.]+\ [KMG]B\ \/\ +[0-9\.]+\ [KMG]B$"                                    -and # ██████████████████████▒▒▒▒▒▒▒▒  1024 KB / 1.31 MB
+                                                    $s -notmatch "^\\u2588*\\u2592*\\u00A6*\ +[0-9][0-9]?[0-9]?\%$"                                                        -and # ███▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒▒  10%
                                                     $s -notmatch "^.+\ +[0-9\.]+\ [KMG]B\ \/\ +[0-9\.]+\ [KMG]B$"                                                          -and # ÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûêÔûê  1.9 MB / 1.9 MB
                                                     $s -notmatch "^.+\ +[0-9][0-9]?[0-9]?\%$"                                                                              -and # ÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆÔûÆ  0%
-                                                    $s -ne "Alle Quellen werden zurückgesetzt...Fertig"                                                                    -and # for: winget source reset
+                                                    $s -ne "Alle Quellen werden zur\u00FCckgesetzt...Fertig"                                                               -and # for: winget source reset
                                                     $s -ne "Alle Quellen werden aktualisiert..."                                                                           -and # for: winget source update
                                                     $s -ne "Fertig"                                                                                                        -and # for: winget source update
-                                                    $s -ne "Alle Quellen werden zurückgesetzt...Fertig"                                                                    -and # for: winget source reset
+                                                    $s -ne "Alle Quellen werden zur\u00FCckgesetzt...Fertig"                                                               -and # for: winget source reset
                                                     $s -ne "Die Quelle `"msstore`" erfordert, dass Sie die folgenden Vereinbarungen vor der Verwendung anzeigen."          -and # for: winget list
                                                     $s -ne "Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction"                                     -and # for: winget list
                                                     $s -ne ("Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben " +
-                                                            "an den Back-End-Dienst gesendet wird, damit er ordnungsgemäß funktioniert (z. B. `„US`“).")                   -and # for: winget list
+                                                            "an den Back-End-Dienst gesendet wird, damit er ordnungsgem\u00E4ß funktioniert (z. B. `„US`“).")              -and # for: winget list
                                                     $s -ne "Es wurde bereits ein vorhandenes Paket gefunden. Es wird versucht, das installierte Paket zu aktualisieren..." -and # for: winget install
-                                                    $s -ne "In den konfigurierten Quellen sind keine neueren Paketversionen verfügbar."                                    -and # for: winget install
+                                                    $s -ne "In den konfigurierten Quellen sind keine neueren Paketversionen verf\u00FCbar."                                -and # for: winget install
                                                     $s -ne "Diese Anwendung wird von ihrem Besitzer an Sie lizenziert."                                                    -and # for: winget install
-                                                    $s -ne "Der Installer-Hash wurde erfolgreich überprüft"                                                                -and # for: winget install
+                                                    $s -ne "Der Installer-Hash wurde erfolgreich \u00FCberpr\u00FCft"                                                      -and # for: winget install
                                                     $s -ne "Paketinstallation wird gestartet..."                                                                           -and # for: winget install
-                                                    $s -ne "Microsoft ist nicht verantwortlich und erteilt keine Lizenzen für Pakete von Drittanbietern."                  -and # for: winget install
+                                                    $s -ne "Microsoft ist nicht verantwortlich und erteilt keine Lizenzen f\u00FCr Pakete von Drittanbietern."             -and # for: winget install
                                                     $s -ne "Paket-Deinstallation wird gestartet..."                                                                        -and # for: winget uninstall
                                                     $s -ne "The ``msstore`` source requires that you view the following agreements before using."                          -and # for: winget uninstall (2025-09: "MSIX\Microsoft.MicrosoftEdge.Stable_127.0.2651.74_neutral__8wekyb3d8bbwe")
                                                     $s -ne ("The source requires the current machine's 2-letter geographic region to be sent to the backend " +
@@ -2744,12 +2747,12 @@ function ToolWinGetCleanLine                  ( [String] $s ){
                                                     $s -ne "Fehler beim Durchsuchen der Quelle. Ergebnisse werden nicht einbezogen: msstore"                                    # for: winget uninstall (2025-08: Edge)
                                                     ){}else{ $s = ""; }
                                                 # replace some patterns
-                                                $s = $s.Replace("Kein verfügbares Upgrade gefunden.","Is up to date.");                                                                   # for: winget install
+                                                $s = $s.Replace("Kein verf\u00FCgbares Upgrade gefunden.","Is up to date.");                                                              # for: winget install
                                                 $s = $s.Replace("Erfolgreich installiert","Successful installed.");                                                                       # for: winget install
                                                 $s = $s.Replace("Es wurde kein installiertes Paket gefunden, das den Eingabekriterien entspricht.","Already uninstalled, nothing done."); # for: winget uninstall (2025-12 "Gyan.FFmpeg.Shared" scope:User)
                                                 $s = $s.Replace("No installed package found matching input criteria.","Already uninstalled, nothing done.");                              # for: winget uninstall (2025-09 "Gyan.FFmpeg.Shared" scope:User ...many...)
                                                 $s = $s.Replace("No version found matching: ","Nothing done, already uninstalled: ");                                                     # for: winget uninstall (2025-09)
-                                                $s = $s.Replace("Es wurde keine übereinstimmende Version gefunden: ","Already uninstalled, nothing done. Not found version: ");           # for: winget uninstall
+                                                $s = $s.Replace("Es wurde keine \u00FCbereinstimmende Version gefunden: ","Already uninstalled, nothing done. Not found version: ");      # for: winget uninstall
                                                 $s = $s.Replace("Erfolgreich deinstalliert","Successful uninstalled.");                                                                   # for: winget uninstall
                                                 # 2025-01: Example of rest of output of updateAll:
                                                 #   (2/2) Gefunden ...packagename... [...packageid...] Version ...version...
@@ -2969,7 +2972,8 @@ function ToolWingetUninstallPackage           ( [String] $idAndOptionalBlankSepV
                                                 [String] $pckVersion = switch($a.Count -le 1){($true){""}($false){$a[1]}};
                                                 if( $a.Count -gt 2 ){ throw [Exception] "ToolWingetUninstallPackage(id=`"$id`") unknown third blanks separated part: `"$a[2]`""; }
                                                 OutProgress "UnInstall-Package(source=$source,scope=$scope,isElevated=$isElevated): `"$id`" $pckVersion ";
-                                                [String[]] $arguments = @( "uninstall", "--silent", "--verbose", "--disable-interactivity", "--accept-source-agreements", "--source", $source, "--id", $id, "--version", $pckVersion );
+                                                [String[]] $arguments = @( "uninstall", "--silent", "--verbose", "--disable-interactivity", "--accept-source-agreements", "--source", $source, "--id", $id );
+                                                if( $pckVersion -ne "" ){ $arguments += @( "--version", $pckVersion ); }
                                                 if( $scope -ne "Auto" ){ $arguments += @("--scope", $scope); }
                                                 if( $force ){ $arguments += @( "--force" ); }
                                                 # We support force because for example :
@@ -3003,8 +3007,9 @@ function ToolWingetInstallPackage             ( [String] $idAndOptionalBlankSepV
                                                 #   Terms of Transaction: https://aka.ms/microsoft-store-terms-of-transaction
                                                 #   Die Quelle erfordert, dass die geografische Region des aktuellen Computers aus 2 Buchstaben an den Back-End-Dienst gesendet wird, damit er ordnungsgemäß funktioniert (z. B. „US“).
                                                 #   Mindestens einer der Quellvereinbarungen wurde nicht zugestimmt. Vorgang abgebrochen. Akzeptieren Sie bitte die Quellvereinbarungen, oder entfernen Sie die entsprechenden Quellen.
-                                                [String[]] $arguments = @( "install", "--silent", "--verbose", "--disable-interactivity", "--accept-source-agreements", "--source", $source, "--id", $id, "--version", $pckVersion );
-                                                  # silent: Does not show UI's of installers.
+                                                # silent: Does not show UI's of installers.
+                                                [String[]] $arguments = @( "install", "--silent", "--verbose", "--disable-interactivity", "--accept-source-agreements", "--source", $source, "--id", $id );
+                                                if( $pckVersion -ne "" ){ $arguments += @( "--version", $pckVersion ); } # usually ("--version" "") in command line would work, but not for id: "Microsoft.Powershell"
                                                 if( $scope -ne "Auto" ){ $arguments += @("--scope", $scope); }
                                                 $additionalOptions | Where-Object{ $_ -ne "" } | ForEach-Object{ $arguments += $_; };
                                                 OutProgress "  & WinGet $(StringArrayDblQuoteItems $arguments) ; # isElevated=$isElevated ";

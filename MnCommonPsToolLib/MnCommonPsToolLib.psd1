@@ -34,7 +34,7 @@
   }
   HelpInfoURI            = 'https://github.com/mniederw/MnCommonPsToolLib/Readme.txt';
 
-  ModuleVersion          = '7.134';
+  ModuleVersion          = '7.135';
 
   <#
   Releasenotes
@@ -43,6 +43,7 @@
   Major version will reflect breaking changes, minor identifies extensions and third number identifies urgent bugfixes.
   Breaking changes are usually removed deprecated functions or changed behaviours.
 
+  2026-06-23  V7.135 Fix for PS5.1 UTF8-BOM issues. Improve winget install.
   2026-06-16  V7.134 Remove in PS7.6.2 unsupported: OsWindowsFeatureGetInstalledNames, OsWindowsFeatureDoInstall, OsWindowsFeatureDoUninstall.
   2026-06-15  V7.133 Improve init global const vars. Doc trap. Add OsWindowsOptionalFeatureDoDisable. Rewrite OsWindowsOptionalFeatureListEnabled, OsWindowsOptionalFeatureIsEnabled, OsWindowsOptionalFeatureDoEnable, ToolWinCapabilityPackageGetState, ToolWinCapabilityPackageInstall, ToolWinCapabilityPackageDeinstall.
   2026-06-05  V7.132 Doc git.
