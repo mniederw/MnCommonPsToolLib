@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env pwsh
+#!/usr/bin/env pwsh
 
 Import-Module -NoClobber -Name "MnCommonPsToolLib.psm1"; Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
 
@@ -12,7 +12,7 @@ function UnitTest_FsEntry_Dir_File(){
   [String] $notExistingDir  = "$HOME/MyDir/AnyNonExistingFile_uzwqyaxs/";
   [String] $notExistingFile = "$HOME/MyDir/AnyNonExistingFile_uzwqyaxs";
   #
-  Assert ((FsEntryEsc "aa[bb]cc?dd*ee``ff") -eq "aa``[bb``]cc``?dd``*ee``ff");
+  Assert ((FsEntryEsc "aa[bb]cc?dd*ee``ff") -eq "aa``[bb``]cc``?dd``*ee````ff");
   #
   AssertFsEntryIsEqualForCurrentOs (FsEntryUnifyDirSep "$HOME\MyDir\MyFile.txt") "$HOME/MyDir/MyFile.txt"; # test AssertFsEntryIsEqualForCurrentOs
   #

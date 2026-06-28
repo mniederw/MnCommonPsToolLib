@@ -15,9 +15,11 @@ function UnitTest_Win_OS(){
   Assert (OsIs64BitOs);
   Assert ((OsIsHibernateEnabled) -or $true);
   Assert ((OsInfoMainboardPhysicalMemorySum) -gt 1000000000);
+  <# 2026-06 in PS7.6.2 now unsupported
   # TODO OsWindowsFeatureGetInstalledNames  # 2024-03 We get now: "Import-Module: The specified module 'ServerManager' was not loaded because no valid module file was found in any module directory." # Requires windows-server-os or at least Win10Prof with installed RSAT https://www.microsoft.com/en-au/download/details.aspx?id=45520
-  if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){ OsWindowsFeatureDoInstall   "Telnet-Client"; }
+  if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){ OsWindowsFeatureDoInstall   "Telnet-Server"; }
   if( "TEST_THIS_IS_NOT_NESSESSARY" -eq "" ){ OsWindowsFeatureDoUninstall "Telnet-Server"; }
+  #>
   Assert ((OsGetWindowsProductKey).Length -ge 29);
   #
 }

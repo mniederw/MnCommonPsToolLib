@@ -8,7 +8,7 @@ Licensed under GPL3. This is freeware, redistribute and or modify it under the t
 Tribute
 -------
 
-> 🇺🇦 UKRAINE [IS BEING ATTACKED](https://war.ukraine.ua/) BY RUSSIAN ARMY. 
+> 🇺🇦 UKRAINE [IS BEING ATTACKED](https://war.ukraine.ua/) BY RUSSIAN ARMY.
 > CIVILIANS ARE GETTING KILLED. RESIDENTIAL AREAS ARE GETTING BOMBED.
 > - Help Ukraine via:
 >   - [Serhiy Prytula Charity Foundation](https://prytulafoundation.org/en/)
@@ -28,13 +28,13 @@ This command line library encapsulates many common powershell functions for the 
   - supports trace information on functions which make use of source management systems (git,svn,tfs)
   - makes behaviour compatible for usage with pwsh, powershell.exe and powershell_ise.exe
   - acts as documentation
-  - encapsulates some external tools as git, svn, etc. which of course will work only 
+  - encapsulates some external tools as git, svn, etc. which of course will work only
     if their corresponding executables are installed and are available via path variable.
 
 Installation and Updates:
 -------------------------
 
-- Install powershell 7 and on Windows 
+- Install powershell 7 and on Windows
   call InstallEnablePowerShellToUnrestrictedRequiresAdminRights.bat (run as admin)
 - Clone or download zip file of this repository and extract it
 - Run:   pwsh Install.ps1   and select menu item I=Install
@@ -90,29 +90,30 @@ Files of this repository:
 
 UTF8-BOM or UTF8:
 -----------------
-  All files except BAT files are stored in UTF8-BOM (byte order mark).
-  Todays for PS7.x it would be commmon to use UTF8 without BOM but because the compatibility to PS5.1 
+  All files except BAT files are stored in UTF8 or UTF8-BOM (byte order mark).
+  Todays for PS7.x it would be commmon to use UTF8 without BOM but because the compatibility to PS5.1
   we still use for PS1 files the UTF8-BOM (otherwise PSScriptAnalyzer would result with:
   PSUseBOMForUnicodeEncodedFile - Missing BOM encoding for non-ASCII encoded file.)
-  Some PS1 files are nevertheless in UTF8 when PSScriptAnalyzer does not output a warning.
+  If a PS1 file uses the \uXXXX syntax for all NON-ASCII chars in source then they are compatible to PS5.1
+  and they can be stored in UTF8 and PSScriptAnalyzer does not output a warning.
 
 Some notes and common approaches of this library:
 -------------------------------------------------
 - Unit-Tests: Many functions are covered by unit tests and they are running automatically
   by github workflows internally on platforms windows, linux and osx.
   They can also be run by a manual start.
-- Indenting format of library functions: 
+- Indenting format of library functions:
   The statements are indented in the way that they are easily readable as documentation.
 - Typesafe: Functions and its arguments and return values are always specified with its type
   to assert type reliablility as far as possible.
-- Avoid null values: Whenever possible null values are generally avoided. 
+- Avoid null values: Whenever possible null values are generally avoided.
   For example arrays are set always empty instead of null.
-- Win-1252/UTF8: Text file contents are written per default as UTF8-BOM 
+- Win-1252/UTF8: Text file contents are written per default as UTF8-BOM
   for improving compatibility between multi platforms.
 - Create files: On creating files its path parts are always automatically also created.
 - Notes about tracing:
   - Progress : Any change of the system will be notified with color Gray. It is enabled as default.
-  - Verbose  : Some io functions will be enriched with Write-Verbose infos, 
+  - Verbose  : Some io functions will be enriched with Write-Verbose infos,
                which are written in DarkGray and can be enabled by VerbosePreference.
   - Debug    : Some minor functionalities are enriched with Write-Debug, which can be enabled by DebugPreference.
 - Comparison with null: All such comparing statements have the null constant on the left side ($null -eq $a)

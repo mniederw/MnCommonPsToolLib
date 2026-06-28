@@ -93,6 +93,9 @@
 #      OutProgress "Working";
 #      StdInReadLine "Press Enter to exit.";
 # More examples see: https://github.com/mniederw/MnCommonPsToolLib/tree/main/Examples
+#
+# This file uses for all NON-ASCII chars (as äöüß) its \uXXXX syntax to be able to be stored as UTF8, otherwise for compatibility to PS5.1 it would have to be stored as UTF8-BOM.
+#   ä = \u00E4; ö = \u00F6; ü = \u00FC; Ä = \u00C4; Ö = \u00D6; Ü = \u00DC; ß = \u00DF
 
 # Check last-exit-code status
 if( ((test-path "variable:LASTEXITCODE") -and $null -ne $LASTEXITCODE -and $LASTEXITCODE -ne 0) ){
@@ -103,14 +106,21 @@ if( ((test-path "variable:LASTEXITCODE") -and $null -ne $LASTEXITCODE -and $LAST
 # Standard header for unhandled exceptions:
 # - Set-StrictMode: Prohibits: refs to uninit vars, including uninit vars in strings; refs to non-existent properties of an object;
 #   function calls that use the syntax for calling methods; variable without a name (${}).
-# - trap: Assert that the following executed statements from here to the end of this script are not ignored.
+# - trap: Asserts that errors of the following executed statements from there to the end of this script are not ignored.
 #   The functions which are later called by a caller of this script are not affected by this trap statement.
 #   Trap statement are not cared if a catch block is used!
+#   Microsoft recommends to use try/catch/finally for the preferred structured mechanism for precise and maintainable error handling.
+#   Important Note: A second trap in same scope is ignored, only the first one is used!!!
+#   This implyes to always only use one trap per scope or bette use try-catch or alternatively use
+#       trap [Exception] { "Outer trap"; break; }
+#       & { trap [Exception] { "Inner trap"; break; }
+#           ... throw "error" ...
+#       }
 # - ErrorActionPreference to Stop: Throw on first error.
 # Note: If client code wants to handle exceptions than it should use catch blocks!
 # We strongly recommended that callers of this script perform after the import-module statement the following statements:
 #   Set-StrictMode -Version Latest; trap [Exception] { StdErrHandleExc $_; break; }
-# In ALL scripts which are not using this module we stongly recommend the following line:
+# In ALL scripts which are not using this module we stongly recommend the following immediate lines:
 Set-StrictMode -Version Latest; $ErrorActionPreference = "Stop"; trap [Exception] { $nl = [Environment]::NewLine; Write-Progress -Activity " " -Status " " -Completed;
   Write-Error -ErrorAction Continue "$($_.Exception.GetType().Name): $($_.Exception.Message)${nl}$($_.InvocationInfo.PositionMessage)$nl$($_.ScriptStackTrace)";
   Read-Host "Press Enter to Exit"; break; }
@@ -199,12 +209,12 @@ Add-Type -WarningAction SilentlyContinue -TypeDefinition "using System; public c
   # Used for error messages which have a text which will be exact enough so no additionally information as stackdump or data are nessessary. Is handled in our StdErrHandleExc.
   # Note: On type creation we suppressed the warnings because we got:  The generated type defines no public methods or properties.
 
-# Set some self defined constant global variables
-if( $null -eq (Get-Variable -Scope Global -ErrorAction SilentlyContinue -Name ComputerName) -or $null -eq $global:InfoLineColor ){ # check whether last variables already exists because reload safe
-  New-Variable -option Constant -Scope Global -name CurrentMonthAndWeekIsoString -Value ([String]((Get-Date -format "yyyy-MM-")+(Get-Date -uformat "W%V")));
-  New-Variable -option Constant -Scope Global -name InfoLineColor                -Value $(switch($Host.Name -eq "Windows PowerShell ISE Host"){($true){"Gray"}default{"White"}}); # ise is white so we need a contrast color
-  New-Variable -option Constant -Scope Global -name ComputerName                 -Value $([System.Environment]::MachineName.ToLower()); # provide unified lowercase ComputerName, from NetBIOS from DotNet-Runtime, accesses the OS-level machine name via managed code. same as cli: hostname;
-}
+# Set some self defined constant global variables, reload safe
+function GlobalConstantInit ( [String] $varName, [String] $varValue ){ if( $null -eq (Get-Variable -Scope Global -ErrorAction SilentlyContinue -Name $varName) ){
+                                                                       New-Variable -option Constant -Scope Global -name $varName -Value $varValue; } }
+GlobalConstantInit "ComputerName"                 $([System.Environment]::MachineName.ToLower()); # provide unified lowercase ComputerName, from NetBIOS from DotNet-Runtime, accesses the OS-level machine name via managed code. same as cli: hostname;
+GlobalConstantInit "CurrentMonthAndWeekIsoString" ([String]((Get-Date -format "yyyy-MM-")+(Get-Date -uformat "W%V")));
+GlobalConstantInit "InfoLineColor"                $(switch($Host.Name -eq "Windows PowerShell ISE Host"){($true){"Gray"}default{"White"}}); # ise is white so we need a contrast color
 
 # Statement extensions
 function ForEachParallel {
@@ -602,6 +612,7 @@ function OutGetTsPrefix                       ( [Boolean] $forceTsPrefix = $fals
 function OutClear                             (){ Clear-Host; }
 function OutStartTranscriptInTempDir          ( [String] $name = "MnCommonPsToolLib" ){
                                                 # Append everything from console to logfile as trace info, return full path name of created logfile.
+                                                # The file is write protected While the calling process is running and Stop-Transcript was not yet called.
                                                 # Logfilename will be created uniquely by containing: date, time in precision of seconds, name, user, machine, pid, threadId.
                                                 $name = StringOnEmptyReplace $name.Trim() "MnCommonPsToolLib";
                                                 [String] $ts = (DateTimeNowAsStringIso "yyyy yyyy-MM yyyy-MM-dd_HH'h'mm'm'ss's'").Replace(" ","/");
@@ -858,6 +869,16 @@ function PrivAclRegRightsToString             ( [System.Security.AccessControl.R
                                                   if( $s.Contains("R") ){ $s = $s.Replace("p,","").Replace("n,","").Replace("l,","").Replace("r,",""); }
                                                   if( $s.Contains("W") ){ $s = $s.Replace("p,","").Replace("c,","").Replace("w,",""); }
                                                 } return [String] $s; }
+function PrivFsRuleCreate                     ( [System.Security.Principal.IdentityReference] $account, [System.Security.AccessControl.FileSystemRights] $rights,
+                                                [System.Security.AccessControl.InheritanceFlags] $inherit, [System.Security.AccessControl.PropagationFlags] $propagation, [System.Security.AccessControl.AccessControlType] $access ){
+                                                # usually account is (PrivGetGroupAdministrators)
+                                                # combinations see: https://msdn.microsoft.com/en-us/library/ms229747(v=vs.100).aspx
+                                                # https://technet.microsoft.com/en-us/library/ff730951.aspx  Rights=(AppendData,ChangePermissions,CreateDirectories,CreateFiles,Delete,DeleteSubdirectoriesAndFiles,ExecuteFile,FullControl,ListDirectory,Modify,Read,ReadAndExecute,ReadAttributes,ReadData,ReadExtendedAttributes,ReadPermissions,Synchronize,TakeOwnership,Traverse,Write,WriteAttributes,WriteData,WriteExtendedAttributes) Inherit=(ContainerInherit,ObjectInherit,None) Propagation=(InheritOnly,NoPropagateInherit,None) Access=(Allow,Deny)
+                                                return [System.Security.AccessControl.FileSystemAccessRule] (New-Object System.Security.AccessControl.FileSystemAccessRule($account, $rights, $inherit, $propagation, $access)); }
+function PrivDirSecurityCreateOwner           ( [System.Security.Principal.IdentityReference] $account ){
+                                                [System.Security.AccessControl.DirectorySecurity] $result = New-Object System.Security.AccessControl.DirectorySecurity;
+                                                $result.SetOwner($account);
+                                                return [System.Security.AccessControl.DirectorySecurity] $result; }
 function ProcessIsLesserEqualPs5              (){ return [Boolean] ($PSVersionTable.PSVersion.Major -le 5); }
 function ProcessPsExecutable                  (){ return [String] $(switch((ProcessIsLesserEqualPs5)){ $true{"powershell.exe"} default{"pwsh"}}); }
 function ProcessIsRunningInElevatedAdminMode  (){ if( OsIsWindows ){ return [Boolean] ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator"); }
@@ -1502,16 +1523,6 @@ function FsEntryAclRuleWrite                  ( [String] $modeSetAddOrDel, [Stri
                                                   FsEntryListAsStringArray "$fsEntry/*" $false | Where-Object{$null -ne $_} |
                                                     ForEach-Object{ FsEntryAclRuleWrite $modeSetAddOrDel $_ $rule $true };
                                                 } }
-function PrivFsRuleCreate                     ( [System.Security.Principal.IdentityReference] $account, [System.Security.AccessControl.FileSystemRights] $rights,
-                                                [System.Security.AccessControl.InheritanceFlags] $inherit, [System.Security.AccessControl.PropagationFlags] $propagation, [System.Security.AccessControl.AccessControlType] $access ){
-                                                # usually account is (PrivGetGroupAdministrators)
-                                                # combinations see: https://msdn.microsoft.com/en-us/library/ms229747(v=vs.100).aspx
-                                                # https://technet.microsoft.com/en-us/library/ff730951.aspx  Rights=(AppendData,ChangePermissions,CreateDirectories,CreateFiles,Delete,DeleteSubdirectoriesAndFiles,ExecuteFile,FullControl,ListDirectory,Modify,Read,ReadAndExecute,ReadAttributes,ReadData,ReadExtendedAttributes,ReadPermissions,Synchronize,TakeOwnership,Traverse,Write,WriteAttributes,WriteData,WriteExtendedAttributes) Inherit=(ContainerInherit,ObjectInherit,None) Propagation=(InheritOnly,NoPropagateInherit,None) Access=(Allow,Deny)
-                                                return [System.Security.AccessControl.FileSystemAccessRule] (New-Object System.Security.AccessControl.FileSystemAccessRule($account, $rights, $inherit, $propagation, $access)); }
-function PrivDirSecurityCreateOwner           ( [System.Security.Principal.IdentityReference] $account ){
-                                                [System.Security.AccessControl.DirectorySecurity] $result = New-Object System.Security.AccessControl.DirectorySecurity;
-                                                $result.SetOwner($account);
-                                                return [System.Security.AccessControl.DirectorySecurity] $result; }
 function FsEntryTrySetOwner                   ( [String] $fsEntry, [System.Security.Principal.IdentityReference] $account, [Boolean] $recursive = $false ){
                                                 # usually account is (PrivGetUserCurrent) or (PrivGetGroupAdministrators);
                                                 # if the entry itself cannot be set then you should try to set on its parent the fullcontrol.
@@ -2716,8 +2727,9 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                 DirCreate $tarRootDir;
                                                 if( @("Clone","Fetch","Pull","CloneOrPull","CloneOrFetch","Revert") -notcontains $cmd ){
                                                   throw [Exception] "Expected one of (Clone,Fetch,Pull,CloneOrPull,CloneOrFetch,Revert) instead of: $cmd"; }
-                                                if( ($urlAndOptionalBranch -split "/",0)[-1] -notmatch "^[A-Za-z0-9]+[A-Za-z0-9._-]*(#[A-Za-z0-9]+[A-Za-z0-9._-]*)?`$" ){
-                                                  throw [Exception] "Expected only ident-chars as (letter,numbers,.,_,-) for last part of `"$urlAndOptionalBranch`"."; }
+                                                [String] $repoName = ($urlAndOptionalBranch -split "/",0)[-1];
+                                                if( $repoName -notmatch "^[A-Za-z0-9]+[A-Za-z0-9._-]*(#[A-Za-z0-9]+[A-Za-z0-9._-]*)?`$" ){
+                                                  throw [Exception] "Expected only ident-chars as (letter,numbers,.,_,-) for last part `"$repoName`" of slash separated `"$urlAndOptionalBranch`"."; }
                                                 [String[]] $urlOpt = @()+(StringSplitToArray "#" $urlAndOptionalBranch); # Example: @( "https://github.com/mniederw/MnCommonPsToolLib", "MyBranch" )
                                                 if( $urlOpt.Count -gt 2 ){ throw [Exception] "Unknown third param in sharp-char separated urlAndBranch=`"$urlAndOptionalBranch`". "; }
                                                 if( $urlOpt.Count -gt 1 ){ AssertNotEmpty $urlOpt[1] "branch is empty in sharp-char separated urlAndBranch=`"$urlAndOptionalBranch`". "; }
@@ -3080,12 +3092,12 @@ function GitInitGlobalConfig                  (){ # if git is installed the init
                                                 OutProgress "Init git to usual config ";
                                                 [String] $credHlp = switch(OsIsWindows){($true){"manager"}($false){"store"}};
                                                 GitDisableAutoCrLf                           ; # make sure: core.autocrlf = false
-                                                GitSetGlobalVar "core.fileMode" "false"      ; # ignore executable-bit for diffs;
+                                                GitSetGlobalVar "core.fileMode" "false"      ; # Ignore executable-bit for diffs; Note: The current value of this flag in a repo is not pushed to other repos.
                                                                                                # default is true, honor executable bit of a file if fs system supports it.
                                                                                                # Use false to not trust file modes and ignore the executable bit differences between the index and the working tree;
                                                                                                # useful for filesystems having no file modes like FAT.
-                                                                                               # we also recommend for each repo: git config --local core.fileMode false
-                                                GitSetGlobalVar "diff.renamelimit" "12000"   ; # default value is 100, we increase value to avoid for (git log) warning: inexact rename detection was skipped due to too many files.
+                                                                                               # We also recommend for each repo: git config --local core.fileMode false
+                                                GitSetGlobalVar "diff.renamelimit" "12000"   ; # Default value is 100, we increase value to avoid for (git log) warning: inexact rename detection was skipped due to too many files.
                                                                                                # required values for git repos: gnuwget/wget2 11000, CosmosOS/Cosmos 1900, usual repos 1300.
                                                 GitSetGlobalVar "core.pager" ""              ; # [cat,less] use empty for pager; "less" would stop after a page; 2026-03: "cat" hangs on ps5.1;
                                                 GitSetGlobalVar "core.fscache" "true"        ; # Enable additional caching of file system data for some operations.
@@ -3101,11 +3113,11 @@ function GitInitGlobalConfig                  (){ # if git is installed the init
                                                                                                # For remove pw in ram for a repo: git credential reject https://github.com/myuser/myrepo.git;
                                                                                                # For remove current cached password info use: git credential-cache exit ;
                                                                                                # Example content for ".git-credentials": https://myuser:ghp_MyPATword...@github.com
-                                                # log.abbrevcommit          = yes            ; # abbreviate some log outs.
-                                                # core.abbrev               = 8              ; # object name abbreviation length, min is 4, can also be auto.
-                                                # rebase.autosquash         = true           ; # auto modify the todo list when commit msg is one of "squash! …", "fixup! …" or "amend! …".
-                                                # format.pretty             = oneline        ; # one log line per commit, is standard pretty format for commands as log, show, whatchanged.
-                                                # diff.astextplain.textconv = astextplain    ; # converts *.doc,*.pdf,*.rtf to textfiles before generating diff.
+                                                # log.abbrevcommit          = yes            ; # Abbreviate some log outs.
+                                                # core.abbrev               = 8              ; # Object name abbreviation length, min is 4, can also be auto.
+                                                # rebase.autosquash         = true           ; # Auto modify the todo list when commit msg is one of "squash! …", "fixup! …" or "amend! …".
+                                                # format.pretty             = oneline        ; # One log line per commit, is standard pretty format for commands as log, show, whatchanged.
+                                                # diff.astextplain.textconv = astextplain    ; # Converts *.doc,*.pdf,*.rtf to textfiles before generating diff.
                                                 # color.interactive         = auto           ; # [always,auto=true,never] use colors for prompts, auto means only when out to terminal. Default is auto.
                                                 # color.ui                  = auto
                                                 # help.format               = html
