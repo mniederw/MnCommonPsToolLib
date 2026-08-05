@@ -1557,6 +1557,12 @@ function SvnTortoiseCommitAndUpdate           ( [String] $workDir, [String] $svn
 function TfsExe                               (){ # return tfs executable
                                                 [String] $tfExe = "CommonExtensions/Microsoft/TeamFoundation/Team Explorer/TF.exe";
                                                 [String[]] $a = @(
+                                                  "${env:ProgramFiles(x86)}/Microsoft Visual Studio/18/Enterprise/Common7/IDE/$tfExe",
+                                                       "${env:ProgramFiles}/Microsoft Visual Studio/18/Enterprise/Common7/IDE/$tfExe",
+                                                  "${env:ProgramFiles(x86)}/Microsoft Visual Studio/18/Professional/Common7/IDE/$tfExe",
+                                                       "${env:ProgramFiles}/Microsoft Visual Studio/18/Professional/Common7/IDE/$tfExe",
+                                                  "${env:ProgramFiles(x86)}/Microsoft Visual Studio/18/Community/Common7/IDE/$tfExe",
+                                                       "${env:ProgramFiles}/Microsoft Visual Studio/18/Community/Common7/IDE/$tfExe",
                                                   "${env:ProgramFiles(x86)}/Microsoft Visual Studio/2022/Enterprise/Common7/IDE/$tfExe",
                                                        "${env:ProgramFiles}/Microsoft Visual Studio/2022/Enterprise/Common7/IDE/$tfExe",
                                                   "${env:ProgramFiles(x86)}/Microsoft Visual Studio/2022/Professional/Common7/IDE/$tfExe",
