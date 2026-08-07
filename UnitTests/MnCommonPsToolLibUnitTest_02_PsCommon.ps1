@@ -71,16 +71,24 @@ function UnitTest_PsCommon(){
   #
   # Unexpected behaviour (undocumented)
   if( OsIsWindows ){
-    Push-Location "C:\Windows";
-    Assert ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath("C:") -eq "C:\Windows"); # returns unexpected current dir of the drive
-    Assert ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath("C:\") -eq "C:\"); # ok, expected
-    Assert ([IO.Path]::GetFullPath("C:\") -eq "C:\"); # ok, expected
-    if( ProcessIsLesserEqualPs5 ){
-      Assert ([IO.Path]::GetFullPath("C:/") -eq "C:\" ); # returns unexpected current dir of the drive
-    }else{
-      [String] $d = [IO.Path]::GetFullPath("C:/");
-      Assert ($d.StartsWith("C:")); # returns unexpected dir (when run in ps1 then "C:\" and when run GetFullPath interactive then "C:\Windows\system32")
-    }
+    Push-Location "C:\Windows\";
+      Assert ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath("C:" ) -eq "C:\Windows"); # returns unexpected current dir of the drive
+      Assert ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath("C:\") -eq "C:\"); # ok, expected
+      Assert ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath(".." ) -eq "C:\"); # ok, expected
+      Assert ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath("..\") -eq "C:\"); # ok, expected
+      Assert ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath("../") -eq "C:\"); # ok, expected
+      Push-Location "C:\Windows\System32\";
+        Assert ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath(".." ) -eq "C:\Windows"); # ok, expected
+        Assert ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath("..\") -eq "C:\Windows"); # ok, expected
+        Assert ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath("../") -eq "C:\Windows"); # ok, expected
+      Pop-Location;
+      Assert ([IO.Path]::GetFullPath("C:\") -eq "C:\"); # ok, expected
+      if( ProcessIsLesserEqualPs5 ){
+        Assert ([IO.Path]::GetFullPath("C:/") -eq "C:\" ); # returns unexpected current dir of the drive
+      }else{
+        [String] $d = [IO.Path]::GetFullPath("C:/");
+        Assert ($d.StartsWith("C:")); # returns unexpected dir (when run in ps1 then "C:\" and when run GetFullPath interactive then "C:\Windows\system32")
+      }
     Pop-Location;
   }
   #

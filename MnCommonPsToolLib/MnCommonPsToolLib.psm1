@@ -1223,11 +1223,10 @@ function FsEntryGetAbsolutePath               ( [String] $fsEntry ){ # Works wit
                                                   if( $fsEntry.Length -eq 2 -and $fsEntry[1] -eq ':' -and [char]::IsLetter($fsEntry[0]) ){ $fsEntry += '\'; }
                                                 }
                                                 try{
-                                                  # Note: GetUnresolvedProviderPathFromPSPath("./") does not return a trailing dir sep.
-                                                  # Note: On Windows for entries as "C:" GetUnresolvedProviderPathFromPSPath
-                                                  #   would unexpectedly return undocumented current dir of that drive. Similar effects for or GetFullPath.
+                                                  # Note: (GetUnresolvedProviderPathFromPSPath "./") or (GetUnresolvedProviderPathFromPSPath "../") does not return a trailing dir sep, except when result is root as "C:\".
+                                                  # Note: On Windows (GetUnresolvedProviderPathFromPSPath "C:") would unexpectedly return undocumented current dir of that drive. Similar effects for or GetFullPath.
                                                   return [String] ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($fsEntry)+
-                                                    $(switch( $fsEntry -eq "./" -or $fsEntry.Replace("\","/").EndsWith("/./") ){($true){(DirSep)}($false){""}}));
+                                                    $(switch( $fsEntry -eq "./" -or $fsEntry -eq "../" -or $fsEntry.Replace("\","/").EndsWith("/./") -or $fsEntry.Replace("\","/").EndsWith("/../") ){($true){(DirSep)}($false){""}}));
                                                 }catch [System.Management.Automation.DriveNotFoundException] {
                                                   # Example: DriveNotFoundException: Cannot find drive. A drive with the name 'Z' does not exist.
                                                   try{ return [String] [IO.Path]::GetFullPath($fsEntry);
@@ -3029,6 +3028,7 @@ function GitCloneOrPullUrls                   ( [String[]] $listOfRepoUrls, [Str
                                                 # If you want single threaded then call it with only one item in the list.
                                                 # The first item is always first performed synchron in case some authentication has to be entered
                                                 # which can be reused for the following multithreaded calls.
+                                                # tarRootDirOfAllRepos: A trailing dir separator is optional because expanding "../" does not lead to a string with trailing backslash.
                                                 $listOfRepoUrls = @()+$listOfRepoUrls;
                                                 $tarRootDirOfAllRepos = FsEntryGetAbsolutePath $tarRootDirOfAllRepos;
                                                 FsEntryAssertHasTrailingDirSep $tarRootDirOfAllRepos;
