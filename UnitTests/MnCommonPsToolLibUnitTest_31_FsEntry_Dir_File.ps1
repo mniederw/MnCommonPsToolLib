@@ -26,10 +26,12 @@ function UnitTest_FsEntry_Dir_File(){
     AssertFsEntryIsEqualForCurrentOs (FsEntryGetAbsolutePath "//MyDomain/MyShare/"   ) "//MyDomain/MyShare/"   ;
     AssertFsEntryIsEqualForCurrentOs (FsEntryGetAbsolutePath "//MyDomain/MyShare/f"  ) "//MyDomain/MyShare/f"  ;
     Push-Location "$HOME/";
-    AssertFsEntryIsEqualForCurrentOs (FsEntryGetAbsolutePath "."                     ) "$HOME"                 ;
+    AssertFsEntryIsEqualForCurrentOs (FsEntryGetAbsolutePath "."                     ) "$HOME/"                ;
     AssertFsEntryIsEqualForCurrentOs (FsEntryGetAbsolutePath "./"                    ) "$HOME/"                ;
-    AssertFsEntryIsEqualForCurrentOs (FsEntryGetAbsolutePath "./."                   ) "$HOME"                 ;
+    AssertFsEntryIsEqualForCurrentOs (FsEntryGetAbsolutePath "./."                   ) "$HOME/"                ;
     AssertFsEntryIsEqualForCurrentOs (FsEntryGetAbsolutePath "././"                  ) "$HOME/"                ;
+    AssertFsEntryIsEqualForCurrentOs (FsEntryGetAbsolutePath "./d/.."                ) "$HOME/"                ;
+    AssertFsEntryIsEqualForCurrentOs (FsEntryGetAbsolutePath "./d/../"               ) "$HOME/"                ;
     AssertFsEntryIsEqualForCurrentOs (FsEntryGetAbsolutePath "./d/"                  ) "$HOME/d/"              ;
     AssertFsEntryIsEqualForCurrentOs (FsEntryGetAbsolutePath "./f"                   ) "$HOME/f"               ;
     Pop-Location;
