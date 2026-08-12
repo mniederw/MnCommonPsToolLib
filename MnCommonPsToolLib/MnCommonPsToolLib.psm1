@@ -1226,7 +1226,7 @@ function FsEntryGetAbsolutePath               ( [String] $fsEntry ){ # Works wit
                                                   # Note: (GetUnresolvedProviderPathFromPSPath "./") or (GetUnresolvedProviderPathFromPSPath "../") does not return a trailing dir sep, except when result is root as "C:\".
                                                   # Note: On Windows (GetUnresolvedProviderPathFromPSPath "C:") would unexpectedly return undocumented current dir of that drive. Similar effects for or GetFullPath.
                                                   return [String] ($ExecutionContext.SessionState.Path.GetUnresolvedProviderPathFromPSPath($fsEntry)+
-                                                    $(switch( $fsEntry -eq "./" -or $fsEntry -eq "../" -or $fsEntry.Replace("\","/").EndsWith("/./") -or $fsEntry.Replace("\","/").EndsWith("/../") ){($true){(DirSep)}($false){""}}));
+                                                    $(switch( $fsEntry -eq "./" -or $fsEntry -eq "../" -or $fsEntry.Replace("\","/").EndsWith("/.") -or $fsEntry.Replace("\","/").EndsWith("/..") ){($true){(DirSep)}($false){""}}));
                                                 }catch [System.Management.Automation.DriveNotFoundException] {
                                                   # Example: DriveNotFoundException: Cannot find drive. A drive with the name 'Z' does not exist.
                                                   try{ return [String] [IO.Path]::GetFullPath($fsEntry);
