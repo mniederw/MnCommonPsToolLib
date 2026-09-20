@@ -1312,11 +1312,11 @@ function FsEntrySort                          { # Sorts a list of file system en
                                                     };
                                                     ,$key.ToArray();
                                                   })); } }
-function FsEntryGetFileNameWithoutExt         ( [String] $fsEntry ){
+function FsEntryGetFileNameWithoutExt         ( [String] $fsEntry ){ # Example: "MyFileName"
                                                 return [String] [System.IO.Path]::GetFileNameWithoutExtension((FsEntryRemoveTrailingDirSep $fsEntry)); }
-function FsEntryGetFileName                   ( [String] $fsEntry ){
+function FsEntryGetFileName                   ( [String] $fsEntry ){ # Example: "MyFileName.txt"
                                                 return [String] [System.IO.Path]::GetFileName((FsEntryRemoveTrailingDirSep $fsEntry)); }
-function FsEntryGetFileExtension              ( [String] $fsEntry ){
+function FsEntryGetFileExtension              ( [String] $fsEntry ){ # Example: ".txt"
                                                 return [String] [System.IO.Path]::GetExtension((FsEntryRemoveTrailingDirSep $fsEntry)); }
 function FsEntryGetDrive                      ( [String] $fsEntry ){ # Example: "C:"
                                                 return [String] (Split-Path -Qualifier (FsEntryGetAbsolutePath $fsEntry)); }
@@ -3637,7 +3637,7 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #   Example: [CmdletBinding()] Param( [parameter(Mandatory=$true)] [String] $p1, [parameter(Mandatory=$true)] [String] $p2 ); OutProgressTitle "Parameters: p1=$p1 p2=$p2";
 # - A starter for any tool can be created by the following code:
 #     #!/usr/bin/env pwsh
-#     $intput | & "mytool.exe" $args ; Exit $LASTEXITCODE ; # alternative: if( $MyInvocation.ExpectingInput ){ # has something in $input variable
+#     $input | & "mytool.exe" $args ; Exit $LASTEXITCODE ; # alternative: if( $MyInvocation.ExpectingInput ){ # has something in $input variable
 #   Important note: this works well from powershell/pwsh but if such a starter is called from cmd.exe or a bat file,
 #   then all arguments are not passed!!!  In that case you need to perform the following statement:  pwsh -Command MyPsScript.ps1 anyParam...
 # - Example for Set Parameter:  Param ( [Parameter()] [ValidateSet("Yes", "No", "Maybe")] [String] $opt )
