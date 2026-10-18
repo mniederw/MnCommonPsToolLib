@@ -2575,7 +2575,7 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                 [String] $stateBefore = FsEntryReportMeasureInfo $tarDir;
                                                 # alternative would be for wget: Invoke-WebRequest
                                                 [String] $wgetExe = ProcessFindExecutableInPath "wget2"; # Example: "C:/Program Files/WinGet/Links/wget2.exe"
-                                                if( $wgetExe -ne "" ){
+                                                if( $wgetExe -eq "" ){
                                                   $wgetExe  = ProcessFindExecutableInPath "wget" ; # Example: "" (should not be installed anymore)
                                                   if( $wgetExe -eq "" ){ throw [Exception] "NetDownloadSite($url) failed because cannot find wget2 (or alternative wget) program in path environment variable, make sure installed. "; }
                                                 }
