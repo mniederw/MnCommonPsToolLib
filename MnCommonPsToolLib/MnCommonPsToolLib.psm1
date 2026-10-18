@@ -2487,6 +2487,7 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                   [Int32] $maxBytes = 0, [String] $us = "", [String] $pw = "", [Boolean] $ignoreSslCheck = $false,
                                                   [Int32] $limitRateBytesPerSec = ([Int32]::MaxValue), [Boolean] $alsoRetrieveToParentOfUrl = $false ){
                                                 # Mirror site to dir; wget: HTTP, HTTPS, FTP. Logfile is written into target dir. Password is not logged.
+                                                # It not spans to other hosts. Option alsoRetrieveToParentOfUrl: if true it navigates to parent which can result to use big amount of storage.
                                                 # If wget2 (multithreaded) is in path then use wget2, otherwise wget.
                                                 $tarDir = FsEntryGetAbsolutePath $tarDir;
                                                 OutProgress "NetDownloadSite $url ";
@@ -2497,73 +2498,74 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                 [String] $caCert = ""; # default seams to be on windows: $env:ProgramData/ssl/ca-bundle.pem"; Maybe for future: "wget2-ca-bundle.crt";
                                                 OutProgress "  (only newer files) to `"$tarDir`"";
                                                 OutProgress "  Logfile: `"$logf`"";
-                                                [String[]] $opt = @(
-                                                   "--directory-prefix=."         # Note: On wget1 we could specify $tarDir but on wget2 we would have to replace all '\' to '/' and the "D:/" is replaced to "D%3A". So we need to set current dir.
-                                                  ,$(switch($alsoRetrieveToParentOfUrl){ ($true){""} default{"--parent=off"}})  # Ascend above parent directory. (default: on)
-                                                 #,"--verbose=off"                # default is on
-                                                 #,"--debug=on"                   # default is off
-                                                 #,"--quiet=off"                  # default is off
-                                                  ,"--recursive"                  # Recursive download. (default: off)
-                                                  ,"--level=$level"               # alternatives: --level=inf
-                                                 #,"--no-remove-listing"          # leave .listing files for ftp (we not use this anymore because option not exists in wget2)
-                                                  ,"--page-requisites"            # download all files as images to display .html
-                                                  ,"--adjust-extension"           # make sure .html or .css for such types of files
-                                                  ,"--backup-converted"           # When converting a file, back up the original version with a .orig suffix. optimizes incremental runs.
-                                                  ,"--tries=2"                    # default is 20
-                                                  ,"--waitretry=5"                # Wait up to number of seconds after error per thread. (default: 10)
-                                                 #,"--execute=robots=off"         # We used this for wget1
-                                                 #,"--robots=off"                 # Respect robots.txt standard for recursive downloads. (default: on)
+                                                [String[]] $opt = @( # Note: 2026-10 wget2 V2.2.1: we found that --parent=off does not work, so we use --no-parent; probably this also applies to all boolean options;
+                                                   "--directory-prefix=."               # Note: On wget1 we could specify $tarDir but on wget2 we would have to replace all '\' to '/' and the "D:/" is replaced to "D%3A". So we need to set current dir.
+                                                  ,$(switch($alsoRetrieveToParentOfUrl){ ($true){"--parent"} default{"--no-parent"}})  # Ascend above parent directory. (default: on)
                                                   ,"--user-agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:68.0) Gecko/20100101 Firefox/68.0'" # take latest ESR
-                                                  ,"--quota=$maxBytes"            # Download quota, 0 = no quota. (default: 0)
+                                                  ,$(switch($ignoreSslCheck){ ($true){"--no-check-certificate"} default{"--check-certificate"}}) # .
+                                                                                        # Otherwise: ERROR: cannot verify ...'s certificate, issued by 'CN=...,C=US': Unable to locally verify the issuer's authority. To connect to ... insecurely, use `--no-check-certificate'.
+                                                  ,"--recursive"                        # Recursive download. (default: off)
+                                                  ,"--level=$level"                     # alternatives: --level=inf
+                                                  ,"--page-requisites"                  # download all files as images to display .html
+                                                  ,"--adjust-extension"                 # make sure .html or .css for such types of files
+                                                  ,"--backup-converted"                 # When converting a file, back up the original version with a .orig suffix. optimizes incremental runs.
+                                                  ,"--tries=2"                          # (default: 20)
+                                                  ,"--waitretry=5"                      # Wait up to number of seconds after error per thread. (default: 10)
+                                                  ,"--quota=$maxBytes"                  # Download quota, 0 = no quota. (default: 0)
                                                   ,"--limit-rate=$limitRateBytesPerSec" # Limit rate of download per second, 0 = no limit. (default: 0)
-                                                  ,"--wait=1"                     # Wait number of seconds between downloads per thread. (default: 0)
-                                                  ,"--random-wait=1"              # Wait 0.5 up to 1.5*<--wait> seconds between downloads per thread. (default: off)
-                                                 #,"--timestamping"               # Just retrieve younger files than the local ones. (default: off)
-                                                  ,$(switch($ignoreSslCheck){ ($true){"--check-certificate=off"} default{""}})  # .
-                                                    # Otherwise: ERROR: cannot verify ...'s certificate, issued by 'CN=...,C=US': Unable to locally verify the issuer's authority. To connect to ... insecurely, use `--no-check-certificate'.
-                                                 #,"--convert-links"              # Convert non-relative links locally    deactivated because:  Both --no-clobber and --convert-links were specified, only --convert-links will be used.
-                                                 #,"--force-html"                 # When input is read from a file, force it to be treated as an HTML file. This enables you to retrieve relative links from existing HTML files on your local disk, by adding <base href="url"> to HTML, or using the --base command-line option.
-                                                 #,"--input-file=$fileslist"      # File where URLs are read from, - for STDIN.
-                                                  ,"--clobber=off"                # Enable file clobbering. (default: on) skip downloads to existing files, either noclobber or timestamping
-                                                      # If a file is downloaded more than once in the same directory, Wgets behavior depends on a few options, including --no-clobber.
-                                                      # In certain cases, the local file will be clobb  ered, or overwritten, upon repeated download.
-                                                      # In other cases it will be preserved.
-                                                      # When running Wget without --timestamping, --no-clobber, --recursive or --page-requisites downloading the same file
-                                                      # in the same directory will result in the original copy of file being preserved and the second copy being named file.1.
-                                                      # If that file is downloaded yet again, the third copy will be named file.2, and so on.
-                                                      # This is also the behavior with -nd, even if --recursive or --page-requisites are in effect.
-                                                      # When --no-clobber is specified, this behavior is suppressed, and Wget will refuse to download newer copies of file.
-                                                      # Therefore, "no-clobber" is actually a misnomer in this modeits not clobbering thats prevented (as the numeric
-                                                      # suffixes were already preventing clobbering), but rather the multiple version saving thats prevented.
-                                                      # When running Wget with --recursive or --page-requisites, but without --timestamping, --no-directories, or --no-clobber, re-downloading
-                                                      # a file will result in the new copy simply overwriting the old. Adding --no-clobber will prevent this behavior, instead
-                                                      # causing the original version to be preserved and any newer copies on the server to be ignored.
-                                                      # When running Wget with --timestamping, with or without --recursive or --page-requisites, the decision as to whether
-                                                      # or not to download a newer copy of a file depends on the local and remote timestamp and size of the file (see Time-Stamping).
-                                                      # --no-clobber may not be specified at the same time as --timestamping.
-                                                      # Note that when --no-clobber is specified, files with the suffixes .html or .htm will be loaded from the local disk
-                                                      # and parsed as if they had been retrieved from the Web.
-                                                 #,"--hsts=on"                     # Use HTTP Strict Transport Security (HSTS). (default: on)
-                                                  ,"--host-directories=off"        # Create host directories when retrieving recursively. (default: on). Off: no dir $tardir\domainname
-                                                  ,"--local-encoding=UTF-8"        # required if link urls contains utf8 which must be mapped to filesystem names (note: others as ISO-8859-15, windows-1252 do not work).
-                                                  ,"--user=$us"                    # we take this as last option because following pw
-                                                  ,"--append-output=$logf"         # .
-                                                  ,"--ca-certificate=$caCert"      # WGET2 option: File with the bundle of CAs to verify the peers. Must be in PEM format. Otherwise CAs are searched at system-specified locations,
-                                                                                   #   chosen at OpenSSL installation time. Default seams to be '$env:ProgramData/ssl/ca-bundle.pem'.
-                                                                                   #   2023-12/MN: If not specified it outputs an error msg that '$env:ProgramData/ssl/ca-bundle.pem' was not found, but nevertheless it has 160 CAs.
-                                                                                   #     It also outputs an error msg if an empty string is specified.
-                                                 #,"--ca-directory=directory"      # WGET2 option: Containing CA certs in PEM format. Each file contains one CA cert, file name is based on a hash value derived from the cert.
-                                                                                   #   Otherwise CA certs searched at system-specified locations, chosen at OpenSSL installation time.
-                                                 #,"--restrict-file-names=windows" # WGET2 option: One of: unix, windows, nocontrol, ascii, lowercase, uppercase, none; Does Percent-Escaping illegal characters (on windows: "\\<>:\"|?*").
-                                                 #,"--use-server-timestamps=off"   # Set local file's timestamp to server's timestamp. (default: on) 2023-12/MN: seams not to work.
-                                                 #,"--force-directories"           # Create hierarchy of directories when not retrieving recursively. (default: off)
-                                                 #,"--protocol-directories"        # Force creating protocol directories. (default: off)
-                                                  ,"--connect-timeout=60"          # Connect timeout in seconds. Default is none so it depends on system libraries.
-                                                  ,"--dns-timeout=60"              # DNS lookup timeout in seconds. Default is none so it depends on system libraries.
-                                                  ,"--read-timeout=900"            # Read and write timeout in seconds. default is 900 sec.
-                                                 #,"--timeout"                     # General network timeout in seconds. Same as all together: connect-timeout, dns-timeout, read-timeout
-                                                  ,"--referer=$url"                # Include Referer: url in HTTP request. (default: off)
-                                                  ,"--max-threads=1"               # Default is 5 but it hangs, so set it to 1 and it now works.
+                                                  ,"--wait=1"                           # Wait number of seconds between downloads per thread. (default: 0)
+                                                  ,"--random-wait=1"                    # Wait 0.5 up to 1.5*<--wait> seconds between downloads per thread. (default: off)
+                                                  ,"--no-host-directories"              # Create host directories when retrieving recursively. (default: on). Off: no dir $tardir\domainname
+                                                  ,"--local-encoding=UTF-8"             # required if link urls contains utf8 which must be mapped to filesystem names (note: others as ISO-8859-15, windows-1252 do not work).
+                                                  ,"--user=$us"                         # we take this as last option because following pw
+                                                  ,"--append-output=$logf"              # .
+                                                  ,"--ca-certificate=$caCert"           # WGET2 option: File with the bundle of CAs to verify the peers. Must be in PEM format. Otherwise CAs are searched at system-specified locations,
+                                                                                        #   chosen at OpenSSL installation time. Default seams to be '$env:ProgramData/ssl/ca-bundle.pem'.
+                                                                                        #   2023-12/MN: If not specified it outputs an error msg that '$env:ProgramData/ssl/ca-bundle.pem' was not found, but nevertheless it has 160 CAs.
+                                                                                        #     It also outputs an error msg if an empty string is specified.
+                                                  ,"--connect-timeout=60"               # Connect timeout in seconds. Default is none so it depends on system libraries.
+                                                  ,"--dns-timeout=60"                   # DNS lookup timeout in seconds. Default is none so it depends on system libraries.
+                                                  ,"--read-timeout=900"                 # Read and write timeout in seconds. (default: 900 sec)
+                                                  ,"--referer=$url"                     # Include Referer: url in HTTP request. (default: off)
+                                                  ,"--max-threads=1"                    # Default is 5 but it hangs, so set it to 1 and it now works.
+                                                  ,"--no-clobber"                       # Enable file clobbering. (default: on) skip downloads to existing files, either noclobber or timestamping
+                                                                                        #   If a file is downloaded more than once in the same directory, Wgets behavior depends on a few options, including --no-clobber.
+                                                                                        #   In certain cases, the local file will be clobb  ered, or overwritten, upon repeated download.
+                                                                                        #   In other cases it will be preserved.
+                                                                                        #   When running Wget without --timestamping, --no-clobber, --recursive or --page-requisites downloading the same file
+                                                                                        #   in the same directory will result in the original copy of file being preserved and the second copy being named file.1.
+                                                                                        #   If that file is downloaded yet again, the third copy will be named file.2, and so on.
+                                                                                        #   This is also the behavior with -nd, even if --recursive or --page-requisites are in effect.
+                                                                                        #   When --no-clobber is specified, this behavior is suppressed, and Wget will refuse to download newer copies of file.
+                                                                                        #   Therefore, "no-clobber" is actually a misnomer in this modeits not clobbering thats prevented (as the numeric
+                                                                                        #   suffixes were already preventing clobbering), but rather the multiple version saving thats prevented.
+                                                                                        #   When running Wget with --recursive or --page-requisites, but without --timestamping, --no-directories, or --no-clobber, re-downloading
+                                                                                        #   a file will result in the new copy simply overwriting the old. Adding --no-clobber will prevent this behavior, instead
+                                                                                        #   causing the original version to be preserved and any newer copies on the server to be ignored.
+                                                                                        #   When running Wget with --timestamping, with or without --recursive or --page-requisites, the decision as to whether
+                                                                                        #   or not to download a newer copy of a file depends on the local and remote timestamp and size of the file (see Time-Stamping).
+                                                                                        #   --no-clobber may not be specified at the same time as --timestamping.
+                                                                                        #   Note that when --no-clobber is specified, files with the suffixes .html or .htm will be loaded from the local disk
+                                                                                        #   and parsed as if they had been retrieved from the Web.
+                                                  ,"--no-span-hosts"                    # Span hosts that were not given on the command line. (default: off)
+                                                 #,"--verbose"                          # (default: on)
+                                                 #,"--debug"                            # (default: off)
+                                                 #,"--quiet"                            # (default: off)
+                                                 #,"--robots"                           # Respect robots.txt standard for recursive downloads. (default: on)
+                                                 #,"--timestamping"                     # Just retrieve younger files than the local ones. (default: off)
+                                                 #,"--convert-links"                    # Convert non-relative links locally    deactivated because:  Both --no-clobber and --convert-links were specified, only --convert-links will be used.
+                                                 #,"--force-html"                       # When input is read from a file, force it to be treated as an HTML file. This enables you to retrieve relative links from existing HTML files on your local disk, by adding <base href="url"> to HTML, or using the --base command-line option.
+                                                 #,"--input-file=$fileslist"            # File where URLs are read from, - for STDIN.
+                                                 #,"--hsts=on"                          # Use HTTP Strict Transport Security (HSTS). (default: on)
+                                                 #,"--ca-directory=directory"           # WGET2 option: Containing CA certs in PEM format. Each file contains one CA cert, file name is based on a hash value derived from the cert.
+                                                                                        #   Otherwise CA certs searched at system-specified locations, chosen at OpenSSL installation time.
+                                                 #,"--restrict-file-names=windows"      # WGET2 option: One of: unix, windows, nocontrol, ascii, lowercase, uppercase, none; Does Percent-Escaping illegal characters (on windows: "\\<>:\"|?*").
+                                                 #,"--use-server-timestamps"            # Set local file's timestamp to server's timestamp. (default: on) 2023-12/MN: seams not to work.
+                                                 #,"--force-directories"                # Create hierarchy of directories when not retrieving recursively. (default: off)
+                                                 #,"--protocol-directories"             # Force creating protocol directories. (default: off)
+                                                 #,"--timeout"                          # General network timeout in seconds. Same as all together: connect-timeout, dns-timeout, read-timeout
+                                                 #,"--execute=robots=off"               # WGET1 ONLY: We used this in wget1.
+                                                 #,"--no-remove-listing"                # WGET1 ONLY: leave .listing files for ftp (we not use this anymore because option not exists in wget2)
                                                 );
                                                 # more about logon forms: http://wget.addictivecode.org/FrequentlyAskedQuestions
                                                 # backup without file conversions: wget -mirror --page-requisites --directory-prefix=c:/wget_files/example2 ftp://username:password@ftp.yourdomain.com
