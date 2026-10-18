@@ -41,7 +41,7 @@ function UnitTest_Net(){
   #   $env:ProgramFiles\nodejs\;$env:ProgramFiles\Git\cmd;$env:ProgramFiles\Git\mingw64\bin;$env:ProgramFiles\Git\usr\bin;$env:ProgramFiles\GitHub CLI\;c:\tools\php;${env:ProgramFiles(x86)}\sbt\bin;$env:ProgramFiles\Amazon\AWSCLIV2\;
   #   $env:ProgramFiles\Amazon\SessionManagerPlugin\bin\;$env:ProgramFiles\Amazon\AWSSAMCLI\bin\;$env:ProgramFiles\Microsoft SQL Server\130\Tools\Binn\;$env:ProgramFiles\LLVM\bin;
   #   C:\Users\runneradmin\.dotnet\tools;C:\Users\runneradmin\.cargo\bin;C:\Users\runneradmin\AppData\Local\Microsoft\WindowsApps"
-  OutProgress "Call curl native"         ; & (ProcessGetApplInEnvPath "curl") "--show-error" "--fail" "--output" $tmp "--silent" "--create-dirs" "--connect-timeout" "70" "--retry" "2" "--retry-delay" "5" "--tlsv1.2" "--remote-time" "--location" "--max-redirs" "50" "--stderr" "-" "--user-agent" "Test" "--url" $url; AssertRcIsOk;
+  OutProgress "Call curl native"         ; & (ProcessFindExecutableInPath "curl") "--show-error" "--fail" "--output" $tmp "--silent" "--create-dirs" "--connect-timeout" "70" "--retry" "2" "--retry-delay" "5" "--tlsv1.2" "--remote-time" "--location" "--max-redirs" "50" "--stderr" "-" "--user-agent" "Test" "--url" $url; AssertRcIsOk;
   FileDelete $tmp;
 }
 UnitTest_Net;

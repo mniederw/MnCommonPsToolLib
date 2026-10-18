@@ -10,8 +10,9 @@
 #   for supporting compatibility between multi platforms Win/Linux/OSX and between PS7 and PS5!
 #   It also supports fixing usual problems, supports tracing information and it makes the
 #   behaviour compatible for use with powershell.exe and powershell_ise.exe.
-#   It is splitted in a mulitplatform compatible part for Win/Linux/OSX and a part which runs only on Windows.
-#   Some functions depends on tools where its executables as curl, git, svn, etc. are available via environment path variable.
+#   It is splitted in a multiplatform compatible part for Win/Linux/OSX and a part which runs only on Windows.
+#   Some functions depends on low level tools as curl, git, svn, wget2, and 7z,
+#   for which its executables are required to be available via environment path variable.
 #
 # Recommendations and notes about common approaches of this library:
 # - Unit-Tests: Many functions are included and they are run either
@@ -407,13 +408,13 @@ function StringFromErrorRecord                ( [System.Management.Automation.Er
                                                 # if the exception is a ExcMsg then by definition the message contains all error info and so we should not output the stacktrace.
                                                 [String] $nl = [Environment]::NewLine;
                                                 if( $exc.GetType().Name -ne "ExcMsg" ){
-                                                  $msg += "$nl  ScriptStackTrace: $nl    "+$er.ScriptStackTrace.Replace("$nl","$nl    "); # Example: at <ScriptBlock>, C:\myfile.psm1: line 800 at MyFunc
-                                                  $msg += "$nl  InvocationInfo:$nl    "+$er.InvocationInfo.PositionMessage.Replace("$nl","$nl    "); # At D:\myfile.psm1:800 char:83 \n   + ...   +   ~~~
+                                                  $msg += "$nl  ScriptStackTrace: $nl    "+$er.ScriptStackTrace.Replace("$nl","$nl    "); # Example: at <ScriptBlock>, C:/myfile.psm1: line 800 at MyFunc
+                                                  $msg += "$nl  InvocationInfo:$nl    "+$er.InvocationInfo.PositionMessage.Replace("$nl","$nl    "); # At D:/myfile.psm1:800 char:83 \n   + ...   +   ~~~
                                                   # $msg += "$nl  InvocationInfoLine: "+($er.InvocationInfo.Line.Replace("$nl"," ") -replace "\s+"," ");
                                                   # $msg += "$nl  InvocationInfoMyCommand: $($er.InvocationInfo.MyCommand)"; # Example: ForEach-Object
                                                   # $msg += "$nl  InvocationInfoInvocationName: $($er.InvocationInfo.InvocationName)"; # Example: ForEach-Object
-                                                  # $msg += "$nl  InvocationInfoPSScriptRoot: $($er.InvocationInfo.PSScriptRoot)"; # Example: D:\MyModuleDir
-                                                  # $msg += "$nl  InvocationInfoPSCommandPath: $($er.InvocationInfo.PSCommandPath)"; # Example: D:\MyToolModule.psm1
+                                                  # $msg += "$nl  InvocationInfoPSScriptRoot: $($er.InvocationInfo.PSScriptRoot)"; # Example: D:/MyModuleDir
+                                                  # $msg += "$nl  InvocationInfoPSCommandPath: $($er.InvocationInfo.PSCommandPath)"; # Example: D:/MyToolModule.psm1
                                                   # $msg += "$nl  FullyQualifiedErrorId: $($er.FullyQualifiedErrorId)"; # Example: "System.ArgumentOutOfRangeException,Microsoft.PowerShell.Commands.ForEachObjectCommand"
                                                   # $msg += "$nl  ErrorRecord: "+$er.ToString().Replace("$nl"," "); # Example: "Specified argument was out of the range of valid values. Parametername: times"
                                                   # $msg += "$nl  CategoryInfo: $(switch($null -ne $er.CategoryInfo){($true){$er.CategoryInfo.ToString()}default{''}})"; # https://msdn.microsoft.com/en-us/library/system.management.automation.errorcategory(v=vs.85).aspx
@@ -728,7 +729,7 @@ function ScriptNrOfScopes                     (){ [Int32] $i = 1; while($true){
                                                 try{ Get-Variable null -Scope $i -ValueOnly -ErrorAction SilentlyContinue | Out-Null; $i++;
                                                 }catch{ # exc: System.Management.Automation.PSArgumentOutOfRangeException
                                                   Write-Verbose "Ignore exc on Get-VariableNrOfScopes."; $error.clear(); return [Int32] ($i-1); } } }
-function ScriptGetProcessCommandLine          (){ return [String] ([Environment]::commandline); } # Example: "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" "& \"C:\myscript.ps1\"";  or  "$env:ProgramFiles\PowerShell\7\pwsh.dll" -nologo
+function ScriptGetProcessCommandLine          (){ return [String] ([Environment]::commandline); } # Example: "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe" "& \"C:/myscript.ps1\"";  or  "$env:ProgramFiles/PowerShell/7/pwsh.dll" -nologo
 function ScriptGetDirOfLibModule              (){ return [String] $PSScriptRoot ; } # Get dir       of this script file of this function or empty if not from a script; alternative: (Split-Path -Parent -Path ($script:MyInvocation.MyCommand.Path))
 function ScriptGetFileOfLibModule             (){ return [String] $PSCommandPath; } # Get full path of this script file of this function or empty if not from a script. alternative1: try{ return [String] (Get-Variable MyInvocation -Scope 1 -ValueOnly).MyCommand.Path; }catch{ $error.clear(); return [String] ""; }  alternative2: $script:MyInvocation.MyCommand.Path
 function ScriptGetCallerOfLibModule           (){ return [String] $MyInvocation.PSCommandPath; } # Result can be empty or implicit module if called interactive. alternative for dir: $MyInvocation.PSScriptRoot.
@@ -824,15 +825,15 @@ function OsEnvUser                            (){ return [String] $(switch(OsIsW
 function OsPathSeparator                      (){ return [String] $(switch(OsIsWindows){$true{";"}default{":"}}); } # separator for PATH environment variable
 function OsPsModulePathList                   (){ # return content of $env:PSModulePath as string-array with os dependent dir separators.
                                                 # Usual entries: On Windows, PS5/PS7, scope MACHINE:
-                                                #   $env:SystemRoot\system32\WindowsPowerShell\v1.0\Modules\   (strongly recommended as long as ps7 not contains all of ps5)
-                                                #   $env:ProgramFiles\WindowsPowerShell\Modules\
-                                                #   D:\MyDevelopDir\mniederw\MnCommonPsToolLib#trunk\
+                                                #   $env:SystemRoot/system32/WindowsPowerShell/v1.0/Modules/   (strongly recommended as long as ps7 not contains all of ps5)
+                                                #   $env:ProgramFiles/WindowsPowerShell/Modules/
+                                                #   D:/MyDevelopDir/mniederw/MnCommonPsToolLib#trunk/
                                                 # Usual additonal entries: On Windows PS5, scope PROCESS:
-                                                #   $HOME\Documents\WindowsPowerShell\Modules\
+                                                #   $HOME/Documents/WindowsPowerShell/Modules/
                                                 # Usual additonal entries: On Windows PS7, scope PROCESS:
-                                                #   $HOME\Documents\PowerShell\Modules\
-                                                #   $env:ProgramFiles\PowerShell\Modules\
-                                                #   $env:ProgramFiles\powershell\7\Modules\
+                                                #   $HOME/Documents/PowerShell/Modules/
+                                                #   $env:ProgramFiles/PowerShell/Modules/
+                                                #   $env:ProgramFiles/powershell/7/Modules/
                                                 # Note: If a single dir-separator is part of the PSModulePath then autocompletion is very slow (2017-08).
                                                 return [String[]] (@()+(([Environment]::GetEnvironmentVariable("PSModulePath","Machine").
                                                   Split((OsPathSeparator),[System.StringSplitOptions]::RemoveEmptyEntries)) | Where-Object{$null -ne $_} |
@@ -886,7 +887,7 @@ function ProcessIsRunningInElevatedAdminMode  (){ if( OsIsWindows ){ return [Boo
 function ProcessAssertInElevatedAdminMode     (){ Assert (ProcessIsRunningInElevatedAdminMode) "requires to be in elevated admin mode"; }
 function ProcessRestartInElevatedAdminMode    ( [String] $reason = "" ){
                                                 if( ProcessIsRunningInElevatedAdminMode ){ return; }
-                                                # Example: "C:\myscr.ps1" or if interactive then statement name example "ProcessRestartInElevatedAdminMode"
+                                                # Example: "C:/myscr.ps1" or if interactive then statement name example "ProcessRestartInElevatedAdminMode"
                                                 [String] $cmd = @( (ScriptGetTopCaller) ) + $global:ArgsForRestartInElevatedAdminMode;
                                                 if( $global:ModeDisallowInteractions ){
                                                   [String] $msg = "Script `"$cmd`" is currently not in elevated admin mode and function ProcessRestartInElevatedAdminMode was called ";
@@ -914,12 +915,13 @@ function ProcessRestartInElevatedAdminMode    ( [String] $reason = "" ){
                                                   throw [Exception] "Exit done, but it did not work, so it throws now an exception.";
                                                 } }
 function ProcessFindExecutableInPath          ( [String] $exec ){
-                                                # Return full path or empty if not found. Note:
-                                                # if an alias with the same name is defined then it Get-Command returns the alias.
+                                                # Return full path or empty if not found. Extensions as .exe are optional.
+                                                # Note: if an alias with the same name is defined then Get-Command returns the alias.
+                                                # Finds any command type, including aliases, functions, cmdlets, scripts, and external programs.
                                                 if( $exec -eq "" ){ return [String] ""; }
                                                 [Object] $p = (Get-Command $exec -ErrorAction SilentlyContinue);
                                                 if( $null -eq $p ){ return [String] ""; } return [String] $p.Source; }
-function ProcessGetApplInEnvPath              ( [String] $commandNameOptionalWithExtension, [String] $downloadHintMsg = ""){
+function ProcessGetApplInEnvPath              ( [String] $commandNameOptionalWithExtension, [String] $downloadHintMsg = ""){ # Finds only external programs without aliases, functions, cmdlets, scripts.
                                                 [System.Management.Automation.CommandInfo] $cmd =
                                                   Get-Command -CommandType Application -Name $commandNameOptionalWithExtension -ErrorAction SilentlyContinue | Select-Object -First 1;
                                                 if( $null -ne $cmd ){ return [String] $cmd.Source; }
@@ -1162,7 +1164,7 @@ function ProcessRefreshEnvVars                ( [Boolean] $traceCmd = $true ){ #
                                                   }
                                                 };
                                                 # Note: Powershell preceeds the PSModulePath env var on Windows of process scope with
-                                                #   "$HOME\Documents\PowerShell\Modules;$env:ProgramFiles\PowerShell\Modules;$env:ProgramFiles\powershell\7\Modules;"
+                                                #   "$HOME/Documents/PowerShell/Modules;$env:ProgramFiles/PowerShell/Modules;$env:ProgramFiles/powershell/7/Modules;"
                                                 #   and so we only check for new parts of user and machine scope and do not touch current order of process scope but append new ones.
                                                 [String[]] $p = @()+(ProcessPathVarStringToUnifiedArray $envVarProc["PSModulePath"]);
                                                 [String[]] $mAndU = @()+(ProcessPathVarStringToUnifiedArray ($envVarMach["PSModulePath"] + $sep + $envVarUser["PSModulePath"]));
@@ -1271,8 +1273,8 @@ function FsEntryRelativeMakeTrailingDirSep    ( [String] $fsEntry ){ # if fsEntr
                                                 return [String] ($fsEntry + $(switch($fsEntry -ne "" -and -not (FsEntryHasTrailingDirSep $fsEntry)){($true){(DirSep)}($false){""}})); }
 function FsEntryMakeTrailingDirSep            ( [String] $fsEntry ){ return [String] (FsEntryGetAbsolutePath (FsEntryRelativeMakeTrailingDirSep $fsEntry)); }
 function FsEntryJoinRelativePatterns          ( [String] $rootDir, [String[]] $relativeFsEntriesPatternsSemicolonSeparated ){
-                                                # Create an array Example: @( "c:\myroot\bin\", "c:\myroot\obj\", "c:\myroot\*.tmp", ... )
-                                                #   from input as @( "bin\;obj\;", ";*.tmp;*.suo", ".\dir\d1?\", ".\dir\file*.txt");
+                                                # Create an array Example: @( "c:/myroot/bin/", "c:/myroot/obj/", "c:/myroot/*.tmp", ... )
+                                                #   from input as @( "bin/;obj/;", ";*.tmp;*.suo", "./dir/d1?/", "./dir/file*.txt");
                                                 # If an fs entry specifies a dir patterns then it must be specified by a trailing directory delimiter.
                                                 [String[]] $a = @(); $relativeFsEntriesPatternsSemicolonSeparated | Where-Object{$null -ne $_} |
                                                   ForEach-Object{ $a += (StringSplitToArray ";" $_); };
@@ -1312,16 +1314,16 @@ function FsEntrySort                          { # Sorts a list of file system en
                                                     };
                                                     ,$key.ToArray();
                                                   })); } }
-function FsEntryGetFileNameWithoutExt         ( [String] $fsEntry ){
+function FsEntryGetFileNameWithoutExt         ( [String] $fsEntry ){ # Example: "MyFileName"
                                                 return [String] [System.IO.Path]::GetFileNameWithoutExtension((FsEntryRemoveTrailingDirSep $fsEntry)); }
-function FsEntryGetFileName                   ( [String] $fsEntry ){
+function FsEntryGetFileName                   ( [String] $fsEntry ){ # Example: "MyFileName.txt"
                                                 return [String] [System.IO.Path]::GetFileName((FsEntryRemoveTrailingDirSep $fsEntry)); }
-function FsEntryGetFileExtension              ( [String] $fsEntry ){
+function FsEntryGetFileExtension              ( [String] $fsEntry ){ # Example: ".txt"
                                                 return [String] [System.IO.Path]::GetExtension((FsEntryRemoveTrailingDirSep $fsEntry)); }
 function FsEntryGetDrive                      ( [String] $fsEntry ){ # Example: "C:"
                                                 return [String] (Split-Path -Qualifier (FsEntryGetAbsolutePath $fsEntry)); }
 function FsEntryIsDir                         ( [String] $fsEntry ){ return [Boolean] (Get-Item -Force -LiteralPath $fsEntry).PSIsContainer; } # empty string not allowed
-function FsEntryGetParentDir                  ( [String] $fsEntry ){ # Returned path contains trailing dir-separator; for c:\ or \\mach\share it returns empty string;
+function FsEntryGetParentDir                  ( [String] $fsEntry ){ # Returned path contains trailing dir-separator; for c:/ or //mach/share it returns empty string;
                                                 return [String] (FsEntryMakeTrailingDirSep (Split-Path -LiteralPath (FsEntryGetAbsolutePath $fsEntry))); }
 function FsEntryExists                        ( [String] $fsEntry ){ return [Boolean] (Test-Path -LiteralPath $fsEntry); }
 function FsEntryNotExists                     ( [String] $fsEntry ){
@@ -1385,19 +1387,19 @@ function FsEntryListAsFileSystemInfo          ( [String] $dirAndFsEntryPattern, 
                                                 OutVerbose "FsEntryListAsFileSystemInfo `"$dirAndFsEntryPattern`" recursive=$recursive includeDirs=$includeDirs includeFiles=$includeFiles ";
                                                 # Trailing dir-separators for Get-ChildItem:  Are handled in powershell quite curious:
                                                 #   In non-recursive mode they are handled as they are not present, so files
-                                                #     are also wrongly matched (Get-ChildItem -Directory "C:\Window*\explorer.exe\";).
+                                                #     are also wrongly matched (Get-ChildItem -Directory "C:/Window*/explorer.exe/";).
                                                 #   In recursive mode they wrongly match only files and not directories and so dir parts cannot be found for unknown reasons
-                                                #     (DIR "$env:SystemRoot\Boot\EFI\en-U*\"; Get-ChildItem -Recurse -Directory "$env:SystemRoot\Boot\EFI\en-U*\";) or
-                                                #     (DIR "$env:SystemRoot\Boot\*\en-U*\"; Get-ChildItem -Recurse -Directory "$env:SystemRoot\Boot\*\en-U*\";).
+                                                #     (DIR "$env:SystemRoot/Boot/EFI/en-U*/"; Get-ChildItem -Recurse -Directory "$env:SystemRoot/Boot/EFI/en-U*/";) or
+                                                #     (DIR "$env:SystemRoot/Boot/*/en-U*/"; Get-ChildItem -Recurse -Directory "$env:SystemRoot/Boot/*/en-U*/";).
                                                 #   On Windows very strange is that (CD "$env:SystemRoot"; CD "C:"; Get-Item "C:";)
                                                 #     does not list "C:/" but it lists unexpectedly the current directory of that drive.
                                                 #     The (Get-Item "C:/*"; Get-Item "C:/*/"; ) works as expected correctly.
                                                 # To fix this behaviour we interpret a trailing dir-separator as it would not be present with the exception that:
                                                 # - If pattern is a drive as "C:" or "C:/" then it is converted to "C:/*" to avoid the unexpected listing of current dir of that drive (IsPathRooted).
                                                 #   More see https://learn.microsoft.com/en-us/dotnet/api/system.io.path.ispathrooted?view=net-10.0
-                                                [String] $pa = FsEntryRemoveTrailingDirSep $dirAndFsEntryPattern; # example: pa="C:\mydir"
+                                                [String] $pa = FsEntryRemoveTrailingDirSep $dirAndFsEntryPattern; # example: pa="C:/mydir"
                                                 if( $pa -match "^[a-z]\:[\/\\]?$" ){ $pa = "$($pa[0]):$(DirSep)*"; } # from "C:" or "C:\" make "C:\*"
-                                                # 2025-12 Severe performance problems for example when having in C:\Windows\ 670'000 fs-entries:
+                                                # 2025-12 Severe performance problems for example when having in "$env:SystemRoot/" 670'000 fs-entries:
                                                 #   Get-ChildItem -Recurse "$env:SystemRoot/explorer.exe"                                       ; # on PS5.1 it requires 30sec; on PS7.5.4 it never ends, so this must be improved;
                                                 #   Get-ChildItem -Recurse "$env:SystemRoot/"                                                   ; # on PS5.1 it requires 30sec; on PS7.5.4 it requires 50sec;
                                                 #   Get-ChildItem -Recurse "$env:SystemRoot/*" |Where-Object{$_.FullName -like "*/explorer.exe"}; # on PS5.1 it requires 30sec; on PS7.5.4 it requires 30sec;
@@ -1488,7 +1490,7 @@ function FsEntryCopyByPatternByOverwrite      ( [String] $dirAndFsEntryPattern, 
                                                 if( -not $? ){
                                                   [String] $trace = "CopyFiles `"$dirAndFsEntryPattern`" to `"$targetDir`" failed.";
                                                   if( -not $continueOnErr ){ throw [Exception] "$trace"; } else{ OutWarning "Warning: $trace, will continue."; } } }
-function FsEntryFindNotExistingVersionedName  ( [String] $fsEntry, [String] $ext = ".bck", [Int32] $maxNr = 9999 ){ # Example return: "C:\Dir\MyName.001.bck"
+function FsEntryFindNotExistingVersionedName  ( [String] $fsEntry, [String] $ext = ".bck", [Int32] $maxNr = 9999 ){ # Example return: "C:/Dir/MyName.001.bck"
                                                 $fsEntry = FsEntryRemoveTrailingDirSep $fsEntry;
                                                 if( $fsEntry.Length -gt (260-4-$ext.Length) ){
                                                   throw [Exception] "$(ScriptGetCurrentFunc)($fsEntry,$ext) not available because fullpath longer than 260-4-extLength"; }
@@ -1647,7 +1649,7 @@ function DirAssertExists                      ( [String] $dir, [String] $text = 
 function DirCreate                            ( [String] $dir ){ # create dir if it not yet exists; we do not call OutProgress because is not an important change.
                                                 FsEntryAssertHasTrailingDirSep $dir;
                                                 New-Item -type directory -Force (FsEntryEsc $dir) | Out-Null; }
-function DirGetTemp                           (){ # Examples on Win, Linux, MacOS: "$HOME\AppData\Local\Temp", "/tmp/", "/var/folders/xy/a_b_cd_efghijklmnopqrstuvwxyz2/T/"
+function DirGetTemp                           (){ # Examples on Win, Linux, MacOS: "$HOME/AppData/Local/Temp", "/tmp/", "/var/folders/xy/a_b_cd_efghijklmnopqrstuvwxyz2/T/"
                                                 #   Note: TEMP env var is usually empty on Linux and MacOS, alternative would be to take: "$env:TEMP/tmp/"
                                                 return [String] (FsEntryGetAbsolutePath "$([System.IO.Path]::GetTempPath())/"); }
 function DirCreateTemp                        ( [String] $prefix = "" ){ while($true){
@@ -1753,7 +1755,7 @@ function FileAppendLine                       ( [String] $file, [String] $line, 
                                                 $line2 | StreamToFile $file $false $encoding $true; }
 function FileAppendLines                      ( [String] $file, [String[]] $lines, [String] $encoding = "UTF8BOM" ){ # Appends on each line an OS dependent nl.
                                                 $lines | StreamToFile $file $false $encoding $true; }
-function FileGetTempFile                      (){ return [String] [System.IO.Path]::GetTempFileName(); } # Example on linux: "/tmp/tmpFN3Gnz.tmp"; on windows: $env:SystemRoot\Temp\tmpE3B6.tmp
+function FileGetTempFile                      (){ return [String] [System.IO.Path]::GetTempFileName(); } # Example on linux: "/tmp/tmpFN3Gnz.tmp"; on windows: $env:SystemRoot/Temp/tmpE3B6.tmp
 function FileDelTempFile                      ( [String] $file ){ FileDelete $file -traceCmd:$false; } # As FileDelete but no progress msg.
 function FileReadEncoding                     ( [String] $file, [String] $textForNoBom = "Default" ){
                                                 # Read BOM = Byte order mark. Note: There exists no BOM for ANSI! Works also if file size is lesser than 4 bytes.
@@ -1888,7 +1890,7 @@ function FileDelete                           ( [String] $file, [Boolean] $ignor
                                                   }catch [System.UnauthorizedAccessException] { # Example: Access to the path '$HOME/Desktop/desktop.ini' is denied.
                                                     if( -not $ignoreAccessDenied ){ throw; }
                                                     OutWarning "Warning: Ignoring UnauthorizedAccessException for Remove-Item -Force:`$$ignoreReadonly -LiteralPath `"$file`""; return;
-                                                  }catch{ # exc: IOException: The process cannot access the file '$HOME\myprog.lnk' because it is being used by another process.
+                                                  }catch{ # exc: IOException: The process cannot access the file '$HOME/myprog.lnk' because it is being used by another process.
                                                     [Boolean] $isUsedByAnotherProc = $_.Exception -is [System.IO.IOException] -and
                                                       $_.Exception.Message.Contains("The process cannot access the file ") -and
                                                       $_.Exception.Message.Contains(" because it is being used by another process."); $error.clear();
@@ -1962,7 +1964,7 @@ function PsDriveCreate                        ( [String] $drive, [String] $mount
                                                   # exc: System.ComponentModel.Win32Exception (0x80004005): Der lokale Gerätename wird bereits verwendet
                                                   # exc: System.Exception: Mehrfache Verbindungen zu einem Server oder einer freigegebenen Ressource von demselben Benutzer unter Verwendung mehrerer Benutzernamen sind nicht zulässig.
                                                   #      Trennen Sie alle früheren Verbindungen zu dem Server bzw. der freigegebenen Ressource, und versuchen Sie es erneut
-                                                  # exc: System.Exception: New-PSDrive(Z,\\mycomp\Transfer,) failed because Das angegebene Netzwerkkennwort ist falsch
+                                                  # exc: System.Exception: New-PSDrive(Z,//mycomp/Transfer,) failed because Das angegebene Netzwerkkennwort ist falsch
                                                   throw [Exception] "New-PSDrive($drive,$mountPoint,$us) failed because $($_.Exception.Message)";
                                                 } }
 function CredentialStandardizeUserWithDomain  ( [String] $username ){
@@ -2015,7 +2017,7 @@ function CredentialGetAndStoreIfNotExists     ( [String] $secureCXredentialFile,
                                                 # If file exists and non-empty-user matches then it takes credentials from it.
                                                 # If file not exists or non-empty-user not matches then it is written by given credentials.
                                                 # For access description enter a message hint which is added to request for user as "login host xy", "mountpoint xy", etc.
-                                                # For secure credential file usually use: "$env:LOCALAPPDATA\MyNameOrCompany\MyOperation.secureCredentials.txt";
+                                                # For secure credential file usually use: "$env:LOCALAPPDATA/MyNameOrCompany/MyOperation.secureCredentials.txt";
                                                 AssertNotEmpty $secureCXredentialFile "secureCXredentialFile";
                                                 [System.Management.Automation.PSCredential] $cred = $null;
                                                 if( FileExists $secureCXredentialFile ){
@@ -2420,7 +2422,7 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                 if( $us -ne "" ){ $opt += @( "--user", "$($us):$pw" ); }
                                                 if( $ignoreSslCheck ){ $opt += "--insecure"; }
                                                 if( $onlyIfNewer -and (FileExists $tarFile) ){ $opt += @( "--time-cond", $tarFile); }
-                                                [String] $curlExe = ProcessGetApplInEnvPath "curl" "Please download it from http://curl.haxx.se/download.html and install it and add dir to path env var.";
+                                                [String] $curlExe = ProcessFindExecutableInPath "curl" "Please download it from http://curl.haxx.se/download.html and install it and add dir to path env var.";
                                                 [String] $curlCaCert = Join-Path (FsEntryGetParentDir $curlExe) "curl-ca-bundle.crt";
                                                 # 2021-10: Because windows has its own curl executable in windows-system32 folder and it does not care the search rule
                                                 #   for the curl-ca-bundle.crt file as it is descripted in https://curl.se/docs/sslcerts.html
@@ -2496,7 +2498,7 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                 OutProgress "  (only newer files) to `"$tarDir`"";
                                                 OutProgress "  Logfile: `"$logf`"";
                                                 [String[]] $opt = @(
-                                                   "--directory-prefix=."         # Note: On wget1 we could specify $tarDir but on wget2 we would have to replace all '\' to '/' and the "D:\" is replaced to "D%3A". So we need to set current dir.
+                                                   "--directory-prefix=."         # Note: On wget1 we could specify $tarDir but on wget2 we would have to replace all '\' to '/' and the "D:/" is replaced to "D%3A". So we need to set current dir.
                                                   ,$(switch($alsoRetrieveToParentOfUrl){ ($true){""} default{"--parent=off"}})  # Ascend above parent directory. (default: on)
                                                  #,"--verbose=off"                # default is on
                                                  #,"--debug=on"                   # default is off
@@ -2564,17 +2566,19 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                   ,"--max-threads=1"               # Default is 5 but it hangs, so set it to 1 and it now works.
                                                 );
                                                 # more about logon forms: http://wget.addictivecode.org/FrequentlyAskedQuestions
-                                                # backup without file conversions: wget -mirror --page-requisites --directory-prefix=c:\wget_files\example2 ftp://username:password@ftp.yourdomain.com
-                                                # download:                        wget                           --directory-prefix=c:\wget_files\example3 http://ftp.gnu.org/gnu/wget/wget-1.9.tar.gz
-                                                # download resume:                 wget --continue                --directory-prefix=c:\wget_files\example3 http://ftp.gnu.org/gnu/wget/wget-1.9.tar.gz
+                                                # backup without file conversions: wget -mirror --page-requisites --directory-prefix=c:/wget_files/example2 ftp://username:password@ftp.yourdomain.com
+                                                # download:                        wget                           --directory-prefix=c:/wget_files/example3 http://ftp.gnu.org/gnu/wget/wget-1.9.tar.gz
+                                                # download resume:                 wget --continue                --directory-prefix=c:/wget_files/example3 http://ftp.gnu.org/gnu/wget/wget-1.9.tar.gz
                                                 # maybe we should also: $url/sitemap.xml
                                                 DirCreate $tarDir;
                                                 Push-Location $tarDir;
                                                 [String] $stateBefore = FsEntryReportMeasureInfo $tarDir;
                                                 # alternative would be for wget: Invoke-WebRequest
-                                                [String] $wgetExe  = ProcessGetApplInEnvPath     "wget" ; # Example: D:\Work\PortableProg\Tool\...
-                                                [String] $wgetExe2 = ProcessFindExecutableInPath "wget2"; # Example: D:\Work\PortableProg\Tool\...
-                                                if( $wgetExe2 -ne "" ){ $wgetExe = $wgetExe2; }
+                                                [String] $wgetExe = ProcessFindExecutableInPath "wget2"; # Example: "C:/Program Files/WinGet/Links/wget2.exe"
+                                                if( $wgetExe -ne "" ){
+                                                  $wgetExe  = ProcessFindExecutableInPath "wget" ; # Example: "" (should not be installed anymore)
+                                                  if( $wgetExe -eq "" ){ throw [Exception] "NetDownloadSite($url) failed because cannot find wget2 (or alternative wget) program in path environment variable, make sure installed. "; }
+                                                }
                                                 FileAppendLineWithTs $logf "Push-Location `"$tarDir`"; & `"$wgetExe`" `"$url`" $opt --password=*** ; Pop-Location; ";
                                                 #FileAppendLineWithTs $logf "  Note: Ignore the error messages: Failed to parse URI ''; No CAs were found in ''; Cannot resolve URI 'mailto:...'; Nothing to do - goodbye; ";
                                                 OutProgress              "  Push-Location `"$tarDir`"; & `"$wgetExe`" `"$url`" $opt --password=*** ";
@@ -2624,8 +2628,8 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
 function GitBuildLocalDirFromUrl              ( [String] $tarRootDir, [String] $urlAndOptionalBranch ){
                                                 # Maps a root dir and a repo url with an optional sharp-char separated branch name
                                                 # to a target repo dir which contains all url fragments below the hostname.
-                                                # Example: (GitBuildLocalDirFromUrl "C:\WorkGit\" "https://github.com/mniederw/MnCommonPsToolLib")          == "C:\WorkGit\mniederw\MnCommonPsToolLib\";
-                                                # Example: (GitBuildLocalDirFromUrl "C:\WorkGit\" "https://github.com/mniederw/MnCommonPsToolLib#MyBranch") == "C:\WorkGit\mniederw\MnCommonPsToolLib#MyBranch\";
+                                                # Example: (GitBuildLocalDirFromUrl "C:/WorkGit/" "https://github.com/mniederw/MnCommonPsToolLib")          == "C:/WorkGit/mniederw/MnCommonPsToolLib/";
+                                                # Example: (GitBuildLocalDirFromUrl "C:/WorkGit/" "https://github.com/mniederw/MnCommonPsToolLib#MyBranch") == "C:/WorkGit/mniederw/MnCommonPsToolLib#MyBranch/";
                                                 AssertNotEmpty $tarRootDir "tarRootDir";
                                                 FsEntryAssertHasTrailingDirSep $tarRootDir;
                                                 return [String] (FsEntryMakeTrailingDirSep (Join-Path $tarRootDir (([System.Uri]$urlAndOptionalBranch).AbsolutePath+([System.Uri]$urlAndOptionalBranch).Fragment))); }
@@ -2718,8 +2722,8 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                 # If the branch name is specified with that form then it is also asserted that it matches current branch.
                                                 # We assert that no AutoCrLf git attribute option is used.
                                                 # Pull-No-Rebase: We generally use no-rebase for pull because commit history should not be modified.
-                                                # Example: GitCmd Clone "C:\WorkGit" "https://github.com/mniederw/MnCommonPsToolLib"
-                                                # Example: GitCmd Clone "C:\WorkGit" "https://github.com/mniederw/MnCommonPsToolLib#MyBranch"
+                                                # Example: GitCmd Clone "C:/WorkGit" "https://github.com/mniederw/MnCommonPsToolLib"
+                                                # Example: GitCmd Clone "C:/WorkGit" "https://github.com/mniederw/MnCommonPsToolLib#MyBranch"
                                                 AssertNotEmpty $tarRootDir "tarRootDir";
                                                 FsEntryAssertHasTrailingDirSep $tarRootDir;
                                                 $tarRootDir = FsEntryGetAbsolutePath $tarRootDir;
@@ -2904,7 +2908,7 @@ function GitListCommitComments                ( [String] $tarDir, [String] $loca
                                                 # - Log.NameOfRepoParent.NameOfRepo.CommittedChangedFiles.tmp
                                                 # It is quite slow about 10 sec per repo, so it can be controlled by $doOnlyIfOlderThanAgeInDays.
                                                 # In case of a git error it outputs it as warning.
-                                                # Example: GitListCommitComments "C:\WorkGit\_CommitComments" "C:\WorkGit\mniederw\MnCommonPsToolLib"
+                                                # Example: GitListCommitComments "C:/WorkGit/_CommitComments" "C:/WorkGit/mniederw/MnCommonPsToolLib"
                                                 $tarDir       = FsEntryGetAbsolutePath $tarDir;
                                                 $localRepoDir = FsEntryGetAbsolutePath $localRepoDir;
                                                 FsEntryAssertHasTrailingDirSep $tarDir;
@@ -2964,7 +2968,7 @@ function GitAssertAutoCrLfIsDisabled          (){
                                                 #   this option also not exists and for the git command the default value of this mode is false.
                                                 # On Windows: The bad thing is that https://git-scm.com (for example in V2.43 from 2023-11-20, possibly still in 2025-12)
                                                 #   does create the file
-                                                #   C:\Install-dir-of-Git\etc\gitconfig with the entry "autocrlf = true" and so this is the default
+                                                #   C:/Install-dir-of-Git/etc/gitconfig with the entry "autocrlf = true" and so this is the default
                                                 #   for the system settings, which is not the same as on linux!
                                                 #   Probably this was done because in earlier days there were some windows text editors,
                                                 #   which did automatically silently replace all LF line endings by CRLF.
@@ -3141,7 +3145,7 @@ function GitInitGlobalConfig                  (){ # if git is installed the init
 function GithubAuthStatus                     (){ # Example Output:
                                                 #   "gh" "auth" "status"
                                                 #    github.com
-                                                #    ✓ Logged in to github.com account mniederw ($HOME\AppData\Roaming\GitHub CLI\hosts.yml)
+                                                #    ✓ Logged in to github.com account mniederw ($HOME/AppData/Roaming/GitHub CLI/hosts.yml)
                                                 #    - Active account: true
                                                 #    - Git operations protocol: https
                                                 #    - Token: gho_************************************
@@ -3289,8 +3293,8 @@ function ToolAddLineToConfigFile              ( [String] $file, [String] $line, 
                                                   FileAppendLines $file $line; OutProgress "FileAppendLines `"$file`" ";
                                                 } }
 function ToolFindOppositeProfileFromPs5orPs7  (){ # If we are running PS5 then find profile of PS7 and vice versa. Used for syncing operations between environments.
-                                                # Origin profile on PS5: $HOME\Documents\PowerShell\Microsoft.PowerShell_profile.ps1
-                                                # Origin profile on PS7: $HOME\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1
+                                                # Origin profile on PS5: $HOME/Documents/PowerShell/Microsoft.PowerShell_profile.ps1
+                                                # Origin profile on PS7: $HOME/Documents/WindowsPowerShell/Microsoft.PowerShell_profile.ps1
                                                 # Other profiles as from ($PROFILE | select *) are generally not existing.
                                                 if( $PSVersionTable.PSVersion.Major -le 5 ){
                                                       return [String] $(switch((ProcessFindExecutableInPath "pwsh"          ) -ne ""){($true){& pwsh           -NoLogo -NoProfile -NonInteractive -NoProfileLoadTime -Command {Write-Output $PROFILE;}}($false){""}}); }
@@ -3347,7 +3351,7 @@ function ToolCreate7zip                       ( [String] $srcDirOrFile, [String]
                                                 [String] $recursiveOption = "";
                                                 if( FsEntryHasTrailingDirSep $srcDirOrFile ){ DirAssertExists $srcDirOrFile; $recursiveOption = "-r"; $src = FsEntryGetAbsolutePath "$srcDirOrFile/*";
                                                 }else{ FileAssertExists $srcDirOrFile; $recursiveOption = "-r-"; $src = $srcDirOrFile; }
-                                                [String] $Prog7ZipExe = ProcessGetApplInEnvPath "7z"; # Example: "$env:ProgramFiles/7-Zip/7z.exe"
+                                                [String] $Prog7ZipExe = ProcessFindExecutableInPath "7z"; # Example: "$env:ProgramFiles/7-Zip/7z.exe"
                                                 # Options: -t7z : use 7zip format; -mmt=4 : try use nr of threads; -w : use temp dir; -r : recursively; -r- : not-recursively;
                                                 [String[]] $arguments = @( "-t$ext", "-mx9", "-mmt4", "-w", $recursiveOption, "a", "$tar7zipFile", $src );
                                                 OutProgress "`"$Prog7ZipExe`" $(StringArrayDblQuoteItems $arguments) ";
@@ -3464,9 +3468,9 @@ function ToolEvalExecForWindsurf              ( [Boolean] $returnEmptyIfNotFound
                                                   # }
                                                 }elseif( $result -eq "" -and (OsIsWindows) ){
                                                   $result = FileFindFirstExisting @(
-                                                     "$env:LOCALAPPDATA\Programs\Windsurf\bin\windsurf.cmd" # user
-                                                    ,"$env:ProgramFiles\Windsurf\bin\windsurf.cmd"          # system
-                                                    ,"${env:ProgramFiles(x86)}\Windsurf\bin\windsurf.cmd"   # system 32bit
+                                                     "$env:LOCALAPPDATA/Programs/Windsurf/bin/windsurf.cmd" # user
+                                                    ,"$env:ProgramFiles/Windsurf/bin/windsurf.cmd"          # system
+                                                    ,"${env:ProgramFiles(x86)}/Windsurf/bin/windsurf.cmd"   # system 32bit
                                                   );
                                                 }
                                                 if( $result -eq "" -and -not $returnEmptyIfNotFound ){
@@ -3481,6 +3485,40 @@ function ToolFsEntryListFileEolAndEncCategory ( [String] $fsEntry ){ # List End-
                                                 FsEntryListAsStringArray $fsEntry |
                                                   Where-Object{ $null -ne $_ } | Where-Object{ $_ -notlike $exclPattern1 } | Where-Object{ -not (FsEntryIsDir $_) } |
                                                   ForEach-Object{ OutProgress "$((FileReadLineEndingCategory $_).PadRight(16)) $((FileReadEncoding $_ NoBOM).PadRight(17)) $_"; } }
+
+function ToolListMnCommonPsToolExeDependencies( ){ [String[]] $cmdLineTools = @(
+                                                   "wget2"      # used by NetDownloadSite                     ; usually in "$env:ProgramFiles/WinGet/Links/wget2.exe"
+                                                  ,"curl"       # used by NetDownloadFileByCurl               ; usually in "$env:SystemRoot/System32/curl.exe" (or: winget install cURL.cURL)
+                                                  ,"7z"         # used by ToolCreate7zip                      ; usually in "$env:ProgramFiles/7-Zip/7z.exe"
+                                                  ,"git"        # used by GitInitGlobalConfig, Git*           ; usually in "$env:ProgramFiles/Git/cmd/git.exe"
+                                                  ,"pwsh"       # used by ProcessPsExecutable                 ; usually in "$env:ProgramFiles/PowerShell/7/pwsh.exe"
+                                                  ,"powershell" # used by ProcessPsExecutable                 ; usually in "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe"
+                                                  ,"code"       # used by ToolEvalExecForVsCode               ; usually in "$env:ProgramFiles/Microsoft VS Code/bin/code"
+                                                  ,"windsurf"   # used by ToolEvalExecForWindsurf             ; usually in "$env:ProgramFiles/Windsurf/bin/windsurf"
+                                                  # in future: codium
+                                                ); if( OsIsWindows ){ $cmdLineTools += @(                     
+                                                   "sqlcmd.EXE"     # used by SqlGetCmdExe                    ; usually in dir of sql server 2025
+                                                  ,"winget"         # used by ToolWinGetSetup                 ; usually in "$HOME/AppData/Local/Microsoft/WindowsApps/winget.exe"
+                                                  ,"svn"            # used by Svn*                            ; usually in "D:/Work/PortableProg/Tool/OpenSource-Apache2 Subversion/bin/svn.exe"
+                                                  ,"powercfg.exe"   # used by OsIsHibernateEnabled            ; usually in "C:\Windows\System32\powercfg.exe"
+                                                  ,"reg.exe"        # used by rundll32                        ; usually in "
+                                                  ,"NET.EXE"        # used by NetGetNetView                   ; usually in "
+                                                  ,"NETSTAT.EXE"    # used by NetGetNetStat                   ; usually in "
+                                                  ,"ROUTE.EXE"      # used by NetGetRoute                     ; usually in "
+                                                  ,"NBTSTAT.EXE"    # used by NetGetNbtStat                   ; usually in "
+                                                  ,"systeminfo.exe" # used by InfoAboutSystemInfo             ; usually in "
+                                                  ,"Dism.exe"       # used by InfoAboutSystemInfo             ; usually in "
+                                                  ,"cmd.exe"        # used by InfoAboutSystemInfo             ; usually in "
+                                                  ,"winsat.exe"     # used by InfoHdSpeed                     ; usually in "
+                                                  ,"clrver.exe"     # used by InfoGetInstalledDotNetFxVersion ; usually in "
+                                                  # Some tools are used by fixed path as:
+                                                  #   used by JuniperNcEstablishVpnConn in "${env:ProgramFiles(x86)}/Juniper Networks/Network Connect 8.0/nclauncher.exe";
+                                                  #   used by ToolRdpConnect            in "$env:SystemRoot/System32/mstsc.exe"
+                                                ); }
+                                                OutProgress "MnCommonPsTool - List dependent tools and its locations ";
+                                                $cmdLineTools | ForEach-Object{
+                                                  OutProgress "  $(StringPadRight $_ 20 $true) `"$(FsEntryUnifyToSlashes (ProcessFindExecutableInPath $_))`"";
+                                                }; }
 
 # Deprecated functions, will be removed on next major version of this lib:
 function GetSetGlobalVar( [String] $var, [String] $val){ OutWarning "GetSetGlobalVar is DEPRECATED, replace it now by GitSetGlobalVar. ";  GitSetGlobalVar $var $val; }
@@ -3517,16 +3555,16 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #   so you must enable them on 64bit and on 32bit environment!
 #   It requires admin rights so either run a cmd.exe shell with admin mode and call:
 #     PS7      :  pwsh                                               -Command Set-ExecutionPolicy -Scope LocalMachine Unrestricted
-#     PS5-64bit:  $env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe Set-Executionpolicy -Scope LocalMachine Unrestricted
-#     PS5-32bit:  $env:SystemRoot\SysWOW64\WindowsPowerShell\v1.0\powershell.exe Set-Executionpolicy -Scope LocalMachine Unrestricted
+#     PS5-64bit:  $env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe Set-Executionpolicy -Scope LocalMachine Unrestricted
+#     PS5-32bit:  $env:SystemRoot/SysWOW64/WindowsPowerShell/v1.0/powershell.exe Set-Executionpolicy -Scope LocalMachine Unrestricted
 #   or start each powershell and run:  Set-Executionpolicy Unrestricted
 #   or run: reg.exe add "HKLM\SOFTWARE\Microsoft\PowerShell\1\ShellIds\Microsoft.PowerShell" /f /t REG_SZ /v "ExecutionPolicy" /d "Unrestricted"
 #   or run any ps1 even when in restricted mode with:  PowerShell.exe -ExecutionPolicy Unrestricted -NoProfile -File "myfile.ps1"
 #   Default is: powershell.exe Set-Executionpolicy Restricted
 #   More: get-help about_signing
 #   For being able to doubleclick a ps1 file or run a shortcut for a ps1 file, do in Systemcontrol->Standardprograms you can associate .ps1
-#     with       "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe"
-#     or better  "$env:ProgramFiles\PowerShell\7\pwsh.EXE"
+#     with       "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe"
+#     or better  "$env:ProgramFiles/PowerShell/7/pwsh.EXE"
 # - Common parameters used enable stdandard options:
 #   [-Verbose] [-Debug] [-ErrorAction <ActionPreference>] [-WarningAction <ActionPreference>] [-ErrorVariable <String>] [-WarningVariable <String>] [-OutVariable <String>] [-OutBuffer <Int32>]
 # - Parameter attribute declarations (Example: Mandatory, Position): https://msdn.microsoft.com/en-us/library/ms714348(v=vs.85).aspx
@@ -3539,8 +3577,8 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #   $args                 - Contains an array of the parameters passed to a function.
 #   $error                - Contains objects for which an error occurred while being processed in a cmdlet.
 #   $HOME                 - Specifies the users home directory. (same as $env:USERPROFILE on windows.)
-#   $PsHome               - The directory where the Windows PowerShell is installed. ($env:SystemRoot\SysWOW64\WindowsPowerShell\v1.0)
-#   $PROFILE              - $HOME\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1
+#   $PsHome               - The directory where the Windows PowerShell is installed. ($env:SystemRoot/SysWOW64/WindowsPowerShell/v1.0)
+#   $PROFILE              - $HOME/Documents/WindowsPowerShell/Microsoft.PowerShell_profile.ps1
 #   $PSScriptRoot         - folder of current running script
 #   $PS...                - some variables
 #   $MaximumAliasCount, $MaximumDriveCount, $MaximumErrorCount, $MaximumFunctionCount, $MaximumHistoryCount, $MaximumVariableCount  - some maximum values
@@ -3575,13 +3613,13 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #     function global:MyFunc(){..};  $local.MyVar = "a4"; $MyVar = "a5"; Get-Variable -Scope Global;
 # - Run a script:
 #   - runs script in script scope, variables and functions do not persists in shell after script end:
-#       ".\myscript.ps1"
+#       "./myscript.ps1"
 #   - Dot Sourcing Operator (.) runs script in local scope, variables and functions persists in shell after script end,
 #     used to include ps artefacts:
-#       . ".\myscript.ps1"
+#       . "./myscript.ps1"
 #       . { Write-Output "Test"; }
-#       powershell.exe -command ". .\myscript.ps1"
-#       powershell.exe -file      ".\myscript.ps1"
+#       powershell.exe -command ". ./myscript.ps1"
+#       powershell.exe -file      "./myscript.ps1"
 #     Use this only if the two files belong together, otherwise use the call operator.
 #   - Call operator (&), runs a script, executable, function or scriptblock,
 #     - Creates a new script scope which is deleted after script end, so it is side effect safe. Changes to global variables are also lost.
@@ -3613,16 +3651,16 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #     If you use Invoke-Command to run a script or command on a remote computer,
 #     then it will not run elevated even if the local session is. This is because any prompt
 #     for elevation will happen on the remote machine in a non-interactive session and so will fail.
-#     Example:  invoke-command -LiteralPath "c:\scripts\test.ps1" -computerName "Server64";
+#     Example:  invoke-command -LiteralPath "c:/scripts/test.ps1" -computerName "Server64";
 #       invoke-command -computername "server64" -credential "domain64\user64" -scriptblock {get-culture};
 #   - Invoke the (provider-specific) default action on an item (like double click). For example open pdf viewer for a .pdf file.
 #       Invoke-Item ./myfile.xls
 #   - Start a process (intended for opening a window) waiting for end or not.
 #       start-process -FilePath notepad.exe -ArgumentList """Test.txt"""; # no wait for end, opened in foreground
 #       [Diagnostics.Process]::Start("notepad.exe","test.txt"); # no wait for end, opened in foreground
-#       start-process -FilePath  C:\batch\demo.cmd -verb runas;
+#       start-process -FilePath  C:/batch/demo.cmd -verb runas;
 #       start-process -FilePath notepad.exe -wait -windowstyle Maximized; # wait for end
-#       start-process -FilePath Sort.exe -RedirectStandardInput C:\Demo\Testsort.txt -RedirectStandardOutput C:\Demo\Sorted.txt -RedirectStandardError C:\Demo\SortError.txt
+#       start-process -FilePath Sort.exe -RedirectStandardInput C:/Demo/Testsort.txt -RedirectStandardOutput C:/Demo/Sorted.txt -RedirectStandardError C:/Demo/SortError.txt
 #       $pclass = [wmiclass]"root\cimv2:Win32_Process"; $new_pid = $pclass.Create("notepad.exe", ".", $null).ProcessId; # no wait for end, opened app in background
 #     Run powershell with elevated rights: Start-Process -FilePath powershell.exe -Verb runAs
 #     Important note: If a program is called which also has as input a commandline then the arguments must be tripple-doublequoted.
@@ -3637,7 +3675,7 @@ Export-ModuleMember -function *; # Export all functions from this script which a
 #   Example: [CmdletBinding()] Param( [parameter(Mandatory=$true)] [String] $p1, [parameter(Mandatory=$true)] [String] $p2 ); OutProgressTitle "Parameters: p1=$p1 p2=$p2";
 # - A starter for any tool can be created by the following code:
 #     #!/usr/bin/env pwsh
-#     $intput | & "mytool.exe" $args ; Exit $LASTEXITCODE ; # alternative: if( $MyInvocation.ExpectingInput ){ # has something in $input variable
+#     $input | & "mytool.exe" $args ; Exit $LASTEXITCODE ; # alternative: if( $MyInvocation.ExpectingInput ){ # has something in $input variable
 #   Important note: this works well from powershell/pwsh but if such a starter is called from cmd.exe or a bat file,
 #   then all arguments are not passed!!!  In that case you need to perform the following statement:  pwsh -Command MyPsScript.ps1 anyParam...
 # - Example for Set Parameter:  Param ( [Parameter()] [ValidateSet("Yes", "No", "Maybe")] [String] $opt )

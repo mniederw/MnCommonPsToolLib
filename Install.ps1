@@ -134,7 +134,7 @@ function SetAllEnvsExecutionPolicy            ( [String] $mode = "Bypass" ){ # F
                                                   #   Type "Get-ExecutionPolicy -List" to view your execution policy settings. For more information please see "Get-Help Set-ExecutionPolicy".
                                                   #   Recommendation: Contact your system administrator.
                                                 }
-                                                SetExecPolicyToBypassIfNotSet "$env:SystemDrive\Program Files\PowerShell\7\pwsh.EXE"          ;
+                                                SetExecPolicyToBypassIfNotSet "$env:ProgramFiles\PowerShell\7\pwsh.EXE"          ;
                                                 SetExecPolicyToBypassIfNotSet "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe";
                                                 SetExecPolicyToBypassIfNotSet "$env:SystemRoot\SysWOW64\WindowsPowerShell\v1.0\powershell.exe";
                                               }
