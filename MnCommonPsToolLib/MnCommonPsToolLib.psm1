@@ -2624,9 +2624,31 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
                                                   Where-Object{ $_ -notmatch "^\[[0-9]+\]\ Downloading\ \'.*" } );
                                                 FileWriteFromLines $logf2 $logLines $true;
                                                 OutProgress "  Ok, done.";
-                                                }
+                                              }
 # Script local variable: gitLogFile
 [String] $script:gitLogFile = FsEntryGetAbsolutePath "$env:TEMP/tmp/MnCommonPsToolLibLog/$(DateTimeNowAsStringIsoYear)/$(DateTimeNowAsStringIsoMonth)/Git.$(DateTimeNowAsStringIsoMonth).$($PID)_$(ProcessGetCurrentThreadId).log";
+
+function GitExtractAttrsFromUrl               ( [String] $urlAndOptionalBranch ){
+                                                # for "https://github.com/mniederw/MnCommonPsToolLib"          return @{ RepoUrl="https://github.com/mniederw/MnCommonPsToolLib"; Repo = "mniederw/MnCommonPsToolLib"; Branch = ""; }
+                                                # for "https://github.com/mniederw/MnCommonPsToolLib#MyBranch" return @{ RepoUrl="https://github.com/mniederw/MnCommonPsToolLib"; Repo = "mniederw/MnCommonPsToolLib"; Branch = "MyBranch"; }
+                                                # urlAndOptionalBranch can have optional trailing slashes.
+                                                $urlAndOptionalBranch = $urlAndOptionalBranch.TrimEnd("/");
+                                                [String] $repoName = ($urlAndOptionalBranch -split "/",0)[-1];
+                                                if( $repoName -notmatch "^[A-Za-z0-9]+[A-Za-z0-9._-]*(#[A-Za-z0-9]+[A-Za-z0-9._-]*)?`$" ){
+                                                  throw [Exception] "Expected only ident-chars as (letter,numbers,.,_,-) for last part `"$repoName`" of slash separated `"$urlAndOptionalBranch`"."; }
+                                                [String[]] $urlOpt = @()+(StringSplitToArray "#" $urlAndOptionalBranch); # Example: @( "https://github.com/mniederw/MnCommonPsToolLib", "MyBranch" )
+                                                if( $urlOpt.Count -gt 2 ){ throw [Exception] "Unknown third param in sharp-char separated urlAndBranch=`"$urlAndOptionalBranch`". "; }
+                                                if( $urlOpt.Count -gt 1 ){ AssertNotEmpty $urlOpt[1] "branch is empty in sharp-char separated urlAndBranch=`"$urlAndOptionalBranch`". "; }
+                                                [String] $repoUrl = $urlOpt[0]; # repo url without branch. Example: "https://github.com/mniederw/MnCommonPsToolLib"
+                                                [String] $repo = ([uri]($repoUrl)).AbsolutePath.Trim('/').Replace('.git', ''); # Example: mniederw/MnCommonPsToolLib
+                                                [String] $branch = switch($urlOpt.Count -gt 1){($true){$urlOpt[1]} default{""}}; # Example: "" or "MyBranch"
+                                                return [PSCustomObject]@{ RepoUrl = $repoUrl; Repo = $repo; Branch = $branch; } }
+function GitReadDefaultBranchFromUrl          ( [String] $urlAndOptionalBranch ){
+                                                # Currently works for github only, for "https://github.com/mniederw/MnCommonPsToolLib" return "main";
+                                                # Can later be implemented also for other famous servers.
+                                                [String] $out = (& "git" "ls-remote" "--symref" ((GitExtractAttrsFromUrl $urlAndOptionalBranch).RepoUrl + ".git") "HEAD") -join "`n"; AssertRcIsOk $out; # "ref: refs/heads/main    HEAD 2fd0cdff24b0356f6612b29669072a847e578565   HEAD"
+                                                $out = if ($out -match '(?m)^ref: refs/heads/(\S+)\s+HEAD$') {  $Matches[1]; };
+                                                return [String] $out; }
 function GitBuildLocalDirFromUrl              ( [String] $tarRootDir, [String] $urlAndOptionalBranch ){
                                                 # Maps a root dir and a repo url with an optional sharp-char separated branch name
                                                 # to a target repo dir which contains all url fragments below the hostname.
@@ -2692,7 +2714,7 @@ function GitShowChanges                       ( [String] $repoDir ){
                                                   Where-Object{$null -ne $_} |
                                                   Where-Object{ StringIsFilled $_; })); }
 function GitBranchList                        ( [String] $repoDir, [Boolean] $remotesOnly = $false ){
-                                                # return sorted string list of all branches of a local repo dir
+                                                # return alphabetically sorted string list of all branches of a local repo dir
                                                 # example: @("main","origin/main","origin/trunk");
                                                 AssertNotEmpty $repoDir "repoDir";
                                                 FsEntryAssertHasTrailingDirSep $repoDir;
@@ -2732,14 +2754,8 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                 DirCreate $tarRootDir;
                                                 if( @("Clone","Fetch","Pull","CloneOrPull","CloneOrFetch","Revert") -notcontains $cmd ){
                                                   throw [Exception] "Expected one of (Clone,Fetch,Pull,CloneOrPull,CloneOrFetch,Revert) instead of: $cmd"; }
-                                                [String] $repoName = ($urlAndOptionalBranch -split "/",0)[-1];
-                                                if( $repoName -notmatch "^[A-Za-z0-9]+[A-Za-z0-9._-]*(#[A-Za-z0-9]+[A-Za-z0-9._-]*)?`$" ){
-                                                  throw [Exception] "Expected only ident-chars as (letter,numbers,.,_,-) for last part `"$repoName`" of slash separated `"$urlAndOptionalBranch`"."; }
-                                                [String[]] $urlOpt = @()+(StringSplitToArray "#" $urlAndOptionalBranch); # Example: @( "https://github.com/mniederw/MnCommonPsToolLib", "MyBranch" )
-                                                if( $urlOpt.Count -gt 2 ){ throw [Exception] "Unknown third param in sharp-char separated urlAndBranch=`"$urlAndOptionalBranch`". "; }
-                                                if( $urlOpt.Count -gt 1 ){ AssertNotEmpty $urlOpt[1] "branch is empty in sharp-char separated urlAndBranch=`"$urlAndOptionalBranch`". "; }
-                                                [String] $url = $urlOpt[0]; # repo url without branch. Example: "https://github.com/mniederw/MnCommonPsToolLib"
-                                                [String] $branch = switch($urlOpt.Count -gt 1){($true){$urlOpt[1]} default{""}}; # Example: "" or "MyBranch"
+                                                [String] $url    = (GitExtractAttrsFromUrl $urlAndOptionalBranch).RepoUrl; # Example: "https://github.com/mniederw/MnCommonPsToolLib"
+                                                [String] $branch = (GitExtractAttrsFromUrl $urlAndOptionalBranch).Branch ; # Example: "https://github.com/mniederw/MnCommonPsToolLib" # Example: "" or "MyBranch"
                                                 [String] $dir = FsEntryMakeTrailingDirSep (GitBuildLocalDirFromUrl $tarRootDir $urlAndOptionalBranch); AssertNotEmpty $dir;
                                                 GitAssertAutoCrLfIsDisabled;
                                                 if( $cmd -eq "CloneOrPull"  ){ if( DirNotExists $dir ){ $cmd = "Clone"; }else{ $cmd = "Pull" ; } }
@@ -3498,7 +3514,7 @@ function ToolListMnCommonPsToolExeDependencies( ){ [String[]] $cmdLineTools = @(
                                                   ,"code"       # used by ToolEvalExecForVsCode               ; usually in "$env:ProgramFiles/Microsoft VS Code/bin/code"
                                                   ,"windsurf"   # used by ToolEvalExecForWindsurf             ; usually in "$env:ProgramFiles/Windsurf/bin/windsurf"
                                                   # in future: codium
-                                                ); if( OsIsWindows ){ $cmdLineTools += @(                     
+                                                ); if( OsIsWindows ){ $cmdLineTools += @(
                                                    "sqlcmd.EXE"     # used by SqlGetCmdExe                    ; usually in dir of sql server 2025
                                                   ,"winget"         # used by ToolWinGetSetup                 ; usually in "$HOME/AppData/Local/Microsoft/WindowsApps/winget.exe"
                                                   ,"svn"            # used by Svn*                            ; usually in "D:/Work/PortableProg/Tool/OpenSource-Apache2 Subversion/bin/svn.exe"
