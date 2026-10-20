@@ -7,6 +7,18 @@ function UnitTest_Git(){
   #
   GitDisableAutoCrLf; # on git for windows initial settings are systemwide AutoCrLf which produces problems.
   #
+  Assert ((GitExtractAttrsFromUrl "https://github.com/mniederw/MnCommonPsToolLib").Branch            -eq "");
+  Assert ((GitExtractAttrsFromUrl "https://github.com/mniederw/MnCommonPsToolLib").Repo              -eq "mniederw/MnCommonPsToolLib");
+  Assert ((GitExtractAttrsFromUrl "https://github.com/mniederw/MnCommonPsToolLib").RepoUrl           -eq "https://github.com/mniederw/MnCommonPsToolLib");
+  Assert ((GitExtractAttrsFromUrl "https://github.com/mniederw/MnCommonPsToolLib#MyBranch").Branch   -eq "MyBranch");
+  Assert ((GitExtractAttrsFromUrl "https://github.com/mniederw/MnCommonPsToolLib#MyBranch").Repo     -eq "mniederw/MnCommonPsToolLib");
+  Assert ((GitExtractAttrsFromUrl "https://github.com/mniederw/MnCommonPsToolLib#MyBranch").RepoUrl  -eq "https://github.com/mniederw/MnCommonPsToolLib");
+  Assert ((GitExtractAttrsFromUrl "https://github.com/mniederw/MnCommonPsToolLib//").Branch          -eq "");
+  Assert ((GitExtractAttrsFromUrl "https://github.com/mniederw/MnCommonPsToolLib#MyBranch/").Branch  -eq "MyBranch");
+  Assert ((GitReadDefaultBranchFromUrl "https://github.com/mniederw/MnCommonPsToolLib")              -eq "main");
+  Assert ((GitReadDefaultBranchFromUrl "https://github.com/mniederw/MnCommonPsToolLib#MyBranch")     -eq "main");
+  Assert ((GitReadDefaultBranchFromUrl "https://github.com/mniederw/MnCommonPsToolLib//")            -eq "main");
+  Assert ((GitReadDefaultBranchFromUrl "https://github.com/mniederw/MnCommonPsToolLib#MyBranch/")    -eq "main");
   [String] $d = DirCreateTemp;
   [String] $repoDir = (FsEntryGetAbsolutePath "$d/mniederw/MnCommonPsToolLib#main/");
   Assert ((GitBuildLocalDirFromUrl $d "https://github.com/mniederw/MnCommonPsToolLib") -eq (FsEntryGetAbsolutePath "$d/mniederw/MnCommonPsToolLib/"));
