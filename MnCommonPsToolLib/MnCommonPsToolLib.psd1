@@ -34,7 +34,7 @@
   }
   HelpInfoURI            = 'https://github.com/mniederw/MnCommonPsToolLib/Readme.txt';
 
-  ModuleVersion          = '7.141';
+  ModuleVersion          = '7.142';
 
   <#
   Releasenotes
@@ -43,6 +43,7 @@
   Major version will reflect breaking changes, minor identifies extensions and third number identifies urgent bugfixes.
   Breaking changes are usually removed deprecated functions or changed behaviours.
 
+  2026-10-24  V7.142 Improve doc and trace info.
   2026-10-19  V7.141 Add GitExtractAttrsFromUrl, GitReadDefaultBranchFromUrl.
   2026-10-17  V7.140 Add ToolListMnCommonPsToolExeDependencies, Improve wget, Doc.
   2026-08-23  V7.139 Doc.
