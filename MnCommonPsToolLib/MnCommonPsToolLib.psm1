@@ -2127,7 +2127,8 @@ function NetDownloadFile                      ( [String] $url, [String] $tarFile
                                                 # For future use: OAuth. Example: https://docs.github.com/en/free-pro-team@latest/rest/overview/other-authentication-methods
                                                 # Alternative on PS5 and PS7: Invoke-RestMethod -Uri "https://raw.githubusercontent.com/mniederw/MnCommonPsToolLib/main/MnCommonPsToolLib/MnCommonPsToolLib.psm1" -OutFile "$env:TEMP/tmp/p.tmp";
                                                 $tarFile = FsEntryGetAbsolutePath $tarFile;
-                                                OutProgress "NetDownloadFile $url";
+                                                [String] $traceUser = switch($us -ne ""){($true){" (User=$us) "}($false){" "}};
+                                                OutProgress "NetDownloadFile $url $traceUser ";
                                                 OutProgress " $(switch($onlyIfNewer){($true){" (onlyIfNewer=$onlyIfNewer) "}($false){" "}})to `"$tarFile`" "; # syntax note: if the single space in " " is removed then script is invalid.
                                                 Assert (-not (FsEntryHasTrailingDirSep $tarFile));
                                                 [String] $authMethod = "Basic"; # Current implemented authMethods: "Basic".
@@ -2436,7 +2437,8 @@ function NetDownloadFileByCurl                ( [String] $url, [String] $tarFile
                                                 if( FileExists $curlCaCert ){ $opt += @( "--cacert", $curlCaCert); }
                                                 $opt += @( "--url", $url );
                                                 [String] $optForTrace = StringArrayDblQuoteItems $opt.Replace("--user $($us):$pw","--user $($us):***");
-                                                OutProgress "NetDownloadFileByCurl $url";
+                                                [String] $traceUser = switch($us -ne ""){($true){" (User=$us) "}($false){" "}};
+                                                OutProgress "NetDownloadFileByCurl $url $traceUser ";
                                                 OutProgress "  to `"$tarFile`"";
                                                 [String] $tarDir = FsEntryGetParentDir $tarFile;
                                                 DirCreate $tarDir;
@@ -2631,7 +2633,8 @@ function NetDownloadSite                      ( [String] $url, [String] $tarDir,
 function GitExtractAttrsFromUrl               ( [String] $urlAndOptionalBranch ){
                                                 # for "https://github.com/mniederw/MnCommonPsToolLib"          return @{ RepoUrl="https://github.com/mniederw/MnCommonPsToolLib"; Repo = "mniederw/MnCommonPsToolLib"; Branch = ""; }
                                                 # for "https://github.com/mniederw/MnCommonPsToolLib#MyBranch" return @{ RepoUrl="https://github.com/mniederw/MnCommonPsToolLib"; Repo = "mniederw/MnCommonPsToolLib"; Branch = "MyBranch"; }
-                                                # urlAndOptionalBranch can have optional trailing slashes.
+                                                # urlAndOptionalBranch can have optional trailing slashes. No IO will be performed.
+                                                if( -not $urlAndOptionalBranch.StartsWith("http") ){ throw [Exception] "Expected it begins with http for urlAndOptionalBranch=`"$urlAndOptionalBranch`"."; }
                                                 $urlAndOptionalBranch = $urlAndOptionalBranch.TrimEnd("/");
                                                 [String] $repoName = ($urlAndOptionalBranch -split "/",0)[-1];
                                                 if( $repoName -notmatch "^[A-Za-z0-9]+[A-Za-z0-9._-]*(#[A-Za-z0-9]+[A-Za-z0-9._-]*)?`$" ){
@@ -2656,6 +2659,7 @@ function GitBuildLocalDirFromUrl              ( [String] $tarRootDir, [String] $
                                                 # Example: (GitBuildLocalDirFromUrl "C:/WorkGit/" "https://github.com/mniederw/MnCommonPsToolLib#MyBranch") == "C:/WorkGit/mniederw/MnCommonPsToolLib#MyBranch/";
                                                 AssertNotEmpty $tarRootDir "tarRootDir";
                                                 FsEntryAssertHasTrailingDirSep $tarRootDir;
+                                                if( -not $urlAndOptionalBranch.StartsWith("http") ){ throw [Exception] "Expected it begins with http for urlAndOptionalBranch=`"$urlAndOptionalBranch`"."; }
                                                 return [String] (FsEntryMakeTrailingDirSep (Join-Path $tarRootDir (([System.Uri]$urlAndOptionalBranch).AbsolutePath+([System.Uri]$urlAndOptionalBranch).Fragment))); }
 function GitShowUrl                           ( [String] $repoDir ){
                                                 # Example: return "https://github.com/mniederw/MnCommonPsToolLib"
@@ -2754,6 +2758,7 @@ function GitCmd                               ( [String] $cmd, [String] $tarRoot
                                                 DirCreate $tarRootDir;
                                                 if( @("Clone","Fetch","Pull","CloneOrPull","CloneOrFetch","Revert") -notcontains $cmd ){
                                                   throw [Exception] "Expected one of (Clone,Fetch,Pull,CloneOrPull,CloneOrFetch,Revert) instead of: $cmd"; }
+                                                if( -not $urlAndOptionalBranch.StartsWith("http") ){ throw [Exception] "Expected it begins with http for urlAndOptionalBranch=`"$urlAndOptionalBranch`"."; }
                                                 [String] $url    = (GitExtractAttrsFromUrl $urlAndOptionalBranch).RepoUrl; # Example: "https://github.com/mniederw/MnCommonPsToolLib"
                                                 [String] $branch = (GitExtractAttrsFromUrl $urlAndOptionalBranch).Branch ; # Example: "https://github.com/mniederw/MnCommonPsToolLib" # Example: "" or "MyBranch"
                                                 [String] $dir = FsEntryMakeTrailingDirSep (GitBuildLocalDirFromUrl $tarRootDir $urlAndOptionalBranch); AssertNotEmpty $dir;
