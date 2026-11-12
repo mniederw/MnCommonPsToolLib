@@ -11,7 +11,7 @@
 #   It also supports fixing usual problems, supports tracing information and it makes the
 #   behaviour compatible for use with powershell.exe and powershell_ise.exe.
 #   It is splitted in a multiplatform compatible part for Win/Linux/OSX and a part which runs only on Windows.
-#   Some functions depends on low level tools as curl, git, svn, wget2, and 7z,
+#   Some functions depends on low level tools as curl, git, svn, wget2 and 7z,
 #   for which its executables are required to be available via environment path variable.
 #
 # Recommendations and notes about common approaches of this library:
